@@ -34,12 +34,12 @@
             <el-row :gutter="20">
               <el-col :span="12">
                 <el-form-item label="CPU 核心" prop="vcpu">
-                  <el-input-number v-model="form.vcpu" :min="1" :max="32" style="width: 100%;" :disabled="isEdit && editVmStatus === 'running' && !form.cpu_hotplug_enabled" />
+                  <el-input-number v-model="form.vcpu" :min="vcpuMin" :max="32" style="width: 100%;" :disabled="isEdit && editVmStatus === 'running' && !form.cpu_hotplug_enabled" />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
                 <el-form-item label="内存(GB)" prop="memory">
-                  <el-input-number v-model="form.memory" :min="1" :max="64" :step="1" style="width: 100%;" @change="handleBaseMemoryChange" />
+                  <el-input-number v-model="form.memory" :min="memoryMin" :max="64" :step="1" style="width: 100%;" @change="handleBaseMemoryChange" />
                 </el-form-item>
               </el-col>
             </el-row>
@@ -827,7 +827,7 @@
                 <el-row :gutter="20">
                   <el-col :span="12">
                     <el-form-item label="CPU 核心" prop="vcpu">
-                      <el-input-number v-model="form.vcpu" :min="1" :max="32" style="width: 100%;" :disabled="isEdit && editVmStatus === 'running' && !form.cpu_hotplug_enabled" />
+                      <el-input-number v-model="form.vcpu" :min="vcpuMin" :max="32" style="width: 100%;" :disabled="isEdit && editVmStatus === 'running' && !form.cpu_hotplug_enabled" />
                     </el-form-item>
                   </el-col>
                   <el-col :span="12">
@@ -3375,8 +3375,14 @@ const cdromIsoPath = ref('')
 const editOrigNicModel = ref('')  // 编辑模式下原始网卡类型，用于判断是否已修改
 const editOrigBootType = ref('')  // 编辑模式下原始引导方式，用于判断是否已修改
 const editOrigPCIERootPorts = ref(0)  // 编辑模式下原始 PCIe 端口数，用于判断是否已修改
+const editOrigVcpu = ref(1)  // 编辑模式下原始 CPU 核心数，运行态下限制不可减少
+const editOrigMemory = ref(1)  // 编辑模式下原始内存(GB)，运行态下限制不可减少
 const editBootDevices = ref([])   // 编辑模式下的可引导设备列表（Cockpit 风格）
 const bootTypeTouched = ref(false) // 仅在用户手动切换引导类型后置为 true
+
+// 运行态下 CPU/内存最小值为原始值，禁止减少
+const vcpuMin = computed(() => (isEdit.value && editVmStatus.value === 'running') ? editOrigVcpu.value : 1)
+const memoryMin = computed(() => (isEdit.value && editVmStatus.value === 'running') ? editOrigMemory.value : 1)
 
 // 挂载已有磁盘对话框
 const attachDiskVisible = ref(false)
@@ -4320,6 +4326,9 @@ const open = async (row, mode, options = {}) => {
     try {
       await reloadEditVmDetail(row)
     } catch {}
+    // 记录原始 CPU/内存值，运行态下禁止减少
+    editOrigVcpu.value = form.vcpu
+    editOrigMemory.value = form.memory
     // 异步获取磁盘列表（含 CD/DVD 分离）
     refreshEditDisks()
   } else {
