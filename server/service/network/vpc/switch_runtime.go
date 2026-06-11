@@ -33,6 +33,10 @@ func EnsureVPCSwitchRuntime(sw model.VPCSwitch) error {
 	if err := HookEnsureOVSNetwork(); err != nil {
 		return err
 	}
+	// 系统基础网络交换机（VLANID == 0）直接使用 br-ovs，不需要独立的网关端口和 dnsmasq
+	if sw.VLANID == 0 {
+		return ApplyVPCSwitchBandwidth(sw)
+	}
 	if err := os.MkdirAll(VPCConfigDir, 0755); err != nil {
 		return fmt.Errorf("创建 VPC 配置目录失败: %w", err)
 	}
@@ -142,6 +146,10 @@ func removeVPCSwitchNAT(sw model.VPCSwitch) {
 func removeVPCSwitchRuntime(sw model.VPCSwitch) error {
 	clearVPCSwitchBandwidth(sw)
 	if HookSwitchUsesDirectBridge(sw) {
+		return nil
+	}
+	// 系统基础网络交换机（VLANID == 0）不需要清理独立端口和 dnsmasq
+	if sw.VLANID == 0 {
 		return nil
 	}
 	removeVPCSwitchNAT(sw)

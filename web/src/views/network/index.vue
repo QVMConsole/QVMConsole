@@ -337,12 +337,14 @@
                   <div class="switch-name-cell">
                     <el-icon :size="18"><Connection /></el-icon>
                     <span>{{ row.name }}</span>
+                    <el-tag v-if="row.is_system" type="info" size="small" effect="light" round>系统</el-tag>
                   </div>
                 </template>
               </el-table-column>
               <el-table-column label="VLAN" width="90" align="center">
                 <template #default="{ row }">
-                  <el-tag effect="plain" size="small" round>{{ row.bridge_mode === 'bridge' ? '桥接' : row.vlan_id }}</el-tag>
+                  <el-tag v-if="row.is_system" type="info" effect="plain" size="small" round>基础网络</el-tag>
+                  <el-tag v-else effect="plain" size="small" round>{{ row.bridge_mode === 'bridge' ? '桥接' : row.vlan_id }}</el-tag>
                 </template>
               </el-table-column>
               <el-table-column v-if="isAdmin" label="目标网桥" min-width="130">
@@ -422,9 +424,9 @@
               </el-table-column>
               <el-table-column label="操作" width="280" fixed="right">
                 <template #default="{ row }">
-                  <el-button size="small" plain @click="openSwitchDialog(row)">编辑</el-button>
-                  <el-button v-if="isAdmin" size="small" plain type="warning" @click="handleResetSwitchTraffic(row)">重置流量</el-button>
-                  <el-button size="small" plain type="danger" @click="handleDeleteSwitch(row)">删除</el-button>
+                  <el-button size="small" plain @click="openSwitchDialog(row)" :disabled="row.is_system">编辑</el-button>
+                  <el-button v-if="isAdmin" size="small" plain type="warning" @click="handleResetSwitchTraffic(row)" :disabled="row.is_system">重置流量</el-button>
+                  <el-button size="small" plain type="danger" @click="handleDeleteSwitch(row)" :disabled="row.is_system">删除</el-button>
                 </template>
               </el-table-column>
             </el-table>
@@ -447,9 +449,10 @@
                 <div class="switch-card-header">
                   <div class="switch-card-name-row">
                     <span class="switch-card-name">{{ row.name }}</span>
-                    <el-tag effect="plain" size="small" round>{{ row.bridge_mode === 'bridge' ? '桥接' : row.vlan_id }}</el-tag>
+                    <el-tag v-if="row.is_system" type="info" effect="plain" size="small" round>系统</el-tag>
+                    <el-tag v-else effect="plain" size="small" round>{{ row.bridge_mode === 'bridge' ? '桥接' : row.vlan_id }}</el-tag>
                   </div>
-                  <div v-if="isAdmin" class="switch-card-user">{{ row.username }}</div>
+                  <div v-if="isAdmin && !row.is_system" class="switch-card-user">{{ row.username }}</div>
                 </div>
                 <div class="switch-card-body">
                   <div class="switch-card-info-row">
@@ -490,9 +493,9 @@
                   </div>
                 </div>
                 <div class="switch-card-actions">
-                  <el-button size="small" plain @click="openSwitchDialog(row)">编辑</el-button>
-                  <el-button v-if="isAdmin" size="small" plain type="warning" @click="handleResetSwitchTraffic(row)">重置流量</el-button>
-                  <el-button size="small" plain type="danger" @click="handleDeleteSwitch(row)">删除</el-button>
+                  <el-button size="small" plain @click="openSwitchDialog(row)" :disabled="row.is_system">编辑</el-button>
+                  <el-button v-if="isAdmin" size="small" plain type="warning" @click="handleResetSwitchTraffic(row)" :disabled="row.is_system">重置流量</el-button>
+                  <el-button size="small" plain type="danger" @click="handleDeleteSwitch(row)" :disabled="row.is_system">删除</el-button>
                 </div>
               </el-card>
             </div>
@@ -1547,6 +1550,10 @@ async function handleRepair() {
 }
 
 function openSwitchDialog(row) {
+  if (row?.is_system) {
+    ElMessage.warning('系统基础网络交换机仅供查看，不可编辑')
+    return
+  }
   editingSwitch.value = row || null
   const legacyBandwidth = row?.bandwidth_mbps || 0
   Object.assign(switchForm, {

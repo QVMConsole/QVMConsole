@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"kvm_console/config"
 	"kvm_console/logger"
 	"kvm_console/model"
 )
@@ -160,6 +161,58 @@ func EnsureAllActiveUsersDefaultSecurityGroup() {
 			logger.App.Warn("创建默认安全组失败", "user", user.Username, "error", err)
 		}
 	}
+}
+
+// EnsureSystemBaseNetwork 确保系统基础网络交换机存在（br-ovs 192.168.122.0/24）。
+// 该交换机为全局共享，不可删除、不可编辑，仅供查看。
+func EnsureSystemBaseNetwork() error {
+	if model.DB == nil {
+		return nil
+	}
+	var count int64
+	model.DB.Model(&model.VPCSwitch{}).Where("is_system = ?", true).Count(&count)
+	if count > 0 {
+		return nil
+	}
+	prefix := strings.Trim(config.GlobalConfig.SubnetPrefix, ". ")
+	if prefix == "" {
+		prefix = "192.168.122"
+	}
+	gateway := prefix + ".1"
+	// 检查 VLAN ID 0 是否已被占用
+	var existing model.VPCSwitch
+	if err := model.DB.Where("vlan_id = ?", 0).First(&existing).Error; err == nil {
+		logger.App.Warn("VLAN ID 0 已被交换机占用，跳过创建系统基础网络", "existing_name", existing.Name, "existing_id", existing.ID)
+		return nil
+	}
+	// 检查 CIDR 是否已被占用
+	cidr := prefix + ".0/24"
+	if err := model.DB.Where("cidr = ?", cidr).First(&existing).Error; err == nil {
+		logger.App.Warn("CIDR 已被交换机占用，跳过创建系统基础网络", "existing_name", existing.Name, "existing_id", existing.ID, "cidr", cidr)
+		return nil
+	}
+	sw := model.VPCSwitch{
+		Username:   "",
+		Name:       SystemBaseNetworkName,
+		BridgeName: config.GlobalConfig.OVSBridge,
+		BridgeMode: BridgeModeNAT,
+		VLANID:     0,
+		CIDR:       cidr,
+		GatewayIP:  gateway,
+		DHCPStart:  prefix + ".2",
+		DHCPEnd:    prefix + ".254",
+		IsSystem:   true,
+		// 系统基础网络不设流量和带宽配额限制（0 = 不限）
+		TrafficDownGB:     0,
+		TrafficUpGB:       0,
+		BandwidthDownMbps: 0,
+		BandwidthUpMbps:   0,
+	}
+	if err := model.DB.Create(&sw).Error; err != nil {
+		return fmt.Errorf("创建系统基础网络交换机失败: %w", err)
+	}
+	logger.App.Info("系统基础网络交换机已创建", "name", sw.Name, "cidr", sw.CIDR, "vlan_id", sw.VLANID)
+	return nil
 }
 
 func GetVPCQuota(username string) (*VPCQuotaInfo, error) {

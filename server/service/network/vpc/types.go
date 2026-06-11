@@ -3,9 +3,10 @@ package vpc
 import "kvm_console/model"
 
 const (
-	VPCConfigDir                          = "/etc/kvm-console/vpc"
+	VPCConfigDir                         = "/etc/kvm-console/vpc"
 	VPCSwitchTrafficPenaltyMbps          = 1
 	DefaultVPCSwitchName                 = "默认交换机"
+	SystemBaseNetworkName                = "基础网络"
 	AutoPortForwardSecurityGroupRuleNote = "端口转发自动放行"
 )
 

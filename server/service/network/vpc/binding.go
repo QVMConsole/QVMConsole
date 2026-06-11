@@ -18,7 +18,7 @@ func BindVMToVPC(username, vmName string, switchID, securityGroupID uint) error 
 	}
 	if username == "" && switchID > 0 {
 		var sw model.VPCSwitch
-		if err := model.DB.First(&sw, switchID).Error; err == nil {
+		if err := model.DB.First(&sw, switchID).Error; err == nil && !sw.IsSystem {
 			username = sw.Username
 		}
 	}
@@ -29,7 +29,11 @@ func BindVMToVPC(username, vmName string, switchID, securityGroupID uint) error 
 		return err
 	}
 	var sw model.VPCSwitch
-	if err := model.DB.Where("id = ? AND username = ?", switchID, username).First(&sw).Error; err != nil {
+	if err := model.DB.First(&sw, switchID).Error; err != nil {
+		return fmt.Errorf("交换机不存在")
+	}
+	// 系统交换机人人可用；用户交换机需要校验归属
+	if !sw.IsSystem && sw.Username != username {
 		return fmt.Errorf("交换机不存在或不属于该用户")
 	}
 	if err := validateVMCanApplyVPCSwitch(vmName, sw); err != nil {
@@ -64,10 +68,10 @@ func BindVMToVPC(username, vmName string, switchID, securityGroupID uint) error 
 			oldTrafficDown, oldTrafficUp = AggregateSwitchMonthlyTraffic(oldSwitchID)
 			if mac := ip_resolver.GetFirstVMMAC(vmName); mac != "" {
 				if HookRemoveVPCStaticHost != nil {
-								if _, err := HookRemoveVPCStaticHost(existing.SwitchID, vmName, mac); err != nil {
-									logger.App.Warn("RemoveVPCStaticHost failed", "vm", vmName, "error", err)
-								}
-							}
+					if _, err := HookRemoveVPCStaticHost(existing.SwitchID, vmName, mac); err != nil {
+						logger.App.Warn("RemoveVPCStaticHost failed", "vm", vmName, "error", err)
+					}
+				}
 			}
 		}
 		existing.Username = username
@@ -101,16 +105,21 @@ func BindVMToVPCAsAdmin(vmName string, switchID, securityGroupID uint) error {
 	if err := model.DB.First(&sw, switchID).Error; err != nil {
 		return fmt.Errorf("交换机不存在")
 	}
-	if _, err := EnsureDefaultSecurityGroup(sw.Username); err != nil {
+	// 系统交换机使用 VM 归属用户的默认安全组
+	switchOwner := sw.Username
+	if sw.IsSystem {
+		switchOwner = HookFindVMOwner(vmName)
+	}
+	if _, err := EnsureDefaultSecurityGroup(switchOwner); err != nil {
 		return err
 	}
 	if HookSwitchUsesDirectBridge(sw) {
-		return BindVMToVPC(sw.Username, vmName, switchID, 0)
+		return BindVMToVPC(switchOwner, vmName, switchID, 0)
 	}
 	if securityGroupID == 0 {
 		var group model.VPCSecurityGroup
-		if err := model.DB.Where("username = ? AND is_default = ?", sw.Username, true).First(&group).Error; err != nil {
-			return fmt.Errorf("未找到交换机用户 %s 的默认安全组", sw.Username)
+		if err := model.DB.Where("username = ? AND is_default = ?", switchOwner, true).First(&group).Error; err != nil {
+			return fmt.Errorf("未找到用户 %s 的默认安全组", switchOwner)
 		}
 		securityGroupID = group.ID
 	} else {
@@ -118,11 +127,11 @@ func BindVMToVPCAsAdmin(vmName string, switchID, securityGroupID uint) error {
 		if err := model.DB.First(&group, securityGroupID).Error; err != nil {
 			return fmt.Errorf("安全组不存在")
 		}
-		if group.Username != sw.Username {
+		if !sw.IsSystem && group.Username != sw.Username {
 			return fmt.Errorf("安全组必须属于交换机用户 %s", sw.Username)
 		}
 	}
-	return BindVMToVPC(sw.Username, vmName, switchID, securityGroupID)
+	return BindVMToVPC(switchOwner, vmName, switchID, securityGroupID)
 }
 
 func ApplyVPCSwitchToDomainXML(vmXML string, switchID uint) (string, error) {
@@ -141,6 +150,16 @@ func ApplyVPCSwitchToDomainXML(vmXML string, switchID uint) (string, error) {
 		if !changed {
 			return "", fmt.Errorf("无法在虚拟机 XML 中找到可接入桥接网桥的 OVS 网卡")
 		}
+		return updated, nil
+	}
+	// 系统基础网络交换机（VLANID == 0）：只设置 OVS 网桥源，不打 VLAN
+	if sw.VLANID == 0 {
+		updated, bridgeChanged := setFirstOVSInterfaceBridge(vmXML, HookOvsBridgeName())
+		if !bridgeChanged {
+			return "", fmt.Errorf("无法在虚拟机 XML 中找到可接入 VPC 的 OVS 网卡")
+		}
+		// 移除可能存在的 VLAN 标签
+		updated = removeFirstInterfaceVLAN(updated)
 		return updated, nil
 	}
 	updated, changed := setFirstOVSInterfaceVPC(vmXML, sw.VLANID)

@@ -50,41 +50,53 @@ func ResolveVPCForVMCreate(username string, switchID, securityGroupID uint) (uin
 		}
 		securityGroupID = resolvedGroupID
 	}
-	var switchCount int64
-	model.DB.Model(&model.VPCSwitch{}).Where("username = ?", username).Count(&switchCount)
-	if switchCount == 0 {
-		return 0, 0, fmt.Errorf("请先在 VPC 网络中创建交换机后再创建虚拟机")
-	}
 	var sw model.VPCSwitch
-	if err := model.DB.Where("id = ? AND username = ?", switchID, username).First(&sw).Error; err != nil {
-		return 0, 0, fmt.Errorf("交换机不存在或不属于当前用户")
+	if err := model.DB.Where("id = ?", switchID).First(&sw).Error; err != nil {
+		return 0, 0, fmt.Errorf("交换机不存在")
+	}
+	// 系统交换机人人可用；用户交换机需要校验归属
+	if !sw.IsSystem && sw.Username != username {
+		return 0, 0, fmt.Errorf("交换机不属于当前用户")
 	}
 	if HookSwitchUsesDirectBridge(sw) {
 		return 0, 0, fmt.Errorf("桥接直通交换机仅管理员可用于创建虚拟机")
 	}
-	var user model.User
-	if err := model.DB.Where("username = ?", username).First(&user).Error; err == nil {
-		if user.MaxTrafficDown > 0 && sw.TrafficDownGB <= 0 {
-			return 0, 0, fmt.Errorf("交换机下行月流量配额不足，无法创建虚拟机")
-		}
-		if user.MaxTrafficUp > 0 && sw.TrafficUpGB <= 0 {
-			return 0, 0, fmt.Errorf("交换机上行月流量配额不足，无法创建虚拟机")
-		}
-		if user.MaxBandwidthDown > 0 && sw.BandwidthDownMbps <= 0 {
-			return 0, 0, fmt.Errorf("交换机下行总带宽配额不足，无法创建虚拟机")
-		}
-		if user.MaxBandwidthUp > 0 && sw.BandwidthUpMbps <= 0 {
-			return 0, 0, fmt.Errorf("交换机上行总带宽配额不足，无法创建虚拟机")
+	// 系统基础网络交换机不检查流量配额（不限）
+	if !sw.IsSystem {
+		var user model.User
+		if err := model.DB.Where("username = ?", username).First(&user).Error; err == nil {
+			if user.MaxTrafficDown > 0 && sw.TrafficDownGB <= 0 {
+				return 0, 0, fmt.Errorf("交换机下行月流量配额不足，无法创建虚拟机")
+			}
+			if user.MaxTrafficUp > 0 && sw.TrafficUpGB <= 0 {
+				return 0, 0, fmt.Errorf("交换机上行月流量配额不足，无法创建虚拟机")
+			}
+			if user.MaxBandwidthDown > 0 && sw.BandwidthDownMbps <= 0 {
+				return 0, 0, fmt.Errorf("交换机下行总带宽配额不足，无法创建虚拟机")
+			}
+			if user.MaxBandwidthUp > 0 && sw.BandwidthUpMbps <= 0 {
+				return 0, 0, fmt.Errorf("交换机上行总带宽配额不足，无法创建虚拟机")
+			}
 		}
 	}
+	// 安全组校验：系统交换机使用用户自己的默认安全组
+	switchOwner := sw.Username
+	if sw.IsSystem {
+		switchOwner = username
+	}
 	var sg model.VPCSecurityGroup
-	if err := model.DB.Where("id = ? AND username = ?", securityGroupID, username).First(&sg).Error; err != nil {
+	if err := model.DB.Where("id = ? AND username = ?", securityGroupID, switchOwner).First(&sg).Error; err != nil {
 		return 0, 0, fmt.Errorf("安全组不存在或不属于当前用户")
 	}
 	return switchID, securityGroupID, nil
 }
 
 func resolveDefaultVPCSwitchIDForVMCreate(username string) (uint, error) {
+	// 优先使用系统基础网络交换机
+	var sysSwitch model.VPCSwitch
+	if err := model.DB.Where("is_system = ?", true).First(&sysSwitch).Error; err == nil {
+		return sysSwitch.ID, nil
+	}
 	var switches []model.VPCSwitch
 	if err := model.DB.Where("username = ?", username).Order("id ASC").Find(&switches).Error; err != nil {
 		return 0, err

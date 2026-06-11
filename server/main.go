@@ -18,8 +18,8 @@ import (
 	netpkg "kvm_console/service/network"
 	"kvm_console/service/snapshot"
 	vmmemory "kvm_console/service/vm/memory"
-	vmimport "kvm_console/service/vm/vmimport"
 	vmmigration "kvm_console/service/vm/migration"
+	vmimport "kvm_console/service/vm/vmimport"
 	"kvm_console/taskqueue"
 	"kvm_console/utils"
 )
@@ -60,7 +60,7 @@ func main() {
 	// 从数据库加载持久化的系统设置（覆盖环境变量默认值）
 	if savedSettings, err := model.GetAllSettings(); err == nil && len(savedSettings) > 0 {
 		config.GlobalConfig.LoadFromDB(savedSettings)
-	logger.App.Info("已从数据库加载持久化系统设置", "count", len(savedSettings))
+		logger.App.Info("已从数据库加载持久化系统设置", "count", len(savedSettings))
 	}
 
 	// 初始化 go-libvirt RPC 连接（连接失败阻止启动）
@@ -70,9 +70,9 @@ func main() {
 	defer libvirt_rpc.CloseLibvirt()
 
 	if err := service.BootstrapVMCacheFromHost(); err != nil {
-	logger.App.Warn("启动时同步虚拟机缓存失败，已保留数据库旧缓存", "error", err)
+		logger.App.Warn("启动时同步虚拟机缓存失败，已保留数据库旧缓存", "error", err)
 	} else {
-	logger.App.Info("启动时虚拟机缓存同步完成")
+		logger.App.Info("启动时虚拟机缓存同步完成")
 	}
 
 	// 安全检查（数据库设置加载完成后）
@@ -98,17 +98,20 @@ func main() {
 	// 同步 SSH 拒绝配置（确保与数据库状态一致）
 	service.SyncSSHDenyConfig()
 	service.EnsureAllActiveUsersDefaultSecurityGroup()
+	if err := service.EnsureSystemBaseNetwork(); err != nil {
+		logger.App.Warn("创建系统基础网络交换机失败", "error", err)
+	}
 	if err := service.EnsureAllNetworkBridgesRuntime(); err != nil {
-	logger.App.Warn("恢复桥接网桥失败", "error", err)
+		logger.App.Warn("恢复桥接网桥失败", "error", err)
 	}
 	if err := netpkg.RestorePortForwardRules(); err != nil {
-	logger.App.Warn("恢复端口转发规则失败", "error", err)
+		logger.App.Warn("恢复端口转发规则失败", "error", err)
 	}
 	if err := service.EnsureAllVPCSwitchRuntime(); err != nil {
-	logger.App.Warn("恢复 VPC 网络运行态失败", "error", err)
+		logger.App.Warn("恢复 VPC 网络运行态失败", "error", err)
 	}
 	if err := service.RestorePublicIPRules(); err != nil {
-	logger.App.Warn("恢复公网 IP 规则失败", "error", err)
+		logger.App.Warn("恢复公网 IP 规则失败", "error", err)
 	}
 
 	// 设置路由
@@ -142,7 +145,7 @@ func registerTaskHandlers() {
 		// 应用 IOPS 限制
 		applyCloneIOPS(params)
 		if saveErr := service.SaveVMCredential(params.Name, params.User, params.Password, "clone", task.CreatedBy, false); saveErr != nil {
-	logger.App.Error("保存虚拟机克隆凭据失败", "vm", params.Name, "error", saveErr)
+			logger.App.Error("保存虚拟机克隆凭据失败", "vm", params.Name, "error", saveErr)
 		}
 		// 克隆完成后重新分配用户带宽
 		if task.CreatedBy != "" && task.CreatedBy != "admin" {
@@ -193,7 +196,7 @@ func registerTaskHandlers() {
 				continue
 			}
 			if err := bindTaskVMToVPC(task.CreatedBy, result.VMName, params.SwitchID, params.SecurityGroupID); err != nil {
-	logger.App.Warn("批量克隆绑定 VPC 失败", "vm", result.VMName, "error", err)
+				logger.App.Warn("批量克隆绑定 VPC 失败", "vm", result.VMName, "error", err)
 			}
 			attachTaskExtraNICs(result.VMName, task.Params)
 			// 每台 VM 可能使用独立随机密码，优先用 result.Password
@@ -202,7 +205,7 @@ func registerTaskHandlers() {
 				credPassword = params.Password
 			}
 			if saveErr := service.SaveVMCredential(result.VMName, params.User, credPassword, "batch_clone", task.CreatedBy, false); saveErr != nil {
-	logger.App.Warn("批量克隆保存凭据失败", "vm", result.VMName, "error", saveErr)
+				logger.App.Warn("批量克隆保存凭据失败", "vm", result.VMName, "error", saveErr)
 			}
 			refreshVMCacheAfterTask(result.VMName)
 		}
@@ -799,14 +802,14 @@ func bindTaskVMToVPC(owner, vmName string, switchID, securityGroupID uint) error
 		if err := service.BindVMToVPCAsAdmin(vmName, switchID, securityGroupID); err != nil {
 			return err
 		}
-	logger.App.Info("管理员 VM 绑定 VPC", "vm", vmName, "switch", switchID, "sg", securityGroupID)
+		logger.App.Info("管理员 VM 绑定 VPC", "vm", vmName, "switch", switchID, "sg", securityGroupID)
 		return nil
 	}
 	if owner == "" || owner == "admin" {
 		owner = service.FindVMOwner(vmName)
 	}
 	if owner == "" || owner == "admin" {
-	logger.App.Info("VM 未找到普通用户归属，跳过自动绑定", "vm", vmName)
+		logger.App.Info("VM 未找到普通用户归属，跳过自动绑定", "vm", vmName)
 		return nil
 	}
 	if switchID == 0 || securityGroupID == 0 {
@@ -818,13 +821,13 @@ func bindTaskVMToVPC(owner, vmName string, switchID, securityGroupID uint) error
 		securityGroupID = resolvedSecurityGroupID
 	}
 	if switchID == 0 || securityGroupID == 0 {
-	logger.App.Info("VM 未解析到交换机或安全组，跳过自动绑定", "vm", vmName)
+		logger.App.Info("VM 未解析到交换机或安全组，跳过自动绑定", "vm", vmName)
 		return nil
 	}
 	if err := service.BindVMToVPC(owner, vmName, switchID, securityGroupID); err != nil {
 		return err
 	}
-logger.App.Info("VM 自动绑定 VPC", "vm", vmName, "user", owner, "switch", switchID, "sg", securityGroupID)
+	logger.App.Info("VM 自动绑定 VPC", "vm", vmName, "user", owner, "switch", switchID, "sg", securityGroupID)
 	return nil
 }
 
@@ -983,23 +986,23 @@ func initCloneDeps() {
 		GetOVSLeaseIPByMAC:            service.GetOVSLeaseIPByMAC,
 
 		// XML modification helpers
-		ApplyRTCConfigToDomainXML:          service.ApplyRTCConfigToDomainXML,
-		ApplyVMAPICToDomainXML:             service.ApplyVMAPICToDomainXML,
-		ApplyCPUTopologyModeToDomainXML:    service.ApplyCPUTopologyModeToDomainXML,
-		ApplyVMCPULimitToDomainXML:         service.ApplyVMCPULimitToDomainXML,
-		ApplyCPUAffinityIfSet:              service.ApplyCPUAffinityIfSet,
-		ApplyVPCSwitchToDomainXML:          service.ApplyVPCSwitchToDomainXML,
+		ApplyRTCConfigToDomainXML:           service.ApplyRTCConfigToDomainXML,
+		ApplyVMAPICToDomainXML:              service.ApplyVMAPICToDomainXML,
+		ApplyCPUTopologyModeToDomainXML:     service.ApplyCPUTopologyModeToDomainXML,
+		ApplyVMCPULimitToDomainXML:          service.ApplyVMCPULimitToDomainXML,
+		ApplyCPUAffinityIfSet:               service.ApplyCPUAffinityIfSet,
+		ApplyVPCSwitchToDomainXML:           service.ApplyVPCSwitchToDomainXML,
 		ApplyFirstBootRebootModeToDomainXML: service.ApplyFirstBootRebootModeToDomainXML,
-		EffectiveTopologyVCPU:              service.EffectiveTopologyVCPU,
+		EffectiveTopologyVCPU:               service.EffectiveTopologyVCPU,
 		ShouldUseWindowsFirstBootColdReboot: service.ShouldUseWindowsFirstBootColdReboot,
 		CompleteWindowsFirstBootColdReboot:  service.CompleteWindowsFirstBootColdReboot,
-		BuildVCPUTag:                       service.BuildVCPUTag,
-		ResolveRTCOffset:                   service.ResolveRTCOffset,
-		NormalizeRTCStartDate:              service.NormalizeRTCStartDate,
-		ParseRTCStartDateToEpoch:           service.ParseRTCStartDateToEpoch,
-		VMRTCStartDateNow:                  service.VMRTCStartDateNow,
-		VMRTCOffsetAbsolute:                service.VMRTCOffsetAbsolute,
-		InjectPCIERootPorts:                service.InjectPCIERootPortsExported,
+		BuildVCPUTag:                        service.BuildVCPUTag,
+		ResolveRTCOffset:                    service.ResolveRTCOffset,
+		NormalizeRTCStartDate:               service.NormalizeRTCStartDate,
+		ParseRTCStartDateToEpoch:            service.ParseRTCStartDateToEpoch,
+		VMRTCStartDateNow:                   service.VMRTCStartDateNow,
+		VMRTCOffsetAbsolute:                 service.VMRTCOffsetAbsolute,
+		InjectPCIERootPorts:                 service.InjectPCIERootPortsExported,
 
 		// Disk / storage
 		AddExtraDisksForVM: service.AddExtraDisksForVM,
@@ -1022,14 +1025,14 @@ func initCloneDeps() {
 		ApplyCPUAffinityToDomainXML: service.ApplyCPUAffinityToDomainXML,
 
 		// Template boot type
-		ResolveTemplateBootType:     service.ResolveTemplateBootType,
+		ResolveTemplateBootType: service.ResolveTemplateBootType,
 
 		// VM first boot
 		WaitForVMShutOff: service.WaitForVMShutOff,
 
 		// Utility
 		FirstNonEmpty: service.FirstNonEmpty,
-		GetVMDiskInfo:  service.GetVMDiskInfoForClone,
+		GetVMDiskInfo: service.GetVMDiskInfoForClone,
 
 		// Disk expansion
 		PrepareFnOSSystemDiskExpansion:    service.PrepareFnOSSystemDiskExpansionExported,

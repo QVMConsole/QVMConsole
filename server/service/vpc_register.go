@@ -2,10 +2,10 @@ package service
 
 import (
 	"kvm_console/model"
+	fwpkg "kvm_console/service/firewall"
 	netpkg "kvm_console/service/network"
 	vpcpkg "kvm_console/service/network/vpc"
 	ovspkg "kvm_console/service/ovs"
-	fwpkg "kvm_console/service/firewall"
 	vmpkg "kvm_console/service/vm"
 )
 
@@ -126,6 +126,9 @@ func EnsureDefaultVPCSwitch(username string) (*model.VPCSwitch, error) {
 }
 func EnsureAllActiveUsersDefaultSecurityGroup() {
 	vpcpkg.EnsureAllActiveUsersDefaultSecurityGroup()
+}
+func EnsureSystemBaseNetwork() error {
+	return vpcpkg.EnsureSystemBaseNetwork()
 }
 func GetVPCQuota(username string) (*VPCQuotaInfo, error) {
 	return vpcpkg.GetVPCQuota(username)

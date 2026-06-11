@@ -12,12 +12,13 @@ import (
 func ListVPCSwitches(operator, role, requestedUsername string) ([]model.VPCSwitch, error) {
 	query := model.DB.Model(&model.VPCSwitch{})
 	if role != "admin" {
-		query = query.Where("username = ? AND (bridge_mode = '' OR bridge_mode = ? OR bridge_mode IS NULL)", operator, BridgeModeNAT)
+		// 非管理员：自己的 NAT 交换机 + 系统基础网络交换机
+		query = query.Where("(username = ? AND (bridge_mode = '' OR bridge_mode = ? OR bridge_mode IS NULL)) OR is_system = ?", operator, BridgeModeNAT, true)
 	} else if strings.TrimSpace(requestedUsername) != "" {
 		query = query.Where("username = ?", strings.TrimSpace(requestedUsername))
 	}
 	var switches []model.VPCSwitch
-	if err := query.Order("username ASC, id ASC").Find(&switches).Error; err != nil {
+	if err := query.Order("is_system DESC, username ASC, id ASC").Find(&switches).Error; err != nil {
 		return nil, err
 	}
 	for i := range switches {
@@ -95,6 +96,9 @@ func UpdateVPCSwitch(operator, role string, id uint, req VPCSwitchRequest) (*mod
 	var sw model.VPCSwitch
 	if err := model.DB.First(&sw, id).Error; err != nil {
 		return nil, fmt.Errorf("交换机不存在")
+	}
+	if sw.IsSystem {
+		return nil, fmt.Errorf("系统基础网络交换机不可编辑")
 	}
 	if role != "admin" && sw.Username != operator {
 		return nil, fmt.Errorf("无权操作此交换机")
@@ -208,6 +212,9 @@ func DeleteVPCSwitch(operator, role string, id uint) error {
 	var sw model.VPCSwitch
 	if err := model.DB.First(&sw, id).Error; err != nil {
 		return fmt.Errorf("交换机不存在")
+	}
+	if sw.IsSystem {
+		return fmt.Errorf("系统基础网络交换机不可删除")
 	}
 	if role != "admin" && sw.Username != operator {
 		return fmt.Errorf("无权操作此交换机")

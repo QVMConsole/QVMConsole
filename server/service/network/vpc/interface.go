@@ -24,16 +24,25 @@ func AddVMInterface(vmName string, req AddVMInterfaceRequest) (*VMInterfaceInfo,
 		return nil, fmt.Errorf("交换机不存在")
 	}
 
+	// 系统交换机使用 VM 归属用户的默认安全组
+	switchOwner := sw.Username
+	if sw.IsSystem {
+		switchOwner = HookFindVMOwner(vmName)
+		if switchOwner == "" {
+			return nil, fmt.Errorf("无法识别虚拟机归属用户")
+		}
+	}
+
 	// 安全组处理
 	securityGroupID := req.SecurityGroupID
 	if !HookSwitchUsesDirectBridge(sw) {
 		if securityGroupID == 0 {
-			if _, err := EnsureDefaultSecurityGroup(sw.Username); err != nil {
+			if _, err := EnsureDefaultSecurityGroup(switchOwner); err != nil {
 				return nil, err
 			}
 			var group model.VPCSecurityGroup
-			if err := model.DB.Where("username = ? AND is_default = ?", sw.Username, true).First(&group).Error; err != nil {
-				return nil, fmt.Errorf("未找到交换机用户 %s 的默认安全组", sw.Username)
+			if err := model.DB.Where("username = ? AND is_default = ?", switchOwner, true).First(&group).Error; err != nil {
+				return nil, fmt.Errorf("未找到用户 %s 的默认安全组", switchOwner)
 			}
 			securityGroupID = group.ID
 		} else {
@@ -41,7 +50,7 @@ func AddVMInterface(vmName string, req AddVMInterfaceRequest) (*VMInterfaceInfo,
 			if err := model.DB.First(&group, securityGroupID).Error; err != nil {
 				return nil, fmt.Errorf("安全组不存在")
 			}
-			if group.Username != sw.Username {
+			if !sw.IsSystem && group.Username != sw.Username {
 				return nil, fmt.Errorf("安全组必须属于交换机用户 %s", sw.Username)
 			}
 		}

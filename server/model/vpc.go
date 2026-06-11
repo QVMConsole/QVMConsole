@@ -6,6 +6,7 @@ import "time"
 type VPCSwitch struct {
 	ID                         uint      `json:"id" gorm:"primaryKey"`
 	Username                   string    `json:"username" gorm:"index;not null;size:64"`
+	IsSystem                   bool      `json:"is_system" gorm:"default:false"`
 	Name                       string    `json:"name" gorm:"not null;size:64"`
 	BridgeName                 string    `json:"bridge_name" gorm:"not null;default:br-ovs;size:64"`
 	BridgeMode                 string    `json:"bridge_mode" gorm:"not null;default:nat;size:16"`
