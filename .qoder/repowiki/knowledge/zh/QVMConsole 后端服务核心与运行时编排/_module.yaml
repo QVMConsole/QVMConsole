@@ -1,6 +1,6 @@
 schema_version: 1
 module_path: backend_service
-title: QVMConsole 虚拟化管控后端
+title: QVMConsole 后端服务核心与运行时编排
 scope:
     - server/
 source_files: []

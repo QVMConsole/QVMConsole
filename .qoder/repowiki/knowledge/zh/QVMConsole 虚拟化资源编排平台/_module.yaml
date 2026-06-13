@@ -1,6 +1,6 @@
 schema_version: 1
 module_path: ""
-title: QVMConsole 虚拟化资源管控平台
+title: QVMConsole 虚拟化资源编排平台
 scope:
     - .gitattributes
     - .gitignore

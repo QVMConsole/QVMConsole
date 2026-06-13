@@ -45,6 +45,14 @@ func EnsureVPCSwitchRuntime(sw model.VPCSwitch) error {
 	if result := utils.ExecCommand("ovs-vsctl", "--may-exist", "add-port", bridge, port, "tag="+strconv.Itoa(sw.VLANID), "--", "set", "Interface", port, "type=internal"); result.Error != nil {
 		return fmt.Errorf("创建 VPC 网关端口失败: %s", result.Stderr)
 	}
+	// 修正已存在端口 VLAN tag 与数据库不一致的问题（例如数据库重建后 VLAN ID 变更，但 --may-exist 不会更新已存在端口的 tag）
+	expectedTag := strconv.Itoa(sw.VLANID)
+	if currentTag, ok := getOVSPortTag(port); ok && currentTag != expectedTag {
+		logger.App.Warn("VPC 网关端口 VLAN tag 不一致，正在修正", "port", port, "current", currentTag, "expected", expectedTag)
+		if result := utils.ExecCommand("ovs-vsctl", "set", "Port", port, "tag="+expectedTag); result.Error != nil {
+			return fmt.Errorf("修正 VPC 网关端口 VLAN tag 失败: %s", result.Stderr)
+		}
+	}
 	utils.ExecCommand("ip", "link", "set", port, "up")
 	utils.ExecShellQuiet(fmt.Sprintf("ip -4 addr show dev %s | grep -q '%s/24' || ip addr add %s/24 dev %s",
 		utils.ShellSingleQuote(port), utils.ShellSingleQuote(sw.GatewayIP), utils.ShellSingleQuote(sw.GatewayIP), utils.ShellSingleQuote(port)))
@@ -79,6 +87,11 @@ func EnsureAllVPCSwitchRuntime() error {
 		return err
 	}
 	var lastErr error
+	// 清理数据库已删除但 OVS 上残留的孤儿 VPC 网关端口（例如数据库重建后）
+	if err := cleanOrphanVPCSwitchPorts(switches); err != nil {
+		lastErr = err
+		logger.App.Warn("清理孤儿 VPC 端口失败", "error", err)
+	}
 	for _, sw := range switches {
 		if err := EnsureVPCSwitchRuntime(sw); err != nil {
 			lastErr = err
@@ -96,6 +109,55 @@ func EnsureAllVPCSwitchRuntime() error {
 		}
 	}
 	return lastErr
+}
+
+// cleanOrphanVPCSwitchPorts 清理 OVS 上数据库中已不存在的孤儿 VPC 网关端口及关联的 dnsmasq 进程
+// 例如数据库被删除重建后，旧交换机 ID 的端口仍残留在 OVS 上
+func cleanOrphanVPCSwitchPorts(switches []model.VPCSwitch) error {
+	bridge := HookOvsBridgeName()
+	output := utils.ExecCommand("ovs-vsctl", "list-ports", bridge)
+	if output.Error != nil {
+		return fmt.Errorf("列出 OVS 端口失败: %s", output.Stderr)
+	}
+	validIDs := map[uint]bool{}
+	for _, sw := range switches {
+		// 仅 VLAN>0 的交换机才有独立网关端口
+		if sw.VLANID > 0 {
+			validIDs[sw.ID] = true
+		}
+	}
+	for _, port := range strings.Fields(output.Stdout) {
+		if !strings.HasPrefix(port, "vpcsw") {
+			continue
+		}
+		idStr := strings.TrimPrefix(port, "vpcsw")
+		id, err := strconv.ParseUint(idStr, 10, 64)
+		if err != nil {
+			continue
+		}
+		if validIDs[uint(id)] {
+			continue
+		}
+		logger.App.Warn("清理孤儿 VPC 网关端口", "port", port, "id", id)
+		// 停止关联的 dnsmasq
+		stopVPCDNSMasq(uint(id))
+		// 删除 OVS 端口
+		if result := utils.ExecCommand("ovs-vsctl", "--if-exists", "del-port", bridge, port); result.Error != nil {
+			logger.App.Warn("删除孤儿 VPC 端口失败", "port", port, "error", result.Stderr)
+		}
+		// 删除关联配置文件
+		_ = os.Remove(vpcDNSMasqConfigPath(uint(id)))
+		_ = os.Remove(VPCDHCPHostsPath(uint(id)))
+		_ = os.Remove(vpcDHCPLeasesPath(uint(id)))
+		// 尽力清理 iptables NAT 规则（端口名已知，用端口名匹配）
+		uplink := HookOvsUplink()
+		if uplink != "" && port != "" {
+			utils.ExecShellQuiet(fmt.Sprintf("while iptables -t nat -D POSTROUTING -o %s -j MASQUERADE 2>/dev/null; do :; done", utils.ShellSingleQuote(uplink)))
+			utils.ExecShellQuiet(fmt.Sprintf("while iptables -D FORWARD -i %s -o %s -j ACCEPT 2>/dev/null; do :; done", utils.ShellSingleQuote(port), utils.ShellSingleQuote(uplink)))
+			utils.ExecShellQuiet(fmt.Sprintf("while iptables -D FORWARD -i %s -o %s -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT 2>/dev/null; do :; done", utils.ShellSingleQuote(uplink), utils.ShellSingleQuote(port)))
+		}
+	}
+	return nil
 }
 
 func ensureVPCSwitchNAT(sw model.VPCSwitch, gatewayPort string) error {
