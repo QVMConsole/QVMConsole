@@ -13,11 +13,15 @@ import (
 
 // importVMWindowsDefine handles Windows VM XML construction and define for ImportVM
 func importVMWindowsDefine(params *ImportVMParams, destDiskPath, format string, ramMB int, memoryMeta *vm_memory.VMMemoryMetadata, srcDiskPath string, needUEFI bool) error {
-	// Generate MAC address
-	macResult := utils.ExecShell(`printf '52:54:00:%02x:%02x:%02x' $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256))`)
-	macAddr := strings.TrimSpace(macResult.Stdout)
-	if macAddr == "" {
-		macAddr = "52:54:00:aa:bb:cc"
+	// 网络接口 XML：仅在有主网口交换机配置时才添加
+	var networkXML string
+	if params.SwitchID != 0 {
+		macResult := utils.ExecShell(`printf '52:54:00:%02x:%02x:%02x' $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256))`)
+		macAddr := strings.TrimSpace(macResult.Stdout)
+		if macAddr == "" {
+			macAddr = "52:54:00:aa:bb:cc"
+		}
+		networkXML = service.BuildOVSInterfaceXML(macAddr, params.NicModel) + "\n"
 	}
 
 	// Generate qcow2 NVRAM
@@ -90,7 +94,7 @@ func importVMWindowsDefine(params *ImportVMParams, destDiskPath, format string, 
     <memballoon model='virtio' freePageReporting='on'><stats period='5'/></memballoon>
   </devices>
 </domain>`,
-		params.Name, ramKiB, service.BuildVCPUTag(params.VCPU, params.MaxVCPU), loaderPath, varsTemplate, nvramClone, clockOpenTag, format, destDiskPath, service.BuildOVSInterfaceXML(macAddr, params.NicModel))
+		params.Name, ramKiB, service.BuildVCPUTag(params.VCPU, params.MaxVCPU), loaderPath, varsTemplate, nvramClone, clockOpenTag, format, destDiskPath, networkXML)
 
 	var err error
 	if memoryMeta != nil {
@@ -164,10 +168,15 @@ func importVMWindowsDefine(params *ImportVMParams, destDiskPath, format string, 
 
 // importDiskByPathWindowsDefine handles Windows VM XML construction and define for ImportDiskByPath
 func importDiskByPathWindowsDefine(params *ImportDiskByPathParams, destDiskPath, format string, ramMB int, memoryMeta *vm_memory.VMMemoryMetadata, mainDiskSrc string) error {
-	macResult := utils.ExecShell(`printf '52:54:00:%02x:%02x:%02x' $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256))`)
-	macAddr := strings.TrimSpace(macResult.Stdout)
-	if macAddr == "" {
-		macAddr = "52:54:00:aa:bb:cc"
+	// 网络接口 XML：仅在有主网口交换机配置时才添加
+	var networkXML string
+	if params.SwitchID != 0 {
+		macResult := utils.ExecShell(`printf '52:54:00:%02x:%02x:%02x' $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256))`)
+		macAddr := strings.TrimSpace(macResult.Stdout)
+		if macAddr == "" {
+			macAddr = "52:54:00:aa:bb:cc"
+		}
+		networkXML = service.BuildOVSInterfaceXML(macAddr, params.NicModel) + "\n"
 	}
 
 	nvramClone := fmt.Sprintf("/var/lib/libvirt/qemu/nvram/%s_VARS.fd", params.Name)
@@ -238,7 +247,7 @@ func importDiskByPathWindowsDefine(params *ImportDiskByPathParams, destDiskPath,
     <memballoon model='virtio' freePageReporting='on'><stats period='5'/></memballoon>
   </devices>
 </domain>`,
-		params.Name, ramKiB, service.BuildVCPUTag(params.VCPU, params.MaxVCPU), loaderPath2, varsTemplate2, nvramClone, clockOpenTag, format, destDiskPath, service.BuildOVSInterfaceXML(macAddr, params.NicModel))
+		params.Name, ramKiB, service.BuildVCPUTag(params.VCPU, params.MaxVCPU), loaderPath2, varsTemplate2, nvramClone, clockOpenTag, format, destDiskPath, networkXML)
 
 	var err error
 	if memoryMeta != nil {

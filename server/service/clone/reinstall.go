@@ -215,11 +215,36 @@ func ReinstallVM(ctx context.Context, params *ReinstallParams, progressFn func(i
 			return err
 		}
 		cloneParams.LinuxIdentityPrepared = true
-	case "windows":
+	}
+
+	// Windows 单独处理：初始化文件注入 + Config Drive ISO 创建
+	// 用于跟踪 ISO 路径以便后续弹出
+	var reinstallWindowsISOPath string
+	if cloneParams.TemplateType == "windows" {
 		if err := D.PrepareWindowsSystemDiskExpansion(ctx, systemDisk.Path, progressFn); err != nil {
 			return err
 		}
-		injectWindowsUnattendFile(params.Name, systemDisk.Path, cloneParams.Hostname, cloneParams.Password, progressFn)
+		injectWindowsCloudbaseInitFiles(params.Name, systemDisk.Path, progressFn)
+		// 创建 Config Drive ISO，并更新 VM XML 挂载为 CD-ROM
+		isoPath, isoErr := createWindowsConfigDriveISO(
+			params.Name, cloneParams.Hostname, cloneParams.Password)
+		if isoErr != nil {
+			logger.App.Warn("重装时创建 Windows Config Drive ISO 失败，CloudbaseInit 将无法自动注入密码",
+				"vm", params.Name, "error", isoErr)
+		} else {
+			reinstallWindowsISOPath = isoPath
+			// 将 Config Drive CD-ROM 注入 VM XML（移除旧的再添加新的）
+			updatedReinstallXML := removeConfigDriveCDROMFromXML(originalXML)
+			updatedReinstallXML = addConfigDriveCDROMToXML(updatedReinstallXML, reinstallWindowsISOPath, cloneParams.DiskBus)
+			if setXMLErr := D.SetVMInactiveDomainXML(params.Name, updatedReinstallXML); setXMLErr != nil {
+				logger.App.Warn("更新 VM XML 添加 Config Drive CD-ROM 失败",
+					"vm", params.Name, "error", setXMLErr)
+			} else {
+				xmlModified = true
+				// 更新 originalXML，供后续冷重启逻辑和回滚使用
+				originalXML = updatedReinstallXML
+			}
+		}
 	}
 
 	firstBootColdReboot := D.ShouldUseWindowsFirstBootColdReboot(cloneParams.FirstBootRebootMode, cloneParams.TemplateType)
@@ -250,6 +275,11 @@ func ReinstallVM(ctx context.Context, params *ReinstallParams, progressFn func(i
 			return fmt.Errorf("恢复首次重启策略失败: %w", err)
 		}
 		xmlModified = false
+	}
+
+	// Windows 重装：在后台等待 QEMU Guest Agent 连接后自动弹出并清理 Config Drive CD-ROM
+	if cloneParams.TemplateType == "windows" && reinstallWindowsISOPath != "" {
+		scheduleWindowsConfigDriveEject(params.Name, cloneParams.DiskBus)
 	}
 
 	if cloneParams.TemplateType == "linux" {

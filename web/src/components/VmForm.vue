@@ -2292,7 +2292,7 @@ const allRequiredFilled = computed(() => {
   const vcpuOk = form.vcpu > 0
   const ramOk = form.ram > 0
   if (!nameOk || !vcpuOk || !ramOk) return false
-  if (!isAdmin.value && (!form.switch_id || !form.security_group_id)) return false
+  if (!isAdmin.value && !form.security_group_id) return false
   if (form.create_mode === 'iso') {
     if (form.disk_size <= 0) return false
   } else if (form.create_mode === 'import') {
@@ -2314,7 +2314,7 @@ const allRequiredTip = computed(() => {
   if (!/^[a-zA-Z0-9]+$/.test(form.name)) missing.push('虚拟机名称')
   if (form.vcpu <= 0) missing.push('CPU 核心')
   if (form.ram <= 0) missing.push('内存')
-  if (!isAdmin.value && (!form.switch_id || !form.security_group_id)) missing.push('VPC 交换机/安全组')
+  if (!isAdmin.value && !form.security_group_id) missing.push('安全组')
   if (form.create_mode === 'iso') {
     if (form.disk_size <= 0) missing.push('系统盘大小')
   } else if (form.create_mode === 'import') {
@@ -3510,7 +3510,6 @@ const createRules = computed(() => {
     ram: [{ required: true, message: '请设置内存大小', trigger: 'change' }],
   }
   if (!isAdmin.value) {
-    base.switch_id = [{ required: true, type: 'number', min: 1, message: '请选择 VPC 交换机', trigger: 'change' }]
     base.security_group_id = [{ required: true, type: 'number', min: 1, message: '请选择安全组', trigger: 'change' }]
   }
   if (form.create_mode === 'iso') {
@@ -3864,10 +3863,6 @@ const loadVPCOptions = async () => {
     ])
     vpcSwitches.value = switchRes.data || []
     vpcSecurityGroups.value = groupRes.data || []
-    if (!form.switch_id) {
-      const defaultSwitch = vpcSwitches.value.find(item => item.name === '默认交换机')
-      form.switch_id = defaultSwitch?.id || (vpcSwitches.value.length === 1 ? vpcSwitches.value[0].id : null)
-    }
     if (!form.security_group_id) {
       const defaultGroup = vpcSecurityGroups.value.find(item => item.is_default)
       form.security_group_id = defaultGroup?.id || vpcSecurityGroups.value[0]?.id || null
@@ -4193,6 +4188,7 @@ const open = async (row, mode, options = {}) => {
     isEdit.value = false
     currentEditRow.value = null
     createStep.value = 0
+    extraNics.value = []
     editVmStatus.value = 'shut off'
     editVmVNC.value = ''
     editDisks.value = []

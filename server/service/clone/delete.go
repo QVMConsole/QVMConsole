@@ -94,6 +94,9 @@ func DeleteVMWithDisks(name string, deleteDisks []string, transferDisks []string
 		}
 	}
 
+	// 清理 Windows Config Drive ISO（如有）
+	CleanupWindowsConfigDriveISO(name)
+
 	// 处理磁盘：删除指定的磁盘
 	deleteDiskList := deleteDisks
 	if deleteDiskList == nil && len(allDiskPaths) > 0 {
@@ -216,6 +219,9 @@ func ForceDeleteVM(name string) error {
 	D.CleanupVMVPCBinding(name)
 	D.CleanupLightweightVMResources(name)
 	_ = D.DeleteVMSchedules(name)
+
+	// 清理 Windows Config Drive ISO（如有）
+	CleanupWindowsConfigDriveISO(name)
 
 	logger.App.Info("虚拟机强制清理完成", "vm", name)
 	return nil

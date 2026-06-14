@@ -195,3 +195,17 @@ ls web/node_modules # 前端依赖目录应存在
 - 首次 `npm install` 可能需要较长时间，后续有缓存会快很多
 - Go 模块会缓存到 `$GOPATH/pkg/mod`，后续项目共享
 - 测试机（Linux）系统级 QEMU/KVM 依赖由 `install.sh` 管理，详见该脚本
+
+## Windows 虚拟机初始化依赖
+
+### genisoimage
+
+**用途：** 为 Windows 虚拟机创建符合 OpenStack ConfigDrive 规范的 ISO 镜像（CloudbaseInit 初始化方案）
+
+**安装方式（Debian/Ubuntu）：**
+
+```bash
+sudo apt install -y genisoimage
+```
+
+**说明：** 此工具在 Windows 克隆/重装时被调用，用于生成包含 `meta_data.json`（主机名、管理员密码、instance-id）的 config-2 标签 ISO，挂载到虚拟机 CD-ROM 后由 CloudbaseInit 读取完成初始化。该工具已由 `install.sh` 自动安装。
