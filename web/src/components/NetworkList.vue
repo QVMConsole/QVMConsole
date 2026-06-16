@@ -574,9 +574,10 @@
           </el-select>
         </el-form-item>
         <el-form-item v-if="securityRuleForm.protocol === 'tcp' || securityRuleForm.protocol === 'udp'" label="端口">
-          <el-input-number v-model="securityRuleForm.port_start" :min="1" :max="65535" style="width: 48%;" />
-          <span style="display: inline-block; width: 4%; text-align: center;">-</span>
-          <el-input-number v-model="securityRuleForm.port_end" :min="securityRuleForm.port_start || 1" :max="65535" style="width: 48%;" />
+          <div style="display: flex; align-items: center; gap: 12px; width: 100%;">
+            <el-input v-model="securityRuleForm.port_text" :disabled="securityRuleForm.port_all" placeholder="例如 80 或 80-90" style="flex: 1;" />
+            <el-checkbox v-model="securityRuleForm.port_all">全端口</el-checkbox>
+          </div>
         </el-form-item>
         <el-form-item label="CIDR">
           <el-input v-model="securityRuleForm.target_value" placeholder="例如 0.0.0.0/0 或 1.2.3.4/32" />
@@ -872,6 +873,8 @@ const securityRuleForm = reactive({
   protocol: 'tcp',
   port_start: 22,
   port_end: 22,
+  port_text: '22',
+  port_all: false,
   target_type: 'cidr',
   target_value: '0.0.0.0/0',
   remark: ''
@@ -1496,6 +1499,8 @@ const openSecurityRuleDialog = () => {
     protocol: 'tcp',
     port_start: 22,
     port_end: 22,
+    port_text: '22',
+    port_all: false,
     target_type: 'cidr',
     target_value: '0.0.0.0/0',
     remark: ''
@@ -1521,6 +1526,15 @@ const submitSecurityRule = async () => {
     const payload = {
       ...securityRuleForm,
       target_type: 'cidr'
+    }
+    // 解析端口
+    if (payload.port_all) {
+      payload.port_start = 1
+      payload.port_end = 65535
+    } else if (payload.port_text) {
+      const parts = payload.port_text.split('-')
+      payload.port_start = parseInt(parts[0]) || 22
+      payload.port_end = parts.length > 1 ? (parseInt(parts[1]) || 65535) : payload.port_start
     }
     if (payload.protocol === 'icmp' || payload.protocol === 'all') {
       payload.port_start = 0

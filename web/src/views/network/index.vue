@@ -1163,18 +1163,12 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item label="起始端口">
-              <el-input-number v-model="ruleForm.port_start" :min="0" :max="65535" style="width: 100%;" controls-position="right" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="结束端口">
-              <el-input-number v-model="ruleForm.port_end" :min="0" :max="65535" style="width: 100%;" controls-position="right" />
-            </el-form-item>
-          </el-col>
-        </el-row>
+        <el-form-item label="端口">
+          <div style="display: flex; align-items: center; gap: 12px; width: 100%;">
+            <el-input v-model="ruleForm.port_text" :disabled="ruleForm.port_all" placeholder="例如 80 或 80-90" style="flex: 1;" />
+            <el-checkbox v-model="ruleForm.port_all">全端口</el-checkbox>
+          </div>
+        </el-form-item>
         <el-form-item label="目标类型">
           <el-select v-model="ruleForm.target_type" style="width: 100%;" @change="onRuleTargetTypeChange">
             <el-option label="CIDR / IP 地址" value="cidr" />
@@ -1344,7 +1338,7 @@ const groupForm = reactive({ username: '', name: '', remark: '' })
 
 const ruleDialogVisible = ref(false)
 const selectedGroup = ref(null)
-const ruleForm = reactive({ direction: 'ingress', protocol: 'tcp', port_start: 0, port_end: 0, target_type: 'cidr', target_value: '0.0.0.0/0', remark: '' })
+const ruleForm = reactive({ direction: 'ingress', protocol: 'tcp', port_start: 0, port_end: 0, port_text: '', port_all: false, target_type: 'cidr', target_value: '0.0.0.0/0', remark: '' })
 
 const params = computed(() => isAdmin.value && usernameFilter.value ? { username: usernameFilter.value } : {})
 
@@ -1916,7 +1910,7 @@ async function handleDeleteGroup(row) {
 
 function openRuleDialog(group) {
   selectedGroup.value = group
-  Object.assign(ruleForm, { direction: 'ingress', protocol: 'tcp', port_start: 0, port_end: 0, target_type: 'cidr', target_value: '0.0.0.0/0', remark: '' })
+  Object.assign(ruleForm, { direction: 'ingress', protocol: 'tcp', port_start: 0, port_end: 0, port_text: '', port_all: false, target_type: 'cidr', target_value: '0.0.0.0/0', remark: '' })
   ruleDialogVisible.value = true
 }
 
@@ -1929,6 +1923,20 @@ function onRuleTargetTypeChange(type) {
 }
 
 async function submitRule() {
+  // 解析端口
+  if (ruleForm.port_all) {
+    if (ruleForm.protocol === 'icmp' || ruleForm.protocol === 'all') {
+      ruleForm.port_start = 0
+      ruleForm.port_end = 0
+    } else {
+      ruleForm.port_start = 1
+      ruleForm.port_end = 65535
+    }
+  } else if (ruleForm.port_text) {
+    const parts = ruleForm.port_text.split('-')
+    ruleForm.port_start = parseInt(parts[0]) || 0
+    ruleForm.port_end = parts.length > 1 ? (parseInt(parts[1]) || 65535) : ruleForm.port_start
+  }
   if (!selectedGroup.value) return
   if (ruleForm.target_type !== 'cidr' && !ruleForm.target_value) {
     onRuleTargetTypeChange(ruleForm.target_type)
