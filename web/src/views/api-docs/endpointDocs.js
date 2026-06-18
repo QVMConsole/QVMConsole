@@ -347,6 +347,8 @@ export const endpointGroups = [
       ep('GET', '/network/bridges', '列出宿主机网桥', { notes: [admin] }),
       ep('POST', '/network/bridges', '创建宿主机网桥', { body: 'JSON: name, interface, address, gateway, dns, mode', notes: [admin], highRisk: 'create_network_bridge' }),
       ep('DELETE', '/network/bridges/:id', '删除宿主机网桥', { pathParams: ['id'], notes: [admin], highRisk: 'delete_network_bridge' }),
+      ep('GET', '/network/interfaces/:name/config', '获取接口 IP/DNS 配置', { pathParams: ['name'], notes: [admin] }),
+      ep('PUT', '/network/interfaces/:name/config', '设置接口 IP/DNS 配置', { pathParams: ['name'], body: 'JSON: addrs(CIDR换行分隔), gateway, dns(空格分隔), clear(bool)', notes: [admin], highRisk: 'set_interface_config' }),
       ep('GET', '/network/public-ips', '列出公网 IP', { notes: [admin] }),
       ep('POST', '/network/public-ips', '新增公网 IP', { body: publicIPBody, notes: [admin] }),
       ep('PUT', '/network/public-ips/:id', '更新公网 IP', { pathParams: ['id'], body: publicIPBody, notes: [admin] }),

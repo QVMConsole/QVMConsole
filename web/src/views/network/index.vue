@@ -178,8 +178,18 @@
               <el-table-column label="交换机" width="100" align="center">
                 <template #default="{ row }">{{ row.switch_count || 0 }}</template>
               </el-table-column>
-              <el-table-column label="操作" width="110" align="center">
+              <el-table-column label="IP / DNS" min-width="220">
                 <template #default="{ row }">
+                  <div v-if="row.host_addrs || row.host_dns">
+                    <div v-if="row.host_addrs" class="code" style="font-size: 12px;">IP: {{ row.host_addrs.replace(/\n/g, ', ') }}</div>
+                    <div v-if="row.host_dns" class="code" style="font-size: 12px; color: var(--el-text-color-secondary);">DNS: {{ row.host_dns }}</div>
+                  </div>
+                  <span v-else class="text-muted">—</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="170" align="center">
+                <template #default="{ row }">
+                  <el-button v-if="row.migrate_host_ip && !row.is_default" size="small" type="primary" plain @click="openInterfaceConfig(row.name)">配置IP</el-button>
                   <el-button v-if="!row.is_default" size="small" type="danger" plain @click="handleDeleteBridge(row)">删除</el-button>
                   <span v-else class="text-muted">—</span>
                 </template>
@@ -216,6 +226,12 @@
                 <template #default="{ row }"><span class="code">{{ row.ovs_bridge || row.managed_bridge || '—' }}</span></template>
               </el-table-column>
               <el-table-column prop="risk" label="风险提示" min-width="220" show-overflow-tooltip />
+              <el-table-column label="操作" width="110" align="center">
+                <template #default="{ row }">
+                  <el-button v-if="!row.ovs_port && !row.managed_bridge" size="small" type="primary" plain @click="openInterfaceConfig(row.name)">配置IP</el-button>
+                  <span v-else class="text-muted">—</span>
+                </template>
+              </el-table-column>
             </el-table>
           </div>
 
@@ -1108,6 +1124,98 @@
       </template>
     </el-dialog>
 
+    <!-- 接口 IP/DNS 配置对话框 -->
+    <el-dialog
+      v-model="interfaceConfigDialogVisible"
+      :title="`配置接口 IP/DNS — ${interfaceConfigForm.name}`"
+      width="600px"
+      append-to-body
+      destroy-on-close
+      class="modern-dialog"
+    >
+      <div v-loading="interfaceConfigLoading">
+        <el-alert
+          v-if="interfaceConfigForm.bridge_name"
+          type="warning"
+          show-icon
+          :closable="false"
+          :title="`该网卡已加入网桥 ${interfaceConfigForm.bridge_name}，请在网桥上配置 IP`"
+          style="margin-bottom: 16px;"
+        />
+        <el-alert
+          v-if="!interfaceConfigForm.configurable && !interfaceConfigForm.bridge_name"
+          type="info"
+          show-icon
+          :closable="false"
+          :title="interfaceConfigForm.reason || '该接口不支持配置 IP'"
+          style="margin-bottom: 16px;"
+        />
+        <el-form :model="interfaceConfigForm" label-width="120px" label-position="left">
+          <el-form-item label="接口类型">
+            <el-tag size="small">{{ interfaceConfigForm.type === 'bridge' ? '网桥' : interfaceConfigForm.type === 'nic' ? '物理网卡' : '未知' }}</el-tag>
+            <span v-if="interfaceConfigForm.managed_bridge" style="margin-left: 8px;">
+              <el-tag size="small" type="success" effect="plain">面板管理</el-tag>
+            </span>
+          </el-form-item>
+          <el-form-item label="当前 IP">
+            <span v-if="interfaceConfigForm.current_addrs?.length" class="code">{{ interfaceConfigForm.current_addrs.join(', ') }}</span>
+            <span v-else class="text-muted">无</span>
+          </el-form-item>
+          <el-form-item label="当前网关">
+            <span v-if="interfaceConfigForm.current_gateway" class="code">{{ interfaceConfigForm.current_gateway }}</span>
+            <span v-else class="text-muted">—</span>
+          </el-form-item>
+          <el-form-item label="当前 DNS">
+            <span v-if="interfaceConfigForm.current_dns?.length" class="code">{{ interfaceConfigForm.current_dns.join(', ') }}</span>
+            <span v-else class="text-muted">—</span>
+          </el-form-item>
+          <el-divider />
+          <el-form-item label="IP 地址" required>
+            <el-input
+              v-model="interfaceConfigForm.addrs"
+              type="textarea"
+              :rows="3"
+              :disabled="!interfaceConfigForm.configurable"
+              placeholder="CIDR 格式，每行一个，如 192.168.1.10/24"
+            />
+            <div class="form-hint">每行一个 IP/CIDR，多个地址可换行填写</div>
+          </el-form-item>
+          <el-form-item label="默认网关">
+            <el-input
+              v-model="interfaceConfigForm.gateway"
+              :disabled="!interfaceConfigForm.configurable"
+              placeholder="如 192.168.1.1"
+            />
+          </el-form-item>
+          <el-form-item label="DNS 服务器">
+            <el-input
+              v-model="interfaceConfigForm.dns"
+              :disabled="!interfaceConfigForm.configurable"
+              placeholder="空格分隔，如 223.5.5.5 8.8.8.8"
+            />
+          </el-form-item>
+        </el-form>
+      </div>
+      <template #footer>
+        <el-button @click="interfaceConfigDialogVisible = false" size="large">取消</el-button>
+        <el-button
+          type="danger"
+          plain
+          @click="handleClearInterfaceConfig"
+          :loading="interfaceConfigSubmitting"
+          :disabled="!interfaceConfigForm.configurable"
+          size="large"
+        >清除配置</el-button>
+        <el-button
+          type="primary"
+          @click="submitInterfaceConfig"
+          :loading="interfaceConfigSubmitting"
+          :disabled="!interfaceConfigForm.configurable"
+          size="large"
+        >保存</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 安全组对话框 -->
     <el-dialog
       v-model="groupDialogVisible"
@@ -1229,6 +1337,8 @@ import {
   deleteNetworkBridge,
   getHostInterfaces,
   getNetworkBridges,
+  getInterfaceConfig,
+  setInterfaceConfig,
   getPortForwardList,
   updatePortForward,
   deletePortForward,
@@ -1330,6 +1440,16 @@ const switchForm = reactive({ username: '', name: '', bridge_name: 'br-ovs', bri
 
 const bridgeDialogVisible = ref(false)
 const bridgeForm = reactive({ name: '', mode: 'bridge', uplink_if: '', migrate_host_ip: true })
+
+const interfaceConfigDialogVisible = ref(false)
+const interfaceConfigLoading = ref(false)
+const interfaceConfigSubmitting = ref(false)
+const interfaceConfigForm = reactive({
+  name: '', type: '', bridge_name: '', configurable: false, reason: '',
+  managed_bridge: false, migrate_host_ip: false,
+  current_addrs: [], current_gateway: '', current_dns: [],
+  addrs: '', gateway: '', dns: ''
+})
 
 const switchVMDialogVisible = ref(false)
 const switchVMs = ref([])
@@ -1804,6 +1924,66 @@ async function handleDeleteBridge(row) {
   await deleteNetworkBridge(row.id, row.name)
   ElMessage.success('网桥已删除')
   await loadOverview()
+}
+
+async function openInterfaceConfig(name) {
+  interfaceConfigLoading.value = true
+  interfaceConfigDialogVisible.value = true
+  try {
+    const res = await getInterfaceConfig(name)
+    const data = res.data || {}
+    Object.assign(interfaceConfigForm, {
+      name: data.name || name,
+      type: data.type || '',
+      bridge_name: data.bridge_name || '',
+      configurable: data.configurable || false,
+      reason: data.reason || '',
+      managed_bridge: data.managed_bridge || false,
+      migrate_host_ip: data.migrate_host_ip || false,
+      current_addrs: data.addrs || [],
+      current_gateway: data.gateway || '',
+      current_dns: data.dns || [],
+      addrs: (data.addrs || []).join('\n'),
+      gateway: data.gateway || '',
+      dns: (data.dns || []).join(' ')
+    })
+  } finally {
+    interfaceConfigLoading.value = false
+  }
+}
+
+async function submitInterfaceConfig() {
+  interfaceConfigSubmitting.value = true
+  try {
+    await setInterfaceConfig(interfaceConfigForm.name, {
+      addrs: interfaceConfigForm.addrs,
+      gateway: interfaceConfigForm.gateway,
+      dns: interfaceConfigForm.dns,
+      clear: false
+    })
+    ElMessage.success('接口配置已更新')
+    interfaceConfigDialogVisible.value = false
+    await loadOverview()
+  } finally {
+    interfaceConfigSubmitting.value = false
+  }
+}
+
+async function handleClearInterfaceConfig() {
+  await ElMessageBox.confirm(
+    `确定清除 ${interfaceConfigForm.name} 上的所有静态 IP/DNS 配置？清除后该接口将不再有静态 IP。`,
+    '清除配置',
+    { type: 'warning' }
+  )
+  interfaceConfigSubmitting.value = true
+  try {
+    await setInterfaceConfig(interfaceConfigForm.name, { clear: true })
+    ElMessage.success('接口配置已清除')
+    interfaceConfigDialogVisible.value = false
+    await loadOverview()
+  } finally {
+    interfaceConfigSubmitting.value = false
+  }
 }
 
 async function submitSwitch() {

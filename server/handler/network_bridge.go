@@ -65,3 +65,38 @@ func DeleteNetworkBridge(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "网桥已删除"})
 }
+
+// GetInterfaceConfig 获取接口（网桥或物理网卡）的当前 IP/DNS 配置。
+func GetInterfaceConfig(c *gin.Context) {
+	name := c.Param("name")
+	if name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "接口名称不能为空"})
+		return
+	}
+	info, err := service.GetInterfaceConfig(name)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "ok", "data": info})
+}
+
+// SetInterfaceConfig 设置接口的 IP/DNS 配置（高风险操作，需二次验证）。
+func SetInterfaceConfig(c *gin.Context) {
+	if !requireHighRiskVerification(c, "set_interface_config") {
+		return
+	}
+	var req service.SetInterfaceConfigRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		return
+	}
+	// 接口名称从 URL 路径参数获取（前端通过 path 传递）
+	req.Name = c.Param("name")
+	info, err := service.SetInterfaceConfig(req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "接口配置已更新", "data": info})
+}

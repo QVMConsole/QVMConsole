@@ -77,6 +77,9 @@ func ListNetworkBridges() ([]NetworkBridgeInfo, error) {
 				UplinkIF:      row.UplinkIF,
 				MigrateHostIP: row.MigrateHostIP,
 				IsDefault:     row.IsDefault,
+				HostAddrs:     row.HostAddrs,
+				HostGateway:   row.HostGateway,
+				HostDNS:       row.HostDNS,
 			})
 		}
 	}

@@ -288,6 +288,10 @@ func Setup() *gin.Engine {
 				network.POST("/bridges", middleware.AdminMiddleware(), handler.CreateNetworkBridge)
 				network.DELETE("/bridges/:id", middleware.AdminMiddleware(), handler.DeleteNetworkBridge)
 
+				// 接口 IP/DNS 配置
+				network.GET("/interfaces/:name/config", middleware.AdminMiddleware(), handler.GetInterfaceConfig)
+				network.PUT("/interfaces/:name/config", middleware.AdminMiddleware(), handler.SetInterfaceConfig)
+
 				// 公网 IP / 浮动 IP
 				network.GET("/public-ips", middleware.AdminMiddleware(), handler.ListPublicIPs)
 				network.POST("/public-ips", middleware.AdminMiddleware(), handler.CreatePublicIP)

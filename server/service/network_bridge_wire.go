@@ -19,6 +19,8 @@ func init() {
 type HostInterfaceInfo = bridge.HostInterfaceInfo
 type NetworkBridgeInfo = bridge.NetworkBridgeInfo
 type NetworkBridgeRequest = bridge.NetworkBridgeRequest
+type InterfaceConfigInfo = bridge.InterfaceConfigInfo
+type SetInterfaceConfigRequest = bridge.SetInterfaceConfigRequest
 
 // ── Constant aliases ──
 
@@ -49,6 +51,16 @@ func DeleteNetworkBridge(id uint) error {
 // DeleteNetworkBridgeByName delegates to bridge.DeleteNetworkBridgeByName
 func DeleteNetworkBridgeByName(name string) error {
 	return bridge.DeleteNetworkBridgeByName(name)
+}
+
+// GetInterfaceConfig delegates to bridge.GetInterfaceConfig
+func GetInterfaceConfig(name string) (*InterfaceConfigInfo, error) {
+	return bridge.GetInterfaceConfig(name)
+}
+
+// SetInterfaceConfig delegates to bridge.SetInterfaceConfig
+func SetInterfaceConfig(req SetInterfaceConfigRequest) (*InterfaceConfigInfo, error) {
+	return bridge.SetInterfaceConfig(req)
 }
 
 // EnsureAllNetworkBridgesRuntime delegates to bridge.EnsureAllNetworkBridgesRuntime

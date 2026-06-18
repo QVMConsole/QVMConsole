@@ -37,6 +37,16 @@ export function deleteNetworkBridge(id, name = '') {
   return request({ url: `/network/bridges/${id}${params}`, method: 'delete' })
 }
 
+// 获取接口 IP/DNS 配置
+export function getInterfaceConfig(name) {
+  return request({ url: `/network/interfaces/${encodeURIComponent(name)}/config`, method: 'get' })
+}
+
+// 设置接口 IP/DNS 配置
+export function setInterfaceConfig(name, data) {
+  return request({ url: `/network/interfaces/${encodeURIComponent(name)}/config`, method: 'put', data })
+}
+
 export function getPublicIPs() {
   return request({ url: '/network/public-ips', method: 'get' })
 }
