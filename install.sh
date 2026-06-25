@@ -44,7 +44,6 @@ APT_DEPS=(
     "curl"
     "tar"
     "gzip"
-    "qemu-system-x86"
     "qemu-utils"
     "libvirt-daemon-system"
     "libvirt-daemon-driver-qemu"
@@ -57,7 +56,6 @@ APT_DEPS=(
     "genisoimage"
     "sshpass"
     "cloud-image-utils"
-    "ovmf"
     "lvm2"
     "cloud-guest-utils"
     "quota"
@@ -75,6 +73,12 @@ APT_DEPS=(
     "openssh-server"
     "parted"
 )
+
+# 架构特有依赖：在 check_and_install_deps 中根据 $ARCH 动态追加
+QEMU_PKG_X86="qemu-system-x86"
+EFI_PKG_X86="ovmf"
+QEMU_PKG_ARM="qemu-system-arm"
+EFI_PKG_ARM="qemu-efi-aarch64"
 
 COMMAND_CHECKS=(
     "virsh"
@@ -138,13 +142,25 @@ check_os() {
     info "检测到系统: ${PRETTY_NAME:-unknown}"
 }
 
+detect_arch() {
+    ARCH=$(uname -m)
+    case "$ARCH" in
+        x86_64|amd64)
+            ARCH="x86_64"
+            ;;
+        aarch64|arm64)
+            ARCH="aarch64"
+            ;;
+        *)
+            error "不支持的 CPU 架构: $ARCH，仅支持 x86_64 / aarch64"
+            exit 1
+            ;;
+    esac
+    info "检测到 CPU 架构: ${ARCH}"
+}
+
 check_arch() {
-    local arch
-    arch=$(uname -m)
-    if [ "$arch" != "x86_64" ]; then
-        error "当前仅支持 x86_64 架构，检测到: $arch"
-        exit 1
-    fi
+    detect_arch
 }
 
 check_kvm_hardware() {
@@ -153,24 +169,35 @@ check_kvm_hardware() {
         error "无法读取 /proc/cpuinfo，不能确认硬件虚拟化能力"
         exit 1
     fi
-    if ! awk -F: '/^(flags|Features)[[:space:]]*:/ { if ($2 ~ /(^|[[:space:]])(vmx|svm)([[:space:]]|$)/) found=1 } END { exit found ? 0 : 1 }' /proc/cpuinfo; then
-        error "未检测到 CPU 硬件虚拟化标记（Intel VT-x/vmx 或 AMD-V/svm），请先在 BIOS/UEFI 中开启虚拟化后再安装"
-        exit 1
+    if [ "$ARCH" = "x86_64" ]; then
+        if ! awk -F: '/^(flags|Features)[[:space:]]*:/ { if ($2 ~ /(^|[[:space:]])(vmx|svm)([[:space:]]|$)/) found=1 } END { exit found ? 0 : 1 }' /proc/cpuinfo; then
+            error "未检测到 CPU 硬件虚拟化标记（Intel VT-x/vmx 或 AMD-V/svm），请先在 BIOS/UEFI 中开启虚拟化后再安装"
+            exit 1
+        fi
+    elif [ "$ARCH" = "aarch64" ]; then
+        if [ ! -e /dev/kvm ]; then
+            error "未检测到 /dev/kvm，ARM 虚拟化可能未启用或内核不支持 KVM"
+            exit 1
+        fi
     fi
     success "CPU 已开启硬件虚拟化标记"
 }
 
 ensure_kvm_runtime() {
     info "检测 /dev/kvm 运行环境..."
-    local vendor_module="kvm"
-    if grep -q "GenuineIntel" /proc/cpuinfo 2>/dev/null; then
-        vendor_module="kvm_intel"
-    elif grep -q "AuthenticAMD" /proc/cpuinfo 2>/dev/null; then
-        vendor_module="kvm_amd"
+    if [ "$ARCH" = "x86_64" ]; then
+        local vendor_module="kvm"
+        if grep -q "GenuineIntel" /proc/cpuinfo 2>/dev/null; then
+            vendor_module="kvm_intel"
+        elif grep -q "AuthenticAMD" /proc/cpuinfo 2>/dev/null; then
+            vendor_module="kvm_amd"
+        fi
+        modprobe kvm 2>/dev/null || true
+        modprobe "$vendor_module" 2>/dev/null || true
+    elif [ "$ARCH" = "aarch64" ]; then
+        # ARM 平台 KVM 通常内置在内核中（builtin），也可能以模块存在
+        modprobe kvm 2>/dev/null || true
     fi
-
-    modprobe kvm 2>/dev/null || true
-    modprobe "$vendor_module" 2>/dev/null || true
 
     if [ ! -e /dev/kvm ]; then
         error "未检测到 /dev/kvm。通常是 BIOS/UEFI 未开启虚拟化、宿主机未开放嵌套虚拟化，或内核 KVM 模块无法加载"
@@ -268,7 +295,18 @@ check_and_install_deps() {
     info "检查宿主机依赖包..."
     local missing=()
     local pkg
-    for pkg in "${APT_DEPS[@]}"; do
+
+    # 根据架构动态确定依赖列表
+    local deps=("${APT_DEPS[@]}")
+    if [ "$ARCH" = "x86_64" ]; then
+        deps+=("$QEMU_PKG_X86" "$EFI_PKG_X86")
+        info "架构: x86_64，QEMU 包: ${QEMU_PKG_X86}，EFI 包: ${EFI_PKG_X86}"
+    elif [ "$ARCH" = "aarch64" ]; then
+        deps+=("$QEMU_PKG_ARM" "$EFI_PKG_ARM")
+        info "架构: aarch64，QEMU 包: ${QEMU_PKG_ARM}，EFI 包: ${EFI_PKG_ARM}"
+    fi
+
+    for pkg in "${deps[@]}"; do
         if is_pkg_installed "$pkg"; then
             success "$pkg 已安装"
         else
@@ -880,9 +918,15 @@ get_release() {
         return
     fi
 
+    local local_tarball_name
+    if [ "$ARCH" = "x86_64" ]; then
+        local_tarball_name="kvm-console-linux-amd64.tar.gz"
+    elif [ "$ARCH" = "aarch64" ]; then
+        local_tarball_name="kvm-console-linux-arm64.tar.gz"
+    fi
     local local_tarball=""
-    if [ -f "$(pwd)/kvm-console-linux-amd64.tar.gz" ]; then
-        local_tarball="$(pwd)/kvm-console-linux-amd64.tar.gz"
+    if [ -f "$(pwd)/${local_tarball_name}" ]; then
+        local_tarball="$(pwd)/${local_tarball_name}"
         read -rp "检测到本地发行包 ${local_tarball}，是否使用? [Y/n]: " use_local
         use_local=${use_local:-Y}
         if [[ "$use_local" =~ ^[Yy]$ ]]; then
@@ -917,12 +961,18 @@ get_release() {
         error "无法连接 GitHub API，请检查网络或使用离线发行包"
         exit 1
     }
+    local arch_suffix
+    if [ "$ARCH" = "x86_64" ]; then
+        arch_suffix="amd64"
+    elif [ "$ARCH" = "aarch64" ]; then
+        arch_suffix="arm64"
+    fi
     local download_url
     local tag_name
-    download_url=$(printf '%s' "$release_info" | awk -F'"' '/browser_download_url/ && /linux-amd64\.tar\.gz/ {print $4; exit}')
+    download_url=$(printf '%s' "$release_info" | awk -F'"' -v s="linux-${arch_suffix}.tar.gz" '/browser_download_url/ && $0 ~ s {print $4; exit}')
     tag_name=$(printf '%s' "$release_info" | awk -F'"' '/tag_name/ {print $4; exit}')
     if [ -z "$download_url" ]; then
-        error "未找到 linux-amd64.tar.gz 发行包"
+        error "未找到 linux-${arch_suffix}.tar.gz 发行包"
         exit 1
     fi
 
