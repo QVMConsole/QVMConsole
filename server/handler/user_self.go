@@ -216,7 +216,8 @@ type SelfCloneVmRequest struct {
 	NicModel             string                            `json:"nic_model"`
 	PreserveFnOSDeviceID bool                              `json:"preserve_fnos_device_id"`
 	FnOSDeviceID         string                            `json:"fnos_device_id"`
-	DisableSystemInit    bool                              `json:"disable_system_init"` // 禁用系统初始化
+	DisableSystemInit    bool                              `json:"disable_system_init"`       // 禁用系统初始化
+	PCIERootPorts        int                               `json:"pcie_root_ports,omitempty"` // q35 预留 pcie-root-port 数量
 }
 
 // SelfCloneVm 用户自助从模板克隆VM
@@ -358,6 +359,7 @@ func SelfCloneVm(c *gin.Context) {
 		FnOSDeviceID:         req.FnOSDeviceID,
 		IsAdmin:              false,
 		DisableSystemInit:    req.DisableSystemInit,
+		PCIERootPorts:        req.PCIERootPorts,
 	}
 
 	task, err := taskqueue.SubmitWithStruct(model.TaskTypeClone, params, usernameStr)

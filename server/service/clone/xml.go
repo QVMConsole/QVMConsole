@@ -80,7 +80,8 @@ func ensureDomainNVRAMPath(domainXML, nvramPath string) string {
 }
 
 // defineAndStartNonWindowsClone 为 Linux/FnOS/Other 类型生成 XML、注入配置、定义并启动虚拟机
-func defineAndStartNonWindowsClone(params *CloneParams, cloneDisk string, ramMB int, memoryMeta *memory.VMMemoryMetadata, tplType string, cloneBootType string, needUEFI bool, templateNVRAMPath string) error {
+// extraDiskDir: 额外磁盘的存储目录
+func defineAndStartNonWindowsClone(params *CloneParams, cloneDisk string, ramMB int, memoryMeta *memory.VMMemoryMetadata, tplType string, cloneBootType string, needUEFI bool, templateNVRAMPath string, extraDiskDir string) error {
 	isOther := tplType == "other"
 
 	bootOpt := ""
@@ -219,6 +220,13 @@ func defineAndStartNonWindowsClone(params *CloneParams, cloneDisk string, ramMB 
 
 	if err := D.SetVMFreeze(params.Name, params.Freeze); err != nil {
 		logger.App.Warn("设置VM冻结配置失败", "error", err)
+	}
+
+	// 额外磁盘：在启动前冷添加，避免占用 PCIe 热插槽
+	if len(params.ExtraDisks) > 0 {
+		if err := D.AddExtraDisksForVM(params.Name, params.ExtraDisks, extraDiskDir, params.DiskBus, params.IsAdmin, nil); err != nil {
+			return fmt.Errorf("挂载额外磁盘失败: %w", err)
+		}
 	}
 
 	if err := D.StartVM(params.Name); err != nil {

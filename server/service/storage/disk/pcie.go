@@ -310,7 +310,7 @@ func findFreePCIERootPortBus(vmName string) (int, error) {
 
 	freeBuses := parseFreePCIERootPortBuses(infoPCIResult)
 	if len(freeBuses) == 0 {
-		return 0, fmt.Errorf("当前虚拟机没有空闲的 pcie-root-port 热插槽，请先关机后再添加光驱")
+		return 0, fmt.Errorf("当前虚拟机没有空闲的 pcie-root-port 热插槽，请先关机后再添加磁盘或光驱")
 	}
 
 	return freeBuses[len(freeBuses)-1], nil

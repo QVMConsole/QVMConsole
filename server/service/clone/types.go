@@ -112,6 +112,7 @@ type BatchCloneParams struct {
 	StaticIP            string                     `json:"static_ip,omitempty"`           // OpenWrt 静态 IP
 	Gateway             string                     `json:"gateway,omitempty"`             // OpenWrt 网关
 	DNS                 string                     `json:"dns,omitempty"`                 // OpenWrt DNS
+	PCIERootPorts       int                        `json:"pcie_root_ports,omitempty"`     // q35 预留 pcie-root-port 数量
 }
 
 // ReinstallParams 重装系统参数

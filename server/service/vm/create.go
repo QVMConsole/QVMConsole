@@ -45,7 +45,7 @@ type CreateVMParams struct {
 	BootType        string                         `json:"boot_type,omitempty"`
 	Watchdog        string                         `json:"watchdog,omitempty"`
 	BootOrder       []string                       `json:"boot_order,omitempty"`
-	VideoModel      string                         `json:"video_model,omitempty"` // 视频模型: virtio/vga/vmvga/cirrus/ramfb
+	VideoModel      string                         `json:"video_model,omitempty"`   // 视频模型: virtio/vga/vmvga/cirrus/ramfb
 	SpiceEnabled    *bool                          `json:"spice_enabled,omitempty"` // 是否启用 SPICE 显示协议（nil=回退全局默认）
 	CPUTopologyMode string                         `json:"cpu_topology_mode,omitempty"`
 	CPULimitPercent int                            `json:"cpu_limit_percent,omitempty"`
@@ -518,6 +518,40 @@ func CreateVM(params *CreateVMParams, progressFn func(int, string)) (string, err
 		_ = os.Remove(diskPath)
 		return "", err
 	}
+	// 额外磁盘：在启动前冷添加，避免占用 PCIe 热插槽
+	if len(params.ExtraDisks) > 0 {
+		progressFn(52, "挂载额外磁盘...")
+		var extraDiskFailures []string
+		for i, ed := range params.ExtraDisks {
+			format := ed.Format
+			if format == "" {
+				format = "qcow2"
+			}
+			bus := ed.Bus
+			if bus == "" {
+				bus = diskBus // 使用系统盘的总线类型
+			}
+			diskDir := cloneDir
+			if strings.TrimSpace(ed.StoragePoolID) != "" {
+				resolvedDir, _, resolveErr := D.ResolveVMStorageDir(ed.StoragePoolID, params.IsAdmin)
+				if resolveErr != nil {
+					extraDiskFailures = append(extraDiskFailures, fmt.Sprintf("磁盘%d: 解析存储位置失败: %s", i+1, resolveErr.Error()))
+					progressFn(52, fmt.Sprintf("解析额外磁盘 %d 存储位置失败: %s", i+1, resolveErr.Error()))
+					continue
+				}
+				diskDir = resolvedDir
+			}
+			_, err := D.AddDiskWithBusInDir(params.Name, ed.Size, format, bus, diskDir)
+			if err != nil {
+				extraDiskFailures = append(extraDiskFailures, fmt.Sprintf("磁盘%d: 挂载失败: %s", i+1, err.Error()))
+				progressFn(52, fmt.Sprintf("挂载额外磁盘 %d 失败: %s", i+1, err.Error()))
+			}
+		}
+		if len(extraDiskFailures) > 0 {
+			logger.App.Warn("虚拟机额外磁盘部分失败", "vm", params.Name, "failures", strings.Join(extraDiskFailures, "; "))
+		}
+	}
+
 	if err := StartVM(params.Name); err != nil {
 		// 先 undefine VM 定义，再删除磁盘
 		utils.ExecCommand("virsh", "undefine", params.Name, "--nvram", "--snapshots-metadata")
@@ -534,40 +568,6 @@ func CreateVM(params *CreateVMParams, progressFn func(int, string)) (string, err
 
 	// 修复重启变关机（virt-install 默认 on_reboot=destroy）
 	FixOnReboot(params.Name)
-
-	// 额外磁盘
-	if len(params.ExtraDisks) > 0 {
-		progressFn(85, "挂载额外磁盘...")
-		var extraDiskFailures []string
-		for i, ed := range params.ExtraDisks {
-			format := ed.Format
-			if format == "" {
-				format = "qcow2"
-			}
-			bus := ed.Bus
-			if bus == "" {
-				bus = diskBus // 使用系统盘的总线类型
-			}
-			diskDir := cloneDir
-			if strings.TrimSpace(ed.StoragePoolID) != "" {
-				resolvedDir, _, resolveErr := D.ResolveVMStorageDir(ed.StoragePoolID, params.IsAdmin)
-				if resolveErr != nil {
-					extraDiskFailures = append(extraDiskFailures, fmt.Sprintf("磁盘%d: 解析存储位置失败: %s", i+1, resolveErr.Error()))
-					progressFn(85, fmt.Sprintf("解析额外磁盘 %d 存储位置失败: %s", i+1, resolveErr.Error()))
-					continue
-				}
-				diskDir = resolvedDir
-			}
-			_, err := D.AddDiskWithBusInDir(params.Name, ed.Size, format, bus, diskDir)
-			if err != nil {
-				extraDiskFailures = append(extraDiskFailures, fmt.Sprintf("磁盘%d: 挂载失败: %s", i+1, err.Error()))
-				progressFn(85, fmt.Sprintf("挂载额外磁盘 %d 失败: %s", i+1, err.Error()))
-			}
-		}
-		if len(extraDiskFailures) > 0 {
-			logger.App.Warn("虚拟机额外磁盘部分失败", "vm", params.Name, "failures", strings.Join(extraDiskFailures, "; "))
-		}
-	}
 
 	// 应用 IOPS 限制（仅管理员设置的值 > 0）
 	if params.SystemDiskIOPS != nil && (params.SystemDiskIOPS.TotalIopsSec > 0 || params.SystemDiskIOPS.ReadIopsSec > 0 || params.SystemDiskIOPS.WriteIopsSec > 0) {

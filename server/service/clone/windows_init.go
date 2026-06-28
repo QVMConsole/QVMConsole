@@ -251,7 +251,8 @@ func windowsDiskControllerXML(bus string) string {
 }
 
 // cloneWindows Windows 克隆逻辑
-func cloneWindows(ctx context.Context, params *CloneParams, cloneDisk string, ramMB int, memoryMeta *memory.VMMemoryMetadata, needUEFI bool, isNoInit bool, progressFn func(int, string)) error {
+// cloneDir: 虚拟机磁盘所在的存储目录，额外磁盘也会创建在此目录
+func cloneWindows(ctx context.Context, params *CloneParams, cloneDisk string, ramMB int, memoryMeta *memory.VMMemoryMetadata, needUEFI bool, isNoInit bool, progressFn func(int, string), cloneDir string) error {
 	templateDir := config.GlobalConfig.TemplateDir
 
 	// 获取宿主机架构 Profile，参数化 arch/machine/emulator/watchdog
@@ -463,6 +464,13 @@ func cloneWindows(ctx context.Context, params *CloneParams, cloneDisk string, ra
 
 	if err := D.SetVMFreeze(params.Name, params.Freeze); err != nil {
 		logger.App.Warn("设置VM冻结配置失败", "error", err)
+	}
+
+	// 额外磁盘：在启动前冷添加，避免占用 PCIe 热插槽
+	if len(params.ExtraDisks) > 0 {
+		if err := D.AddExtraDisksForVM(params.Name, params.ExtraDisks, cloneDir, params.DiskBus, params.IsAdmin, nil); err != nil {
+			return fmt.Errorf("挂载额外磁盘失败: %w", err)
+		}
 	}
 
 	startFn := D.StartVM

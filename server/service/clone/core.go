@@ -304,13 +304,13 @@ func CloneVM(ctx context.Context, params *CloneParams, progressFn func(int, stri
 
 	if isWindows {
 		// ===== Windows 克隆 =====
-		if err := cloneWindows(ctx, params, cloneDisk, ramMB, memoryMeta, needUEFI, isNoInit, progressFn); err != nil {
+		if err := cloneWindows(ctx, params, cloneDisk, ramMB, memoryMeta, needUEFI, isNoInit, progressFn, cloneDir); err != nil {
 			_ = os.Remove(cloneDisk)
 			return nil, err
 		}
 	} else {
 		// ===== Linux / FnOS / Other 克隆 =====
-		if err := defineAndStartNonWindowsClone(params, cloneDisk, ramMB, memoryMeta, tplType, cloneBootType, needUEFI, meta.NVRAMPath); err != nil {
+		if err := defineAndStartNonWindowsClone(params, cloneDisk, ramMB, memoryMeta, tplType, cloneBootType, needUEFI, meta.NVRAMPath, cloneDir); err != nil {
 			_ = os.Remove(cloneDisk)
 			return nil, err
 		}
@@ -332,15 +332,6 @@ func CloneVM(ctx context.Context, params *CloneParams, progressFn func(int, stri
 
 	// 修复重启变关机
 	D.FixOnReboot(params.Name)
-
-	if len(params.ExtraDisks) > 0 {
-		progressFn(52, "挂载额外磁盘...")
-		if err := D.AddExtraDisksForVM(params.Name, params.ExtraDisks, cloneDir, params.DiskBus, params.IsAdmin, func(_ int, msg string) {
-			progressFn(52, msg)
-		}); err != nil {
-			return nil, err
-		}
-	}
 
 	// Other 类型不做任何初始化，直接完成
 	if isOther {

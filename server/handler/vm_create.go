@@ -51,8 +51,9 @@ type CreateVmRequest struct {
 	SecurityGroupID uint                              `json:"security_group_id"`
 	ExtraNics       []service.AddVMInterfaceRequest   `json:"extra_nics"`
 	StoragePoolID   string                            `json:"storage_pool_id"`
-	SystemDiskIOPS  *service.DiskIOPSTune             `json:"system_disk_iops"` // 系统盘 IOPS 限制（仅管理员）
-	HostDevices     []service.HostDeviceParam         `json:"host_devices"`     // 硬件直通设备
+	SystemDiskIOPS  *service.DiskIOPSTune             `json:"system_disk_iops"`          // 系统盘 IOPS 限制（仅管理员）
+	HostDevices     []service.HostDeviceParam         `json:"host_devices"`              // 硬件直通设备
+	PCIERootPorts   int                               `json:"pcie_root_ports,omitempty"` // q35 预留 pcie-root-port 数量
 	ExtraDisks      []struct {
 		Size          int    `json:"size"`
 		Format        string `json:"format"`
@@ -143,6 +144,7 @@ func CreateVm(c *gin.Context) {
 		StoragePoolID:   req.StoragePoolID,
 		SystemDiskIOPS:  req.SystemDiskIOPS,
 		HostDevices:     req.HostDevices,
+		PCIERootPorts:   req.PCIERootPorts,
 	}
 
 	// 额外磁盘

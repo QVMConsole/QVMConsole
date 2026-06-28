@@ -370,7 +370,18 @@ func LinkedCloneVM(ctx context.Context, params *LinkedCloneParams, progressFn fu
 		return nil, err
 	}
 
-	progressFn(80, "启动虚拟机...")
+	// 额外磁盘：在启动前冷添加，避免占用 PCIe 热插槽
+	if len(params.ExtraDisks) > 0 {
+		progressFn(78, "挂载额外磁盘...")
+		if err := D.AddExtraDisksForVM(params.Name, params.ExtraDisks, cloneDir, params.DiskBus, params.IsAdmin, func(_ int, msg string) {
+			progressFn(78, msg)
+		}); err != nil {
+			cleanupLinkedCloneArtifacts(params.Name, cloneDisk)
+			return nil, err
+		}
+	}
+
+	progressFn(88, "启动虚拟机...")
 	startFn := D.StartVM
 	if firstBootColdReboot {
 		startFn = D.StartVMPreserveRebootAction
@@ -395,14 +406,6 @@ func LinkedCloneVM(ctx context.Context, params *LinkedCloneParams, progressFn fu
 		}
 	}
 	D.FixOnReboot(params.Name)
-	if len(params.ExtraDisks) > 0 {
-		progressFn(92, "挂载额外磁盘...")
-		if err := D.AddExtraDisksForVM(params.Name, params.ExtraDisks, cloneDir, params.DiskBus, params.IsAdmin, func(_ int, msg string) {
-			progressFn(92, msg)
-		}); err != nil {
-			return nil, err
-		}
-	}
 
 	progressFn(100, "原生链式克隆完成")
 	return &LinkedCloneResult{

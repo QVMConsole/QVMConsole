@@ -470,6 +470,7 @@ type SelfCreateVmRequest struct {
 	SecurityGroupID uint                              `json:"security_group_id"`
 	ExtraNics       []service.AddVMInterfaceRequest   `json:"extra_nics"`
 	StoragePoolID   string                            `json:"storage_pool_id"`
+	PCIERootPorts   int                               `json:"pcie_root_ports,omitempty"` // q35 预留 pcie-root-port 数量
 	ExtraDisks      []struct {
 		Size          int    `json:"size"`
 		Format        string `json:"format"`
@@ -590,6 +591,7 @@ func SelfCreateVm(c *gin.Context) {
 		StoragePoolID:   req.StoragePoolID,
 		IsAdmin:         false,
 		ExtraNics:       req.ExtraNics,
+		PCIERootPorts:   req.PCIERootPorts,
 		MemoryDynamic: sanitizeUserMemoryDynamicRequest(
 			req.MemoryDynamic,
 			req.RAM,

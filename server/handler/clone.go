@@ -66,11 +66,12 @@ type CloneVmRequest struct {
 	NicModel             string                            `json:"nic_model"`
 	PreserveFnOSDeviceID bool                              `json:"preserve_fnos_device_id"`
 	FnOSDeviceID         string                            `json:"fnos_device_id"`
-	SystemDiskIOPS       *service.DiskIOPSTune             `json:"system_disk_iops"`    // 系统盘 IOPS 限制（仅管理员）
-	DisableSystemInit    bool                              `json:"disable_system_init"` // 禁用系统初始化（跳过凭据校验和来宾系统修改）
-	StaticIP             string                            `json:"static_ip"`           // OpenWrt 静态 IP（CIDR 格式）
-	Gateway              string                            `json:"gateway"`             // OpenWrt 网关
-	DNS                  string                            `json:"dns"`                 // OpenWrt DNS
+	SystemDiskIOPS       *service.DiskIOPSTune             `json:"system_disk_iops"`          // 系统盘 IOPS 限制（仅管理员）
+	DisableSystemInit    bool                              `json:"disable_system_init"`       // 禁用系统初始化（跳过凭据校验和来宾系统修改）
+	StaticIP             string                            `json:"static_ip"`                 // OpenWrt 静态 IP（CIDR 格式）
+	Gateway              string                            `json:"gateway"`                   // OpenWrt 网关
+	DNS                  string                            `json:"dns"`                       // OpenWrt DNS
+	PCIERootPorts        int                               `json:"pcie_root_ports,omitempty"` // q35 预留 pcie-root-port 数量
 }
 
 // BatchCloneRequest 批量克隆请求
@@ -99,7 +100,7 @@ type BatchCloneRequest struct {
 	TemplateRootPass    string                          `json:"template_root_pass"`
 	TemplateUser        string                          `json:"template_user"`
 	VideoModel          string                          `json:"video_model"`
-	SpiceEnabled        *bool                           `json:"spice_enabled"` // 是否启用 SPICE 显示协议（不传=回退全局默认）
+	SpiceEnabled        *bool                           `json:"spice_enabled"`   // 是否启用 SPICE 显示协议（不传=回退全局默认）
 	DiskBus             string                          `json:"disk_bus"`        // 系统盘总线类型
 	NicModel            string                          `json:"nic_model"`       // 网卡模型
 	StoragePoolID       string                          `json:"storage_pool_id"` // 存储池
@@ -110,10 +111,11 @@ type BatchCloneRequest struct {
 	SwitchID            uint                            `json:"switch_id"`         // VPC 交换机 ID
 	SecurityGroupID     uint                            `json:"security_group_id"` // 安全组 ID
 	ExtraNics           []service.AddVMInterfaceRequest `json:"extra_nics"`
-	DisableSystemInit   bool                            `json:"disable_system_init"` // 禁用系统初始化
-	StaticIP            string                          `json:"static_ip"`           // OpenWrt 静态 IP（CIDR 格式）
-	Gateway             string                          `json:"gateway"`             // OpenWrt 网关
-	DNS                 string                          `json:"dns"`                 // OpenWrt DNS
+	DisableSystemInit   bool                            `json:"disable_system_init"`       // 禁用系统初始化
+	StaticIP            string                          `json:"static_ip"`                 // OpenWrt 静态 IP（CIDR 格式）
+	Gateway             string                          `json:"gateway"`                   // OpenWrt 网关
+	DNS                 string                          `json:"dns"`                       // OpenWrt DNS
+	PCIERootPorts       int                             `json:"pcie_root_ports,omitempty"` // q35 预留 pcie-root-port 数量
 }
 
 // ReinstallRequest 重装系统请求
@@ -269,6 +271,7 @@ func CloneVm(c *gin.Context) {
 		StaticIP:             req.StaticIP,
 		Gateway:              req.Gateway,
 		DNS:                  req.DNS,
+		PCIERootPorts:        req.PCIERootPorts,
 	}
 
 	params.IsAdmin = isAdmin
@@ -428,6 +431,7 @@ func BatchCloneVm(c *gin.Context) {
 		StaticIP:            req.StaticIP,
 		Gateway:             req.Gateway,
 		DNS:                 req.DNS,
+		PCIERootPorts:       req.PCIERootPorts,
 	}
 
 	username, _ := c.Get("username")
