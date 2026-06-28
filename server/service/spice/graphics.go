@@ -47,10 +47,16 @@ func InjectSPICEGraphicsToDomainXML(xmlStr, passwd, listenAddr string) string {
 	return strings.Replace(xmlStr, "</devices>", newBlock+"\n    </devices>", 1)
 }
 
-// RemoveSPICEGraphicsFromDomainXML 移除 SPICE graphics 块（关闭 SPICE 用）。
+// spiceAudioRe 匹配 SPICE 音频后端元素（自闭合或带内容块）。移除 SPICE graphics 时需一并移除，
+// 否则 libvirt 会因 "Spice audio is not supported without spice graphics" 拒绝定义域。
+var spiceAudioRe = regexp.MustCompile(`(?s)<audio\s+[^>]*?type\s*=\s*['"]spice['"][^>]*?(?:/>|>.*?</audio>)`)
+
+// RemoveSPICEGraphicsFromDomainXML 移除 SPICE graphics 块及关联的 spice 音频后端（关闭 SPICE 用）。
 func RemoveSPICEGraphicsFromDomainXML(xmlStr string) string {
-	// 删除整块及其后的换行，避免留下空行
+	// 删除 graphics 整块及其后的换行，避免留下空行
 	out := spiceGraphicsBlockRe.ReplaceAllString(xmlStr, "")
+	// 一并移除 spice 音频后端，避免 libvirt 拒绝定义（spice audio 依赖 spice graphics）
+	out = spiceAudioRe.ReplaceAllString(out, "")
 	return out
 }
 

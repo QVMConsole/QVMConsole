@@ -52,6 +52,7 @@ type CloneVmRequest struct {
 	TemplateUser         string                            `json:"template_user"`
 	DiskBus              string                            `json:"disk_bus"`
 	VideoModel           string                            `json:"video_model"`
+	SpiceEnabled         *bool                             `json:"spice_enabled"` // 是否启用 SPICE 显示协议（不传=回退全局默认）
 	CPUTopologyMode      string                            `json:"cpu_topology_mode"`
 	CPULimitPercent      int                               `json:"cpu_limit_percent"`
 	CPUAffinity          string                            `json:"cpu_affinity"` // CPU 亲和性，如 "0,2,4"
@@ -98,6 +99,7 @@ type BatchCloneRequest struct {
 	TemplateRootPass    string                          `json:"template_root_pass"`
 	TemplateUser        string                          `json:"template_user"`
 	VideoModel          string                          `json:"video_model"`
+	SpiceEnabled        *bool                           `json:"spice_enabled"` // 是否启用 SPICE 显示协议（不传=回退全局默认）
 	DiskBus             string                          `json:"disk_bus"`        // 系统盘总线类型
 	NicModel            string                          `json:"nic_model"`       // 网卡模型
 	StoragePoolID       string                          `json:"storage_pool_id"` // 存储池
@@ -249,6 +251,7 @@ func CloneVm(c *gin.Context) {
 		TemplateUser:         req.TemplateUser,
 		DiskBus:              req.DiskBus,
 		VideoModel:           req.VideoModel,
+		SpiceEnabled:         req.SpiceEnabled,
 		CPUTopologyMode:      req.CPUTopologyMode,
 		CPULimitPercent:      req.CPULimitPercent,
 		CPUAffinity:          req.CPUAffinity,
@@ -409,6 +412,7 @@ func BatchCloneVm(c *gin.Context) {
 		TemplateRootPass:    req.TemplateRootPass,
 		TemplateUser:        req.TemplateUser,
 		VideoModel:          req.VideoModel,
+		SpiceEnabled:        req.SpiceEnabled,
 		DiskBus:             req.DiskBus,
 		NicModel:            req.NicModel,
 		StoragePoolID:       req.StoragePoolID,

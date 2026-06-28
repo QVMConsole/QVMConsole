@@ -171,8 +171,9 @@ type TestSMTPRequest struct {
 }
 
 type PublicSettingsResponse struct {
-	SiteTitle                string `json:"site_title"`
-	PasswordBreachCheckEnabled bool  `json:"password_breach_check_enabled"`
+	SiteTitle                  string `json:"site_title"`
+	PasswordBreachCheckEnabled bool   `json:"password_breach_check_enabled"`
+	SpiceEnabledByDefault      bool   `json:"spice_enabled_by_default"` // 创建虚拟机 SPICE 开关的默认初始值
 }
 
 // GetPublicSettings 获取公开系统设置
@@ -187,6 +188,7 @@ func GetPublicSettings(c *gin.Context) {
 		"data": PublicSettingsResponse{
 			SiteTitle:                 siteTitle,
 			PasswordBreachCheckEnabled: config.GlobalConfig.PasswordBreachCheckEnabled,
+			SpiceEnabledByDefault:     config.GlobalConfig.SpiceEnabledByDefault,
 		},
 	})
 }

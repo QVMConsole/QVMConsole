@@ -48,8 +48,8 @@ func GetSpiceConnInfo(vmName string) (*SpiceConnInfo, error) {
 	return spicepkg.GetSpiceConnInfo(vmName)
 }
 
-func BuildSpiceVVFile(info *SpiceConnInfo, vmName string) string {
-	return spicepkg.BuildVVFile(info, vmName)
+func BuildSpiceVVFile(info *SpiceConnInfo, vmName string, deleteThisFile bool) string {
+	return spicepkg.BuildVVFile(info, vmName, deleteThisFile)
 }
 
 // InjectSPICEGraphicsToDomainXML / EnsureQXLVideo 暴露给创建/克隆/导入链路调用。

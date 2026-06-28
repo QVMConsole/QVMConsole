@@ -40,6 +40,7 @@ type CreateVmRequest struct {
 	Watchdog        string                            `json:"watchdog"`
 	BootOrder       []string                          `json:"boot_order"`
 	VideoModel      string                            `json:"video_model"`
+	SpiceEnabled    *bool                             `json:"spice_enabled"` // 是否启用 SPICE 显示协议（不传=回退全局默认）
 	CPUTopologyMode string                            `json:"cpu_topology_mode"`
 	CPULimitPercent int                               `json:"cpu_limit_percent"`
 	CPUAffinity     string                            `json:"cpu_affinity"` // CPU 亲和性，如 "0,2,4"
@@ -129,6 +130,7 @@ func CreateVm(c *gin.Context) {
 		Watchdog:        req.Watchdog,
 		BootOrder:       req.BootOrder,
 		VideoModel:      req.VideoModel,
+		SpiceEnabled:    req.SpiceEnabled,
 		CPUTopologyMode: req.CPUTopologyMode,
 		CPULimitPercent: req.CPULimitPercent,
 		CPUAffinity:     req.CPUAffinity,
@@ -280,6 +282,7 @@ type ImportDiskByPathRequest struct {
 	MachineType      string                            `json:"machine_type"`
 	NicModel         string                            `json:"nic_model"`
 	VideoModel       string                            `json:"video_model"`
+	SpiceEnabled     *bool                             `json:"spice_enabled"` // 是否启用 SPICE 显示协议（不传=回退全局默认）
 	CPUTopologyMode  string                            `json:"cpu_topology_mode"`
 	CPULimitPercent  int                               `json:"cpu_limit_percent"`
 	CPUAffinity      string                            `json:"cpu_affinity"` // CPU 亲和性，如 "0,2,4"
@@ -364,6 +367,7 @@ func AdminImportDisk(c *gin.Context) {
 		MachineType:      req.MachineType,
 		NicModel:         req.NicModel,
 		VideoModel:       req.VideoModel,
+		SpiceEnabled:     req.SpiceEnabled,
 		CPUTopologyMode:  req.CPUTopologyMode,
 		CPULimitPercent:  req.CPULimitPercent,
 		CPUAffinity:      req.CPUAffinity,

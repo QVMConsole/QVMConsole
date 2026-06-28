@@ -42,6 +42,7 @@ type CloneParams struct {
 	TemplateUser          string                         `json:"template_user,omitempty"`          // 模板中已有的用户名
 	DiskBus               string                         `json:"disk_bus,omitempty"`               // 系统盘总线类型: virtio/scsi/sata/ide
 	VideoModel            string                         `json:"video_model,omitempty"`            // 视频模型: virtio/vga/vmvga/cirrus
+	SpiceEnabled          *bool                          `json:"spice_enabled,omitempty"`          // 是否启用 SPICE（nil=回退全局默认）
 	CPUTopologyMode       string                         `json:"cpu_topology_mode,omitempty"`      // CPU 拓扑模式: auto/single_socket/host_default
 	CPULimitPercent       int                            `json:"cpu_limit_percent,omitempty"`      // CPU 限制百分比，0 表示无限制
 	CPUAffinity           string                         `json:"cpu_affinity,omitempty"`           // CPU 亲和性，如 "0,2,4"
@@ -95,6 +96,7 @@ type BatchCloneParams struct {
 	TemplateRootPass    string                     `json:"template_root_pass,omitempty"`     // 模板 root 密码
 	TemplateUser        string                     `json:"template_user,omitempty"`          // 模板中已有的用户名
 	VideoModel          string                     `json:"video_model,omitempty"`            // 视频模型
+	SpiceEnabled        *bool                      `json:"spice_enabled,omitempty"`          // 是否启用 SPICE（nil=回退全局默认）
 	DiskBus             string                     `json:"disk_bus,omitempty"`               // 系统盘总线类型
 	CPUTopologyMode     string                     `json:"cpu_topology_mode,omitempty"`      // CPU 拓扑模式
 	CPULimitPercent     int                        `json:"cpu_limit_percent,omitempty"`      // CPU 限制百分比，0 表示无限制

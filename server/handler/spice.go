@@ -172,7 +172,20 @@ func DownloadSpiceVV(c *gin.Context) {
 		})
 		return
 	}
-	vv := service.BuildSpiceVVFile(info, name)
+	// 关机态 SPICE 端口由 QEMU 运行时分配（autoport），未运行时无法获取，.vv 缺端口会连不上
+	if info.Port == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "虚拟机未运行，SPICE 端口尚未分配，请先启动虚拟机后再下载连接文件",
+		})
+		return
+	}
+	// delete=0/false 时生成可重复使用文件（连接后不自动删除）；默认一次性（连接后自删）
+	deleteThisFile := true
+	if d := c.Query("delete"); d == "0" || d == "false" {
+		deleteThisFile = false
+	}
+	vv := service.BuildSpiceVVFile(info, name, deleteThisFile)
 	c.Header("Content-Disposition", "attachment; filename="+name+".vv")
 	c.Data(http.StatusOK, "application/x-virt-viewer", []byte(vv))
 }

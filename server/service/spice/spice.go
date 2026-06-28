@@ -28,10 +28,13 @@ func GetSpiceStatus(vmName string) (*SpiceInfo, error) {
 	}
 
 	if vmState != "running" && vmState != "paused" {
-		// 从 inactive XML 检查是否配置了 SPICE
+		// 从 inactive XML 检查是否配置了 SPICE 及对外暴露状态（关机态无运行端口，按配置判断）
 		xmlStr, xmlErr := libvirt_rpc.GetDomainXMLRPC(vmName, libvirt.DomainXMLInactive)
 		if xmlErr == nil {
 			info.Enabled = HasSPICEGraphics(xmlStr)
+			if strings.Contains(xmlStr, "listen='0.0.0.0'") {
+				info.Exposed = true
+			}
 		}
 		return info, nil
 	}

@@ -350,7 +350,7 @@ export function exposeSpice(name, expose) {
 }
 
 // 下载 SPICE .vv 连接文件（返回 blob，使用原始 axios 避免被 JSON 拦截器干扰）
-export async function downloadSpiceVV(name) {
+export async function downloadSpiceVV(name, deleteFile = true) {
   const baseURL = import.meta.env.VITE_APP_BASE_API || '/api'
   const { useUserStore } = await import('@/store/user')
   const userStore = useUserStore()
@@ -359,7 +359,7 @@ export async function downloadSpiceVV(name) {
     headers.Authorization = `Bearer ${userStore.token}`
   }
   const response = await axios({
-    url: baseURL + `/vm/${name}/spice/vv`,
+    url: baseURL + `/vm/${name}/spice/vv?delete=${deleteFile ? 1 : 0}`,
     method: 'get',
     responseType: 'blob',
     headers

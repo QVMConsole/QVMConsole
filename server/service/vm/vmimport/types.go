@@ -36,6 +36,7 @@ type ImportVMParams struct {
 	MachineType      string                  `json:"machine_type,omitempty"`       // 机器类型: q35/pc
 	NicModel         string                  `json:"nic_model,omitempty"`          // 网卡模型
 	VideoModel       string                  `json:"video_model,omitempty"`        // 视频模型: virtio/vga/vmvga/cirrus
+	SpiceEnabled     *bool                   `json:"spice_enabled,omitempty"`      // 是否启用 SPICE（nil=回退全局默认）
 	CPUTopologyMode  string                  `json:"cpu_topology_mode,omitempty"`  // CPU 拓扑模式
 	CPULimitPercent  int                     `json:"cpu_limit_percent,omitempty"`  // CPU 限制百分比，0 表示无限制
 	CPUAffinity      string                  `json:"cpu_affinity,omitempty"`      // CPU 亲和性，如 "0,2,4"
@@ -83,6 +84,7 @@ type ImportDiskByPathParams struct {
 	MachineType      string                  `json:"machine_type,omitempty"`
 	NicModel         string                  `json:"nic_model,omitempty"`
 	VideoModel       string                  `json:"video_model,omitempty"`
+	SpiceEnabled     *bool                   `json:"spice_enabled,omitempty"`      // 是否启用 SPICE（nil=回退全局默认）
 	CPUTopologyMode  string                  `json:"cpu_topology_mode,omitempty"`
 	CPULimitPercent  int                     `json:"cpu_limit_percent,omitempty"`
 	CPUAffinity      string                  `json:"cpu_affinity,omitempty"`       // CPU 亲和性，如 "0,2,4"

@@ -46,6 +46,7 @@ type CreateVMParams struct {
 	Watchdog        string                         `json:"watchdog,omitempty"`
 	BootOrder       []string                       `json:"boot_order,omitempty"`
 	VideoModel      string                         `json:"video_model,omitempty"` // 视频模型: virtio/vga/vmvga/cirrus/ramfb
+	SpiceEnabled    *bool                          `json:"spice_enabled,omitempty"` // 是否启用 SPICE 显示协议（nil=回退全局默认）
 	CPUTopologyMode string                         `json:"cpu_topology_mode,omitempty"`
 	CPULimitPercent int                            `json:"cpu_limit_percent,omitempty"`
 	CPUAffinity     string                         `json:"cpu_affinity,omitempty"` // CPU 亲和性，如 "0,2,4"，空字符串表示不设置
@@ -447,8 +448,15 @@ func CreateVM(params *CreateVMParams, progressFn func(int, string)) (string, err
 		return "", err
 	}
 
-	// SPICE graphics（默认本地监听），与 VNC 共存
-	if D.SpiceEnabledByDefault != nil && D.SpiceEnabledByDefault() {
+	// SPICE graphics（默认本地监听），与 VNC 共存；是否启用由 per-VM 开关决定，回退全局默认
+	spiceEnabled := false
+	if D.SpiceEnabledByDefault != nil {
+		spiceEnabled = D.SpiceEnabledByDefault()
+	}
+	if params.SpiceEnabled != nil {
+		spiceEnabled = *params.SpiceEnabled
+	}
+	if spiceEnabled {
 		if D.InjectSPICEGraphics != nil {
 			vmXML = D.InjectSPICEGraphics(vmXML, "", "127.0.0.1")
 		}

@@ -274,9 +274,17 @@
                   <div class="spice-hint">
                     使用 virt-viewer / spicy 等客户端连接；下载 .vv 文件可直接双击由 virt-viewer 打开。
                   </div>
-                  <el-button type="primary" plain size="small" @click="handleDownloadSpiceVV">
-                    下载 .vv 连接文件
-                  </el-button>
+                  <el-dropdown trigger="click" @command="handleDownloadSpiceVV">
+                    <el-button type="primary" plain size="small" :disabled="!spiceConnReady">
+                      下载 .vv 连接文件<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+                    </el-button>
+                    <template #dropdown>
+                      <el-dropdown-menu>
+                        <el-dropdown-item :command="true">一次性（连接后自动删除）</el-dropdown-item>
+                        <el-dropdown-item :command="false">可重复使用（保留文件）</el-dropdown-item>
+                      </el-dropdown-menu>
+                    </template>
+                  </el-dropdown>
                 </div>
               </div>
             </el-tab-pane>
@@ -787,7 +795,7 @@ import { useVmStore } from '@/store/vm'
 import { useUserStore } from '@/store/user'
 import { copyTextWithFallback } from '@/utils/clipboard'
 import {
-  ArrowLeft, ArrowUp, Cpu, Odometer, Location, Coin,
+  ArrowLeft, ArrowUp, ArrowDown, Cpu, Odometer, Location, Coin,
   RefreshRight, Refresh, SwitchButton, CircleClose, VideoPlay,
   Edit, Connection, Monitor, Operation, Setting, Lock, AlarmClock, VideoCamera,
   PictureFilled, TrendCharts, Timer
@@ -1475,6 +1483,15 @@ const refreshSpiceConnInfo = async () => {
 }
 
 const handleSpiceEnable = async () => {
+  try {
+    await ElMessageBox.confirm('开启 SPICE 将修改虚拟机配置。运行中的虚拟机会立即重启以使其生效，关机的虚拟机在下次启动时生效。确认继续？', '开启 SPICE', {
+      confirmButtonText: '确认开启',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+  } catch (e) {
+    return
+  }
   vmInfo.spiceLoading = true
   try {
     await enableSpice(vmName.value)
@@ -1489,7 +1506,7 @@ const handleSpiceEnable = async () => {
 
 const handleSpiceDisable = async () => {
   try {
-    await ElMessageBox.confirm('关闭 SPICE 将断开所有外部 SPICE 客户端连接，确认？', '关闭 SPICE', {
+    await ElMessageBox.confirm('关闭 SPICE 将修改虚拟机配置，运行中的虚拟机会立即重启以生效并断开所有外部 SPICE 客户端连接。确认？', '关闭 SPICE', {
       confirmButtonText: '确认关闭',
       cancelButtonText: '取消',
       type: 'warning'
@@ -1544,9 +1561,15 @@ const handleSpiceChangePassword = async () => {
   await refreshSpiceStatus()
 }
 
-const handleDownloadSpiceVV = async () => {
+const spiceConnReady = computed(() => vmInfo.status === 'running' || vmInfo.status === 'paused')
+const handleDownloadSpiceVV = async (deleteFile = true) => {
+  // SPICE 端口由 QEMU 运行时分配（autoport），关机态无端口，下载的 .vv 会连不上
+  if (!spiceConnReady.value) {
+    ElMessage.warning('虚拟机未运行，SPICE 端口尚未分配，请先启动虚拟机后再下载连接文件')
+    return
+  }
   try {
-    const blob = await downloadSpiceVV(vmName.value)
+    const blob = await downloadSpiceVV(vmName.value, deleteFile)
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url

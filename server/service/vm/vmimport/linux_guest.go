@@ -269,8 +269,12 @@ func importDiskByPathLinuxDefine(params *ImportDiskByPathParams, destDiskPath, f
 		return err
 	}
 
-	// SPICE graphics（默认本地监听），与 VNC 共存
-	if config.GlobalConfig.SpiceEnabledByDefault {
+	// SPICE graphics（默认本地监听），与 VNC 共存；是否启用由 per-VM 开关决定，回退全局默认
+	spiceEnabled := config.GlobalConfig.SpiceEnabledByDefault
+	if params.SpiceEnabled != nil {
+		spiceEnabled = *params.SpiceEnabled
+	}
+	if spiceEnabled {
 		vmXML = service.InjectSPICEGraphicsToDomainXML(vmXML, "", "127.0.0.1")
 		vmXML = service.EnsureQXLVideo(vmXML)
 	}

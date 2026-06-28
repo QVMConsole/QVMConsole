@@ -592,6 +592,19 @@
         </el-form-item>
 
         <el-divider content-position="left">
+          <el-icon style="margin-right: 4px;"><Monitor /></el-icon>
+          显示协议
+        </el-divider>
+
+        <el-form-item label="SPICE 默认开启">
+          <el-switch v-model="form.spice_enabled_by_default" active-text="启用" inactive-text="关闭" />
+          <div class="form-tip">
+            <el-icon><InfoFilled /></el-icon>
+            开启后，新建虚拟机表单的 SPICE 开关初始为开启状态（每台 VM 仍可单独关闭）。部分机器/客户机不支持 SPICE，默认关闭更稳妥 | 环境变量: KVM_SPICE_ENABLED_BY_DEFAULT
+          </div>
+        </el-form-item>
+
+        <el-divider content-position="left">
           <el-icon style="margin-right: 4px;"><Connection /></el-icon>
           端口转发 HTTP 探测
         </el-divider>
@@ -1181,7 +1194,7 @@
 
 <script setup>
 import { computed, ref, reactive, onMounted, watch } from 'vue'
-import { Check, Connection, CopyDocument, Cpu, Delete, Download, FirstAidKit, FolderOpened, InfoFilled, Loading, Lock, Message, Odometer, Plus, Refresh, Warning } from '@element-plus/icons-vue'
+import { Check, Connection, CopyDocument, Cpu, Delete, Download, FirstAidKit, FolderOpened, InfoFilled, Loading, Lock, Message, Monitor, Odometer, Plus, Refresh, Warning } from '@element-plus/icons-vue'
 import { getHostKSMStatus, getHostKVMUnrestrictedGuestStatus, getHostZRAMStatus, getSettings, getCPUAffinityPresets, getUserStorageISOPath, rotateJWTSecret, saveCPUAffinityPresets, testSMTP, updateHostKSMProfile, updateHostKVMUnrestrictedGuest, updateHostZRAMProfile, updateSettings, getLogStatus, deleteLogs, exportLogs, trimUserStorage, getDiagnosticCategories, exportDiagnostics } from '@/api/settings'
 import { getAllISOs } from '@/api/infra'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -1291,6 +1304,7 @@ const form = reactive({
   log_max_backups: 0,
   network_wait_online_disabled: false,
   network_wait_online_summary: '',
+  spice_enabled_by_default: false,
 })
 
 // ISO 列表
@@ -1754,6 +1768,7 @@ const buildPayload = () => ({
   jwt_secret_rotate_hours: form.jwt_secret_rotate_hours,
   log_max_backups: form.log_max_backups,
   network_wait_online_disabled: form.network_wait_online_disabled,
+  spice_enabled_by_default: form.spice_enabled_by_default,
 })
 
 const handleTestSMTP = async () => {

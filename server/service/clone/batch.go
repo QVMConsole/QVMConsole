@@ -77,6 +77,7 @@ func BatchCloneVM(ctx context.Context, params *BatchCloneParams, progressFn func
 				TemplateRootPass:    params.TemplateRootPass,
 				TemplateUser:        params.TemplateUser,
 				VideoModel:          params.VideoModel,
+				SpiceEnabled:        params.SpiceEnabled,
 				DiskBus:             params.DiskBus,
 				NicModel:            params.NicModel,
 				StoragePoolID:       params.StoragePoolID,

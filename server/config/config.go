@@ -88,7 +88,7 @@ type Config struct {
 	MaxBurstOutbound int `json:"max_burst_outbound"`
 	// 救援系统 ISO 路径
 	RescueISO string `json:"rescue_iso"`
-	// 创建虚拟机时是否默认附带 SPICE 显示协议（与 VNC 共存，默认本地监听）
+	// 创建虚拟机时"SPICE 开关"的默认初始值（与 VNC 共存，默认本地监听）；每台 VM 可在高级选项覆盖
 	SpiceEnabledByDefault bool `json:"spice_enabled_by_default"`
 	// 面板对外访问地址，用于邮件中的跳转链接
 	PublicBaseURL string `json:"public_base_url"`
@@ -239,7 +239,7 @@ func Init() {
 		MaxBurstInbound:                       getEnvInt("KVM_MAX_BURST_INBOUND", 0),
 		MaxBurstOutbound:                      getEnvInt("KVM_MAX_BURST_OUTBOUND", 0),
 		RescueISO:                             getEnv("KVM_RESCUE_ISO", ""),
-		SpiceEnabledByDefault:                 getEnvBool("KVM_SPICE_ENABLED_BY_DEFAULT", true),
+		SpiceEnabledByDefault:                 getEnvBool("KVM_SPICE_ENABLED_BY_DEFAULT", false),
 		PublicBaseURL:                         getEnv("KVM_PUBLIC_BASE_URL", ""),
 		SiteTitle:                             getEnv("KVM_SITE_TITLE", DefaultSiteTitle),
 		DevelopmentMode:                       getEnvBool("KVM_DEVELOPMENT_MODE", false),

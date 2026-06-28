@@ -7,6 +7,9 @@ const SITE_TITLE_STORAGE_KEY = 'site_title'
 // 泄露密码检测开关（默认开启）
 export const passwordBreachCheckEnabled = ref(true)
 
+// 创建虚拟机时 SPICE 显示协议开关的默认初始值（默认关闭）
+export const spiceEnabledByDefault = ref(false)
+
 function normalizeSiteTitle(value) {
   const normalized = String(value || '').trim()
   return normalized || DEFAULT_SITE_TITLE
@@ -57,6 +60,10 @@ export async function syncPublicSiteTitle() {
     // 同步泄露密码检测开关
     if (res.data?.password_breach_check_enabled !== undefined) {
       passwordBreachCheckEnabled.value = res.data.password_breach_check_enabled !== false
+    }
+    // 同步 SPICE 开关默认初始值
+    if (res.data?.spice_enabled_by_default !== undefined) {
+      spiceEnabledByDefault.value = res.data.spice_enabled_by_default === true
     }
     return getSiteTitle()
   } catch {

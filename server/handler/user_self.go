@@ -204,6 +204,7 @@ type SelfCloneVmRequest struct {
 	UEFI                 *bool                             `json:"uefi"`
 	DiskBus              string                            `json:"disk_bus"`
 	VideoModel           string                            `json:"video_model"`
+	SpiceEnabled         *bool                             `json:"spice_enabled"` // 是否启用 SPICE 显示协议（不传=回退全局默认）
 	CPUTopologyMode      string                            `json:"cpu_topology_mode"`
 	FirstBootRebootMode  string                            `json:"first_boot_reboot_mode"`
 	MemoryDynamic        *vm_memory.VMMemoryDynamicRequest `json:"memory_dynamic"`
@@ -341,6 +342,7 @@ func SelfCloneVm(c *gin.Context) {
 		UEFI:                 req.UEFI,
 		DiskBus:              req.DiskBus,
 		VideoModel:           req.VideoModel,
+		SpiceEnabled:         req.SpiceEnabled,
 		CPUTopologyMode:      req.CPUTopologyMode,
 		FirstBootRebootMode:  req.FirstBootRebootMode,
 		TemplateRootPass:     meta.RootPassword,

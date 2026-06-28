@@ -463,6 +463,7 @@ type SelfCreateVmRequest struct {
 	BootType        string                            `json:"boot_type"`
 	BootOrder       []string                          `json:"boot_order"`
 	VideoModel      string                            `json:"video_model"`
+	SpiceEnabled    *bool                             `json:"spice_enabled"` // 是否启用 SPICE 显示协议（不传=回退全局默认）
 	CPUTopologyMode string                            `json:"cpu_topology_mode"`
 	MemoryDynamic   *vm_memory.VMMemoryDynamicRequest `json:"memory_dynamic"`
 	SwitchID        uint                              `json:"switch_id"`
@@ -581,6 +582,7 @@ func SelfCreateVm(c *gin.Context) {
 		BootType:        req.BootType,
 		BootOrder:       req.BootOrder,
 		VideoModel:      req.VideoModel,
+		SpiceEnabled:    req.SpiceEnabled,
 		CPUTopologyMode: req.CPUTopologyMode,
 		VirtType:        "kvm",
 		SwitchID:        req.SwitchID,

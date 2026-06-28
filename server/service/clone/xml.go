@@ -181,8 +181,15 @@ func defineAndStartNonWindowsClone(params *CloneParams, cloneDisk string, ramMB 
 		return err
 	}
 
-	// SPICE graphics（默认本地监听），与 VNC 共存
-	if D.SpiceEnabledByDefault != nil && D.SpiceEnabledByDefault() {
+	// SPICE graphics（默认本地监听），与 VNC 共存；是否启用由 per-VM 开关决定，回退全局默认
+	spiceEnabled := false
+	if D.SpiceEnabledByDefault != nil {
+		spiceEnabled = D.SpiceEnabledByDefault()
+	}
+	if params.SpiceEnabled != nil {
+		spiceEnabled = *params.SpiceEnabled
+	}
+	if spiceEnabled {
 		if D.InjectSPICEGraphics != nil {
 			vmXML = D.InjectSPICEGraphics(vmXML, "", "127.0.0.1")
 		}
