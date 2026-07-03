@@ -3203,6 +3203,9 @@ const applySelectedTemplateSettings = (tpl, options = {}) => {
   const defaultVideoModel = resolveTemplateDefaultVideoModel(tpl)
   if (defaultVideoModel) {
     form.video_model = defaultVideoModel
+  } else if (form.arch === 'aarch64') {
+    // ARM 架构无模板显式设置时默认使用 ramfb
+    form.video_model = 'ramfb'
   }
   const defaultCPUTopologyMode = resolveTemplateDefaultCPUTopologyMode(tpl)
   if (defaultCPUTopologyMode) {
@@ -3548,6 +3551,10 @@ const form = reactive({
 })
 
 const getRecommendedVideoModel = (osType) => {
+  // ARM (aarch64) 架构必须使用 ramfb，virtio/vga 在 ARM 下兼容性差
+  if (form.arch === 'aarch64') {
+    return 'ramfb'
+  }
   return osType === 'windows' ? 'vga' : 'virtio'
 }
 
@@ -4174,7 +4181,12 @@ const onOsTypeChange = () => {
     form.nic_model = 'virtio'
   }
   applyRTCOffsetRecommendation(form.os_type)
-  applyVideoModelRecommendation(form.os_type)
+  if (form.arch === 'aarch64') {
+    // ARM 架构始终使用 ramfb，不受系统类型切换影响
+    form.video_model = 'ramfb'
+  } else {
+    applyVideoModelRecommendation(form.os_type)
+  }
   normalizeMemoryBackendForGuest()
 }
 
@@ -4197,13 +4209,17 @@ const onVirtTypeChange = (val) => {
     if (hostArch.value === 'aarch64') {
       form.machine_type = 'virt'
       applyBootTypeRecommendation('uefi', { force: true })
+      // ARM 架构默认使用 ramfb 显示设备
+      form.video_model = 'ramfb'
     } else {
       form.machine_type = 'q35'
       applyBootTypeRecommendation('bios', { force: true })
+      applyVideoModelRecommendation(form.os_type)
     }
   } else {
     // QEMU 模式默认 x86_64
     form.arch = 'x86_64'
+    applyVideoModelRecommendation(form.os_type)
   }
 }
 
@@ -4213,13 +4229,17 @@ const onArchChange = (val) => {
     // ARM 强制 virt 机器类型 + UEFI
     form.machine_type = 'virt'
     applyBootTypeRecommendation('uefi', { force: true })
+    // ARM 架构默认使用 ramfb 显示设备
+    form.video_model = 'ramfb'
   } else if (val === 'riscv64') {
     // RISC-V 强制 virt 机器类型
     form.machine_type = 'virt'
     applyBootTypeRecommendation('bios', { force: true })
+    applyVideoModelRecommendation(form.os_type)
   } else {
     // x86_64 恢复默认
     form.machine_type = 'q35'
+    applyVideoModelRecommendation(form.os_type)
   }
 }
 

@@ -23,12 +23,18 @@ var (
 	vmHyperVClockTimerRegexp = regexp.MustCompile(`<timer\b[^>]*\bname=['"]hypervclock['"][^>]*/>`)
 )
 
-// ResolveVMVideoModel 规范化视频模型，并根据系统类型给出默认值。
-func ResolveVMVideoModel(videoModel, osType string) string {
+// ResolveVMVideoModel 规范化视频模型，并根据系统类型和架构给出默认值。
+// arch 为目标架构（x86_64/aarch64/riscv64），空字符串表示不启用架构感知默认。
+func ResolveVMVideoModel(videoModel, osType, arch string) string {
 	normalized := strings.ToLower(strings.TrimSpace(videoModel))
 	switch normalized {
 	case VMVideoModelVirtio, VMVideoModelVGA, VMVideoModelVMVGA, VMVideoModelCirrus, VMVideoModelRamfb:
 		return normalized
+	}
+
+	// ARM 架构默认使用 ramfb，避免 virtio/vga 在 aarch64 下的兼容性问题
+	if strings.EqualFold(strings.TrimSpace(arch), "aarch64") {
+		return VMVideoModelRamfb
 	}
 
 	if strings.EqualFold(strings.TrimSpace(osType), "windows") {
@@ -48,7 +54,7 @@ func ParseVMVideoModelFromDomainXML(xmlStr string) string {
 
 func renderVMVideoBlock(videoModel string) string {
 	modelXML := "<model type='vga'/>"
-	switch ResolveVMVideoModel(videoModel, "") {
+	switch ResolveVMVideoModel(videoModel, "", "") {
 	case VMVideoModelVirtio:
 		modelXML = "<model type='virtio' heads='1' primary='yes'/>"
 	case VMVideoModelVMVGA:
@@ -125,7 +131,8 @@ func ensureWindowsHyperVClockTimer(xmlStr string) string {
 
 // ApplyVMVideoModelToDomainXML 将视频模型写入 domain XML。
 func ApplyVMVideoModelToDomainXML(xmlStr, videoModel, osType string) string {
-	block := renderVMVideoBlock(ResolveVMVideoModel(videoModel, osType))
+	arch := ParseVMArchFromDomainXML(xmlStr)
+	block := renderVMVideoBlock(ResolveVMVideoModel(videoModel, osType, arch))
 	if vmVideoBlockRegexp.MatchString(xmlStr) {
 		return vmVideoBlockRegexp.ReplaceAllString(xmlStr, block)
 	}
