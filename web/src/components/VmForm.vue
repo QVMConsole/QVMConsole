@@ -463,6 +463,33 @@
                   <el-icon class="advanced-config-entry-icon"><ArrowRight /></el-icon>
                 </div>
               </el-form-item>
+              <el-form-item v-if="form.arch === 'aarch64'" label="UEFI 固件兼容">
+                <div class="advanced-field-row">
+                  <el-switch v-model="form.firmware_compat" active-text="启用" inactive-text="关闭" :disabled="editVmStatus === 'running' || editVmStatus === 'paused'" />
+                  <el-tooltip content="启用后使用旧版 EDK2 固件，解决统信 UOS 等系统在 ARM 平台的 UEFI 引导兼容性问题" placement="top" effect="dark">
+                    <el-icon class="help-icon"><QuestionFilled /></el-icon>
+                  </el-tooltip>
+                </div>
+                <div class="form-tip">
+                  <el-icon><InfoFilled /></el-icon>
+                  仅 ARM 架构可用。当系统安装 ISO 出现 Synchronous Exception 报错时建议开启
+                </div>
+              </el-form-item>
+              <el-form-item v-if="form.arch === 'aarch64'" label="直接内核引导">
+                <div class="advanced-field-row">
+                  <el-switch v-model="form.direct_boot_enabled" active-text="启用" inactive-text="关闭" :disabled="editVmStatus === 'running' || editVmStatus === 'paused'" />
+                  <el-tooltip content="绕过 UEFI 引导器直接加载内核，适用于 ISO 的 EFI 引导器与当前固件不兼容的场景" placement="top" effect="dark">
+                    <el-icon class="help-icon"><QuestionFilled /></el-icon>
+                  </el-tooltip>
+                </div>
+                <div v-if="form.direct_boot_enabled" style="margin-top: 8px;">
+                  <el-input v-model="form.direct_boot_cmdline" placeholder="内核命令行参数（可选，留空使用默认）" style="width: 100%;" :disabled="editVmStatus === 'running' || editVmStatus === 'paused'" />
+                  <div class="form-tip">
+                    <el-icon><InfoFilled /></el-icon>
+                    会自动从 ISO 中提取 vmlinuz 和 initrd。安装完成后请关闭此选项并重启虚拟机
+                  </div>
+                </div>
+              </el-form-item>
               <el-form-item v-if="isEdit && isAdmin" label="Domain XML">
                 <div class="advanced-config-entry" @click="openVmXMLConfigDialog">
                   <div class="advanced-config-entry-main">
@@ -1784,6 +1811,33 @@
                     <div class="advanced-config-entry-summary">{{ smbiosConfigSummary }}</div>
                   </div>
                   <el-icon class="advanced-config-entry-icon"><ArrowRight /></el-icon>
+                </div>
+              </el-form-item>
+              <el-form-item v-if="form.arch === 'aarch64'" label="UEFI 固件兼容">
+                <div class="advanced-field-row">
+                  <el-switch v-model="form.firmware_compat" active-text="启用" inactive-text="关闭" />
+                  <el-tooltip content="启用后使用旧版 EDK2 固件，解决统信 UOS 等系统在 ARM 平台的 UEFI 引导兼容性问题" placement="top" effect="dark">
+                    <el-icon class="help-icon"><QuestionFilled /></el-icon>
+                  </el-tooltip>
+                </div>
+                <div class="form-tip">
+                  <el-icon><InfoFilled /></el-icon>
+                  仅 ARM 架构可用。当系统安装 ISO 出现 Synchronous Exception 报错时建议开启
+                </div>
+              </el-form-item>
+              <el-form-item v-if="form.arch === 'aarch64'" label="直接内核引导">
+                <div class="advanced-field-row">
+                  <el-switch v-model="form.direct_boot_enabled" active-text="启用" inactive-text="关闭" />
+                  <el-tooltip content="绕过 UEFI 引导器直接加载内核，适用于 ISO 的 EFI 引导器与当前固件不兼容的场景" placement="top" effect="dark">
+                    <el-icon class="help-icon"><QuestionFilled /></el-icon>
+                  </el-tooltip>
+                </div>
+                <div v-if="form.direct_boot_enabled" style="margin-top: 8px;">
+                  <el-input v-model="form.direct_boot_cmdline" placeholder="内核命令行参数（可选，留空使用默认）" style="width: 100%;" />
+                  <div class="form-tip">
+                    <el-icon><InfoFilled /></el-icon>
+                    会自动从 ISO 中提取 vmlinuz 和 initrd。安装完成后请关闭此选项并重启虚拟机
+                  </div>
                 </div>
               </el-form-item>
             </div>
@@ -3510,6 +3564,11 @@ const form = reactive({
   // 虚拟化方案
   virt_type: 'kvm',
   arch: 'x86_64',
+  // UEFI 固件兼容模式（ARM 专用）
+  firmware_compat: false,
+  // 直接内核引导（ARM 专用）
+  direct_boot_enabled: false,
+  direct_boot_cmdline: '',
   // 编辑模式 - 新增磁盘
   add_disks: [],
   // 创建模式 - 额外磁盘
@@ -4288,6 +4347,9 @@ const applyEditVmDetail = (detail, row = {}) => {
   editOrigPCIERootPorts.value = form.pcie_root_ports
   form.boot_type = detail.boot_type || form.boot_type || 'bios'
   editOrigBootType.value = form.boot_type
+  form.firmware_compat = !!detail.firmware_compat
+  form.direct_boot_enabled = !!(detail.direct_boot && detail.direct_boot.enabled)
+  form.direct_boot_cmdline = (detail.direct_boot && detail.direct_boot.cmdline) || ''
   form.video_model = detail.video_model || getRecommendedVideoModel(detail.os_type || 'linux')
   form.cpu_topology_mode = detail.cpu_topology_mode || 'auto'
   form.boot_order = detail.boot_order && detail.boot_order.length > 0 ? [...detail.boot_order] : ['hd']
@@ -4996,6 +5058,13 @@ const submitForm = async () => {
           if (form.machine_type === 'q35' && form.pcie_root_ports !== editOrigPCIERootPorts.value) {
             editPayload.pcie_root_ports = form.pcie_root_ports
           }
+          // UEFI 固件兼容模式（ARM 专用）
+          if (form.arch === 'aarch64') {
+            editPayload.firmware_compat = !!form.firmware_compat
+            editPayload.direct_boot = form.direct_boot_enabled
+              ? { enabled: true, cmdline: form.direct_boot_cmdline || '' }
+              : { enabled: false }
+          }
           // 硬件直通设备：仅在管理员修改后发送
           if (isAdmin.value && form.host_devices_touched) {
             editPayload.host_devices = form.host_devices
@@ -5398,6 +5467,8 @@ const submitForm = async () => {
             })),
             host_devices: form.host_devices,
             extra_nics: nicsPayload.extraNics,
+            firmware_compat: form.arch === 'aarch64' && form.firmware_compat ? true : undefined,
+            direct_boot: form.arch === 'aarch64' && form.direct_boot_enabled ? { enabled: true, cmdline: form.direct_boot_cmdline || '' } : undefined,
           }
           const cpuLimitPercent = buildCPULimitPercentPayload()
           if (cpuLimitPercent !== undefined) {

@@ -51,6 +51,10 @@ type VmEditRequest struct {
 	BandwidthOutboundAvg *int `json:"bandwidth_outbound_avg"` // 上行平峰速率 Mbps
 	// PCIe 热插槽数量（仅关机时可修改，0 表示不修改）
 	PCIERootPorts *int `json:"pcie_root_ports,omitempty"`
+	// UEFI 固件兼容模式（ARM 专用）
+	FirmwareCompat *bool `json:"firmware_compat,omitempty"`
+	// 直接内核引导配置
+	DirectBoot *service.DirectBootConfig `json:"direct_boot,omitempty"`
 }
 
 // RescueVmRequest 救援系统请求

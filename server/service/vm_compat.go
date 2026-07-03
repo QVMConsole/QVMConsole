@@ -2,7 +2,10 @@ package service
 
 // VM compatibility types - type aliases to service/vm subpackage
 // Maintains backward compatibility for callers using service.XXX types
-import vmpkg "kvm_console/service/vm"
+import (
+	vmpkg "kvm_console/service/vm"
+	"kvm_console/service/vm_xml"
+)
 
 // ── Core VM types ──
 
@@ -20,10 +23,12 @@ type VMRuntimeInfo = vmpkg.VMRuntimeInfo
 type CreateVMParams = vmpkg.CreateVMParams
 type OSVariantInfo = vmpkg.OSVariantInfo
 type CPUAffinityPreset = vmpkg.CPUAffinityPreset
+type DirectBootConfig = vm_xml.DirectBootConfig
 
 // ── Passthrough types ──
 
 type PCIDevice = vmpkg.PCIDevice
+
 // Note: HostDeviceParam is defined in vm/deps.go as a mirror type;
 // aliased here for handler compatibility (handler/vm_create.go, handler/types.go)
 type HostDeviceParam = vmpkg.HostDeviceParam

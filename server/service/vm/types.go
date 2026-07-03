@@ -102,7 +102,9 @@ type VmDetail struct {
 	SMBIOS1                *vm_xml.VMSMBIOS1Config       `json:"smbios1"`            // SMBIOS 类型 1 信息
 	MemoryObservationUntil int64                         `json:"memory_observation_until"`
 	MemoryManualPauseUntil int64                         `json:"memory_manual_pause_until"`
-	PCIERootPorts          int                           `json:"pcie_root_ports"` // pcie-root-port 数量（仅 q35/virt 机型）
+	PCIERootPorts          int                           `json:"pcie_root_ports"`       // pcie-root-port 数量（仅 q35/virt 机型）
+	FirmwareCompat         bool                          `json:"firmware_compat"`       // UEFI 固件兼容模式（ARM 专用）
+	DirectBoot             *vm_xml.DirectBootConfig      `json:"direct_boot,omitempty"` // 直接内核引导配置
 }
 
 // VmStats 虚拟机资源使用统计

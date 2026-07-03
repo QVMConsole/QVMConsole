@@ -481,3 +481,214 @@ func parseQemuInfoStr(output, key string) string {
 	}
 	return val
 }
+
+// ==================== UEFI 固件兼容模式 ====================
+
+// ApplyFirmwareCompatToDomainXML 将固件兼容模式应用到 domain XML。
+// 仅对 aarch64 架构有效，将 UEFI 固件替换为旧版 EDK2。
+func ApplyFirmwareCompatToDomainXML(name, xmlContent string, enabled *bool) (string, error) {
+	if enabled == nil || !*enabled {
+		return xmlContent, nil
+	}
+	vmArch := ParseVMArchFromDomainXML(xmlContent)
+	if vmArch != "aarch64" {
+		return xmlContent, nil // 仅 ARM 架构支持
+	}
+
+	profile := arch.GetProfile(vmArch)
+	type legacyProvider interface {
+		UEFILegacyFirmwarePath() string
+		UEFILegacyVarsTemplatePath() string
+	}
+	lp, ok := profile.(legacyProvider)
+	if !ok {
+		return xmlContent, nil
+	}
+
+	legacyLoader := lp.UEFILegacyFirmwarePath()
+	legacyVars := lp.UEFILegacyVarsTemplatePath()
+	if legacyLoader == "" || legacyVars == "" {
+		return xmlContent, fmt.Errorf("旧版兼容固件未安装，请检查 /opt/project/QVMConsole/firmware/ 目录")
+	}
+
+	// 替换 loader 路径
+	osBlock := vmBootTypeOSBlockRegexp.FindString(xmlContent)
+	if osBlock == "" {
+		return xmlContent, nil
+	}
+
+	// 替换 loader 内容
+	loaderRegexp := regexp.MustCompile(`(<loader[^>]*>)[^<]*(</loader>)`)
+	newOS := loaderRegexp.ReplaceAllString(osBlock, "${1}"+legacyLoader+"${2}")
+
+	// 替换 nvram template
+	nvramTemplateRegexp := regexp.MustCompile(`template='[^']*'`)
+	newOS = nvramTemplateRegexp.ReplaceAllString(newOS, "template='"+legacyVars+"'")
+
+	return strings.Replace(xmlContent, osBlock, newOS, 1), nil
+}
+
+// ==================== 直接内核引导 ====================
+
+var (
+	vmKernelRegexp  = regexp.MustCompile(`(?s)\n?\s*<kernel\b[^>]*>.*?</kernel>`)
+	vmInitrdRegexp  = regexp.MustCompile(`(?s)\n?\s*<initrd\b[^>]*>.*?</initrd>`)
+	vmCmdlineRegexp = regexp.MustCompile(`(?s)\n?\s*<cmdline\b[^>]*>.*?</cmdline>`)
+)
+
+// DirectBootConfig 直接内核引导配置。
+type DirectBootConfig struct {
+	Enabled bool   `json:"enabled"`
+	Kernel  string `json:"kernel,omitempty"`
+	Initrd  string `json:"initrd,omitempty"`
+	Cmdline string `json:"cmdline,omitempty"`
+}
+
+// ApplyDirectBootToDomainXML 将直接内核引导配置应用到 domain XML。
+func ApplyDirectBootToDomainXML(xmlContent string, cfg *DirectBootConfig) (string, error) {
+	if cfg == nil || !cfg.Enabled {
+		return xmlContent, nil
+	}
+	if cfg.Kernel == "" {
+		return xmlContent, fmt.Errorf("直接内核引导需要指定 kernel 路径")
+	}
+
+	osBlock := vmBootTypeOSBlockRegexp.FindString(xmlContent)
+	if osBlock == "" {
+		return xmlContent, fmt.Errorf("未找到 <os> 配置段")
+	}
+
+	// 清除已有的 kernel/initrd/cmdline
+	newOS := vmKernelRegexp.ReplaceAllString(osBlock, "")
+	newOS = vmInitrdRegexp.ReplaceAllString(newOS, "")
+	newOS = vmCmdlineRegexp.ReplaceAllString(newOS, "")
+
+	// 在 </os> 前插入 kernel/initrd/cmdline
+	var directBootXML string
+	directBootXML += fmt.Sprintf("    <kernel>%s</kernel>\n", cfg.Kernel)
+	if cfg.Initrd != "" {
+		directBootXML += fmt.Sprintf("    <initrd>%s</initrd>\n", cfg.Initrd)
+	}
+	if cfg.Cmdline != "" {
+		directBootXML += fmt.Sprintf("    <cmdline>%s</cmdline>\n", cfg.Cmdline)
+	}
+
+	newOS = strings.Replace(newOS, "</os>", directBootXML+"  </os>", 1)
+	return strings.Replace(xmlContent, osBlock, newOS, 1), nil
+}
+
+// RemoveDirectBootFromDomainXML 从 domain XML 中移除直接内核引导配置。
+func RemoveDirectBootFromDomainXML(xmlContent string) string {
+	osBlock := vmBootTypeOSBlockRegexp.FindString(xmlContent)
+	if osBlock == "" {
+		return xmlContent
+	}
+	newOS := vmKernelRegexp.ReplaceAllString(osBlock, "")
+	newOS = vmInitrdRegexp.ReplaceAllString(newOS, "")
+	newOS = vmCmdlineRegexp.ReplaceAllString(newOS, "")
+	return strings.Replace(xmlContent, osBlock, newOS, 1)
+}
+
+// DetectFirmwareCompatFromDomainXML 从 domain XML 中检测是否启用了固件兼容模式。
+// 通过检查 loader 路径是否包含 "legacy" 关键字或是否指向旧版固件来判断。
+func DetectFirmwareCompatFromDomainXML(xmlContent string) bool {
+	if ParseVMArchFromDomainXML(xmlContent) != "aarch64" {
+		return false
+	}
+	loaderRegexp := regexp.MustCompile(`<loader[^>]*>([^<]*)</loader>`)
+	matches := loaderRegexp.FindStringSubmatch(xmlContent)
+	if len(matches) < 2 {
+		return false
+	}
+	loaderPath := strings.ToLower(matches[1])
+	return strings.Contains(loaderPath, "legacy") || strings.Contains(loaderPath, "2024")
+}
+
+// DetectDirectBootFromDomainXML 从 domain XML 中检测直接内核引导配置。
+func DetectDirectBootFromDomainXML(xmlContent string) *DirectBootConfig {
+	kernelRegexp := regexp.MustCompile(`<kernel>([^<]*)</kernel>`)
+	initrdRegexp := regexp.MustCompile(`<initrd>([^<]*)</initrd>`)
+	cmdlineRegexp := regexp.MustCompile(`<cmdline>([^<]*)</cmdline>`)
+
+	kernelMatch := kernelRegexp.FindStringSubmatch(xmlContent)
+	if len(kernelMatch) < 2 || strings.TrimSpace(kernelMatch[1]) == "" {
+		return nil
+	}
+
+	cfg := &DirectBootConfig{
+		Enabled: true,
+		Kernel:  strings.TrimSpace(kernelMatch[1]),
+	}
+	if m := initrdRegexp.FindStringSubmatch(xmlContent); len(m) >= 2 {
+		cfg.Initrd = strings.TrimSpace(m[1])
+	}
+	if m := cmdlineRegexp.FindStringSubmatch(xmlContent); len(m) >= 2 {
+		cfg.Cmdline = strings.TrimSpace(m[1])
+	}
+	return cfg
+}
+
+// ExtractKernelFromISO 从 ARM64 ISO 中提取内核和 initrd。
+// 返回 kernel 和 initrd 的路径（提取到 /var/lib/libvirt/boot/<vmname>/ 目录）。
+func ExtractKernelFromISO(vmName, isoPath string) (kernel, initrd string, err error) {
+	if isoPath == "" {
+		return "", "", fmt.Errorf("未指定 ISO 路径")
+	}
+
+	// 创建提取目录
+	extractDir := fmt.Sprintf("/var/lib/libvirt/boot/%s", vmName)
+	if err := os.MkdirAll(extractDir, 0755); err != nil {
+		return "", "", fmt.Errorf("创建内核提取目录失败: %w", err)
+	}
+
+	// 挂载 ISO
+	mountPoint := fmt.Sprintf("/tmp/iso-mount-%s", vmName)
+	_ = os.MkdirAll(mountPoint, 0755)
+	result := utils.ExecCommand("mount", "-o", "loop,ro", isoPath, mountPoint)
+	if result.Error != nil {
+		return "", "", fmt.Errorf("挂载 ISO 失败: %s", firstNonEmpty(result.Stderr, result.Error.Error()))
+	}
+	defer func() {
+		_ = utils.ExecCommand("umount", mountPoint).Error
+		_ = os.Remove(mountPoint)
+	}()
+
+	// 搜索 vmlinuz 和 initrd.img
+	kernelCandidates := []string{
+		mountPoint + "/images/pxeboot/vmlinuz",
+		mountPoint + "/boot/vmlinuz",
+		mountPoint + "/vmlinuz",
+		mountPoint + "/casper/vmlinuz",
+	}
+	initrdCandidates := []string{
+		mountPoint + "/images/pxeboot/initrd.img",
+		mountPoint + "/boot/initrd.img",
+		mountPoint + "/initrd.img",
+		mountPoint + "/casper/initrd",
+	}
+
+	kernelSrc := pickFirstExistingPath(kernelCandidates, "")
+	initrdSrc := pickFirstExistingPath(initrdCandidates, "")
+
+	if kernelSrc == "" {
+		return "", "", fmt.Errorf("在 ISO 中未找到 vmlinuz")
+	}
+
+	// 复制内核
+	kernel = filepath.Join(extractDir, "vmlinuz")
+	cpResult := utils.ExecCommand("cp", kernelSrc, kernel)
+	if cpResult.Error != nil {
+		return "", "", fmt.Errorf("复制内核失败: %s", firstNonEmpty(cpResult.Stderr, cpResult.Error.Error()))
+	}
+
+	// 复制 initrd
+	if initrdSrc != "" {
+		initrd = filepath.Join(extractDir, "initrd.img")
+		cpResult = utils.ExecCommand("cp", initrdSrc, initrd)
+		if cpResult.Error != nil {
+			return "", "", fmt.Errorf("复制 initrd 失败: %s", firstNonEmpty(cpResult.Stderr, cpResult.Error.Error()))
+		}
+	}
+
+	return kernel, initrd, nil
+}

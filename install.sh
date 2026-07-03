@@ -1161,6 +1161,37 @@ ensure_directories() {
     touch "$OVS_CONFIG_DIR/dhcp-hosts"
     touch /etc/projects /etc/projid
 
+    # ARM 架构部署旧版 AAVMF 兼容固件（解决统信 UOS 等 OS 的 UEFI 引导兼容性问题）
+    if [ "$ARCH" = "aarch64" ]; then
+        local firmware_dir="${INSTALL_DIR}/firmware"
+        mkdir -p "$firmware_dir"
+        if [ ! -f "$firmware_dir/AAVMF_CODE_legacy.fd" ]; then
+            info "部署 ARM UEFI 兼容固件..."
+            # 优先从 Ubuntu 24.04 仓库下载旧版 EDK2
+            local efi_deb_url="http://ports.ubuntu.com/pool/main/e/edk2/qemu-efi-aarch64_2024.02-2_all.deb"
+            local efi_deb_file="/tmp/qemu-efi-legacy.deb"
+            if wget -q "$efi_deb_url" -O "$efi_deb_file" 2>/dev/null || \
+               wget -q "http://mirrors.aliyun.com/ubuntu-ports/pool/main/e/edk2/qemu-efi-aarch64_2024.02-2_all.deb" -O "$efi_deb_file" 2>/dev/null; then
+                local efi_extract="/tmp/efi-legacy-extract"
+                rm -rf "$efi_extract"
+                mkdir -p "$efi_extract"
+                dpkg-deb -x "$efi_deb_file" "$efi_extract" 2>/dev/null
+                if [ -f "$efi_extract/usr/share/AAVMF/AAVMF_CODE.no-secboot.fd" ]; then
+                    cp -f "$efi_extract/usr/share/AAVMF/AAVMF_CODE.no-secboot.fd" "$firmware_dir/AAVMF_CODE_legacy.fd"
+                    cp -f "$efi_extract/usr/share/AAVMF/AAVMF_VARS.fd" "$firmware_dir/AAVMF_VARS_legacy.fd"
+                    success "ARM UEFI 兼容固件部署完成"
+                else
+                    warn "旧版固件提取失败，跳过兼容固件部署"
+                fi
+                rm -rf "$efi_extract" "$efi_deb_file"
+            else
+                warn "下载旧版 AAVMF 固件失败，跳过兼容固件部署（可手动放置到 $firmware_dir）"
+            fi
+        else
+            success "ARM UEFI 兼容固件已存在"
+        fi
+    fi
+
     if getent group vmoperator >/dev/null 2>&1; then
         true
     else

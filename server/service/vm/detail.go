@@ -112,6 +112,8 @@ func GetVM(name string) (*VmDetail, error) {
 		vm.PCIERootPorts = count
 	}
 	vm.VideoModel = vm_xml.ParseVMVideoModelFromDomainXML(xmlStr)
+	vm.FirmwareCompat = vm_xml.DetectFirmwareCompatFromDomainXML(xmlStr)
+	vm.DirectBoot = vm_xml.DetectDirectBootFromDomainXML(xmlStr)
 	vm.CPUTopologyMode = D.ParseVMCPUTopologyModeFromDomainXML(xmlStr)
 	vm.CPULimitPercent = D.ParseVMCPULimitPercentFromDomainXML(xmlStr, vm.VCPU)
 	vm.CPUAffinity = D.ParseCPUAffinityFromDomainXML(xmlStr)

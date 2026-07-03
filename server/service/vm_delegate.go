@@ -284,6 +284,16 @@ func SetVMBootType(name, bootType string) error {
 	return vmpkg.SetVMBootType(name, bootType)
 }
 
+// SetVMFirmwareCompat 设置虚拟机 UEFI 固件兼容模式（ARM 专用）。
+func SetVMFirmwareCompat(name string, enabled bool) error {
+	return vmpkg.SetVMFirmwareCompat(name, enabled)
+}
+
+// SetVMDirectBoot 设置虚拟机直接内核引导配置。
+func SetVMDirectBoot(name string, cfg *vm_xml.DirectBootConfig) error {
+	return vmpkg.SetVMDirectBoot(name, cfg)
+}
+
 // ── Clock / RTC ──
 
 func NormalizeRTCOffset(offset string) string {

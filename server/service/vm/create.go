@@ -62,6 +62,8 @@ type CreateVMParams struct {
 	HostDevices     []HostDeviceParam              `json:"host_devices,omitempty"` // 硬件直通设备
 	IsAdmin         bool                           `json:"is_admin,omitempty"`
 	PCIERootPorts   int                            `json:"pcie_root_ports,omitempty"` // q35 机型预留 pcie-root-port 数量，0 表示使用默认 6
+	FirmwareCompat  *bool                          `json:"firmware_compat,omitempty"` // UEFI 固件兼容模式（ARM 专用，使用旧版 EDK2）
+	DirectBoot      *vm_xml.DirectBootConfig       `json:"direct_boot,omitempty"`     // 直接内核引导配置
 }
 
 // ExtraDiskParam is now defined in storage/disk package; alias in disk_compat.go.
@@ -485,6 +487,43 @@ func CreateVM(params *CreateVMParams, progressFn func(int, string)) (string, err
 	if err := vm_xml.EnsureVMUEFINVRAMFile(params.Name, vmXML, normalizedBootType); err != nil {
 		_ = os.Remove(diskPath)
 		return "", err
+	}
+
+	// UEFI 固件兼容模式（ARM 专用，使用旧版 EDK2 解决 UOS 等系统的引导兼容性问题）
+	if params.FirmwareCompat != nil && *params.FirmwareCompat {
+		vmXML, err = vm_xml.ApplyFirmwareCompatToDomainXML(params.Name, vmXML, params.FirmwareCompat)
+		if err != nil {
+			_ = os.Remove(diskPath)
+			return "", err
+		}
+	}
+
+	// 直接内核引导（绕过 UEFI 引导器直接加载内核）
+	if params.DirectBoot != nil && params.DirectBoot.Enabled {
+		dbCfg := params.DirectBoot
+		// 如果未指定 kernel 路径，从 ISO 自动提取
+		if dbCfg.Kernel == "" {
+			isoPath := params.ISOPath
+			if isoPath == "" && len(params.ISOPaths) > 0 {
+				isoPath = params.ISOPaths[0]
+			}
+			kernel, initrd, extractErr := vm_xml.ExtractKernelFromISO(params.Name, isoPath)
+			if extractErr != nil {
+				_ = os.Remove(diskPath)
+				return "", fmt.Errorf("从 ISO 提取内核失败: %w", extractErr)
+			}
+			dbCfg = &vm_xml.DirectBootConfig{
+				Enabled: true,
+				Kernel:  kernel,
+				Initrd:  initrd,
+				Cmdline: params.DirectBoot.Cmdline,
+			}
+		}
+		vmXML, err = vm_xml.ApplyDirectBootToDomainXML(vmXML, dbCfg)
+		if err != nil {
+			_ = os.Remove(diskPath)
+			return "", err
+		}
 	}
 
 	// SPICE graphics（默认本地监听），与 VNC 共存；是否启用由 per-VM 开关决定，回退全局默认

@@ -54,6 +54,8 @@ type CreateVmRequest struct {
 	SystemDiskIOPS  *service.DiskIOPSTune             `json:"system_disk_iops"`          // 系统盘 IOPS 限制（仅管理员）
 	HostDevices     []service.HostDeviceParam         `json:"host_devices"`              // 硬件直通设备
 	PCIERootPorts   int                               `json:"pcie_root_ports,omitempty"` // q35 预留 pcie-root-port 数量
+	FirmwareCompat  *bool                             `json:"firmware_compat,omitempty"` // UEFI 固件兼容模式（ARM 专用，使用旧版 EDK2）
+	DirectBoot      *service.DirectBootConfig         `json:"direct_boot,omitempty"`     // 直接内核引导配置
 	ExtraDisks      []struct {
 		Size          int    `json:"size"`
 		Format        string `json:"format"`
@@ -145,6 +147,8 @@ func CreateVm(c *gin.Context) {
 		SystemDiskIOPS:  req.SystemDiskIOPS,
 		HostDevices:     req.HostDevices,
 		PCIERootPorts:   req.PCIERootPorts,
+		FirmwareCompat:  req.FirmwareCompat,
+		DirectBoot:      req.DirectBoot,
 	}
 
 	// 额外磁盘
