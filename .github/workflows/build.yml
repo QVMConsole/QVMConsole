@@ -59,6 +59,13 @@ jobs:
           go-version-file: server/go.mod
           cache-dependency-path: server/go.sum
 
+      # ==================== 安装 zig（兼容旧版 glibc，例如 Kylin V10） ====================
+      - name: 安装 zig
+        run: |
+          curl -fsSL https://ziglang.org/download/0.14.0/zig-linux-x86_64-0.14.0.tar.xz | sudo tar xJ -C /usr/local
+          sudo ln -sf /usr/local/zig-linux-x86_64-0.14.0/zig /usr/local/bin/zig
+          zig version
+
       # ==================== 使用 build.sh 构建 ====================
       - name: 执行构建脚本 (build.sh)
         run: |
@@ -146,18 +153,17 @@ jobs:
           go-version-file: server/go.mod
           cache-dependency-path: server/go.sum
 
+      # ==================== 安装 zig（兼容旧版 glibc，例如 Kylin V10） ====================
+      - name: 安装 zig
+        run: |
+          curl -fsSL https://ziglang.org/download/0.14.0/zig-linux-aarch64-0.14.0.tar.xz | sudo tar xJ -C /usr/local
+          sudo ln -sf /usr/local/zig-linux-aarch64-0.14.0/zig /usr/local/bin/zig
+          zig version
+
       # ==================== 使用 build.sh 构建 ====================
       - name: 执行构建脚本 (build.sh)
         run: |
           bash build.sh -v "${{ inputs.version }}"
-
-      # ==================== GitHub Artifacts 上传 ====================
-      - name: 上传构建产物 (GitHub)
-        if: inputs.artifact_storage == 'github'
-        uses: actions/upload-artifact@v4
-        with:
-          name: kvm-console-linux-arm64
-          path: release/kvm-console-linux-arm64.tar.gz
 
       # ==================== 创建 GitHub Release (追加 arm64 产物) ====================
       - name: 上传 arm64 产物到 GitHub Release

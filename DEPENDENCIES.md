@@ -255,6 +255,15 @@ echo "=== 依赖安装完成 ==="
 echo "启动开发服务器: ./start-dev.sh"
 ```
 
+## 编译脚本用法
+
+命令	构建内容
+bash build.sh	默认构建全部（compat + native 两个二进制）
+bash build.sh --variant compat	仅构建 zig 兼容版 → kvm-console
+bash build.sh --variant native	仅构建宿主机原生版 → kvm-console
+bash build.sh --variant compat --variant native	等同于默认，构建两个
+
+
 ## 验证安装
 
 全部安装完成后，执行以下命令确认环境：

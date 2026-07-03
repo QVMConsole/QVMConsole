@@ -1543,6 +1543,38 @@ install_files() {
     cp -f "${RELEASE_SOURCE_DIR}/kvm-console" "${INSTALL_DIR}/kvm-console"
     chmod +x "${INSTALL_DIR}/kvm-console"
 
+    # 如果发行包包含宿主机原生版二进制，一并部署并自动选择
+    if [ -f "${RELEASE_SOURCE_DIR}/kvm-console-native" ]; then
+        cp -f "${RELEASE_SOURCE_DIR}/kvm-console-native" "${INSTALL_DIR}/kvm-console-native"
+        chmod +x "${INSTALL_DIR}/kvm-console-native"
+        info "已部署宿主机原生版二进制 kvm-console-native"
+
+        # 检测宿主机 glibc 版本，自动选择最合适的二进制作为主程序
+        local glibc_ver
+        glibc_ver=$(ldd --version 2>&1 | head -1 | sed 's/.* //')
+        if [ -z "$glibc_ver" ] || ! echo "$glibc_ver" | grep -qE '^[0-9]+\.[0-9]+$'; then
+            glibc_ver=$(getconf GNU_LIBC_VERSION 2>/dev/null | awk '{print $2}' || echo "0")
+        fi
+        info "检测到宿主机 GLIBC 版本: ${glibc_ver}"
+
+        # 版本比较：若 glibc >= 2.34 则切换为原生版
+        local need_compat=true
+        IFS=. read -r major minor <<< "$glibc_ver"
+        minor=${minor:-0}
+        if [ "$major" -gt 2 ] || { [ "$major" -eq 2 ] && [ "$minor" -ge 34 ]; }; then
+            need_compat=false
+        fi
+
+        if [ "$need_compat" = false ]; then
+            info "GLIBC ≥ 2.34，切换宿主机原生版为主程序（兼容版保留为 kvm-console-compat）"
+            mv -f "${INSTALL_DIR}/kvm-console" "${INSTALL_DIR}/kvm-console-compat"
+            mv -f "${INSTALL_DIR}/kvm-console-native" "${INSTALL_DIR}/kvm-console"
+            success "已切换为宿主机原生版"
+        else
+            info "GLIBC < 2.34，继续使用 zig 兼容版作为主程序（原生版保留为 kvm-console-native）"
+        fi
+    fi
+
     info "安装前端静态文件..."
     rm -rf "${INSTALL_DIR}/web-dist"
     cp -r "${RELEASE_SOURCE_DIR}/web-dist" "${INSTALL_DIR}/web-dist"

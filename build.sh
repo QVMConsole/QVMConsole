@@ -39,6 +39,7 @@ TARGET_ARCH="$HOST_ARCH"
 VERSION=""
 SKIP_FRONTEND=false
 SKIP_BACKEND=false
+BUILD_VARIANT=""  # 构建变体：空=全部, compat=zig兼容版, native=宿主机原生版
 
 usage() {
     echo "用法: $0 [选项]"
@@ -46,13 +47,16 @@ usage() {
     echo "选项:"
     echo "  -v, --version VERSION    指定版本号 (例如: 1.0.0)"
     echo "  --target-arch ARCH       目标架构: amd64 或 arm64 (默认: ${HOST_ARCH})"
+    echo "  --variant VARIANT        构建变体: compat(兼容版) / native(原生版) (默认: 全部)"
     echo "  --skip-frontend          跳过前端构建"
     echo "  --skip-backend           跳过后端构建"
     echo "  -h, --help               显示帮助信息"
     echo ""
     echo "示例:"
-    echo "  $0                       原生构建，版本号为 dev"
-    echo "  $0 -v 1.0.0             指定版本号原生构建"
+    echo "  $0                       构建全部，版本号为 dev"
+    echo "  $0 -v 1.0.0             指定版本号构建全部"
+    echo "  $0 --variant compat      仅构建 zig 兼容版（最低 GLIBC 2.2.5）"
+    echo "  $0 --variant native      仅构建宿主机原生版"
     echo "  $0 --target-arch arm64   交叉编译 ARM64 版本"
     echo "  $0 --target-arch amd64   交叉编译 AMD64 版本"
 }
@@ -67,6 +71,13 @@ while [[ $# -gt 0 ]]; do
             TARGET_ARCH="$2"
             if [[ "$TARGET_ARCH" != "amd64" && "$TARGET_ARCH" != "arm64" ]]; then
                 error "不支持的架构: ${TARGET_ARCH}，仅支持 amd64 / arm64"
+            fi
+            shift 2
+            ;;
+        --variant)
+            BUILD_VARIANT="$2"
+            if [[ "$BUILD_VARIANT" != "compat" && "$BUILD_VARIANT" != "native" ]]; then
+                error "不支持的构建变体: ${BUILD_VARIANT}，仅支持 compat / native"
             fi
             shift 2
             ;;
@@ -159,37 +170,115 @@ if [ "$SKIP_BACKEND" = false ]; then
         error "Go 未安装，请先安装 Go (参考 server/go.mod 中的版本要求)"
     fi
 
-    info "构建后端二进制..."
     cd "$SERVER_DIR"
 
-	# CGO 交叉编译检测（仅在需要 CGO 时）
-	if [ "${CGO_ENABLED:-0}" = "1" ] && [ "$IS_CROSS_COMPILE" = true ]; then
-        cross_cc=$(GOOS=linux GOARCH="$GOARCH_VALUE" go env CC 2>/dev/null || true)
-        if [ -z "$cross_cc" ] || ! command -v "$cross_cc" >/dev/null 2>&1; then
-            warn "CGO 交叉编译需要安装对应交叉编译器"
-            if [ "$TARGET_ARCH" = "amd64" ]; then
-                warn "  请执行: apt-get install gcc-x86-64-linux-gnu"
-            elif [ "$TARGET_ARCH" = "arm64" ]; then
-                warn "  请执行: apt-get install gcc-aarch64-linux-gnu"
+    # 确定需要构建哪些变体
+    BUILD_COMPAT=false
+    BUILD_NATIVE=false
+    case "${BUILD_VARIANT}" in
+        "")     BUILD_COMPAT=true; BUILD_NATIVE=true ;;
+        compat)  BUILD_COMPAT=true ;;
+        native)  BUILD_NATIVE=true ;;
+    esac
+
+    # ========== 构建 zig 兼容版（最低 GLIBC 2.2.5） ==========
+    if [ "$BUILD_COMPAT" = true ]; then
+        info "构建 zig 兼容版..."
+
+        # CGO 编译检测：优先使用 zig，回退到 gcc 交叉编译器
+        if [ "${CGO_ENABLED:-1}" = "1" ]; then
+            if command -v zig &>/dev/null; then
+                if [ "$IS_CROSS_COMPILE" = true ]; then
+                    if [ "$TARGET_ARCH" = "amd64" ]; then
+                        export CC="zig cc -target x86_64-linux-gnu"
+                        export CXX="zig cxx -target x86_64-linux-gnu"
+                    elif [ "$TARGET_ARCH" = "arm64" ]; then
+                        export CC="zig cc -target aarch64-linux-gnu"
+                        export CXX="zig cxx -target aarch64-linux-gnu"
+                    fi
+                else
+                    export CC="zig cc"
+                    export CXX="zig cxx"
+                fi
+                info "使用 zig 作为 C 编译器: ${CC}"
+            elif [ "$IS_CROSS_COMPILE" = true ]; then
+                cross_cc=$(GOOS=linux GOARCH="$GOARCH_VALUE" go env CC 2>/dev/null || true)
+                if [ -z "$cross_cc" ] || ! command -v "$cross_cc" >/dev/null 2>&1; then
+                    warn "CGO 交叉编译需要安装交叉编译器或 zig"
+                    if [ "$TARGET_ARCH" = "amd64" ]; then
+                        warn "  方案1: apt-get install gcc-x86-64-linux-gnu"
+                        warn "  方案2: 安装 zig (推荐，兼容旧版 glibc)"
+                    elif [ "$TARGET_ARCH" = "arm64" ]; then
+                        warn "  方案1: apt-get install gcc-aarch64-linux-gnu"
+                        warn "  方案2: 安装 zig (推荐，兼容旧版 glibc)"
+                    fi
+                    error "缺少交叉编译器，请安装 gcc 交叉编译器或 zig"
+                fi
+                info "检测到交叉编译器: ${cross_cc}"
             fi
-            error "缺少交叉编译器 ${cross_cc:-gcc-${TARGET_ARCH}-linux-gnu}，无法完成 CGO 交叉编译"
         fi
-        info "检测到交叉编译器: ${cross_cc}"
+
+        CGO_ENABLED=${CGO_ENABLED:-1} GOOS=linux GOARCH="$GOARCH_VALUE" \
+            go build \
+            -ldflags="-s -w \
+                -X main.Version=${BUILD_VERSION} \
+                -X kvm_console/handler.Version=${BUILD_VERSION} \
+                -X kvm_console/handler.BuildTime=${BUILD_TIME}" \
+            -o "$RELEASE_DIR/${OUTPUT_NAME}/kvm-console" \
+            .
+
+        if [ ! -f "$RELEASE_DIR/${OUTPUT_NAME}/kvm-console" ]; then
+            error "zig 兼容版构建失败，未生成二进制文件"
+        fi
+        success "zig 兼容版构建完成（最低 GLIBC 2.2.5）"
     fi
 
-    CGO_ENABLED=${CGO_ENABLED:-1} GOOS=linux GOARCH="$GOARCH_VALUE" \
-        go build \
-        -ldflags="-s -w \
-            -X main.Version=${BUILD_VERSION} \
-            -X kvm_console/handler.Version=${BUILD_VERSION} \
-            -X kvm_console/handler.BuildTime=${BUILD_TIME}" \
-        -o "$RELEASE_DIR/${OUTPUT_NAME}/kvm-console" \
-        .
+    # ========== 构建宿主机原生版 ==========
+    if [ "$BUILD_NATIVE" = true ]; then
+        info "构建宿主机原生版..."
 
-    if [ ! -f "$RELEASE_DIR/${OUTPUT_NAME}/kvm-console" ]; then
-        error "后端构建失败，未生成二进制文件"
+        # 清除 zig 编译器环境，使用系统默认编译器
+        saved_cc="${CC:-}"
+        saved_cxx="${CXX:-}"
+        unset CC CXX
+
+        native_output="kvm-console"
+        if [ "$BUILD_COMPAT" = true ]; then
+            native_output="kvm-console-native"  # 双构建时加后缀区分
+        fi
+
+        # 交叉编译且无 zig 时，检测 gcc 交叉编译器
+        if [ "${CGO_ENABLED:-1}" = "1" ] && [ "$IS_CROSS_COMPILE" = true ]; then
+            cross_cc=$(GOOS=linux GOARCH="$GOARCH_VALUE" go env CC 2>/dev/null || true)
+            if [ -z "$cross_cc" ] || ! command -v "$cross_cc" >/dev/null 2>&1; then
+                warn "CGO 交叉编译需要安装交叉编译器"
+                if [ "$TARGET_ARCH" = "amd64" ]; then
+                    warn "  请执行: apt-get install gcc-x86-64-linux-gnu"
+                elif [ "$TARGET_ARCH" = "arm64" ]; then
+                    warn "  请执行: apt-get install gcc-aarch64-linux-gnu"
+                fi
+                error "缺少交叉编译器 ${cross_cc:-gcc-${TARGET_ARCH}-linux-gnu}，无法完成 CGO 交叉编译"
+            fi
+            info "检测到交叉编译器: ${cross_cc}"
+        fi
+
+        CGO_ENABLED=${CGO_ENABLED:-1} GOOS=linux GOARCH="$GOARCH_VALUE" \
+            go build \
+            -ldflags="-s -w \
+                -X main.Version=${BUILD_VERSION} \
+                -X kvm_console/handler.Version=${BUILD_VERSION} \
+                -X kvm_console/handler.BuildTime=${BUILD_TIME}" \
+            -o "$RELEASE_DIR/${OUTPUT_NAME}/${native_output}" \
+            .
+
+        export CC="$saved_cc"
+        export CXX="$saved_cxx"
+
+        if [ ! -f "$RELEASE_DIR/${OUTPUT_NAME}/${native_output}" ]; then
+            error "宿主机原生版构建失败，未生成二进制文件"
+        fi
+        success "宿主机原生版构建完成"
     fi
-    success "后端构建完成"
 else
     warn "跳过后端构建"
 fi
@@ -197,9 +286,9 @@ fi
 # ==================== 打包发行文件 ====================
 info "打包发行文件..."
 
-# 安全校验：后端二进制必须存在
-if [ ! -f "$RELEASE_DIR/${OUTPUT_NAME}/kvm-console" ]; then
-    error "后端二进制 kvm-console 不存在于 ${RELEASE_DIR}/${OUTPUT_NAME}/。\n  若使用 --skip-backend，请确保之前已成功构建且未清空 release 目录。\n  建议：不带 --skip-backend 重新构建。"
+# 安全校验：后端二进制必须至少存在一个
+if [ ! -f "$RELEASE_DIR/${OUTPUT_NAME}/kvm-console" ] && [ ! -f "$RELEASE_DIR/${OUTPUT_NAME}/kvm-console-native" ]; then
+    error "后端二进制不存在于 ${RELEASE_DIR}/${OUTPUT_NAME}/。\n  若使用 --skip-backend，请确保之前已成功构建且未清空 release 目录。\n  建议：不带 --skip-backend 重新构建。"
 fi
 
 # 复制前端静态文件
@@ -212,6 +301,9 @@ chmod +x "$RELEASE_DIR/${OUTPUT_NAME}/install.sh"
 # 设置后端二进制可执行权限
 if [ -f "$RELEASE_DIR/${OUTPUT_NAME}/kvm-console" ]; then
     chmod +x "$RELEASE_DIR/${OUTPUT_NAME}/kvm-console"
+fi
+if [ -f "$RELEASE_DIR/${OUTPUT_NAME}/kvm-console-native" ]; then
+    chmod +x "$RELEASE_DIR/${OUTPUT_NAME}/kvm-console-native"
 fi
 
 # ==================== 下载捆绑的 RPM 包（用于 Kylin/openEuler 等缺少的包）====================
@@ -276,7 +368,12 @@ echo -e "${CYAN}║${NC}  版本:   ${GREEN}${BUILD_VERSION}${NC}"
 echo -e "${CYAN}║${NC}  架构:   ${GREEN}${TARGET_ARCH}${NC}"
 echo -e "${CYAN}╠══════════════════════════════════════════════════╣${NC}"
 echo -e "${CYAN}║${NC}  内容:"
-echo -e "${CYAN}║${NC}    - kvm-console        后端二进制 (${TARGET_ARCH})"
+if [ -f "$RELEASE_DIR/${OUTPUT_NAME}/kvm-console" ]; then
+    echo -e "${CYAN}║${NC}    - kvm-console        后端二进制（zig 兼容版，最低 GLIBC 2.2.5）"
+fi
+if [ -f "$RELEASE_DIR/${OUTPUT_NAME}/kvm-console-native" ]; then
+    echo -e "${CYAN}║${NC}    - kvm-console-native  后端二进制（宿主机原生版）"
+fi
 echo -e "${CYAN}║${NC}    - web-dist/          前端静态文件"
 echo -e "${CYAN}║${NC}    - install.sh         安装脚本"
 echo -e "${CYAN}║${NC}    - bundled/           捆绑的 RPM 包（用于缺失的系统包）"
