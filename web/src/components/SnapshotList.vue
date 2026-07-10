@@ -9,25 +9,27 @@
       </el-tag>
     </div>
     <el-table :data="tableData" border style="width: 100%" v-loading="loading">
-      <el-table-column prop="name" label="名称" width="150" />
+      <el-table-column prop="name" label="名称" min-width="200" show-overflow-tooltip />
       <el-table-column prop="created_at" label="创建时间" width="180" />
-      <el-table-column label="类型" width="120">
+      <el-table-column label="类型" width="100">
         <template #default="{ row }">
           <el-tag v-if="row.location === 'external' || row.state === 'disk-snapshot'" type="warning" size="small">外部快照</el-tag>
           <el-tag v-else type="success" size="small">内部快照</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="state" label="状态" width="120">
+      <el-table-column label="状态" width="100">
         <template #default="{ row }">
           <span>{{ stateLabel(row.state) }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="description" label="描述" />
-      <el-table-column label="操作" width="180">
+      <el-table-column prop="description" label="描述" min-width="120" show-overflow-tooltip />
+      <el-table-column label="操作" width="220" fixed="right">
         <template #default="{ row }">
-          <el-tag v-if="row.is_current" size="small" type="success" style="margin-right: 8px;">当前</el-tag>
-          <el-button size="small" type="warning" @click="handleRestore(row)">恢复</el-button>
-          <el-button size="small" type="danger" @click="handleDelete(row)">删除</el-button>
+          <div class="action-cell">
+            <el-tag v-if="row.is_current" size="small" type="success">当前</el-tag>
+            <el-button size="small" type="warning" @click="handleRestore(row)">恢复</el-button>
+            <el-button size="small" type="danger" @click="handleDelete(row)">删除</el-button>
+          </div>
         </template>
       </el-table-column>
     </el-table>
@@ -256,3 +258,16 @@ const handleDeleteAll = async () => {
 // Expose refresh functionality to parent if needed
 defineExpose({ refresh: fetchData })
 </script>
+
+<style scoped>
+.snapshot-list-container {
+  padding: 0;
+}
+
+.action-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+</style>
