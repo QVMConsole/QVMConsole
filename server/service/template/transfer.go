@@ -679,6 +679,10 @@ func ImportTemplate(ctx context.Context, params *ImportTemplateParams, progressF
 		imported = append(imported, node.Name)
 	}
 	progressFn(100, "模板包导入完成")
+	// 成功导入后，清理空的临时导入目录
+	_ = os.RemoveAll(GetTemplateImportTempDir())
+	// 重新创建空的导入目录，确保后续可以继续使用
+	_ = os.MkdirAll(GetTemplateImportTempDir(), 0o755)
 	return &ImportTemplateResult{
 		Mode:     mode,
 		Imported: imported,
