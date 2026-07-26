@@ -30,6 +30,7 @@ func ImportDiskByPath(ctx context.Context, params *ImportDiskByPathParams, progr
 	// 根据宿主机架构解析机器类型和引导类型
 	hostArch := arch.DetectHostArch()
 	hostProfile := arch.GetProfile(hostArch)
+	params.MachineType = arch.NormalizeMachineType(hostArch, params.MachineType)
 	if params.MachineType == "" {
 		params.MachineType = hostProfile.DefaultMachineType()
 	} else if !slices.Contains(hostProfile.SupportedMachineTypes(), params.MachineType) {

@@ -8,7 +8,7 @@ func (p *x8664Profile) Arch() string                    { return ArchX8664 }
 func (p *x8664Profile) DisplayName() string             { return "x86_64 (AMD64)" }
 func (p *x8664Profile) EmulatorPath() string            { return "/usr/bin/qemu-system-x86_64" }
 func (p *x8664Profile) DefaultMachineType() string      { return "q35" }
-func (p *x8664Profile) SupportedMachineTypes() []string { return []string{"q35", "pc-i440fx"} }
+func (p *x8664Profile) SupportedMachineTypes() []string { return []string{"q35", "pc"} }
 func (p *x8664Profile) DefaultBootType() string         { return "bios" }
 func (p *x8664Profile) SupportedBootTypes() []string    { return []string{"bios", "uefi", "uefi-secure"} }
 func (p *x8664Profile) DefaultCPUMode() string          { return "host-passthrough" }

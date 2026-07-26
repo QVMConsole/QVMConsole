@@ -211,6 +211,7 @@ func CreateVM(params *CreateVMParams, progressFn func(int, string)) (string, err
 	if params.Arch == "" {
 		params.Arch = arch.DetectHostArch()
 	}
+	params.MachineType = arch.NormalizeMachineType(params.Arch, params.MachineType)
 	profile := arch.GetProfile(params.Arch)
 	if params.MachineType == "" {
 		params.MachineType = profile.DefaultMachineType()
