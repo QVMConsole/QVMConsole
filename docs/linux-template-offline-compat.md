@@ -17,7 +17,7 @@
 
 ## 克隆网络兼容
 
-Linux 模板克隆时会预先生成主网卡 MAC，并将该 MAC 同时用于 libvirt XML 与克隆副本内的 Netplan 配置。若模板 Netplan 使用固定 `match.macaddress`，仅替换首个主网卡 MAC，保留已有 DHCP、静态地址、网关和 DNS 配置。模板本体不被修改。
+Linux 模板克隆时会预先生成主网卡 MAC，并将该 MAC 同时用于 libvirt XML 与克隆副本内的 Netplan 配置。若模板 Netplan 使用固定 `match.macaddress`，仅替换首个主网卡 MAC，保留已有 DHCP、静态地址、网关和 DNS 配置。若创建时不带主网口且模板为固定 MAC 的 DHCP 配置，则克隆副本会改为匹配 `en*` 的 DHCP 配置，以支持之后从面板添加网口；静态网络模板保持原样。模板本体不被修改。
 
 ## 运行约束
 

@@ -88,6 +88,8 @@ func prepareLinuxNoCloudInit(params *CloneParams, cloneDisk string, progressFn f
 	}
 	if netplanCommand := buildLinuxNetplanMACCompatCommand(params.PrimaryMAC); netplanCommand != "" {
 		args = append(args, "--run-command", netplanCommand)
+	} else {
+		args = append(args, "--run-command", buildLinuxNetplanDHCPHotplugCompatCommand())
 	}
 
 	// 7. 离线修改密码（通过 virt-customize --password，直接修改 /etc/shadow，无需 cloud-init）
