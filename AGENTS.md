@@ -1,3 +1,6 @@
+# 注意
+当前前端处于重构状态，所有旧前端源码均在`./web-backup`目录 功能编写前必须前往这里查看源码然后计划重构
+
 1. 所有功能实现除了用户相关，虚拟机层面尽量不要使用数据库以确保与已经在运行的虚拟机同步。如果有命令就优先使用命令获取一切必要信息，如果某些功能需要使用数据库再使用数据库，但在使用数据库的信息时应当考虑与用户现有生产环境的解耦性，必要时提供一套兼容方案或功能。
 2. script目录下存放的是核心功能实现的逻辑，后端请务必优先按照脚本进行改写。
 3. 耗时操作全部使用任务队列进行处理。
@@ -23,3 +26,4 @@
 23. 涉及架构专属等特殊场景的功能，前端应当只有在对应架构上再显示此功能
 24. 新增功能字段时，如果前端高级设置表单同时存在于编辑模式的选项卡和创建模式的步骤引导中，需要**两个位置都添加**（编辑模式在 VmForm.vue 的 `<el-tab-pane name="advanced">` 内，创建模式在 `createStep === 'advanced'` 的 step-pane 内）。后端同理：ISO 创建路径（CreateVmRequest → CreateVMParams → CreateVM）和模板克隆路径（CloneVmRequest/BatchCloneRequest → CloneParams/BatchCloneParams → CloneVM/defineAndStartNonWindowsClone/cloneWindows）是独立链路，需要**同步补齐字段**和 XML 注入。
 25. 本项目没有测试代码。不需要写测试代码 代码写完之后直接告诉我即可，我自己去测试。
+26. 编写前端的时候必须要读semi-design-guide技能

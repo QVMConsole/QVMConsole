@@ -1,0 +1,58 @@
+/**
+ * 全局样式入口
+ * 仅放全局性、跨页面的样式；组件级样式就近放在组件目录
+ */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  font-family:
+    'Inter',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    'PingFang SC',
+    'Hiragino Sans GB',
+    'Microsoft YaHei',
+    sans-serif;
+  background-color: var(--semi-color-bg-0);
+  color: var(--semi-color-text-0);
+  transition: background-color 0.2s ease;
+}
+
+/* NProgress 进度条颜色对齐 Semi 主题色 */
+#nprogress .bar {
+  background: var(--semi-color-primary) !important;
+  height: 2px;
+}
+#nprogress .peg {
+  box-shadow:
+    0 0 10px var(--semi-color-primary),
+    0 0 5px var(--semi-color-primary);
+}
+
+/* 滚动条美化（Webkit） */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--semi-color-fill-2);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--semi-color-fill-3);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
