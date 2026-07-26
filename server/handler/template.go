@@ -84,6 +84,32 @@ func PrepareTemplate(c *gin.Context) {
 	})
 }
 
+// PrepareImportedLinuxTemplate 为历史导入的 Linux 模板补齐离线克隆依赖。
+func PrepareImportedLinuxTemplate(c *gin.Context) {
+	name := strings.TrimSpace(c.Param("name"))
+	if name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "缺少模板名称"})
+		return
+	}
+	if err := service.ValidateTemplateName(name); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+	username, _ := c.Get("username")
+	task, err := taskqueue.SubmitWithStruct(model.TaskTypeTemplateLinuxPrepare, struct {
+		TemplateName string `json:"template_name"`
+	}{TemplateName: name}, username.(string))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "提交模板预处理任务失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": "Linux 模板离线克隆依赖预处理任务已提交",
+		"data":    gin.H{"task_id": task.ID},
+	})
+}
+
 // GetTemplateVMs 获取模板关联虚拟机列表
 func GetTemplateVMs(c *gin.Context) {
 	name := c.Param("name")

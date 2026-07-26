@@ -99,9 +99,10 @@ func PrepareTemplate(params *PrepareTemplateParams, progressFn func(int, string)
 	// Linux 模板：预装 cloud-init 和 growpart 依赖（制作时一次性安装，克隆时直接使用）
 	if tplType == "linux" {
 		progressFn(50, "安装必要依赖...")
-		if err := PreinstallLinuxCloudInitDeps(destPath); err != nil {
-			// 预装失败不阻断模板制作，仅记录警告
-			_ = err
+		if err := EnsureLinuxCloudInitDeps(destPath); err != nil {
+			updateLinuxInitStatus(meta, err)
+		} else {
+			updateLinuxInitStatus(meta, nil)
 		}
 	}
 

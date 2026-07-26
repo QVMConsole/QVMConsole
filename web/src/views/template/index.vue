@@ -72,6 +72,7 @@
                   </div>
                   <span class="tag" :class="node.exported ? 'tag-info' : 'tag-default'">{{ node.exported ? '已导出' : '未导出' }}</span>
                   <span class="tag" :class="hashStatusTagClass(node.hash_status)">{{ hashStatusText(node.hash_status) }}</span>
+                  <span v-if="node.type === 'linux'" class="tag" :class="linuxInitStatusTagClass(node.linux_init_status)">{{ linuxInitStatusText(node.linux_init_status) }}</span>
                 </div>
                 <div class="node-actions">
                   <el-button
@@ -101,6 +102,12 @@
                     size="small"
                     @click.stop="openPublishDialog(node)"
                   >设置</el-button>
+                  <el-button
+                    v-if="node.type === 'linux'"
+                    size="small"
+                    :loading="preparingLinuxName === node.name"
+                    @click.stop="handlePrepareLinux(node)"
+                  >离线预处理</el-button>
                   <el-button
                     size="small"
                     type="danger"
@@ -409,7 +416,7 @@ import {
   confirmImportTemplate,
   exportTemplate,
 } from '@/api/vm'
-import { templateUploadInit, templateUploadChunk, templateUploadComplete, templateUploadCancel } from '@/api/template'
+import { prepareImportedLinuxTemplate, templateUploadInit, templateUploadChunk, templateUploadComplete, templateUploadCancel } from '@/api/template'
 import { ChunkUploader } from '@/utils/chunkUploader'
 import {
   LINUX_TEMPLATE_CATEGORY_OPTIONS,
@@ -427,6 +434,7 @@ const nodeExpandState = ref({})
 const loading = ref(false)
 const exportingName = ref('')
 const deletingExportName = ref('')
+const preparingLinuxName = ref('')
 
 const importDialogVisible = ref(false)
 const importSubmitting = ref(false)
@@ -523,6 +531,8 @@ const fetchData = async () => {
 
 const hashStatusText = (status) => ({ ok: '已记录', missing: '缺失', size_mismatch: '大小变化' }[status] || '未知')
 const hashStatusTagClass = (status) => ({ ok: 'tag-success', missing: 'tag-warning', size_mismatch: 'tag-danger' }[status] || 'tag-default')
+const linuxInitStatusText = (status) => ({ ready: '离线就绪', failed: '预处理失败', unknown: '待预处理' }[status] || '待预处理')
+const linuxInitStatusTagClass = (status) => ({ ready: 'tag-success', failed: 'tag-danger', unknown: 'tag-warning' }[status] || 'tag-warning')
 
 const familyTypeClass = (type) => normalizeTemplateType(type)
 const familyTypeEmoji = (type) => ({ windows: '🪟', fnos: '📦', other: '💾' }[normalizeTemplateType(type)] || '🐧')
@@ -896,6 +906,23 @@ const handleExport = async (row, scope) => {
     console.error('导出模板失败', err)
   } finally {
     exportingName.value = ''
+  }
+}
+
+const handlePrepareLinux = async (row) => {
+  try {
+    await ElMessageBox.confirm(
+      `将检查并补齐模板「${row.admin_name || row.name}」的 cloud-init 与磁盘扩容依赖。任务执行期间模板不可用于新的预处理操作。`,
+      'Linux 模板离线预处理',
+      { type: 'warning', confirmButtonText: '提交任务', cancelButtonText: '取消' }
+    )
+    preparingLinuxName.value = row.name
+    const res = await prepareImportedLinuxTemplate(row.name)
+    ElMessage.success(res.message || 'Linux 模板离线预处理任务已提交，请在任务中心查看进度')
+  } catch (err) {
+    if (err !== 'cancel' && err?.toString?.() !== 'cancel') console.error('提交 Linux 模板预处理失败', err)
+  } finally {
+    preparingLinuxName.value = ''
   }
 }
 

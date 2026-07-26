@@ -318,6 +318,7 @@ export const endpointGroups = [
     endpoints: [
       ep('GET', '/template/list', '获取模板列表', { notes: [elastic] }),
       ep('POST', '/template/prepare', '制作模板', { body: 'JSON: vm_name, template_name, display_name, type, category, root_password, template_user', notes: [elastic] }),
+	  ep('POST', '/template/:name/prepare-linux', '预处理已导入 Linux 模板', { pathParams: ['name'], response: 'data: task_id。任务会在模板阶段安装并校验 cloud-init 与磁盘扩容依赖，克隆阶段保持离线。', notes: [elastic, admin] }),
       ep('POST', '/template/upload/init', '模板包分片上传-初始化/秒传', { body: 'JSON: file_name, total_size, file_hash(MD5)', response: 'data: session_key, total_chunks, chunk_size, received[], instant, completed。', notes: [elastic] }),
       ep('POST', '/template/upload/chunk', '模板包分片上传-单片(1MB)', { headers: [...apiHeaders.slice(0, 2), form], body: 'FormData: file, session_key, index', notes: [elastic] }),
       ep('POST', '/template/upload/complete', '模板包分片上传-完成校验', { body: 'JSON: session_key, file_hash(MD5)', response: 'data: session_key(导入临时路径，作为 preview 的 source_path)。', notes: [elastic] }),

@@ -73,6 +73,7 @@ type CloneParams struct {
 	NestedVirt            *bool                          `json:"nested_virt,omitempty"`         // 嵌套虚拟化开关
 	KVMHidden             *bool                          `json:"kvm_hidden,omitempty"`          // 隐藏 KVM 标志
 	VendorID              string                         `json:"vendor_id,omitempty"`           // Hyper-V vendor_id 伪装
+	PrimaryMAC            string                         `json:"-"`                             // 首网卡 MAC，在离线网络配置与域 XML 间保持一致
 }
 
 // BatchCloneParams 批量克隆参数

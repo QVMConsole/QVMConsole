@@ -250,6 +250,7 @@ func Setup() *gin.Engine {
 			{
 				tpl.GET("/list", handler.GetTemplateList)
 				tpl.POST("/prepare", handler.PrepareTemplate)
+				tpl.POST("/:name/prepare-linux", middleware.AdminMiddleware(), handler.PrepareImportedLinuxTemplate)
 				tpl.POST("/upload/init", handler.TemplateUploadInit)         // 模板包分片上传-初始化/秒传
 				tpl.POST("/upload/chunk", handler.TemplateUploadChunk)       // 模板包分片上传-单片
 				tpl.POST("/upload/complete", handler.TemplateUploadComplete) // 模板包分片上传-完成

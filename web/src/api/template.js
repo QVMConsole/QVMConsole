@@ -1,5 +1,12 @@
 import request from '@/utils/request'
 
+export function prepareImportedLinuxTemplate(name) {
+  return request({
+    url: `/template/${encodeURIComponent(name)}/prepare-linux`,
+    method: 'post'
+  })
+}
+
 // ==================== 模板包分片上传 API ====================
 // 模板包（.tar.gz/.tgz）通过分片上传落到导入临时目录，完成后走 preview/confirm（仍在 @/api/vm）。
 

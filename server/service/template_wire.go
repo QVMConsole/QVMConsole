@@ -64,6 +64,11 @@ func PrepareTemplate(params *PrepareTemplateParams, progressFn func(int, string)
 	return templatepkg.PrepareTemplate(params, progressFn)
 }
 
+// PrepareImportedLinuxTemplate 为已导入 Linux 模板补齐离线克隆依赖。
+func PrepareImportedLinuxTemplate(templateName string, progressFn func(int, string)) error {
+	return templatepkg.PrepareImportedLinuxTemplate(templateName, progressFn)
+}
+
 // DeleteTemplate delegates to templatepkg.DeleteTemplate
 func DeleteTemplate(templateName string) error {
 	return templatepkg.DeleteTemplate(templateName)

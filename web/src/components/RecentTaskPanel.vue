@@ -226,7 +226,7 @@ watch(activeCount, (val) => {
 const typeText = (type) => {
   const map = {
     clone: '链式克隆', batch: '批量克隆', reinstall: '重装系统', prepare: '制作模板',
-    template_export: '导出模板', template_import: '导入模板', delete_template: '删除模板',
+    template_export: '导出模板', template_import: '导入模板', template_linux_prepare: 'Linux 模板预处理', delete_template: '删除模板',
     create: '普通创建', lightweight_vm_provision: '轻量云开通',
     lightweight_runtime_quota_shutdown: '轻量云时长关机', delete: '删除虚拟机',
     snapshot: '快照操作', export: '导出虚拟机', import: '导入虚拟机',
@@ -241,7 +241,7 @@ const typeText = (type) => {
 const typeTagType = (type) => {
   const map = {
     clone: 'primary', batch: 'primary', reinstall: 'warning', prepare: 'success',
-    template_export: 'success', template_import: 'primary', delete_template: 'danger',
+    template_export: 'success', template_import: 'primary', template_linux_prepare: 'warning', delete_template: 'danger',
     create: '', lightweight_vm_provision: 'primary', lightweight_runtime_quota_shutdown: 'warning',
     delete: 'danger', snapshot: 'info', export: 'success', import: 'primary',
     vm_migrate: 'warning', vm_disk_migrate: 'warning', storage_format: 'warning',

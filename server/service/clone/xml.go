@@ -96,6 +96,7 @@ func defineAndStartNonWindowsClone(params *CloneParams, cloneDisk string, ramMB 
 	var networkArg string
 	if params.SwitchID != 0 {
 		networkArg = D.BuildOVSVirtInstallNetworkArg(params.NicModel) + " "
+		networkArg = withVirtInstallMAC(networkArg, params.PrimaryMAC)
 	} else {
 		networkArg = "--network none "
 	}
@@ -270,6 +271,18 @@ func defineAndStartNonWindowsClone(params *CloneParams, cloneDisk string, ramMB 
 		return err
 	}
 	return nil
+}
+
+func withVirtInstallMAC(networkArg, mac string) string {
+	mac = strings.TrimSpace(mac)
+	if mac == "" {
+		return networkArg
+	}
+	end := strings.LastIndex(networkArg, "'")
+	if end < 0 {
+		return networkArg
+	}
+	return networkArg[:end] + ",mac=" + mac + networkArg[end:]
 }
 
 // extractDomainNVRAMPath extracts the NVRAM path from domain XML

@@ -12,8 +12,8 @@ import (
 )
 
 // prepareLinuxNoCloudInit 通过 virt-customize 完成 Linux 克隆全部初始化
-// 无需 SSH 连接：检测并自动安装依赖（兼容旧模板）、清理身份信息、写入 cloud-init NoCloud seed 文件、离线修改密码与用户名
-// 适用于所有 Linux 模板；新模板依赖已预装（快速），旧模板自动补装（兼容）
+// 无需 SSH 连接：清理身份信息、写入 cloud-init NoCloud seed 文件、离线修改密码与用户名
+// 依赖必须在模板制作或模板预处理阶段完成，克隆阶段始终禁用网络。
 func prepareLinuxNoCloudInit(params *CloneParams, cloneDisk string, progressFn func(int, string)) error {
 	// 生成 cloud-init seed 文件内容
 	metaData := buildNoCloudMetaData(params)
@@ -37,87 +37,9 @@ func prepareLinuxNoCloudInit(params *CloneParams, cloneDisk string, progressFn f
 
 	templateUser := params.TemplateUser
 
-	// 先执行检测命令，判断是否需要安装依赖
-	checkArgs := []string{
-		"-a", cloneDisk,
-		"--run-command", `
-			NEED_INSTALL=0
-			if command -v dnf >/dev/null 2>&1 || command -v yum >/dev/null 2>&1; then
-				if ! rpm -q cloud-init &>/dev/null || ! rpm -q cloud-utils-growpart &>/dev/null; then
-					NEED_INSTALL=1
-				fi
-			elif command -v apt-get >/dev/null 2>&1; then
-				if ! dpkg -s cloud-init &>/dev/null || ! dpkg -s cloud-guest-utils &>/dev/null; then
-					NEED_INSTALL=1
-				fi
-			fi
-			if [ "$NEED_INSTALL" -eq 1 ]; then
-				echo "[QVM_DEPS_MISSING]"
-			fi
-		`,
-		"--quiet",
-	}
-	checkResult := utils.ExecCommandLongRunning("virt-customize", checkArgs...)
-	needInstall := strings.Contains(checkResult.Stdout, "[QVM_DEPS_MISSING]") || strings.Contains(checkResult.Stderr, "[QVM_DEPS_MISSING]")
-
-	// 如果检测到依赖缺失，显示进度消息
-	if needInstall {
-		progressFn(25, "检测到模板缺少依赖，正在自动安装，这可能取决于网络，可能需要一段时间")
-	}
-
 	args := []string{
 		"-a", cloneDisk,
-		// 0. 如果依赖缺失，执行在线安装（兼容旧模板）
-		"--run-command", `
-			# 检测是否需要安装
-			NEED_INSTALL=0
-			if command -v dnf >/dev/null 2>&1 || command -v yum >/dev/null 2>&1; then
-				if ! rpm -q cloud-init &>/dev/null || ! rpm -q cloud-utils-growpart &>/dev/null; then
-					NEED_INSTALL=1
-				fi
-			elif command -v apt-get >/dev/null 2>&1; then
-				if ! dpkg -s cloud-init &>/dev/null || ! dpkg -s cloud-guest-utils &>/dev/null; then
-					NEED_INSTALL=1
-				fi
-			fi
-			
-			# 如果需要安装，则进行在线安装
-			if [ "$NEED_INSTALL" -eq 1 ]; then
-				echo "[QVM] 检测到模板缺少依赖，正在自动安装..."
-				# DNF 系
-				if command -v dnf >/dev/null 2>&1; then
-					if ! rpm -q cloud-init cloud-utils-growpart &>/dev/null; then
-						for repo in /etc/yum.repos.d/*.repo; do
-							[ -f "$repo" ] || continue
-							sed -i 's|^mirrorlist=|#mirrorlist=|g; s|^metalink=|#metalink=|g' "$repo"
-							sed -i 's|mirror.centos.org|mirrors.aliyun.com|g; s|dl.fedoraproject.org/pub|mirrors.aliyun.com|g' "$repo"
-							sed -i 's|^#baseurl=|baseurl=|g' "$repo"
-						done
-						dnf install -y cloud-init cloud-utils-growpart 2>&1 || echo "[QVM-WARN] DNF 安装失败" >&2
-					fi
-				# APT 系
-				elif command -v apt-get >/dev/null 2>&1; then
-					if ! dpkg -s cloud-init cloud-guest-utils &>/dev/null; then
-						for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.list; do
-							[ -f "$f" ] || continue
-							sed -i 's|http://archive.ubuntu.com|https://mirrors.aliyun.com|g; s|http://security.ubuntu.com|https://mirrors.aliyun.com|g; s|http://deb.debian.org|https://mirrors.aliyun.com|g; s|http://security.debian.org|https://mirrors.aliyun.com/debian-security|g' "$f"
-						done
-						apt-get update -qq 2>&1 && DEBIAN_FRONTEND=noninteractive apt-get install -y cloud-init cloud-guest-utils 2>&1 || echo "[QVM-WARN] APT 安装失败" >&2
-					fi
-				# YUM 系
-				elif command -v yum >/dev/null 2>&1; then
-					if ! rpm -q cloud-init cloud-utils-growpart &>/dev/null; then
-						for repo in /etc/yum.repos.d/*.repo; do
-							[ -f "$repo" ] || continue
-							sed -i 's|^mirrorlist=|#mirrorlist=|g' "$repo"
-							sed -i 's|mirror.centos.org|mirrors.aliyun.com|g' "$repo"
-							sed -i 's|^#baseurl=|baseurl=|g' "$repo"
-						done
-						yum install -y cloud-init cloud-utils-growpart 2>&1 || echo "[QVM-WARN] YUM 安装失败" >&2
-					fi
-				fi
-			fi
-		`,
+		"--no-network",
 		// 1. 清理 machine-id（重置实例身份）
 		"--run-command", "truncate -s 0 /etc/machine-id 2>/dev/null || rm -f /etc/machine-id",
 		"--run-command", "rm -f /var/lib/dbus/machine-id 2>/dev/null || true",
@@ -163,6 +85,9 @@ func prepareLinuxNoCloudInit(params *CloneParams, cloneDisk string, progressFn f
 		"--run-command", fmt.Sprintf("printf '%%s\\n' %s > /etc/hostname", utils.ShellSingleQuote(params.Hostname)),
 		"--run-command", buildLinuxHostsCommand(params.Hostname),
 		"--quiet",
+	}
+	if netplanCommand := buildLinuxNetplanMACCompatCommand(params.PrimaryMAC); netplanCommand != "" {
+		args = append(args, "--run-command", netplanCommand)
 	}
 
 	// 7. 离线修改密码（通过 virt-customize --password，直接修改 /etc/shadow，无需 cloud-init）

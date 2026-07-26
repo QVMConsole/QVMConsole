@@ -29,6 +29,7 @@
           <el-option label="制作模板" value="prepare" />
           <el-option label="导出模板" value="template_export" />
           <el-option label="导入模板" value="template_import" />
+          <el-option label="Linux 模板预处理" value="template_linux_prepare" />
           <el-option label="删除模板" value="delete_template" />
           <el-option label="普通创建" value="create" />
           <el-option label="轻量云开通" value="lightweight_vm_provision" />
@@ -231,6 +232,7 @@ const typeText = (type) => {
     prepare: '制作模板',
     template_export: '导出模板',
     template_import: '导入模板',
+    template_linux_prepare: 'Linux 模板预处理',
     delete_template: '删除模板',
     create: '普通创建',
     lightweight_vm_provision: '轻量云开通',
@@ -259,6 +261,7 @@ const typeTagType = (type) => {
     prepare: 'success',
     template_export: 'success',
     template_import: 'primary',
+    template_linux_prepare: 'warning',
     delete_template: 'danger',
     create: '',
     lightweight_vm_provision: 'primary',

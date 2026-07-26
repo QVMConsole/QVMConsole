@@ -265,6 +265,20 @@ func registerTaskHandlers() {
 		return fmt.Sprintf(`{"template":"%s"}`, params.TemplateName), nil
 	})
 
+	// 已导入 Linux 模板预处理任务
+	taskqueue.RegisterHandler(model.TaskTypeTemplateLinuxPrepare, func(ctx context.Context, task *model.Task, progress func(int, string)) (string, error) {
+		var params struct {
+			TemplateName string `json:"template_name"`
+		}
+		if err := json.Unmarshal([]byte(task.Params), &params); err != nil {
+			return "", fmt.Errorf("解析参数失败: %w", err)
+		}
+		if err := service.PrepareImportedLinuxTemplate(params.TemplateName, progress); err != nil {
+			return "", err
+		}
+		return fmt.Sprintf(`{"template":"%s","linux_init_status":"ready"}`, params.TemplateName), nil
+	})
+
 	// 模板导出任务
 	taskqueue.RegisterHandler(model.TaskTypeTemplateExport, func(ctx context.Context, task *model.Task, progress func(int, string)) (string, error) {
 		var params service.ExportTemplateParams
@@ -1134,9 +1148,9 @@ func initCloneDeps() {
 		HookEnsureVMNotMigrating: service.HookEnsureVMNotMigrating,
 
 		// SPICE graphics（创建即带，默认本地监听）
-		InjectSPICEGraphics:     service.InjectSPICEGraphicsToDomainXML,
-		EnsureQXLVideo:          service.EnsureQXLVideo,
-		SpiceEnabledByDefault:   func() bool { return config.GlobalConfig.SpiceEnabledByDefault },
+		InjectSPICEGraphics:   service.InjectSPICEGraphicsToDomainXML,
+		EnsureQXLVideo:        service.EnsureQXLVideo,
+		SpiceEnabledByDefault: func() bool { return config.GlobalConfig.SpiceEnabledByDefault },
 	})
 }
 

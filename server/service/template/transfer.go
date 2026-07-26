@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"kvm_console/config"
+	"kvm_console/logger"
 	"kvm_console/utils"
 )
 
@@ -651,14 +652,24 @@ func ImportTemplate(ctx context.Context, params *ImportTemplateParams, progressF
 			convertCleanup()
 		}
 
-		// 转换后重新计算哈希用于保存
+		// Linux 导入模板在模板阶段预装依赖，克隆阶段保持完全离线。
+		meta := node.Meta
+		meta.Category = normalizeTemplateCategoryForName(meta.Type, meta.Category, node.Name)
+		if normalizeTemplateType(meta.Type) == "linux" {
+			progressFn(75+(i*10/maxInt(len(manifest.Nodes), 1)), fmt.Sprintf("正在准备节点 %s 的离线克隆依赖 ...", node.Meta.AdminName))
+			if prepErr := EnsureLinuxCloudInitDeps(targetPath); prepErr != nil {
+				updateLinuxInitStatus(&meta, prepErr)
+			} else {
+				updateLinuxInitStatus(&meta, nil)
+			}
+		}
+
+		// 转换和预处理后重新计算哈希用于保存
 		hash, err := CalculateFileHashes(targetPath)
 		if err != nil {
 			_ = os.Remove(targetPath)
 			return nil, err
 		}
-		meta := node.Meta
-		meta.Category = normalizeTemplateCategoryForName(meta.Type, meta.Category, node.Name)
 		meta.MD5 = hash.MD5
 		meta.SHA256 = hash.SHA256
 		meta.FileSize = hash.FileSize
@@ -714,6 +725,14 @@ func importLegacySingleTemplate(ctx context.Context, params *ImportTemplateParam
 	if tplType == "" {
 		tplType = detectTemplateTypeFromNameForTransfer(params.TemplateName)
 	}
+	var linuxPrepErr error
+	if tplType == "linux" {
+		progressFn(75, "正在准备 Linux 离线克隆依赖...")
+		linuxPrepErr = EnsureLinuxCloudInitDeps(targetPath)
+		if linuxPrepErr != nil {
+			logger.App.Warn("导入 Linux 模板依赖预装失败", "template", params.TemplateName, "error", linuxPrepErr)
+		}
+	}
 	hash, err := CalculateFileHashes(targetPath)
 	if err != nil {
 		_ = os.Remove(targetPath)
@@ -736,6 +755,9 @@ func importLegacySingleTemplate(ctx context.Context, params *ImportTemplateParam
 		FileSize:     hash.FileSize,
 	}
 	meta.RootNodeID = meta.NodeID
+	if tplType == "linux" {
+		updateLinuxInitStatus(meta, linuxPrepErr)
+	}
 	if err := saveTemplateMeta(targetPath, meta); err != nil {
 		_ = os.Remove(targetPath)
 		return nil, err

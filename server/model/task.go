@@ -22,6 +22,7 @@ const (
 	TaskTypePrepare                         = "prepare"                            // 制作模板
 	TaskTypeTemplateExport                  = "template_export"                    // 导出模板
 	TaskTypeTemplateImport                  = "template_import"                    // 导入模板
+	TaskTypeTemplateLinuxPrepare            = "template_linux_prepare"             // 预处理已导入 Linux 模板
 	TaskTypeDeleteTemplate                  = "delete_template"                    // 删除模板
 	TaskTypeCreate                          = "create"                             // 普通创建虚拟机
 	TaskTypeDelete                          = "delete"                             // 删除虚拟机

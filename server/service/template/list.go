@@ -74,6 +74,9 @@ func buildTemplateTreeData() (*templateTreeData, error) {
 			MD5:              normalized.MD5,
 			SHA256:           normalized.SHA256,
 			FileSize:         normalized.FileSize,
+			LinuxInitStatus:  normalized.LinuxInitStatus,
+			LinuxInitChecked: normalized.LinuxInitChecked,
+			LinuxInitError:   normalized.LinuxInitError,
 		}
 		if tpl.Exported {
 			tpl.ExportPath = getTemplateDownloadPath(GetTemplateExportFileName(name))

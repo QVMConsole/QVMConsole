@@ -83,6 +83,9 @@ type TemplateMeta struct {
 	MD5              string                 `json:"md5,omitempty"`                // 模板磁盘 MD5
 	SHA256           string                 `json:"sha256,omitempty"`             // 模板磁盘 SHA256
 	FileSize         int64                  `json:"file_size,omitempty"`          // 模板磁盘字节数
+	LinuxInitStatus  string                 `json:"linux_init_status,omitempty"`  // Linux 克隆依赖状态: unknown/ready/failed
+	LinuxInitChecked string                 `json:"linux_init_checked,omitempty"` // Linux 克隆依赖最近检查时间
+	LinuxInitError   string                 `json:"linux_init_error,omitempty"`   // Linux 克隆依赖预处理错误摘要
 }
 
 // TemplateDefaultConfig 模板默认硬件配置
@@ -130,6 +133,9 @@ type TemplateInfo struct {
 	MD5              string                 `json:"md5,omitempty"`
 	SHA256           string                 `json:"sha256,omitempty"`
 	FileSize         int64                  `json:"file_size,omitempty"`
+	LinuxInitStatus  string                 `json:"linux_init_status,omitempty"`
+	LinuxInitChecked string                 `json:"linux_init_checked,omitempty"`
+	LinuxInitError   string                 `json:"linux_init_error,omitempty"`
 	HashStatus       string                 `json:"hash_status"` // ok/missing/size_mismatch
 	Level            int                    `json:"level"`
 	IsRoot           bool                   `json:"is_root"`
