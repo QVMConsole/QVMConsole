@@ -223,6 +223,10 @@ func CreateVM(params *CreateVMParams, progressFn func(int, string)) (string, err
 	} else if !slices.Contains(profile.SupportedBootTypes(), params.BootType) {
 		params.BootType = profile.DefaultBootType()
 	}
+	// 当前宿主机的 i440FX + OVMF 组合会在 Windows 安装阶段卡在固件启动画面，统一使用 BIOS。
+	if params.OSType == "windows" && params.MachineType == "pc" {
+		params.BootType = "bios"
+	}
 	if params.NicModel == "" {
 		params.NicModel = "virtio"
 	}

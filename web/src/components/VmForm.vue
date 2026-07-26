@@ -1159,11 +1159,15 @@
                 </el-form-item>
 
                 <el-form-item label="虚拟机类型" prop="machine_type">
-                  <el-radio-group v-model="form.machine_type">
+                  <el-radio-group v-model="form.machine_type" @change="onMachineTypeChange">
                     <el-radio value="q35" :disabled="form.arch === 'aarch64' || form.arch === 'riscv64'"><span>Q35</span></el-radio>
                     <el-radio value="i440fx" :disabled="form.arch === 'aarch64' || form.arch === 'riscv64'"><span>i440FX</span></el-radio>
                     <el-radio v-if="form.arch === 'aarch64' || form.arch === 'riscv64'" value="virt"><span>virt</span></el-radio>
                   </el-radio-group>
+                  <div v-if="shouldUseBIOSForI440FXWindows()" class="form-tip">
+                    <el-icon><InfoFilled /></el-icon>
+                    当前宿主机上 Windows 搭配 i440FX 使用 BIOS 启动，以避免 UEFI 固件卡在启动画面
+                  </div>
                 </el-form-item>
 
                 <el-form-item label="引导类型" prop="boot_type">
@@ -1174,7 +1178,7 @@
                   <template v-else>
                     <el-radio-group v-model="form.boot_type" @change="onBootTypeChange">
                       <el-radio value="bios" :disabled="form.arch === 'aarch64'"><span>BIOS</span></el-radio>
-                      <el-radio value="uefi"><span>UEFI</span></el-radio>
+                      <el-radio value="uefi" :disabled="shouldUseBIOSForI440FXWindows()"><span>UEFI</span></el-radio>
                       <el-radio value="uefi-secure" :disabled="form.machine_type === 'i440fx' || form.arch === 'aarch64' || form.arch === 'riscv64'"><span>UEFI + 安全引导</span></el-radio>
                     </el-radio-group>
                   </template>
@@ -2829,6 +2833,12 @@ const bootTypePreviewLabel = computed(() => {
       return '自动'
   }
 })
+const shouldUseBIOSForI440FXWindows = () => (
+  !isEdit.value &&
+  form.create_mode === 'iso' &&
+  form.os_type === 'windows' &&
+  form.machine_type === 'i440fx'
+)
 const isWindowsMemoryTarget = computed(() => {
   if (isEdit.value) return form.os_type === 'windows' || form.memory_backend === 'virtio_mem'
   if (isTemplateSourceMode.value) return form.template_type === 'windows'
@@ -3751,6 +3761,18 @@ const applyBootTypeRecommendation = (bootType, options = {}) => {
   form.boot_type = bootType
 }
 
+const getRecommendedWindowsBootType = () => (
+  shouldUseBIOSForI440FXWindows() ? 'bios' : 'uefi'
+)
+
+const applyWindowsBootTypeRecommendation = () => {
+  if (shouldUseBIOSForI440FXWindows()) {
+    form.boot_type = 'bios'
+    return
+  }
+  applyBootTypeRecommendation(getRecommendedWindowsBootType())
+}
+
 // 磁盘文件列表（导入模式用）
 const diskFileList = ref([])
 const diskFilesLoading = ref(false)
@@ -4349,7 +4371,7 @@ const onISOChange = (paths) => {
   }
   // Windows 自动设置 UEFI；芯片组保留用户在高级设置中的选择。
   if (iso.os_type === 'windows') {
-    applyBootTypeRecommendation('uefi')
+    applyWindowsBootTypeRecommendation()
     // Windows 默认使用 SATA 磁盘驱动和 e1000e 网卡（兼容性更好）
     form.disk_bus = 'sata'
     form.nic_model = 'e1000e'
@@ -4364,7 +4386,7 @@ const onISOChange = (paths) => {
 const onOsTypeChange = () => {
   form.os_variant = ''
   if (form.os_type === 'windows') {
-    applyBootTypeRecommendation('uefi')
+    applyWindowsBootTypeRecommendation()
     // 芯片组保留用户在高级设置中的选择。
     form.disk_bus = 'sata'
     form.nic_model = 'e1000e'
@@ -4390,6 +4412,13 @@ const onBootTypeChange = () => {
   // 安全引导需要 Q35
   if (form.boot_type === 'uefi-secure') {
     form.machine_type = 'q35'
+  }
+}
+
+// i440FX 在当前宿主机上安装 Windows 时使用 BIOS，避免 OVMF 固件启动卡死。
+const onMachineTypeChange = () => {
+  if (shouldUseBIOSForI440FXWindows()) {
+    form.boot_type = 'bios'
   }
 }
 

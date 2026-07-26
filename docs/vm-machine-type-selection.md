@@ -7,3 +7,5 @@
 - ARM 与 RISC-V 架构固定使用 `virt`。
 
 选择 Windows ISO、切换 Windows 系统类型或切换模板时，系统会继续自动推荐引导方式、磁盘和网卡类型，但不会再覆盖已选择的虚拟机机型。
+
+当前宿主机的 `i440FX + Windows + UEFI` 会卡在 TianoCore 固件启动画面。因此 ISO 安装 Windows 且选择 i440FX 时，页面会固定为 BIOS，服务端也会对 API 请求执行同样的兼容处理。
