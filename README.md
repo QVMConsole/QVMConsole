@@ -18,6 +18,24 @@
 
 QVMConsole 是一个面向小型企业和个人私有云服务场景的开源虚拟机管理平台，基于 KVM/QEMU 虚拟化技术深度集成，提供从虚拟机生命周期管理、网络与存储编排、快照与克隆、防火墙与带宽治理，到 Web 控制台与 API 一体化交付的完整解决方案。
 
+## 仓库结构与说明
+
+本仓库 (`new-web`) 是 QVMConsole 的前端重构版本，与标准仓库的关系如下：
+
+| 项目 | 仓库地址 | 说明 |
+|------|---------|------|
+| **标准仓库** | <https://github.com/QVMConsole/QVMConsole> | 官方主仓库，包含后端和原始前端 |
+| **本仓库** | <https://github.com/QVMConsole/new-web> | 前端重构仓库，后端从标准仓库合并 |
+
+### 当前状态
+
+> **⚠️ 前端正在进行重大重构**
+>
+> - 原前端代码已备份至 `web-backup/` 目录供参考
+> - `web/` 目录已清空等待重建
+> - 后端从标准仓库 [QVMConsole/QVMConsole](https://github.com/QVMConsole/QVMConsole) 合并
+> - 合并后端修改时请参考 [`docs/merge-from-upstream.md`](docs/merge-from-upstream.md)
+
 ### 核心价值
 
 - **降低运维门槛**：提供"即开即用"的虚拟化管理平台，减少重复造轮子的成本
@@ -83,12 +101,10 @@ QVMConsole 是一个面向小型企业和个人私有云服务场景的开源虚
 - **认证**: JWT v5.3.1
 - **日志**: lumberjack v2.2.1
 
-### 前端
-- **框架**: Vue 3.5.30
-- **UI 库**: Element Plus v2.13.5
-- **HTTP 客户端**: Axios v1.15.2
-- **VNC 客户端**: @novnc/novnc v1.7.0
-- **构建工具**: Vite v8.0.0
+### 前端（重构中）
+- **状态**: 正在进行重大重构，`web/` 目录已清空
+- **原技术栈**: Vue 3.5.30 + Element Plus v2.13.5 + Vite v8.0.0
+- **备份**: 原代码位于 `web-backup/` 目录
 
 ### 虚拟化基础设施
 - **虚拟化平台**: KVM/QEMU
@@ -123,6 +139,15 @@ QVMConsole 是一个面向小型企业和个人私有云服务场景的开源虚
 - 电子邮件：xiaozhuhs@foxmail.com
 
 ---
+
+## 合并上游修改
+
+当标准仓库后端有修改时，请参阅 [`docs/merge-from-upstream.md`](docs/merge-from-upstream.md) 获取详细合并指南。
+
+核心原则：
+1. 只合并 `server/` 目录的后端修改
+2. 拒绝合并 `web/` 目录的任何前端修改
+3. 本仓库的 `web-backup/`、`.gitignore`、`docs/` 中的独有内容不会被上游覆盖
 
 ## 致谢
 

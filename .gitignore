@@ -42,3 +42,11 @@ docs-web
 tmp/
 .qoder/
 .claude/
+
+# Frontend backup (参考备份)
+web-backup/
+
+# IDE specific
+.idea/
+*.iml
+.history/
