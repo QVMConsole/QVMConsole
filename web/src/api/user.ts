@@ -41,3 +41,8 @@ export function confirmSelfLightweightVmRegistration(
     data,
   )
 }
+
+/** 用户自助：模板克隆虚拟机 */
+export function selfCloneVm(data: import('./vm').CloneVmPayload) {
+  return service.post<unknown, ApiResponse<{ task_id?: string }>>('/self/vm/clone', data)
+}

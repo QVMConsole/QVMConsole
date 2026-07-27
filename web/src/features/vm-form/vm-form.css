@@ -1,0 +1,634 @@
+/**
+ * 虚拟机表单样式（创建向导 + 编辑表单共用）
+ * 浅色优先，深色通过 body[theme-mode="dark"] 令牌自动适配；
+ * 全部使用 aurora.css 的 --qvm- 令牌，不写死颜色。
+ */
+
+/* ==================== 全屏向导布局 ==================== */
+.qvm-vf-wizard .semi-modal-body-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.qvm-vf-wizard .semi-modal-body {
+  flex: 1;
+  overflow: hidden;
+  padding: 0;
+}
+.qvm-vf-wizard-layout {
+  display: flex;
+  height: 100%;
+  background: var(--qvm-bg);
+}
+.qvm-vf-wizard-aside {
+  width: 218px;
+  flex-shrink: 0;
+  padding: 28px 16px;
+  border-right: 1px solid var(--qvm-stroke);
+  background: var(--qvm-panel-bg);
+  overflow-y: auto;
+}
+.qvm-vf-wizard-main {
+  flex: 1;
+  overflow-y: auto;
+  padding: 26px 30px 40px;
+}
+.qvm-vf-wizard-main-inner {
+  max-width: 980px;
+  margin: 0 auto;
+}
+.qvm-vf-wizard-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+.qvm-vf-wizard-footer-right {
+  display: flex;
+  gap: 10px;
+}
+
+/* 步骤头部 */
+.qvm-vf-step-header {
+  margin-bottom: 18px;
+}
+.qvm-vf-step-title {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--qvm-text-0);
+}
+.qvm-vf-step-desc {
+  font-size: 13px;
+  color: var(--qvm-text-2);
+  margin-top: 4px;
+}
+
+/* ==================== 分区卡片 ==================== */
+.qvm-vf-section {
+  background: var(--qvm-card-bg);
+  border: 1px solid var(--qvm-stroke);
+  border-radius: 12px;
+  margin-bottom: 14px;
+  backdrop-filter: blur(8px);
+}
+.qvm-vf-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--qvm-stroke);
+}
+.qvm-vf-section-icon {
+  color: var(--qvm-acc-ink);
+  display: inline-flex;
+}
+.qvm-vf-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+}
+.qvm-vf-section-extra {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+}
+.qvm-vf-section-body {
+  padding: 16px;
+}
+
+/* ==================== 表单字段 ==================== */
+.qvm-vf-field {
+  margin-bottom: 14px;
+}
+.qvm-vf-field:last-child {
+  margin-bottom: 0;
+}
+.qvm-vf-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--qvm-text-1);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.qvm-vf-label.required::before {
+  content: '*';
+  color: var(--qvm-danger);
+  margin-right: 2px;
+}
+.qvm-vf-label-help {
+  color: var(--qvm-text-2);
+  cursor: help;
+}
+.qvm-vf-label-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.qvm-vf-tip {
+  font-size: 12px;
+  color: var(--qvm-text-2);
+  line-height: 1.5;
+  margin-top: 5px;
+}
+.qvm-vf-tip.warn {
+  color: var(--qvm-warn);
+}
+.qvm-vf-tip.error {
+  color: var(--qvm-danger);
+}
+
+/* 布局栅格 */
+.qvm-vf-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 18px;
+}
+.qvm-vf-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0 14px;
+}
+
+/* 开关行 */
+.qvm-vf-switch-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+/* 带文字开关 */
+.qvm-vf-text-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.qvm-vf-text-switch-label {
+  font-size: 13px;
+  color: var(--qvm-text-2);
+  white-space: nowrap;
+}
+.qvm-vf-text-switch-label.on {
+  color: var(--qvm-acc-ink);
+  font-weight: 500;
+}
+.qvm-vf-inline-note {
+  font-size: 12px;
+  color: var(--qvm-text-2);
+}
+
+/* 子分隔标题 */
+.qvm-vf-subdivider {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--qvm-text-2);
+  letter-spacing: 1px;
+  margin: 18px 0 12px;
+  padding-left: 8px;
+  border-left: 3px solid var(--qvm-acc-ink);
+}
+
+/* ==================== 创建方式卡片 ==================== */
+.qvm-vf-mode-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.qvm-vf-mode-card {
+  position: relative;
+  padding: 28px 20px;
+  text-align: center;
+  background: var(--qvm-card-bg);
+  border: 1.5px solid var(--qvm-stroke);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.qvm-vf-mode-card:hover {
+  border-color: var(--qvm-acc-stroke);
+  box-shadow: var(--qvm-card-shadow);
+  transform: translateY(-2px);
+}
+.qvm-vf-mode-card.selected {
+  border-color: var(--qvm-acc-ink);
+  background: var(--qvm-active-bg);
+  box-shadow: var(--qvm-glow);
+}
+.qvm-vf-mode-card-icon {
+  color: var(--qvm-acc-ink);
+  margin-bottom: 12px;
+}
+.qvm-vf-mode-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+  margin-bottom: 8px;
+}
+.qvm-vf-mode-card-desc {
+  font-size: 12.5px;
+  color: var(--qvm-text-2);
+  line-height: 1.6;
+}
+
+/* ==================== OS 快捷卡片 ==================== */
+.qvm-vf-os-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.qvm-vf-os-card {
+  padding: 14px 12px;
+  text-align: center;
+  border: 1.5px solid var(--qvm-stroke);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  background: var(--qvm-card-bg);
+}
+.qvm-vf-os-card:hover {
+  border-color: var(--qvm-acc-stroke);
+}
+.qvm-vf-os-card.selected {
+  border-color: var(--qvm-acc-ink);
+  background: var(--qvm-active-bg);
+}
+.qvm-vf-os-card-icon {
+  font-size: 24px;
+  margin-bottom: 6px;
+}
+.qvm-vf-os-card-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+}
+.qvm-vf-os-card-examples {
+  font-size: 11.5px;
+  color: var(--qvm-text-2);
+  margin-top: 3px;
+}
+
+/* ==================== IOPS / 磁盘行 ==================== */
+.qvm-vf-iops-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.qvm-vf-iops-label {
+  font-size: 12px;
+  color: var(--qvm-text-2);
+  white-space: nowrap;
+}
+.qvm-vf-iops-mutex {
+  font-size: 11px;
+  color: var(--qvm-warn);
+}
+.qvm-vf-iops-badge {
+  font-size: 11px;
+  color: var(--qvm-warn);
+  width: 100%;
+}
+.qvm-vf-disk-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  width: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.qvm-vf-disk-unit {
+  line-height: 32px;
+  color: var(--qvm-text-2);
+}
+.qvm-vf-import-disk {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  background: var(--qvm-hover-bg);
+  border-radius: 8px;
+}
+.qvm-vf-import-disk-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--qvm-text-0);
+}
+.qvm-vf-import-disk-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+/* ==================== 网口行 ==================== */
+.qvm-vf-nic-row {
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  background: var(--qvm-hover-bg);
+  border-radius: 8px;
+}
+.qvm-vf-nic-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+/* ==================== 引导顺序 ==================== */
+.qvm-vf-boot-list {
+  width: 100%;
+  border: 1px solid var(--qvm-stroke);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.qvm-vf-boot-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--qvm-stroke);
+  background: var(--qvm-card-bg);
+}
+.qvm-vf-boot-row:last-child {
+  border-bottom: none;
+}
+.qvm-vf-boot-row.disabled {
+  opacity: 0.55;
+}
+.qvm-vf-boot-icon {
+  color: var(--qvm-acc-ink);
+  display: inline-flex;
+}
+.qvm-vf-boot-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.qvm-vf-boot-type {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--qvm-text-0);
+}
+.qvm-vf-boot-file {
+  font-size: 12px;
+  color: var(--qvm-text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.qvm-vf-boot-meta {
+  display: flex;
+  gap: 4px;
+}
+.qvm-vf-boot-actions {
+  display: flex;
+  gap: 4px;
+}
+
+/* ==================== 高级选项 ==================== */
+.qvm-vf-advanced.blurred {
+  filter: blur(3px);
+  pointer-events: none;
+  user-select: none;
+}
+.qvm-vf-advanced-mask {
+  position: sticky;
+  top: 20px;
+  display: flex;
+  justify-content: center;
+  margin-top: -200px;
+  margin-bottom: 200px;
+  z-index: 5;
+}
+.qvm-vf-advanced-intro {
+  max-width: 420px;
+  text-align: center;
+}
+.qvm-vf-advanced-intro-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+  margin-bottom: 10px;
+}
+.qvm-vf-advanced-intro p {
+  font-size: 13px;
+  color: var(--qvm-text-1);
+  line-height: 1.7;
+}
+.qvm-vf-advanced-intro-warn {
+  color: var(--qvm-warn) !important;
+  font-weight: 500;
+}
+.qvm-vf-config-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 460px;
+  padding: 9px 14px;
+  border: 1px solid var(--qvm-stroke);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.16s ease;
+  background: var(--qvm-card-bg);
+}
+.qvm-vf-config-entry:hover {
+  border-color: var(--qvm-acc-stroke);
+  background: var(--qvm-active-bg);
+}
+.qvm-vf-config-entry-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+}
+.qvm-vf-config-entry-summary {
+  font-size: 12px;
+  color: var(--qvm-text-2);
+  margin-top: 2px;
+}
+.qvm-vf-config-entry-icon {
+  color: var(--qvm-text-2);
+  flex-shrink: 0;
+}
+.qvm-vf-option-tag {
+  font-size: 11px;
+  color: var(--qvm-text-2);
+}
+
+/* ==================== 摘要 / 确认页 ==================== */
+.qvm-vf-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.qvm-vf-summary-grid > div {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--qvm-hover-bg);
+  border-radius: 8px;
+  font-size: 12.5px;
+}
+.qvm-vf-summary-grid span {
+  color: var(--qvm-text-2);
+}
+.qvm-vf-summary-grid strong {
+  color: var(--qvm-text-0);
+  font-weight: 500;
+}
+.qvm-vf-confirm-group {
+  margin-bottom: 16px;
+}
+.qvm-vf-confirm-group-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--qvm-acc-ink);
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+.qvm-vf-confirm-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 7px 0;
+  border-bottom: 1px dashed var(--qvm-stroke);
+  font-size: 13px;
+}
+.qvm-vf-confirm-row:last-child {
+  border-bottom: none;
+}
+.qvm-vf-confirm-label {
+  color: var(--qvm-text-2);
+  flex-shrink: 0;
+}
+.qvm-vf-confirm-value {
+  color: var(--qvm-text-0);
+  text-align: right;
+  word-break: break-all;
+}
+.qvm-vf-confirm-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: var(--qvm-active-bg);
+  border: 1px solid var(--qvm-acc-stroke);
+  font-size: 13px;
+}
+.qvm-vf-confirm-total span {
+  color: var(--qvm-text-1);
+}
+.qvm-vf-confirm-total strong {
+  color: var(--qvm-text-0);
+}
+
+/* ==================== 其它 ==================== */
+.qvm-vf-empty-text {
+  color: var(--qvm-text-2);
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+.qvm-vf-ip-code {
+  font-family: monospace;
+  font-size: 12.5px;
+  background: var(--qvm-hover-bg);
+  padding: 2px 8px;
+  border-radius: 4px;
+  color: var(--qvm-text-0);
+}
+.qvm-vf-iso-order {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--qvm-text-2);
+  margin-top: 6px;
+}
+.qvm-vf-dialog-subtitle {
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: var(--qvm-text-1);
+}
+.qvm-vf-richtext p {
+  font-size: 13px;
+  color: var(--qvm-text-1);
+  line-height: 1.8;
+  margin: 0 0 10px;
+}
+
+/* ==================== 编辑表单（详情页内嵌） ==================== */
+.qvm-vf-edit-layout {
+  padding: 4px 0 12px;
+}
+.qvm-vf-edit-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.qvm-vf-edit-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 2px 6px;
+  border-top: 1px solid var(--qvm-stroke);
+  margin-top: 14px;
+}
+.qvm-vf-media-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  background: var(--qvm-hover-bg);
+  border-radius: 6px;
+}
+.qvm-vf-media-path {
+  flex: 1;
+  font-size: 13px;
+  color: var(--qvm-text-1);
+  word-break: break-all;
+}
+.qvm-vf-disk-path {
+  font-size: 12px;
+  color: var(--qvm-text-2);
+  display: inline-block;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.qvm-vf-xml-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+/* ==================== 响应式 ==================== */
+@media (max-width: 960px) {
+  .qvm-vf-wizard-aside {
+    width: 176px;
+    padding: 20px 10px;
+  }
+  .qvm-vf-wizard-main {
+    padding: 20px 18px 32px;
+  }
+  .qvm-vf-grid-2,
+  .qvm-vf-grid-3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .qvm-vf-mode-cards,
+  .qvm-vf-os-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

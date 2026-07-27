@@ -162,3 +162,52 @@ export function switchVMSecurityGroup(name: string, securityGroupID: number) {
     { security_group_id: securityGroupID },
   )
 }
+
+// ==================== 多网口管理（仅管理员） ====================
+
+/** 网口信息（绑定 + 交换机 + 安全组） */
+export interface VMInterfaceInfo {
+  binding: VpcVMBinding
+  switch?: VpcSwitch | null
+  security_group?: VpcSecurityGroup | null
+}
+
+/** 网口新增/更新请求 */
+export interface VMInterfacePayload {
+  switch_id: number
+  security_group_id: number
+  nic_model: string
+  bandwidth_inbound_avg: number
+  bandwidth_outbound_avg: number
+}
+
+/** 获取虚拟机网口列表（仅管理员） */
+export function listVMInterfaces(name: string) {
+  return service.get<unknown, ApiResponse<VMInterfaceInfo[]>>(
+    `/vm/${encodeURIComponent(name)}/interfaces`,
+    { silent: true },
+  )
+}
+
+/** 新增网口（仅管理员） */
+export function addVMInterface(name: string, data: VMInterfacePayload) {
+  return service.post<unknown, ApiResponse<VMInterfaceInfo>>(
+    `/vm/${encodeURIComponent(name)}/interfaces`,
+    data,
+  )
+}
+
+/** 更新网口（仅管理员） */
+export function updateVMInterface(name: string, order: number, data: VMInterfacePayload) {
+  return service.put<unknown, ApiResponse<null>>(
+    `/vm/${encodeURIComponent(name)}/interfaces/${order}`,
+    data,
+  )
+}
+
+/** 删除网口（仅管理员） */
+export function removeVMInterface(name: string, order: number) {
+  return service.delete<unknown, ApiResponse<null>>(
+    `/vm/${encodeURIComponent(name)}/interfaces/${order}`,
+  )
+}

@@ -5,6 +5,18 @@
 import service from './client'
 import type { ApiResponse } from '@/types/api'
 
+/** 模板默认配置（克隆时带出推荐值） */
+export interface TemplateDefaultConfig {
+  vcpu?: number
+  ram?: number // GB
+  disk_size?: number // GB
+  disk_bus?: string
+  nic_model?: string
+  video_model?: string
+  cpu_topology_mode?: string
+  first_boot_reboot_mode?: string
+}
+
 /** 模板列表项 */
 export interface TemplateItem {
   name: string
@@ -14,6 +26,12 @@ export interface TemplateItem {
   category?: string
   virtual_size?: string // 如 "20 GiB"
   template_user?: string
+  boot_type?: string // bios / uefi
+  cloud_init_mode?: string // none 表示不初始化
+  default_config?: TemplateDefaultConfig
+  disabled?: boolean
+  clone_visible?: boolean
+  level?: number // 派生层级（管理员显示缩进）
 }
 
 /** 获取模板列表 */

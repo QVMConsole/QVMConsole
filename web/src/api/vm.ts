@@ -83,16 +83,25 @@ export interface QuotaUsage {
   runtime_quota_reached: boolean
 }
 
+/** 磁盘 IOPS 单项状态 */
+export interface DiskIopsState {
+  value: number
+  is_set: boolean
+}
+
 /** 虚拟机磁盘信息（/vm/:name/disks） */
 export interface VmDiskItem {
   device: string
-  device_type?: string // disk / cdrom
+  device_type?: string // disk / cdrom / floppy
   path?: string
   capacity_gb?: number | string
   used_gb?: number | string
   format?: string
   bus?: string
   backing_path?: string
+  iops_total?: DiskIopsState
+  iops_read?: DiskIopsState
+  iops_write?: DiskIopsState
 }
 
 /** 删除确认用 qcow2 磁盘（/vm/:name/qcow2-disks） */
@@ -190,8 +199,97 @@ export function operateVm(name: string, action: VmPowerAction) {
   )
 }
 
-/** 编辑虚拟机（备注 / 分组等局部字段） */
-export function updateVm(name: string, data: { remark?: string; group?: string }) {
+/** 磁盘 IOPS 限制（总与读/写互斥，0 表示不限制） */
+export interface DiskIopsPayload {
+  total_iops_sec: number
+  read_iops_sec: number
+  write_iops_sec: number
+}
+
+/** QEMU Guest Agent 配置 */
+export interface GuestAgentPayload {
+  enabled: boolean
+}
+
+/** SMBIOS 类型 1 配置 */
+export interface Smbios1Payload {
+  base64: boolean
+  family: string
+  manufacturer: string
+  product: string
+  serial: string
+  sku: string
+  uuid: string
+  version: string
+}
+
+/** 动态内存配置 */
+export interface MemoryDynamicPayload {
+  dynamic_enabled: boolean
+  memory_backend: string // balloon / virtio_mem
+  memory_initial: number // GB
+  memory_min?: number // GB
+  memory_max?: number // GB
+  memory_auto_balloon?: boolean
+  memory_current?: number // GB，0 表示不手动调整
+}
+
+/** 直接内核引导配置 */
+export interface DirectBootPayload {
+  enabled: boolean
+  cmdline?: string
+}
+
+/** 直通设备（PCI 地址） */
+export interface HostDevicePayload {
+  pci_address: string
+}
+
+/** 编辑虚拟机提交载荷（仅发送变化字段，后端逐项应用） */
+export interface UpdateVmPayload {
+  remark?: string
+  group?: string
+  vcpu?: number
+  max_vcpu?: number
+  memory?: number // GB
+  autostart?: boolean
+  freeze?: boolean
+  apic?: boolean
+  pae?: boolean
+  kvm_hidden?: boolean
+  vendor_id?: string
+  nested_virt?: boolean
+  rtc_offset?: string
+  rtc_startdate?: string
+  guest_agent?: GuestAgentPayload
+  smbios1?: Smbios1Payload
+  boot_order?: string[]
+  device_order?: string[]
+  pcie_root_ports?: number
+  firmware_compat?: boolean
+  direct_boot?: DirectBootPayload
+  host_devices?: HostDevicePayload[]
+  disk_iops?: Record<string, DiskIopsPayload>
+  cpu_limit_percent?: number
+  cpu_affinity?: string
+  cpu_topology_mode?: string
+  nic_model?: string
+  boot_type?: string
+  video_model?: string
+  memory_dynamic?: MemoryDynamicPayload
+  add_disks?: AddDiskPayload[]
+}
+
+/** 编辑模式新增磁盘 */
+export interface AddDiskPayload {
+  size: number // GB
+  format: string
+  bus: string
+  storage_pool_id?: string
+}
+
+/** 编辑虚拟机（备注 / 分组 / 硬件配置等，仅发送变化字段） */
+export function updateVm(name: string, data: UpdateVmPayload) {
   return service.put<unknown, ApiResponse<null>>(`/vm/${encodeURIComponent(name)}`, data)
 }
 
@@ -352,6 +450,35 @@ export interface VmDetailInfo {
   pcie_info?: VmPCIEInfo | null
   kvm_hidden?: boolean
   nested_virt?: boolean
+  // ===== 以下字段供编辑表单回填 =====
+  vendor_id?: string
+  cpu_topology_mode?: string
+  rtc_startdate?: string
+  firmware_compat?: boolean
+  direct_boot?: DirectBootPayload | null
+  guest_agent?: GuestAgentPayload | null
+  smbios1?: Partial<Smbios1Payload> | null
+  memory_initial?: number // MB
+  memory_min?: number // MB
+  memory_max_dynamic?: number // MB
+  memory_auto_balloon?: boolean
+  memory_pending_apply?: boolean
+  memory_compat_mode?: string // legacy_static / dynamic / pending_apply
+  memory_balloon_supported?: boolean
+  memory_balloon_status?: string // ok / no_stats / not_running / missing_balloon / pending_apply
+  memory_virtio_mem_current?: number // MB
+  boot_order?: string[]
+  boot_devices?: VmBootDevice[]
+}
+
+/** 可引导设备（编辑模式 Cockpit 风格引导顺序） */
+export interface VmBootDevice {
+  type: string // disk / cdrom / network
+  device?: string
+  bus?: string
+  file?: string
+  enabled: boolean
+  order: number
 }
 
 /** 获取虚拟机详情（一次性） */
@@ -741,4 +868,412 @@ export function startVMNetworkCapture(name: string, data: NetworkCaptureRequest)
     `/vm/${encodeURIComponent(name)}/network/capture`,
     data,
   )
+}
+
+// ==================== 创建 / 克隆 / 导入 ====================
+
+/** 额外磁盘（创建/克隆时随虚拟机一并创建） */
+export interface ExtraDiskPayload {
+  size: number // GB
+  format: string
+  bus: string
+  storage_pool_id?: string
+  iops_total?: number
+  iops_read?: number
+  iops_write?: number
+}
+
+/** 额外网口 */
+export interface ExtraNicPayload {
+  switch_id: number
+  security_group_id: number
+  nic_model: string
+}
+
+/** 创建虚拟机（ISO 安装）提交载荷 */
+export interface CreateVmPayload {
+  name: string
+  remark?: string
+  vcpu: number
+  max_vcpu?: number
+  ram: number // GB
+  disk_size: number // GB
+  disk_format?: string
+  disk_bus?: string
+  system_disk_iops?: DiskIopsPayload
+  os_type?: string
+  os_variant?: string
+  iso_path?: string
+  iso_paths?: string[]
+  floppy_image?: string
+  switch_id?: number | null
+  security_group_id?: number | null
+  storage_pool_id?: string
+  nic_model?: string
+  autostart?: boolean
+  freeze?: boolean
+  apic?: boolean
+  pae?: boolean
+  rtc_offset?: string
+  rtc_startdate?: string
+  guest_agent?: GuestAgentPayload
+  smbios1?: Smbios1Payload
+  machine_type?: string
+  boot_type?: string
+  watchdog?: string
+  boot_order?: string[]
+  video_model?: string
+  spice_enabled?: boolean
+  cpu_topology_mode?: string
+  virt_type?: string
+  arch?: string
+  pcie_root_ports?: number
+  extra_disks?: ExtraDiskPayload[]
+  host_devices?: HostDevicePayload[]
+  extra_nics?: ExtraNicPayload[]
+  firmware_compat?: boolean
+  direct_boot?: DirectBootPayload
+  kvm_hidden?: boolean
+  vendor_id?: string
+  nested_virt?: boolean
+  cpu_limit_percent?: number
+  cpu_affinity?: string
+  memory_dynamic?: MemoryDynamicPayload
+}
+
+/** 管理员：创建虚拟机（ISO 安装） */
+export function createVm(data: CreateVmPayload) {
+  return service.post<unknown, ApiResponse<{ task_id?: string }>>('/vm/create', data)
+}
+
+/** 模板克隆提交载荷（单台） */
+export interface CloneVmPayload {
+  name: string
+  remark?: string
+  template: string
+  template_type?: string
+  clone_mode: string // linked / full
+  vcpu: number
+  max_vcpu?: number
+  ram: number // GB
+  disk_size: number // GB
+  hostname?: string
+  user?: string
+  password?: string
+  disable_system_init?: boolean
+  switch_id?: number | null
+  security_group_id?: number | null
+  storage_pool_id?: string
+  autostart?: boolean
+  freeze?: boolean
+  apic?: boolean
+  pae?: boolean
+  rtc_offset?: string
+  rtc_startdate?: string
+  guest_agent?: GuestAgentPayload
+  smbios1?: Smbios1Payload
+  uefi?: boolean
+  disk_bus?: string
+  system_disk_iops?: DiskIopsPayload
+  nic_model?: string
+  video_model?: string
+  spice_enabled?: boolean
+  cpu_topology_mode?: string
+  first_boot_reboot_mode?: string
+  extra_nics?: ExtraNicPayload[]
+  preserve_fnos_device_id?: boolean
+  fnos_device_id?: string
+  extra_disks?: ExtraDiskPayload[]
+  host_devices?: HostDevicePayload[]
+  pcie_root_ports?: number
+  static_ip?: string
+  gateway?: string
+  dns?: string
+  kvm_hidden?: boolean
+  vendor_id?: string
+  nested_virt?: boolean
+  cpu_limit_percent?: number
+  cpu_affinity?: string
+  memory_dynamic?: MemoryDynamicPayload
+}
+
+/** 管理员：模板克隆虚拟机 */
+export function cloneVm(data: CloneVmPayload) {
+  return service.post<unknown, ApiResponse<{ task_id?: string }>>('/vm/clone', data)
+}
+
+/** 批量克隆提交载荷 */
+export interface BatchCloneVmPayload {
+  prefix: string
+  start_num: number
+  count: number
+  template: string
+  template_type?: string
+  clone_mode: string
+  vcpu: number
+  max_vcpu?: number
+  ram: number
+  disk_size: number
+  hostname?: string
+  user?: string
+  password?: string
+  disable_system_init?: boolean
+  autostart?: boolean
+  freeze?: boolean
+  apic?: boolean
+  pae?: boolean
+  rtc_offset?: string
+  rtc_startdate?: string
+  guest_agent?: GuestAgentPayload
+  smbios1?: Smbios1Payload
+  uefi?: boolean
+  template_user?: string
+  video_model?: string
+  spice_enabled?: boolean
+  disk_bus?: string
+  nic_model?: string
+  storage_pool_id?: string
+  cpu_topology_mode?: string
+  first_boot_reboot_mode?: string
+  switch_id?: number | null
+  security_group_id?: number | null
+  extra_nics?: ExtraNicPayload[]
+  static_ip?: string
+  gateway?: string
+  dns?: string
+  kvm_hidden?: boolean
+  vendor_id?: string
+  nested_virt?: boolean
+  cpu_limit_percent?: number
+  cpu_affinity?: string
+}
+
+/** 管理员：批量克隆虚拟机 */
+export function batchCloneVm(data: BatchCloneVmPayload) {
+  return service.post<unknown, ApiResponse<{ task_id?: string }>>('/vm/batch-clone', data)
+}
+
+/** 额外导入磁盘项 */
+export interface ExtraImportDiskPayload {
+  disk_path?: string
+  disk_file?: string
+  disk_source_type?: string
+  storage_pool_id?: string
+  copy_disk?: boolean
+  bus?: string
+  iops_total?: number
+  iops_read?: number
+  iops_write?: number
+}
+
+/** 导入磁盘创建虚拟机提交载荷 */
+export interface ImportVmPayload {
+  name: string
+  remark?: string
+  disk_file?: string
+  disk_path?: string
+  disk_source_type?: string
+  storage_pool_id?: string
+  vcpu: number
+  max_vcpu?: number
+  ram: number
+  switch_id?: number | null
+  security_group_id?: number | null
+  copy_disk?: boolean
+  hostname?: string
+  user?: string
+  password?: string
+  init_type?: string
+  template_root_pass?: string
+  template_user?: string
+  autostart?: boolean
+  freeze?: boolean
+  start_after_import?: boolean
+  apic?: boolean
+  pae?: boolean
+  rtc_offset?: string
+  rtc_startdate?: string
+  guest_agent?: GuestAgentPayload
+  smbios1?: Smbios1Payload
+  boot_type?: string
+  machine_type?: string
+  nic_model?: string
+  video_model?: string
+  spice_enabled?: boolean
+  cpu_topology_mode?: string
+  first_boot_reboot_mode?: string
+  extra_nics?: ExtraNicPayload[]
+  extra_import_disks?: ExtraImportDiskPayload[]
+  system_disk_iops?: DiskIopsPayload
+  kvm_hidden?: boolean
+  vendor_id?: string
+  nested_virt?: boolean
+  cpu_limit_percent?: number
+  cpu_affinity?: string
+  memory_dynamic?: MemoryDynamicPayload
+}
+
+/** 管理员：绝对路径导入磁盘创建虚拟机 */
+export function adminImportDisk(data: ImportVmPayload) {
+  return service.post<unknown, ApiResponse<{ task_id?: string }>>('/vm/import-disk', data)
+}
+
+/** 操作系统变体（libvirt osinfo，供 ISO 安装选择） */
+export interface OsVariantItem {
+  id: string
+  name: string
+  category: string // Linux / Windows
+}
+
+/** 获取操作系统变体列表 */
+export function getOSVariants() {
+  return service.get<unknown, ApiResponse<OsVariantItem[]>>('/vm/os-variants', { silent: true })
+}
+
+// ==================== 虚拟机 XML ====================
+
+/** 获取虚拟机持久化 XML */
+export function getVmXML(name: string) {
+  return service.get<unknown, ApiResponse<{ xml: string }>>(
+    `/vm/${encodeURIComponent(name)}/xml`,
+    { silent: true },
+  )
+}
+
+/** 保存虚拟机持久化 XML */
+export function updateVmXML(name: string, data: { xml: string }) {
+  return service.put<unknown, ApiResponse<null>>(`/vm/${encodeURIComponent(name)}/xml`, data)
+}
+
+// ==================== 磁盘管理（编辑模式） ====================
+
+/** 磁盘扩容（仅扩大） */
+export function resizeDisk(name: string, dev: string, sizeGB: number) {
+  return service.post<unknown, ApiResponse<null>>(
+    `/vm/${encodeURIComponent(name)}/disk/${encodeURIComponent(dev)}/resize`,
+    { size_gb: sizeGB },
+  )
+}
+
+/** 删除/卸载磁盘（transfer=true 转移到我的存储） */
+export function removeDisk(name: string, dev: string, deleteFile = false, transfer = false) {
+  return service.delete<unknown, ApiResponse<null>>(
+    `/vm/${encodeURIComponent(name)}/disk/${encodeURIComponent(dev)}`,
+    { data: { delete_file: deleteFile, transfer } },
+  )
+}
+
+/** 修改磁盘驱动类型 */
+export function changeDiskBus(name: string, dev: string, bus: string) {
+  return service.put<unknown, ApiResponse<null>>(
+    `/vm/${encodeURIComponent(name)}/disk/${encodeURIComponent(dev)}/bus`,
+    { bus },
+  )
+}
+
+/** 挂载已有磁盘文件（我的存储中的磁盘） */
+export function attachDisk(name: string, path: string, bus = 'virtio') {
+  return service.post<unknown, ApiResponse<null>>(`/vm/${encodeURIComponent(name)}/disk/attach`, {
+    path,
+    bus,
+  })
+}
+
+/** 管理员：绝对路径导入磁盘到指定虚拟机（异步任务） */
+export function adminImportDiskForVM(
+  name: string,
+  data: {
+    disk_path: string
+    disk_source_type: string
+    storage_pool_id?: string
+    copy_disk?: boolean
+    bus?: string
+  },
+) {
+  return service.post<unknown, ApiResponse<{ task_id?: string }>>(
+    `/vm/${encodeURIComponent(name)}/disk/import`,
+    data,
+  )
+}
+
+// ==================== 光驱 / 软盘管理（编辑模式） ====================
+
+/** 插入/更换光驱 ISO（force_new=true 新增光驱设备） */
+export function changeCDROM(name: string, data: { iso_path: string; device?: string; force_new?: boolean }) {
+  return service.post<unknown, ApiResponse<null>>(`/vm/${encodeURIComponent(name)}/cdrom`, data)
+}
+
+/** 弹出光驱 */
+export function ejectCDROM(name: string, device = '') {
+  return service.post<unknown, ApiResponse<null>>(
+    `/vm/${encodeURIComponent(name)}/cdrom/eject`,
+    null,
+    { params: device ? { device } : {} },
+  )
+}
+
+/** 移除光驱设备 */
+export function removeCDROM(name: string, device = '') {
+  return service.delete<unknown, ApiResponse<null>>(`/vm/${encodeURIComponent(name)}/cdrom`, {
+    params: device ? { device } : {},
+  })
+}
+
+/** 插入/更换软盘镜像（force_new=true 新增软盘设备） */
+export function changeFloppy(name: string, data: { image_path: string; device?: string; force_new?: boolean }) {
+  return service.post<unknown, ApiResponse<null>>(`/vm/${encodeURIComponent(name)}/floppy`, data)
+}
+
+/** 弹出软盘 */
+export function ejectFloppy(name: string, device = '') {
+  return service.post<unknown, ApiResponse<null>>(
+    `/vm/${encodeURIComponent(name)}/floppy/eject`,
+    null,
+    { params: device ? { device } : {} },
+  )
+}
+
+/** 移除软盘设备 */
+export function removeFloppy(name: string, device = '') {
+  return service.delete<unknown, ApiResponse<null>>(`/vm/${encodeURIComponent(name)}/floppy`, {
+    params: device ? { device } : {},
+  })
+}
+
+// ==================== 硬件直通（仅管理员） ====================
+
+/** 宿主机 PCI 直通设备 */
+export interface PassthroughDevice {
+  pci_address: string
+  vendor_name?: string
+  product_name?: string
+  class_name?: string
+  vendor_id?: string
+  product_id?: string
+  is_vfio_bound?: boolean
+  driver_in_use?: string
+  is_used_by_vm?: boolean
+  used_by_vm_name?: string
+}
+
+/** 获取宿主机可直通 PCI 设备列表 */
+export function getPassthroughDevices() {
+  return service.get<unknown, ApiResponse<PassthroughDevice[]>>('/host/passthrough', {
+    silent: true,
+  })
+}
+
+/** 获取虚拟机已配置的直通设备 */
+export function getVmPassthroughDevices(name: string) {
+  return service.get<unknown, ApiResponse<{ pci_address: string }[]>>(
+    `/vm/${encodeURIComponent(name)}/passthrough`,
+    { silent: true },
+  )
+}
+
+/** 绑定 PCI 设备到 vfio-pci 驱动 */
+export function bindPCIDevice(pciAddress: string) {
+  return service.post<unknown, ApiResponse<null>>('/host/passthrough/bind', {
+    pci_address: pciAddress,
+  })
 }

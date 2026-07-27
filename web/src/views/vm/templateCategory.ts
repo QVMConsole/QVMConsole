@@ -65,3 +65,17 @@ export function templateCategoryOptions(type: string): string[] {
   if (normalizedType === 'openwrt') return OPENWRT_TEMPLATE_CATEGORY_OPTIONS
   return LINUX_TEMPLATE_CATEGORY_OPTIONS
 }
+
+/** 模板分类展示文案（非 linux/windows/openwrt 返回空） */
+export function templateCategoryLabel(type: string, category?: string): string {
+  const normalizedType = normalizeTemplateType(type)
+  if (!['linux', 'windows', 'openwrt'].includes(normalizedType)) return ''
+  return normalizeTemplateCategory(normalizedType, category)
+}
+
+/** 模板分组展示文案（类型 / 分类） */
+export function templateGroupLabel(type: string, category?: string): string {
+  const typeLabel = templateTypeLabel(type)
+  const categoryLabel = templateCategoryLabel(type, category)
+  return categoryLabel ? `${typeLabel} / ${categoryLabel}` : typeLabel
+}

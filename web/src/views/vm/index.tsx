@@ -30,6 +30,7 @@ import VmGroupDialog from './dialogs/VmGroupDialog'
 import MakeTemplateDialog from './dialogs/MakeTemplateDialog'
 import VmReinstallDialog from './dialogs/VmReinstallDialog'
 import VmMigrationDialog from './dialogs/VmMigrationDialog'
+import CreateVmWizard from '@/features/vm-form/CreateVmWizard'
 import './vm.css'
 
 /** 弹窗状态 */
@@ -356,8 +357,10 @@ export default function VmListPage() {
     [navigate],
   )
 
+  // 创建虚拟机向导
+  const [createWizardVisible, setCreateWizardVisible] = useState(false)
   const handleCreate = useCallback(() => {
-    Toast.info({ content: '新建虚拟机（VmForm）将在后续迭代提供', duration: 2 })
+    setCreateWizardVisible(true)
   }, [])
 
   const handleRefresh = useCallback(async () => {
@@ -537,6 +540,13 @@ export default function VmListPage() {
       )}
       {dialog?.type === 'migration' && isAdmin && (
         <VmMigrationDialog vm={dialog.vm} onClose={closeDialog} onSuccess={() => void reload()} />
+      )}
+      {createWizardVisible && (
+        <CreateVmWizard
+          visible={createWizardVisible}
+          onClose={() => setCreateWizardVisible(false)}
+          onSuccess={() => void reload()}
+        />
       )}
     </div>
   )

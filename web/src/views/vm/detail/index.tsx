@@ -324,7 +324,7 @@ export default function VmDetailPage() {
               <SpiceTab vm={vmData} />
             </TabPane>
           )}
-          {!isLightweight && (
+          {!isLightweight && vmData && (
             <TabPane
               itemKey="edit"
               tab={
@@ -333,7 +333,7 @@ export default function VmDetailPage() {
                 </span>
               }
             >
-              <EditTab />
+              <EditTab vm={vmData} />
             </TabPane>
           )}
         </Tabs>
