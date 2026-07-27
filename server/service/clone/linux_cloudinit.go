@@ -91,6 +91,8 @@ func prepareLinuxNoCloudInit(params *CloneParams, cloneDisk string, progressFn f
 	} else {
 		args = append(args, "--run-command", buildLinuxNetplanDHCPHotplugCompatCommand())
 	}
+	// 为后续从面板热插的网口保留 DHCP 兜底规则，不覆盖主网口的 Netplan 配置。
+	args = append(args, "--run-command", buildLinuxNetworkdDHCPHotplugFallbackCommand())
 
 	// 7. 离线修改密码（通过 virt-customize --password，直接修改 /etc/shadow，无需 cloud-init）
 	// root 密码始终设置；templateUser 若不是 root 则也设置（避免对 root 重复设置导致 virt-customize 报错）

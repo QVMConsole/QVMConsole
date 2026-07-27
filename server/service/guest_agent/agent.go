@@ -1,10 +1,12 @@
 package guest_agent
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net"
 	"strings"
+	"time"
 
 	"kvm_console/logger"
 	"kvm_console/service/libvirt_rpc"
@@ -57,6 +59,26 @@ type guestPingResponse struct {
 // guestNetworkResponse JSON 解析用的 guest-network-get-interfaces 返回
 type guestNetworkResponse struct {
 	Return []guestNetworkInterface `json:"return"`
+}
+
+type guestExecStartResponse struct {
+	Return struct {
+		PID int `json:"pid"`
+	} `json:"return"`
+}
+
+type guestExecStatusResponse struct {
+	Return struct {
+		Exited   bool   `json:"exited"`
+		ExitCode int    `json:"exitcode"`
+		ErrData  string `json:"err-data"`
+	} `json:"return"`
+}
+
+type guestOSInfoResponse struct {
+	Return struct {
+		ID string `json:"id"`
+	} `json:"return"`
 }
 
 // CheckVMGuestAgentStatus 检查虚拟机 Guest Agent 状态
@@ -205,4 +227,95 @@ func GetVMAllAgentIPs(vmName string) []string {
 		}
 	}
 	return ips
+}
+
+// ConfigureLinuxDHCPHotplugNetwork 为运行中的 Linux 来宾补齐附加网口的 DHCP 兜底规则。
+// 主网口仍由优先级更高的 Netplan 规则管理；该规则只命中未被主规则匹配的 en* 网口。
+func ConfigureLinuxDHCPHotplugNetwork(vmName string) error {
+	osInfo := utils.ExecCommandQuiet("virsh", "qemu-agent-command", vmName,
+		`{"execute":"guest-get-osinfo"}`)
+	if osInfo.Error != nil {
+		return fmt.Errorf("读取来宾系统信息失败: %w", osInfo.Error)
+	}
+	var osResult guestOSInfoResponse
+	if err := json.Unmarshal([]byte(osInfo.Stdout), &osResult); err != nil {
+		return fmt.Errorf("解析来宾系统信息失败: %w", err)
+	}
+	if strings.EqualFold(strings.TrimSpace(osResult.Return.ID), "mswindows") {
+		return nil
+	}
+
+	const script = `if ! systemctl is-active --quiet systemd-networkd; then exit 0; fi
+mkdir -p /etc/systemd/network
+cat > /etc/systemd/network/99-qvm-hotplug.network <<'EOF'
+[Match]
+Name=en*
+
+[Network]
+DHCP=yes
+LinkLocalAddressing=ipv6
+
+[DHCP]
+RouteMetric=200
+UseMTU=true
+EOF
+networkctl reload
+for qvm_iface in /sys/class/net/en*; do
+  [ -e "$qvm_iface" ] || continue
+  qvm_name=${qvm_iface##*/}
+  ip link set dev "$qvm_name" up
+  networkctl reconfigure "$qvm_name" || true
+done`
+
+	request, err := json.Marshal(map[string]any{
+		"execute": "guest-exec",
+		"arguments": map[string]any{
+			"path":           "/bin/sh",
+			"arg":            []string{"-c", script},
+			"capture-output": true,
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("构造来宾网络配置命令失败: %w", err)
+	}
+
+	start := utils.ExecCommandQuiet("virsh", "qemu-agent-command", vmName, string(request))
+	if start.Error != nil {
+		return fmt.Errorf("启动来宾网络配置命令失败: %w", start.Error)
+	}
+
+	var started guestExecStartResponse
+	if err := json.Unmarshal([]byte(start.Stdout), &started); err != nil || started.Return.PID <= 0 {
+		if err != nil {
+			return fmt.Errorf("解析来宾网络配置任务失败: %w", err)
+		}
+		return fmt.Errorf("来宾网络配置任务未返回进程号")
+	}
+
+	for i := 0; i < 20; i++ {
+		statusRequest := fmt.Sprintf(`{"execute":"guest-exec-status","arguments":{"pid":%d}}`, started.Return.PID)
+		status := utils.ExecCommandQuiet("virsh", "qemu-agent-command", vmName, statusRequest)
+		if status.Error != nil {
+			return fmt.Errorf("查询来宾网络配置任务失败: %w", status.Error)
+		}
+
+		var result guestExecStatusResponse
+		if err := json.Unmarshal([]byte(status.Stdout), &result); err != nil {
+			return fmt.Errorf("解析来宾网络配置任务状态失败: %w", err)
+		}
+		if !result.Return.Exited {
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		if result.Return.ExitCode != 0 {
+			errOutput, decodeErr := base64.StdEncoding.DecodeString(result.Return.ErrData)
+			if decodeErr == nil && strings.TrimSpace(string(errOutput)) != "" {
+				return fmt.Errorf("来宾网络配置命令失败: %s", strings.TrimSpace(string(errOutput)))
+			}
+			return fmt.Errorf("来宾网络配置命令失败，退出码 %d", result.Return.ExitCode)
+		}
+		return nil
+	}
+
+	return fmt.Errorf("来宾网络配置任务超时")
 }
