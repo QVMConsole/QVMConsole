@@ -18,6 +18,7 @@ const VmDetailPage = lazy(() => import('@/views/vm/detail'))
 const VncWindowPage = lazy(() => import('@/views/vm/vnc-window'))
 const TemplateListPage = lazy(() => import('@/views/template'))
 const NetworkPage = lazy(() => import('@/views/network'))
+const PublicIpPage = lazy(() => import('@/views/public-ip'))
 
 /** 懒加载页面统一加载态 */
 function lazyPage(node: ReactNode) {
@@ -66,8 +67,13 @@ const mainChildren = [
     element: lazyPage(<NetworkPage />),
     handle: { title: '网络中心' },
   },
+  {
+    path: 'public-ip',
+    element: lazyPage(<PublicIpPage />),
+    handle: { title: '公网 IP' },
+  },
   // TODO(重构迭代): 以下路由随各模块迁移逐步补齐
-  // public-ip、firewall、
+  // firewall、
   // storage-pool/list、nodes、my-storage、user/list、scheduler/events、
   // settings、api-docs、task/recent、about
   { path: '*', element: <NotFound />, handle: { title: '页面不存在' } },

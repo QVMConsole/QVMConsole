@@ -54,6 +54,8 @@ export interface UserListItem {
   username: string
   email?: string
   role?: string
+  /** 用户名下已分配的虚拟机名称列表（管理员接口返回） */
+  vms?: string[]
 }
 
 /** 获取用户列表（管理员，用于「所属用户」下拉选项） */

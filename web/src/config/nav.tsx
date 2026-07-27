@@ -54,7 +54,7 @@ export const ADMIN_NAV: NavGroup[] = [
     group: '网络',
     items: [
       { key: 'network', title: '网络中心', icon: <IconBranch />, path: '/network' },
-      { key: 'public-ip', title: '公网 IP', icon: <IconGlobeStroke />, path: '/public-ip', coming: true },
+      { key: 'public-ip', title: '公网 IP', icon: <IconGlobeStroke />, path: '/public-ip' },
       { key: 'firewall', title: '防火墙', icon: <IconShield />, path: '/firewall', coming: true },
     ],
   },

@@ -1,0 +1,203 @@
+/**
+ * 公网 IP 页样式（深空极光，浅色优先 + 深色适配）
+ * 迁移自旧前端 views/public-ip/index.vue，改用 --qvm- 设计令牌
+ */
+
+.pip-page {
+  padding: 4px 2px 24px;
+  width: 100%;
+}
+
+/* ==================== 页头 ==================== */
+.pip-page-header {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.pip-page-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+}
+.pip-page-sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--qvm-text-2);
+}
+.pip-header-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* ==================== 筛选栏 ==================== */
+.pip-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+/* ==================== 表格 ==================== */
+.pip-table-card {
+  border-radius: 14px;
+  background: var(--qvm-card-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--qvm-card-shadow);
+  border: 1px solid var(--qvm-stroke);
+  padding: 12px;
+  overflow-x: auto;
+}
+.pip-ip-text {
+  font-family: var(--qvm-num-font);
+  font-weight: 600;
+  color: var(--qvm-acc-ink);
+}
+.pip-muted {
+  color: var(--qvm-text-2);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.pip-mode-tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.pip-pagination {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+/* ==================== 行内操作（纯图标 + Tooltip + 下拉） ==================== */
+.pip-act-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pip-act-ic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  color: var(--qvm-text-2);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.16s;
+}
+.pip-act-ic.bind:hover {
+  color: var(--qvm-acc-ink);
+  background: var(--qvm-acc-bg);
+  border-color: var(--qvm-acc-stroke);
+}
+.pip-act-ic.migrate:hover {
+  color: #d97706;
+  background: rgba(251, 191, 36, 0.14);
+  border-color: rgba(251, 191, 36, 0.3);
+}
+.pip-act-ic.more:hover {
+  color: var(--qvm-text-0);
+  background: var(--qvm-hover-bg);
+  border-color: var(--qvm-stroke);
+}
+
+/* ==================== 规则预览 ==================== */
+.pip-preview-panel {
+  border: 1px solid var(--qvm-stroke);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--qvm-hover-bg);
+}
+.pip-preview-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+  margin: 0 0 8px;
+}
+.pip-preview-title + .pip-preview-commands {
+  margin-top: 0;
+}
+.pip-preview-commands {
+  margin: 0;
+  padding: 12px;
+  max-height: 320px;
+  overflow: auto;
+  font-family: var(--qvm-num-font);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--qvm-text-1);
+  background: var(--qvm-card-bg);
+  border: 1px solid var(--qvm-stroke);
+  border-radius: 8px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.pip-preview-hint {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--qvm-text-1);
+  line-height: 1.6;
+}
+
+/* ==================== 弹窗表单（与 network/vm 页保持一致） ==================== */
+.qvm-form-item {
+  margin-bottom: 14px;
+}
+.qvm-form-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--qvm-text-1);
+  margin-bottom: 6px;
+}
+.qvm-form-label.required::before {
+  content: '*';
+  color: var(--qvm-danger);
+  margin-right: 4px;
+}
+.qvm-form-tip {
+  font-size: 12px;
+  color: var(--qvm-text-2);
+  line-height: 1.5;
+  margin-top: 5px;
+}
+.qvm-form-tip.warn {
+  color: var(--qvm-warn);
+}
+
+/* ==================== 无权限提示 ==================== */
+.pip-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--qvm-text-2);
+  font-size: 14px;
+}
+.pip-empty-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+/* ==================== 深色模式：大面积文字降对比 ==================== */
+body[theme-mode='dark'] .pip-page-header h2,
+body[theme-mode='dark'] .pip-preview-title {
+  color: #b8c1cf;
+}
+
+/* ==================== 响应式 ==================== */
+@media (max-width: 720px) {
+  .pip-page-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .pip-header-actions {
+    width: 100%;
+  }
+}
