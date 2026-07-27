@@ -10,6 +10,7 @@ import (
 
 	"kvm_console/logger"
 	"kvm_console/model"
+	"kvm_console/service/guest_agent"
 	"kvm_console/utils"
 )
 
@@ -43,6 +44,9 @@ func AttachVMInterface(vmName string, sw model.VPCSwitch, nicModel string, inter
 		attachPersist := utils.ExecCommandWithTimeout("virsh", 60*time.Second, "attach-device", vmName, xmlPath, "--config")
 		if attachPersist.Error != nil {
 			logger.App.Warn("持久化网口失败（运行态已生效）", "detail", D.FirstNonEmpty(attachPersist.Stderr, attachPersist.Error.Error()))
+		}
+		if err := guest_agent.ConfigureLinuxDHCPHotplugNetwork(vmName); err != nil {
+			logger.App.Warn("为来宾附加网口配置 DHCP 失败", "vm", vmName, "error", err)
 		}
 	} else {
 		// 关机状态：修改持久化 XML

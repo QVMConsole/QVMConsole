@@ -29,3 +29,20 @@ func buildLinuxNetplanMACCompatCommand(mac string) string {
 func buildLinuxNetplanDHCPHotplugCompatCommand() string {
 	return `if [ -d /etc/netplan ]; then for qvm_netplan in /etc/netplan/*.yaml /etc/netplan/*.yml; do [ -f "$qvm_netplan" ] || continue; if grep -qE '^[[:space:]]*macaddress:' "$qvm_netplan" && grep -qE '^[[:space:]]*dhcp4:[[:space:]]*true[[:space:]]*$' "$qvm_netplan"; then sed -E -i '0,/^([[:space:]]*)macaddress:.*/s//\1name: "en*"/' "$qvm_netplan"; sed -E -i '/^[[:space:]]*set-name:[[:space:]]*[^[:space:]]+[[:space:]]*$/d' "$qvm_netplan"; break; fi; done; fi`
 }
+
+// buildLinuxNetworkdDHCPHotplugFallbackCommand 写入附加网口的 DHCP 兜底配置。
+// Netplan 为主网口生成的 10-* 规则优先匹配；仅未被主规则匹配的 en* 网口会命中此规则。
+func buildLinuxNetworkdDHCPHotplugFallbackCommand() string {
+	return `mkdir -p /etc/systemd/network && cat > /etc/systemd/network/99-qvm-hotplug.network <<'EOF'
+[Match]
+Name=en*
+
+[Network]
+DHCP=yes
+LinkLocalAddressing=ipv6
+
+[DHCP]
+RouteMetric=200
+UseMTU=true
+EOF`
+}
