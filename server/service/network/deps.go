@@ -48,38 +48,38 @@ func vpcDHCPHostsPath(id uint) string {
 // ── OVS / Network hooks ──
 
 var (
-	HookEnsureOVSNetworkReady    func() error
-	HookListOVSStaticHosts       func() ([]OVSStaticHost, error)
-	HookWriteOVSStaticHosts      func(hosts []OVSStaticHost) error
-	HookReloadOVSDNSMasq         func()
-	HookUseOVSNetwork            func() bool
-	HookOvsSubnetPrefix          func() string
-	HookUpsertOVSStaticHost      func(vmName, mac, ipAddr string) error
-	HookRemoveOVSStaticHost      func(vmName, mac string) (string, error)
-	HookGetOVSStaticHostByVMName func(vmName string) (OVSStaticHost, bool)
-	HookGetOVSStaticIPByMAC      func(mac string) string
-	HookNormalizeIPForOVS        func(ipAddr string) string
-	HookListOVSDHCPLeases        func() ([]OVSDHCPLease, error)
-	HookNewerOVSDHCPLease        func(current, candidate OVSDHCPLease) OVSDHCPLease
-	HookCleanOVSDHCPLease        func(mac, ipAddr string)
+	HookEnsureOVSNetworkReady        func() error
+	HookListOVSStaticHosts           func() ([]OVSStaticHost, error)
+	HookWriteOVSStaticHosts          func(hosts []OVSStaticHost) error
+	HookReloadOVSDNSMasq             func()
+	HookUseOVSNetwork                func() bool
+	HookOvsSubnetPrefix              func() string
+	HookUpsertOVSStaticHost          func(vmName, mac, ipAddr string) error
+	HookRemoveOVSStaticHost          func(vmName, mac string) (string, error)
+	HookGetOVSStaticHostByVMName     func(vmName string) (OVSStaticHost, bool)
+	HookGetOVSStaticIPByMAC          func(mac string) string
+	HookNormalizeIPForOVS            func(ipAddr string) string
+	HookListOVSDHCPLeases            func() ([]OVSDHCPLease, error)
+	HookNewerOVSDHCPLease            func(current, candidate OVSDHCPLease) OVSDHCPLease
+	HookCleanOVSDHCPLease            func(mac, ipAddr string)
 	HookBuildOVSInterfaceXML         func(mac, nicModel string) string
 	HookBuildOVSInterfaceXMLWithVLAN func(mac, nicModel string, vlanID int) string
-	HookBuildOVSStaticHostsForUpsert  func(hosts []OVSStaticHost, target OVSStaticHost) ([]OVSStaticHost, error)
-	HookParseOVSDHCPLeasesText        func(text string) []OVSDHCPLease
+	HookBuildOVSStaticHostsForUpsert func(hosts []OVSStaticHost, target OVSStaticHost) ([]OVSStaticHost, error)
+	HookParseOVSDHCPLeasesText       func(text string) []OVSDHCPLease
 )
 
 // ── VPC-related hooks (service root delegates to VPC package) ──
 
 var (
-	HookGetVPCSwitchForVM         func(vmName string) (*model.VPCSwitch, bool)
-	HookGetVPCLeaseIPForVM        func(vmName string) string
-	HookCleanVPCDHCPLease         func(switchID uint, mac, ipAddr string)
-	HookListVPCStaticHosts        func(switchID uint) ([]OVSStaticHost, error)
-	HookListAllVPCStaticHosts     func() ([]OVSStaticHost, error)
-	HookWriteVPCStaticHosts       func(switchID uint, hosts []OVSStaticHost) error
-	HookListVPCDHCPLeases        func() ([]OVSDHCPLease, error)
+	HookGetVPCSwitchForVM          func(vmName string) (*model.VPCSwitch, bool)
+	HookGetVPCLeaseIPForVM         func(vmName string) string
+	HookCleanVPCDHCPLease          func(switchID uint, mac, ipAddr string)
+	HookListVPCStaticHosts         func(switchID uint) ([]OVSStaticHost, error)
+	HookListAllVPCStaticHosts      func() ([]OVSStaticHost, error)
+	HookWriteVPCStaticHosts        func(switchID uint, hosts []OVSStaticHost) error
+	HookListVPCDHCPLeases          func() ([]OVSDHCPLease, error)
 	HookListVPCDHCPLeasesForSwitch func(switchID uint) ([]OVSDHCPLease, error)
-	HookReloadVPCDNSMasq          func(switchID uint)
+	HookReloadVPCDNSMasq           func(switchID uint)
 )
 
 // ── Firewall hooks ──

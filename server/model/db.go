@@ -248,12 +248,12 @@ func migrateVPCBindingInterfaceOrder(hadColumn bool) {
 // allowedIndexNames 已知安全的索引名称白名单，用于 DROP INDEX 等 DDL 操作。
 // SQLite 不支持参数化 DDL，为防范 SQL 注入，所有索引名称必须在此白名单中。
 var allowedIndexNames = map[string]bool{
-	"uni_vpc_vm_bindings_vm_name":   true,
-	"idx_vpc_vm_bindings_vm_name":   true,
-	"uq_vpc_vm_bindings_vm_name":    true,
-	"idx_vpc_switches_cidr":         true,
-	"idx_vpc_switches_c_id_r":       true,
-	"idx_vm_interface":              true,
+	"uni_vpc_vm_bindings_vm_name": true,
+	"idx_vpc_vm_bindings_vm_name": true,
+	"uq_vpc_vm_bindings_vm_name":  true,
+	"idx_vpc_switches_cidr":       true,
+	"idx_vpc_switches_c_id_r":     true,
+	"idx_vm_interface":            true,
 }
 
 // isAllowedIndexName 校验索引名称是否在允许的白名单中。
@@ -463,10 +463,10 @@ func initDefaultAdmin() {
 	}
 
 	admin := User{
-		Username:          config.GlobalConfig.DefaultAdminUser,
-		PasswordHash:      string(hashedPassword),
-		Role:              "admin",
-		Status:            "active",
+		Username:            config.GlobalConfig.DefaultAdminUser,
+		PasswordHash:        string(hashedPassword),
+		Role:                "admin",
+		Status:              "active",
 		ForcePasswordChange: true,
 	}
 
