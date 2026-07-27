@@ -12,6 +12,7 @@ import (
 
 	"kvm_console/model"
 	"kvm_console/service/ip_resolver"
+	"kvm_console/service/libvirt_rpc"
 	"kvm_console/utils"
 )
 
@@ -219,7 +220,13 @@ func currentPortForwardRulesForPolicy(policy *FirewallPolicy) []PortForwardRule 
 }
 
 func GetFirewallVMIP(vmName string) string {
-	ip := strings.TrimSpace(ip_resolver.GetVMIP(vmName, true))
+	// 按 VM 实际运行状态解析 IP：关机时走被动路径（仅静态绑定），不触发主动 ARP/nmap 扫描。
+	// 启动期 BuildVPCACLRules 会对每个 VPC VM 取防火墙 IP；若一律按 running 处理，关机 VM 会反复 nmap 全网扫描（15s 超时）拖慢启动。
+	isRunning := false
+	if state, err := libvirt_rpc.GetDomainStateRPC(vmName); err == nil {
+		isRunning = strings.EqualFold(state, "running")
+	}
+	ip := strings.TrimSpace(ip_resolver.GetVMIP(vmName, isRunning))
 	if ip == "" || ip == "unknown" {
 		return ""
 	}
