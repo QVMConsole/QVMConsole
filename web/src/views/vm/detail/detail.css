@@ -1,0 +1,996 @@
+/**
+ * 虚拟机详情页样式（深空极光 · 浅色优先 / 深色自适应）
+ * 覆盖：顶部导航 / Hero 三卡 / 功能标签页 / 信息卡片 / 网络管理 / 监控图表
+ */
+
+/* ============ 页面骨架 ============ */
+.qvm-detail {
+  padding-bottom: 90px;
+}
+
+.qvm-detail-topline {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.qvm-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--qvm-acc3-ink);
+  cursor: pointer;
+  transition: opacity 0.18s;
+}
+.qvm-back-link:hover {
+  opacity: 0.75;
+}
+.qvm-back-link svg {
+  transition: transform 0.18s;
+}
+.qvm-back-link:hover svg {
+  transform: translateX(-3px);
+}
+
+.qvm-detail-page-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--qvm-text-0);
+}
+
+.qvm-detail-topline-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* SSE 实时状态点（与列表页一致） */
+.qvm-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--qvm-warn);
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.7);
+  flex: none;
+  display: inline-block;
+}
+.qvm-live-dot.on {
+  background: #2dd4bf;
+  box-shadow: 0 0 6px rgba(45, 212, 191, 0.8);
+  animation: qvm-blink 1.6s infinite;
+}
+
+/* ============ Hero 三卡 ============ */
+.qvm-hero-grid {
+  display: grid;
+  grid-template-columns: 320px 1fr 420px;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+/* 动画包装层撑满网格单元，保证三卡等高 */
+.qvm-hero-grid > .qvm-fade-up {
+  display: flex;
+  flex-direction: column;
+}
+.qvm-hero-grid > .qvm-fade-up > .qvm-hero-card {
+  flex: 1;
+}
+
+.qvm-hero-card {
+  border-radius: 16px;
+  background: var(--qvm-card-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--qvm-card-shadow);
+  border: 1px solid var(--qvm-stroke);
+  padding: 18px;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ---- 状态卡 ---- */
+.qvm-hero-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.qvm-hero-status-icon {
+  width: 84px;
+  height: 84px;
+  border-radius: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: box-shadow 0.3s;
+}
+.qvm-hero-status-icon.running {
+  background: var(--qvm-acc-bg);
+  border: 2px solid var(--qvm-acc-stroke);
+  color: var(--qvm-acc-ink);
+  box-shadow: var(--qvm-glow);
+}
+.qvm-hero-status-icon.paused {
+  background: rgba(251, 191, 36, 0.1);
+  border: 2px solid rgba(251, 191, 36, 0.32);
+  color: #d97706;
+}
+.qvm-hero-status-icon.migrating {
+  background: rgba(56, 189, 248, 0.1);
+  border: 2px solid rgba(56, 189, 248, 0.32);
+  color: var(--qvm-acc3-ink);
+}
+.qvm-hero-status-icon.stopped {
+  background: var(--qvm-hover-bg);
+  border: 2px solid var(--qvm-stroke);
+  color: var(--qvm-text-2);
+}
+
+.qvm-status-pulse {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--qvm-acc);
+  box-shadow: 0 0 0 0 rgba(45, 212, 191, 0.7);
+  animation: qvm-pulse-ring 2s infinite;
+}
+@keyframes qvm-pulse-ring {
+  70% {
+    box-shadow: 0 0 0 10px rgba(45, 212, 191, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(45, 212, 191, 0);
+  }
+}
+
+.qvm-hero-status-text {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--qvm-text-0);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.qvm-hero-lock-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.qvm-hero-status-sub {
+  font-size: 12px;
+  color: var(--qvm-text-2);
+}
+
+.qvm-hero-migrate-banner {
+  width: 100%;
+  text-align: left;
+}
+
+.qvm-hero-power-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+.qvm-hero-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.qvm-action-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  background: var(--qvm-hover-bg);
+  border: 1px solid var(--qvm-stroke);
+  font-size: 12.5px;
+  color: var(--qvm-text-1);
+  cursor: pointer;
+  transition: all 0.18s;
+  user-select: none;
+}
+.qvm-action-item:hover {
+  background: var(--qvm-track-bg);
+  border-color: var(--qvm-acc-stroke);
+  transform: translateY(-1px);
+}
+.qvm-action-item.lock {
+  color: #d97706;
+}
+.qvm-action-item.rescue {
+  color: var(--qvm-acc3-ink);
+}
+.qvm-action-item.reinstall {
+  color: var(--qvm-acc2-ink);
+}
+.qvm-action-item.remark {
+  color: var(--qvm-acc-ink);
+}
+body[theme-mode='dark'] .qvm-action-item.lock {
+  color: #fbbf24;
+}
+
+/* ---- 资源卡 ---- */
+.qvm-hero-res {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.qvm-hero-res-meters {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.qvm-meter-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+.qvm-meter-label {
+  font-size: 12px;
+  color: var(--qvm-text-1);
+}
+.qvm-meter-val {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--qvm-text-0);
+}
+.qvm-meter-track {
+  height: 5px;
+  background: var(--qvm-track-bg);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.qvm-meter-fill {
+  height: 100%;
+  border-radius: 3px;
+}
+.qvm-meter-fill.cyan {
+  background: linear-gradient(90deg, #2dd4bf, #38bdf8);
+}
+.qvm-meter-fill.purple {
+  background: linear-gradient(90deg, #8b5cf6, #c084fc);
+}
+
+.qvm-hero-res-io {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.qvm-io-item {
+  padding: 10px 12px;
+  border-radius: 11px;
+  background: var(--qvm-hover-bg);
+  border: 1px solid var(--qvm-stroke);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.qvm-io-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--qvm-text-1);
+}
+.qvm-io-toggle {
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 7px;
+  font-size: 10px;
+  background: var(--qvm-acc-bg);
+  color: var(--qvm-acc-ink);
+  border: 1px solid var(--qvm-acc-stroke);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.qvm-io-toggle:hover {
+  filter: brightness(1.1);
+}
+.qvm-io-val {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.qvm-io-val .in {
+  color: var(--qvm-acc-ink);
+}
+.qvm-io-val .out {
+  color: var(--qvm-acc2-ink);
+}
+
+.qvm-hero-res-config {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: auto;
+}
+.qvm-config-item {
+  padding: 9px 12px;
+  border-radius: 11px;
+  background: var(--qvm-hover-bg);
+  border: 1px solid var(--qvm-stroke);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.qvm-config-label {
+  font-size: 11px;
+  color: var(--qvm-text-2);
+}
+.qvm-config-val {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--qvm-text-0);
+}
+
+/* ---- VNC 预览卡 ---- */
+.qvm-vnc-card {
+  padding: 0;
+  display: flex;
+  min-height: 220px;
+  background: #0a0e1a;
+  border-color: var(--qvm-stroke);
+}
+.qvm-vnc-card.has-frame {
+  cursor: pointer;
+}
+
+.qvm-vnc-ph {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #8b95ab;
+  padding: 24px 16px;
+  text-align: center;
+}
+.qvm-vnc-ph-icon {
+  color: #4a5468;
+}
+.qvm-vnc-ph-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: #aab3c5;
+}
+.qvm-vnc-ph-hint {
+  font-size: 12px;
+  color: #59627a;
+}
+.qvm-vnc-ph .semi-button {
+  margin-top: 6px;
+}
+
+.qvm-vnc-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+}
+
+.qvm-vnc-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 8px 12px;
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.72));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 2;
+}
+.qvm-vnc-live-tip {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.75);
+}
+.qvm-vnc-refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+  transition: background 0.18s;
+}
+.qvm-vnc-refresh:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.qvm-vnc-open-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  font-size: 11.5px;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: all 0.2s;
+}
+.qvm-vnc-card:hover .qvm-vnc-open-btn {
+  opacity: 1;
+  transform: translateY(0);
+}
+.qvm-vnc-open-btn:hover {
+  background: rgba(45, 212, 191, 0.28);
+  border-color: rgba(45, 212, 191, 0.5);
+}
+
+/* ============ 功能标签页 ============ */
+.qvm-detail-tabs {
+  margin-bottom: 18px;
+  overflow: hidden;
+}
+.qvm-detail-tabs .semi-tabs-content {
+  padding: 16px 18px 18px;
+}
+.qvm-tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.qvm-tab-badge {
+  margin-left: 2px;
+}
+
+.qvm-tab-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.qvm-tab-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.qvm-tab-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--qvm-text-0);
+}
+.qvm-tab-loading {
+  display: flex;
+  justify-content: center;
+  padding: 48px 0;
+  color: var(--qvm-text-2);
+}
+
+.qvm-sub-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--qvm-text-0);
+  margin-bottom: 8px;
+}
+.qvm-sub-label {
+  font-size: 12px;
+  color: var(--qvm-text-2);
+  margin-left: 6px;
+}
+.qvm-empty-text {
+  color: var(--qvm-text-2);
+  font-size: 13px;
+  padding: 24px 0;
+  text-align: center;
+}
+.qvm-ellipsis {
+  max-width: 320px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-block;
+  vertical-align: bottom;
+}
+
+/* 表单（弹窗内复用列表页风格） */
+.qvm-form-item {
+  margin-bottom: 14px;
+}
+.qvm-form-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--qvm-text-1);
+  margin-bottom: 6px;
+}
+.qvm-form-hint {
+  font-size: 12px;
+  color: var(--qvm-text-2);
+  line-height: 1.6;
+  margin-top: 6px;
+}
+.qvm-warn-text {
+  color: var(--qvm-warn);
+}
+
+/* ============ 信息卡片 ============ */
+.qvm-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.qvm-info-card {
+  border-radius: 13px;
+  background: var(--qvm-hover-bg);
+  border: 1px solid var(--qvm-stroke);
+  padding: 15px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.qvm-info-card-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--qvm-text-0);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.qvm-info-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.qvm-info-label {
+  flex: none;
+  width: 96px;
+  color: var(--qvm-text-2);
+  font-size: 12.5px;
+}
+.qvm-info-value {
+  flex: 1;
+  min-width: 0;
+  color: var(--qvm-text-0);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.qvm-mono,
+.qvm-code {
+  font-family: var(--qvm-num-font);
+  font-variant-numeric: tabular-nums;
+}
+.qvm-code {
+  background: var(--qvm-track-bg);
+  border: 1px solid var(--qvm-stroke);
+  border-radius: 6px;
+  padding: 1px 8px;
+  font-size: 12px;
+}
+.qvm-code-pwd {
+  letter-spacing: 0.5px;
+}
+.qvm-ip-unreachable {
+  color: var(--qvm-warn);
+}
+
+.qvm-credential-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.qvm-ip-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.qvm-ip-list-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.qvm-remark-text {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qvm-info-actions {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--qvm-stroke);
+}
+.qvm-info-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.qvm-info-action-label {
+  font-size: 12.5px;
+  color: var(--qvm-text-1);
+  font-weight: 600;
+}
+
+/* IOPS 表格 */
+.qvm-iops-table {
+  display: flex;
+  flex-direction: column;
+  font-size: 12.5px;
+}
+.qvm-iops-row {
+  display: grid;
+  grid-template-columns: 1.2fr 0.9fr 1fr 1fr 1fr;
+  gap: 8px;
+  padding: 7px 4px;
+  border-bottom: 1px dashed var(--qvm-stroke);
+  align-items: center;
+  color: var(--qvm-text-1);
+}
+.qvm-iops-row:last-child {
+  border-bottom: none;
+}
+.qvm-iops-head {
+  font-weight: 700;
+  color: var(--qvm-text-2);
+  font-size: 11.5px;
+}
+.qvm-iops-limited {
+  color: var(--qvm-warn);
+  font-weight: 600;
+}
+
+/* ============ 快照 / 定时任务 ============ */
+.qvm-snap-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+.qvm-snap-current-tag {
+  flex: none;
+  white-space: nowrap;
+}
+.qvm-schedule-plan {
+  font-weight: 600;
+  color: var(--qvm-text-0);
+}
+.qvm-schedule-result {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+.qvm-schedule-banner {
+  flex: 1;
+}
+
+/* ============ VNC / SPICE Tab ============ */
+.qvm-vnc-status-tags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.qvm-vnc-off-panel,
+.qvm-vnc-open-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 44px 20px;
+  text-align: center;
+  border-radius: 13px;
+  background: var(--qvm-hover-bg);
+  border: 1px dashed var(--qvm-stroke-strong);
+}
+.qvm-vnc-off-icon,
+.qvm-vnc-open-icon {
+  color: var(--qvm-text-2);
+}
+.qvm-vnc-open-icon {
+  color: var(--qvm-acc-ink);
+}
+.qvm-vnc-off-text,
+.qvm-vnc-open-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--qvm-text-0);
+}
+
+.qvm-vnc-manage-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.qvm-spice-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.qvm-spice-expose {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.qvm-spice-info {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 560px;
+}
+
+/* ============ 监控图表 ============ */
+.qvm-monitor-section {
+  margin-top: 4px;
+}
+.qvm-monitor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.qvm-section-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--qvm-text-0);
+}
+.qvm-section-title-bar {
+  width: 3px;
+  height: 15px;
+  border-radius: 2px;
+  background: var(--qvm-grad);
+  box-shadow: 0 0 8px rgba(45, 212, 191, 0.6);
+}
+.qvm-monitor-ops {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.qvm-monitor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+.qvm-monitor-card {
+  border-radius: 13px;
+  background: var(--qvm-card-bg);
+  border: 1px solid var(--qvm-stroke);
+  padding: 10px;
+}
+.qvm-chart-box {
+  width: 100%;
+  height: 240px;
+}
+
+/* ============ 网络管理 ============ */
+.qvm-network-tab .semi-tabs-content {
+  padding-top: 12px;
+}
+.qvm-forward-banner {
+  margin-bottom: 12px;
+}
+.qvm-forward-addr {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 260px;
+}
+
+.qvm-content-blurred {
+  filter: blur(6px);
+  opacity: 0.4;
+  pointer-events: none;
+  user-select: none;
+}
+
+.qvm-intro-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.qvm-forward-panel {
+  position: relative;
+}
+.qvm-forward-panel .qvm-content-blurred {
+  min-height: 300px;
+}
+.qvm-intro-card {
+  max-width: 520px;
+  box-shadow: var(--qvm-panel-shadow);
+}
+.qvm-intro-card p {
+  font-size: 13px;
+  color: var(--qvm-text-1);
+  line-height: 1.8;
+  margin: 0 0 10px;
+}
+.qvm-intro-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+.qvm-runtime-summary {
+  margin-bottom: 14px;
+}
+
+.qvm-diag-form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.qvm-diag-form-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+.qvm-diag-form-row.three {
+  grid-template-columns: repeat(3, 1fr);
+}
+.qvm-diag-templates {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 10px 0;
+}
+.qvm-diag-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0;
+  flex-wrap: wrap;
+}
+.qvm-diag-output {
+  margin-top: 12px;
+}
+.qvm-diag-pre {
+  margin: 0;
+  padding: 14px;
+  border-radius: 10px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 12.5px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: Consolas, Monaco, monospace;
+  max-height: 320px;
+  overflow: auto;
+}
+
+/* ============ 编辑占位 ============ */
+.qvm-edit-tab {
+  padding: 40px 0;
+}
+
+/* ============ 返回顶部 ============ */
+.qvm-back-top.semi-button {
+  position: fixed;
+  right: 26px;
+  bottom: 84px;
+  z-index: 60;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  box-shadow: var(--qvm-panel-shadow);
+  animation: qvm-fade-up 0.3s ease both;
+}
+
+/* ============ 响应式 ============ */
+@media (max-width: 1280px) {
+  .qvm-hero-grid {
+    grid-template-columns: 300px 1fr 360px;
+  }
+}
+
+@media (max-width: 1180px) {
+  .qvm-hero-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .qvm-vnc-card {
+    grid-column: 1 / -1;
+    min-height: 260px;
+  }
+}
+
+@media (max-width: 820px) {
+  .qvm-hero-grid,
+  .qvm-info-grid,
+  .qvm-monitor-grid,
+  .qvm-hero-res-meters,
+  .qvm-hero-res-io,
+  .qvm-diag-form-row,
+  .qvm-diag-form-row.three {
+    grid-template-columns: 1fr;
+  }
+  .qvm-hero-res-config {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .qvm-detail-topline {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .qvm-info-label {
+    width: 84px;
+  }
+  .qvm-chart-box {
+    height: 200px;
+  }
+  .qvm-back-top.semi-button {
+    right: 14px;
+    bottom: 72px;
+  }
+}

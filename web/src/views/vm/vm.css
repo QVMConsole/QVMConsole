@@ -219,6 +219,16 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* 名称可点击跳转详情页 */
+.qvm-vm-name-link {
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.qvm-vm-name-link:hover {
+  color: var(--qvm-acc-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 .qvm-vm-badge.lock {
   color: var(--qvm-warn);
   flex: none;

@@ -33,11 +33,6 @@ type PCIDevice = vmpkg.PCIDevice
 // aliased here for handler compatibility (handler/vm_create.go, handler/types.go)
 type HostDeviceParam = vmpkg.HostDeviceParam
 
-// ── Monitor types ──
-
-type VMMonitorStatus = vmpkg.VMMonitorStatus
-type VMMonitorCommandResult = vmpkg.VMMonitorCommandResult
-
 // ── Schedule types ──
 
 type VMScheduleInput = vmpkg.VMScheduleInput

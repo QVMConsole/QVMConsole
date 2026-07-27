@@ -634,16 +634,6 @@ func GetVMLockInfo(vmName string) *model.VMLock {
 	return vmpkg.GetVMLockInfo(vmName)
 }
 
-// ── Monitor ──
-
-func GetVMMonitorStatus(name string) (*VMMonitorStatus, error) {
-	return vmpkg.GetVMMonitorStatus(name)
-}
-
-func ExecuteVMMonitorCommand(name, command string) (*VMMonitorCommandResult, error) {
-	return vmpkg.ExecuteVMMonitorCommand(name, command)
-}
-
 // ── Schedule ──
 
 func ListVMSchedules(vmName string) ([]VMScheduleItem, error) {

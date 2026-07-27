@@ -204,10 +204,6 @@ func Setup() *gin.Engine {
 				vm.POST("/:name/spice/expose", handler.ExposeSpice)
 				vm.GET("/:name/spice/vv", handler.DownloadSpiceVV)
 
-				// QEMU Monitor（普通用户仅开放安全子集）
-				vm.GET("/:name/monitor/status", handler.GetVMMonitorStatus)
-				vm.POST("/:name/monitor/command", handler.ExecuteVMMonitorCommand)
-
 				// 磁盘管理
 				vm.GET("/:name/disks", handler.GetDiskList)
 				vm.GET("/:name/disk-migration/options", middleware.AdminMiddleware(), handler.GetDiskMigrationOptions)

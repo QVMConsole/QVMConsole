@@ -23,6 +23,8 @@ interface VmCardViewProps {
   onPower: (vm: VmListItem, action: VmPowerAction) => void
   onMenu: (cmd: VmMenuCommand, vm: VmListItem) => void
   onConsole: (vm: VmListItem) => void
+  /** 点击虚拟机名称跳转详情页 */
+  onOpenDetail: (vm: VmListItem) => void
 }
 
 export default function VmCardView({
@@ -35,6 +37,7 @@ export default function VmCardView({
   onPower,
   onMenu,
   onConsole,
+  onOpenDetail,
 }: VmCardViewProps) {
   if (vms.length === 0) {
     return (
@@ -67,7 +70,11 @@ export default function VmCardView({
               <IconDesktop size="small" />
             </div>
             <div className="qvm-vcard-title">
-              <span className="qvm-vm-name-text" title={vm.name}>
+              <span
+                className="qvm-vm-name-text qvm-vm-name-link"
+                title={vm.name}
+                onClick={() => onOpenDetail(vm)}
+              >
                 {vm.name}
               </span>
               <span className="qvm-vcard-badges">

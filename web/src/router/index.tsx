@@ -14,6 +14,8 @@ import NotFound from '@/views/error/NotFound'
 const LoginPage = lazy(() => import('@/views/login'))
 const DashboardPage = lazy(() => import('@/views/dashboard'))
 const VmListPage = lazy(() => import('@/views/vm'))
+const VmDetailPage = lazy(() => import('@/views/vm/detail'))
+const VncWindowPage = lazy(() => import('@/views/vm/vnc-window'))
 
 /** 懒加载页面统一加载态 */
 function lazyPage(node: ReactNode) {
@@ -47,6 +49,11 @@ const mainChildren = [
     element: lazyPage(<VmListPage />),
     handle: { title: '虚拟机列表' },
   },
+  {
+    path: 'vm/detail/:id',
+    element: lazyPage(<VmDetailPage />),
+    handle: { title: '虚拟机详情' },
+  },
   // TODO(重构迭代): 以下路由随各模块迁移逐步补齐
   // vm/detail/:id、template/list、network、public-ip、firewall、
   // storage-pool/list、nodes、my-storage、user/list、scheduler/events、
@@ -60,7 +67,12 @@ export const router = createBrowserRouter([
     element: lazyPage(<LoginPage />),
     handle: { title: '登录' },
   },
-  // TODO(重构迭代): /invite、/reset-password、/vm/:id/vnc-window 独立页
+  {
+    path: '/vm/:id/vnc-window',
+    element: <VncWindowPage />,
+    handle: { title: 'VNC 控制台' },
+  },
+  // TODO(重构迭代): /invite、/reset-password
   {
     path: '/',
     element: (

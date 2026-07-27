@@ -46,7 +46,7 @@ export default function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
     return base
   }, [isAdmin, cloudType])
 
-  // 加载虚拟机列表（用于徽标 + 快速切换子列表）
+  // 加载虚拟机列表（用于徽标）
   useEffect(() => {
     let mounted = true
     const load = async () => {

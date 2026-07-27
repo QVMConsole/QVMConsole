@@ -6,6 +6,7 @@
  * - 单机/批量电源操作、锁定/救援/导出/转独立、删除/备注/分组/制作模板/重装/迁移
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Button, Checkbox, Pagination, Toast, Tooltip } from '@douyinfe/semi-ui'
 import { IconGridView, IconList, IconRefresh, IconAlertTriangle } from '@douyinfe/semi-icons'
 import type { VmListItem, VmPowerAction } from '@/api/vm'
@@ -346,6 +347,15 @@ export default function VmListPage() {
     Toast.info({ content: '控制台（VNC）将在后续迭代提供', duration: 2 })
   }, [])
 
+  /** 点击虚拟机名称跳转详情页 */
+  const navigate = useNavigate()
+  const handleOpenDetail = useCallback(
+    (vm: VmListItem) => {
+      navigate(`/vm/detail/${encodeURIComponent(vm.name)}`)
+    },
+    [navigate],
+  )
+
   const handleCreate = useCallback(() => {
     Toast.info({ content: '新建虚拟机（VmForm）将在后续迭代提供', duration: 2 })
   }, [])
@@ -462,6 +472,7 @@ export default function VmListPage() {
             onPower={(vm, action) => void handlePower(vm, action)}
             onMenu={(cmd, vm) => void handleMenu(cmd, vm)}
             onConsole={handleConsole}
+            onOpenDetail={handleOpenDetail}
             compact={compact}
           />
         ) : loaded ? (
@@ -475,6 +486,7 @@ export default function VmListPage() {
             onPower={(vm, action) => void handlePower(vm, action)}
             onMenu={(cmd, vm) => void handleMenu(cmd, vm)}
             onConsole={handleConsole}
+            onOpenDetail={handleOpenDetail}
           />
         ) : (
           <div className="qvm-vm-skel-list">

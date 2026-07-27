@@ -33,6 +33,8 @@ interface VmTableViewProps {
   onPower: (vm: VmListItem, action: VmPowerAction) => void
   onMenu: (cmd: VmMenuCommand, vm: VmListItem) => void
   onConsole: (vm: VmListItem) => void
+  /** 点击虚拟机名称跳转详情页 */
+  onOpenDetail: (vm: VmListItem) => void
   /** 小屏模式：隐藏次要列与勾选列 */
   compact: boolean
 }
@@ -58,6 +60,7 @@ export default function VmTableView({
   onPower,
   onMenu,
   onConsole,
+  onOpenDetail,
   compact,
 }: VmTableViewProps) {
   const columns = useMemo<ColumnProps<VmListItem>[]>(() => {
@@ -73,7 +76,11 @@ export default function VmTableView({
             <div className={`qvm-vm-ic ${vm.status === 'running' ? '' : 'off'}`}>
               <IconDesktop size="small" />
             </div>
-            <span className="qvm-vm-name-text" title={vm.remark || undefined}>
+            <span
+              className="qvm-vm-name-text qvm-vm-name-link"
+              title={vm.remark || undefined}
+              onClick={() => onOpenDetail(vm)}
+            >
               {vm.name}
             </span>
             {vm.locked && (
@@ -170,6 +177,7 @@ export default function VmTableView({
     onPower,
     onMenu,
     onConsole,
+    onOpenDetail,
   ])
 
   return (

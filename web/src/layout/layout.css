@@ -8,11 +8,13 @@
   display: flex;
   position: relative;
   background: var(--qvm-bg);
-  overflow-x: hidden;
+  /* 裁剪横向溢出，避免宽表格撑出页面 */
+  overflow-x: clip;
 }
 
 /* ============ 悬浮式侧边栏 ============ */
-.qvm-sidebar {
+/* qvm-g-border 会设置 relative，组合选择器确保固定定位不会被通用描边样式覆盖。 */
+.qvm-sidebar.qvm-g-border {
   width: var(--qvm-sidebar-w, 248px);
   height: calc(100vh - 32px);
   margin: 16px 0 16px 16px;
@@ -24,8 +26,9 @@
   -webkit-backdrop-filter: blur(14px);
   display: flex;
   flex-direction: column;
-  position: sticky;
-  top: 16px;
+  position: fixed;
+  left: 0;
+  top: 0;
   box-shadow: var(--qvm-panel-shadow);
   transition:
     width 0.22s ease,
@@ -169,6 +172,11 @@
   color: var(--qvm-acc-ink);
   background: var(--qvm-acc-bg);
 }
+.qvm-nav-sub-item.on {
+  color: var(--qvm-acc-ink);
+  background: var(--qvm-active-bg);
+  font-weight: 600;
+}
 .qvm-nav-sub-empty {
   padding: 6px 9px;
   font-size: 11px;
@@ -226,6 +234,7 @@
 /* ============ 主区域 ============ */
 .qvm-main {
   flex: 1;
+  margin-left: calc(var(--qvm-sidebar-w, 248px) + 16px);
   min-width: 0;
   padding: 22px 26px 90px;
   position: relative;
@@ -812,7 +821,7 @@
   .qvm-layout {
     --qvm-sidebar-w: 248px;
   }
-  .qvm-sidebar {
+  .qvm-sidebar.qvm-g-border {
     position: fixed;
     left: 0;
     top: 0;
@@ -858,6 +867,7 @@
     z-index: 15;
   }
   .qvm-main {
+    margin-left: 0;
     padding: 16px 14px 90px;
   }
   .qvm-mobile-bar {
