@@ -16,7 +16,7 @@ import { generatePassword } from '@/utils/validate'
 import {
   LINUX_TEMPLATE_CATEGORY_OPTIONS,
   WINDOWS_TEMPLATE_CATEGORY_OPTIONS,
-} from '@/views/vm/templateCategory'
+} from '@/utils/templateCategory'
 
 export default function BasicInfoSection() {
   const { form, options } = useVmFormScope()

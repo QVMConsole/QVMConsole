@@ -53,8 +53,7 @@
 web/src/views/vm/
 ├── index.tsx                    # 主入口：SSE/排序/分页/选择/电源与批量/菜单分发/维护模式
 ├── vm.css                       # 页面样式（深空极光，浅色优先 + 深色适配）
-├── utils.ts                     # 状态文案/容量解析/电源操作文案
-├── templateCategory.ts          # 模板分类常量与归一化
+├── utils.ts                     # 状态文案/容量解析/电源操作文案（模板分类工具已上移至 web/src/utils/templateCategory.ts）
 ├── components/
 │   ├── VmToolbar.tsx            # 批量电源下拉 + 新建 + 排序指示
 │   ├── VmTableView.tsx          # 表格视图（Semi Table，受控排序/选择）

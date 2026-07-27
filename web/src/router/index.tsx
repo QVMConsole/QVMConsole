@@ -16,6 +16,7 @@ const DashboardPage = lazy(() => import('@/views/dashboard'))
 const VmListPage = lazy(() => import('@/views/vm'))
 const VmDetailPage = lazy(() => import('@/views/vm/detail'))
 const VncWindowPage = lazy(() => import('@/views/vm/vnc-window'))
+const TemplateListPage = lazy(() => import('@/views/template'))
 
 /** 懒加载页面统一加载态 */
 function lazyPage(node: ReactNode) {
@@ -54,8 +55,13 @@ const mainChildren = [
     element: lazyPage(<VmDetailPage />),
     handle: { title: '虚拟机详情' },
   },
+  {
+    path: 'template',
+    element: lazyPage(<TemplateListPage />),
+    handle: { title: '模板管理' },
+  },
   // TODO(重构迭代): 以下路由随各模块迁移逐步补齐
-  // vm/detail/:id、template/list、network、public-ip、firewall、
+  // network、public-ip、firewall、
   // storage-pool/list、nodes、my-storage、user/list、scheduler/events、
   // settings、api-docs、task/recent、about
   { path: '*', element: <NotFound />, handle: { title: '页面不存在' } },

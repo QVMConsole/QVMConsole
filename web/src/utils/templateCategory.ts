@@ -1,5 +1,6 @@
 /**
  * 模板分类常量与归一化工具（迁移自旧前端 utils/templateCategory.js）
+ * 供虚拟机表单（创建/编辑/重装）与模板管理页共用
  */
 
 export const DEFAULT_LINUX_TEMPLATE_CATEGORY = 'Ubuntu'

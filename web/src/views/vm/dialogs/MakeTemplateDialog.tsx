@@ -11,7 +11,7 @@ import {
   DEFAULT_WINDOWS_TEMPLATE_CATEGORY,
   normalizeTemplateCategory,
   templateCategoryOptions,
-} from '../templateCategory'
+} from '@/utils/templateCategory'
 
 interface MakeTemplateDialogProps {
   vmName: string

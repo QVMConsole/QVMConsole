@@ -1,0 +1,525 @@
+/**
+ * 模板管理页样式（深空极光，浅色优先 + 深色适配）
+ * 迁移自旧前端 views/template/index.vue 的样式，改用 --qvm- 设计令牌
+ */
+
+.tpl-page {
+  padding: 4px 2px 24px;
+  width: 100%;
+}
+
+/* ==================== 页头 ==================== */
+.tpl-page-header {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.tpl-page-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+}
+.tpl-header-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ==================== 模板族卡片 ==================== */
+.tpl-family-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tpl-family-card {
+  border-radius: 16px;
+  background: var(--qvm-card-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--qvm-card-shadow);
+  border: 1px solid var(--qvm-stroke);
+  overflow: hidden;
+}
+
+.tpl-family-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--qvm-stroke);
+}
+
+.tpl-family-id {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.tpl-family-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex: none;
+}
+.tpl-family-icon.linux { background: rgba(46, 125, 50, 0.14); }
+.tpl-family-icon.windows { background: rgba(21, 101, 192, 0.14); }
+.tpl-family-icon.fnos { background: rgba(198, 40, 40, 0.14); }
+.tpl-family-icon.openwrt { background: rgba(13, 148, 136, 0.14); }
+.tpl-family-icon.other { background: rgba(230, 81, 0, 0.14); }
+
+.tpl-family-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+}
+.tpl-family-meta {
+  font-size: 12px;
+  color: var(--qvm-text-2);
+  margin-top: 2px;
+  word-break: break-all;
+}
+
+.tpl-family-stats {
+  display: flex;
+  gap: 20px;
+  font-size: 13px;
+  color: var(--qvm-text-1);
+  flex-wrap: wrap;
+}
+.tpl-family-stat {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.tpl-family-stat .semi-icon {
+  color: var(--qvm-text-2);
+  font-size: 14px;
+}
+.tpl-family-stat strong {
+  color: var(--qvm-text-0);
+  font-weight: 600;
+}
+
+/* ==================== 节点列表 ==================== */
+.tpl-node-list {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.tpl-node-item {
+  border-bottom: 1px solid var(--qvm-stroke);
+}
+.tpl-node-item:last-child {
+  border-bottom: none;
+}
+
+.tpl-node-row {
+  display: flex;
+  align-items: center;
+  padding: 6px 14px;
+  transition: background 0.12s;
+  position: relative;
+  min-height: 44px;
+  cursor: pointer;
+}
+.tpl-node-row:hover {
+  background: var(--qvm-hover-bg);
+}
+
+/* 树状引导线 */
+.tpl-guides {
+  flex: none;
+  display: flex;
+  align-self: stretch;
+}
+.tpl-guide {
+  width: 16px;
+  position: relative;
+}
+.tpl-guide-line::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--qvm-stroke-strong);
+}
+.tpl-guide-elbow::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--qvm-stroke-strong);
+}
+.tpl-guide-elbow::after,
+.tpl-guide-elbow-end::after {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 50%;
+  width: 9px;
+  border-top: 1px solid var(--qvm-stroke-strong);
+}
+.tpl-guide-elbow-end::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 0;
+  height: 50%;
+  border-left: 1px solid var(--qvm-stroke-strong);
+}
+
+/* 展开/收起箭头 */
+.tpl-toggle {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--qvm-text-2);
+  font-size: 10px;
+  border-radius: 4px;
+  margin-right: 4px;
+  user-select: none;
+  transition:
+    transform 0.2s,
+    color 0.15s,
+    background 0.15s;
+}
+.tpl-toggle:hover {
+  color: var(--qvm-acc3-ink);
+  background: var(--qvm-hover-bg);
+}
+.tpl-toggle.collapsed {
+  transform: rotate(-90deg);
+}
+.tpl-toggle.no-children {
+  visibility: hidden;
+}
+
+/* 层级色条 */
+.tpl-level-bar {
+  flex: none;
+  width: 3px;
+  height: 16px;
+  border-radius: 2px;
+  margin-right: 10px;
+}
+.tpl-level-bar.l0 { background: #38bdf8; }
+.tpl-level-bar.l1 { background: #34d399; }
+.tpl-level-bar.l2 { background: #fbbf24; }
+.tpl-level-bar.l3 { background: #f472b6; }
+.tpl-level-bar.l4 { background: #2dd4bf; }
+
+/* 节点内容 */
+.tpl-node-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.tpl-node-identity {
+  min-width: 150px;
+  max-width: 220px;
+}
+.tpl-node-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tpl-node-file {
+  font-size: 11px;
+  color: var(--qvm-text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tpl-node-vm-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  min-width: 44px;
+}
+.tpl-node-vm-stat .vm-count {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--qvm-text-0);
+  font-family: var(--qvm-num-font);
+}
+.tpl-node-vm-stat .vm-label {
+  font-size: 10px;
+  color: var(--qvm-text-2);
+}
+
+.tpl-node-size {
+  min-width: 86px;
+  text-align: right;
+  line-height: 1.3;
+}
+.tpl-node-size .size-value {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--qvm-text-1);
+  font-family: var(--qvm-num-font);
+}
+.tpl-node-size .size-label {
+  font-size: 10px;
+  color: var(--qvm-text-2);
+}
+
+/* 节点操作（纯图标 + Tooltip） */
+.tpl-act-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  margin-left: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.tpl-act-ic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  color: var(--qvm-text-2);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.16s;
+}
+.tpl-act-ic:hover {
+  color: var(--qvm-text-0);
+  background: var(--qvm-hover-bg);
+  border-color: var(--qvm-stroke);
+}
+.tpl-act-ic.go:hover {
+  color: var(--qvm-acc-ink);
+  background: var(--qvm-acc-bg);
+  border-color: var(--qvm-acc-stroke);
+}
+.tpl-act-ic.info:hover {
+  color: var(--qvm-acc3-ink);
+  background: rgba(56, 189, 248, 0.1);
+  border-color: rgba(56, 189, 248, 0.3);
+}
+.tpl-act-ic.warn:hover {
+  color: var(--qvm-warn);
+  background: rgba(251, 191, 36, 0.1);
+  border-color: rgba(251, 191, 36, 0.3);
+}
+.tpl-act-ic.danger:hover {
+  color: var(--qvm-danger);
+  background: rgba(251, 113, 133, 0.1);
+  border-color: rgba(251, 113, 133, 0.3);
+}
+
+/* 派生链摘要 */
+.tpl-chain-summary {
+  padding: 5px 14px 5px 76px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--qvm-text-1);
+  border-bottom: 1px solid var(--qvm-stroke);
+  background: var(--qvm-hover-bg);
+  cursor: pointer;
+}
+.tpl-chain-summary:hover {
+  background: var(--qvm-acc-bg);
+}
+.tpl-chain-summary .chain-arrow {
+  color: var(--qvm-text-2);
+  margin: 0 2px;
+}
+.tpl-chain-summary .chain-depth {
+  color: var(--qvm-acc3-ink);
+  font-weight: 500;
+}
+.tpl-chain-summary .chain-leaf {
+  color: var(--qvm-text-0);
+  font-weight: 500;
+}
+
+/* 禁用节点 */
+.tpl-node-item.disabled .tpl-node-row {
+  opacity: 0.55;
+}
+.tpl-node-item.disabled .tpl-node-name {
+  text-decoration: line-through;
+}
+
+/* ==================== 深色模式：降低高亮文字对比度（柔和灰，避免刺眼） ==================== */
+body[theme-mode='dark'] .tpl-family-title,
+body[theme-mode='dark'] .tpl-family-stat strong,
+body[theme-mode='dark'] .tpl-node-name,
+body[theme-mode='dark'] .tpl-node-vm-stat .vm-count,
+body[theme-mode='dark'] .tpl-chain-summary .chain-leaf {
+  color: #b8c1cf;
+}
+
+/* ==================== 空状态 ==================== */
+.tpl-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--qvm-text-2);
+  font-size: 14px;
+}
+.tpl-empty-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+.tpl-empty-hint {
+  font-size: 12px;
+  margin-top: 8px;
+  color: var(--qvm-text-2);
+}
+
+/* ==================== 弹窗通用表单（与 vm 页保持一致） ==================== */
+.qvm-form-item {
+  margin-bottom: 14px;
+}
+.qvm-form-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--qvm-text-1);
+  margin-bottom: 6px;
+}
+.qvm-form-label.required::before {
+  content: '*';
+  color: var(--qvm-danger);
+  margin-right: 4px;
+}
+.qvm-form-tip {
+  font-size: 12px;
+  color: var(--qvm-text-2);
+  line-height: 1.5;
+  margin-top: 5px;
+}
+.qvm-form-tip.warn {
+  color: var(--qvm-warn);
+}
+.qvm-form-divider {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--qvm-text-2);
+  letter-spacing: 1px;
+  margin: 16px 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.qvm-form-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--qvm-stroke);
+}
+
+/* 发布设置：两列表单栅格 */
+.tpl-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 12px;
+}
+
+/* 发布设置：开关行 */
+.tpl-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.tpl-switch-row .qvm-form-label {
+  margin-bottom: 2px;
+}
+.tpl-switch-row .qvm-form-tip {
+  margin-top: 2px;
+}
+/* 开关状态文字（写在开关外，避免开关内文本竖排） */
+.tpl-switch-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.tpl-switch-state {
+  font-size: 12px;
+  color: var(--qvm-text-1);
+  white-space: nowrap;
+}
+
+/* 导入弹窗：已选文件 */
+.tpl-picked-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--qvm-stroke);
+  border-radius: 8px;
+  background: var(--qvm-hover-bg);
+}
+.tpl-picked-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--qvm-text-0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 导入预览 */
+.tpl-import-preview {
+  margin-top: 14px;
+}
+.tpl-preview-node {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.4;
+}
+.tpl-preview-node span {
+  font-size: 12px;
+  color: var(--qvm-text-2);
+}
+
+/* ==================== 响应式 ==================== */
+@media (max-width: 900px) {
+  .tpl-node-content {
+    gap: 8px;
+  }
+  .tpl-act-cell {
+    margin-left: auto;
+    width: 100%;
+    justify-content: flex-end;
+  }
+  .tpl-chain-summary {
+    padding-left: 20px;
+  }
+}

@@ -47,7 +47,7 @@ export const ADMIN_NAV: NavGroup[] = [
     group: '计算',
     items: [
       { key: 'vm', title: '虚拟机', icon: <IconDesktop />, path: '/vm', badge: 'vm' },
-      { key: 'template', title: '模板管理', icon: <IconLayers />, path: '/template', coming: true },
+      { key: 'template', title: '模板管理', icon: <IconLayers />, path: '/template' },
     ],
   },
   {

@@ -21,7 +21,7 @@ import {
 } from '../validators'
 import { generatePassword } from '@/utils/validate'
 import { resolveTemplateMinDiskSize } from '@/views/vm/utils'
-import { templateCategoryLabel, templateGroupLabel } from '@/views/vm/templateCategory'
+import { templateCategoryLabel, templateGroupLabel } from '@/utils/templateCategory'
 import type { TemplateItem } from '@/api/template'
 
 export default function TemplateSection() {

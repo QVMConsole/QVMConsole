@@ -30,6 +30,7 @@ import {
   updateVmSchedule,
 } from '@/api/vm'
 import { confirmModal } from '@/utils/confirm'
+import TextSwitch from '@/features/vm-form/sections/TextSwitch'
 
 interface ScheduleTabProps {
   vm: VmDetailInfo | null
@@ -518,7 +519,7 @@ export default function ScheduleTab({ vm }: ScheduleTabProps) {
 
         <div className="qvm-form-item">
           <div className="qvm-form-label">状态</div>
-          <Switch
+          <TextSwitch
             checked={form.enabled}
             onChange={(checked) => setField('enabled', checked)}
             checkedText="启用"
