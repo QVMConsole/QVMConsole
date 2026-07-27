@@ -19,6 +19,7 @@ import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { confirmModal } from '@/utils/confirm'
 import { CLOUD_TYPES, ROLES } from '@/config/constants'
 import { isVmMigrating, POWER_ACTION_TEXT } from './utils'
+import { openVncWindow } from './detail/utils'
 import VmToolbar, { type BatchAction } from './components/VmToolbar'
 import VmTableView, { type VmSortField, type VmSortOrder } from './components/VmTableView'
 import VmCardView from './components/VmCardView'
@@ -344,9 +345,12 @@ export default function VmListPage() {
   )
 
   // ==================== 其他入口 ====================
-  const handleConsole = useCallback(() => {
-    Toast.info({ content: '控制台（VNC）将在后续迭代提供', duration: 2 })
-  }, [])
+  const handleConsole = useCallback(
+    (vm: VmListItem) => {
+      openVncWindow(vm.name)
+    },
+    [],
+  )
 
   /** 点击虚拟机名称跳转详情页 */
   const navigate = useNavigate()

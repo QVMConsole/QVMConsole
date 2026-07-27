@@ -129,10 +129,11 @@ export default function InfoTab({ vm, isLightweight, onResetPassword, onReinstal
       ? 'Windows 弹性内存基于 virtio-mem：主内存为规格值，基础内存自动计算；运行后使用率超过 70% 每次扩容 1GB，低于 50% 时按目标使用率缩容。'
       : '系统会根据宿主机资源和面板调度策略动态调整：宿主机内存紧张时可能回收，但最低不低于设定内存的 50%；资源充足时可额外调度约 30% 内存应对突发负载。'
 
-  // IP 显示
+  // IP 显示（已获取到 IP 时不再展示「无法获取」悬停提示）
   const ipDisplay = vm?.ip || (vm?.ip_status ? '无法获取' : '获取中…')
-  const ipTooltip =
-    vm?.ip_status === 'vlan_bridge'
+  const ipTooltip = vm?.ip
+    ? ''
+    : vm?.ip_status === 'vlan_bridge'
       ? '桥接 VLAN 模式下上游路由器分配的 IP 无法从宿主机获取'
       : vm?.ip_status === 'shut_off'
         ? '虚拟机处于关机状态，无法获取 IP'
@@ -282,9 +283,13 @@ export default function InfoTab({ vm, isLightweight, onResetPassword, onReinstal
       <div className="qvm-info-card">
         <div className="qvm-info-card-title">网络与连接</div>
         <Row label="IP 地址">
-          <Tooltip content={ipTooltip} position="top" disabled={!ipTooltip}>
-            <span className={`qvm-mono ${ipTooltip ? 'qvm-ip-unreachable' : ''}`}>{ipDisplay}</span>
-          </Tooltip>
+          {ipTooltip ? (
+            <Tooltip content={ipTooltip} position="top">
+              <span className={`qvm-mono qvm-ip-unreachable`}>{ipDisplay}</span>
+            </Tooltip>
+          ) : (
+            <span className="qvm-mono">{ipDisplay}</span>
+          )}
         </Row>
         {interfaceIPs.length > 0 && (
           <Row label="全部 IP">

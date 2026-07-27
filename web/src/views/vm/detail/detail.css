@@ -476,7 +476,8 @@ body[theme-mode='dark'] .qvm-action-item.lock {
 .qvm-tab-label {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
+  font-size: 15px;
 }
 .qvm-tab-badge {
   margin-left: 2px;

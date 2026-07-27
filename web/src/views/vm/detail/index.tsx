@@ -253,7 +253,7 @@ export default function VmDetailPage() {
             itemKey="info"
             tab={
               <span className="qvm-tab-label">
-                <IconInfoCircle size="small" /> 系统信息
+                <IconInfoCircle size="default" /> 系统信息
               </span>
             }
           >
@@ -269,7 +269,7 @@ export default function VmDetailPage() {
             itemKey="snapshot"
             tab={
               <span className="qvm-tab-label">
-                <IconCamera size="small" /> 快照管理
+                <IconCamera size="default" /> 快照管理
                 {snapshotQuotaText && (
                   <Tag size="small" color="violet" className="qvm-tab-badge">
                     {snapshotQuotaText}
@@ -284,7 +284,7 @@ export default function VmDetailPage() {
             itemKey="network"
             tab={
               <span className="qvm-tab-label">
-                <IconGlobeStroke size="small" /> 网络管理
+                <IconGlobeStroke size="default" /> 网络管理
               </span>
             }
           >
@@ -294,7 +294,7 @@ export default function VmDetailPage() {
             itemKey="schedule"
             tab={
               <span className="qvm-tab-label">
-                <IconClock size="small" /> 定时任务
+                <IconClock size="default" /> 定时任务
               </span>
             }
           >
@@ -305,7 +305,7 @@ export default function VmDetailPage() {
               itemKey="vnc"
               tab={
                 <span className="qvm-tab-label">
-                  <IconDesktop size="small" /> VNC 控制台
+                  <IconDesktop size="default" /> VNC 控制台
                 </span>
               }
             >
@@ -317,7 +317,7 @@ export default function VmDetailPage() {
               itemKey="spice"
               tab={
                 <span className="qvm-tab-label">
-                  <IconCameraStroked size="small" /> SPICE 控制台
+                  <IconCameraStroked size="default" /> SPICE 控制台
                 </span>
               }
             >
@@ -329,7 +329,7 @@ export default function VmDetailPage() {
               itemKey="edit"
               tab={
                 <span className="qvm-tab-label">
-                  <IconEditStroked size="small" /> 编辑
+                  <IconEditStroked size="default" /> 编辑
                 </span>
               }
             >
