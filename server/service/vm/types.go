@@ -135,16 +135,17 @@ type VMListOptions struct {
 type HostStats struct {
 	CPUCount        int     `json:"cpu_count"`
 	CPUPercent      float64 `json:"cpu_percent"`
-	MemTotal        int64   `json:"mem_total"`     // KB
-	MemFree         int64   `json:"mem_free"`      // KB（不含 buffer/cache，仅供参考）
-	MemAvailable    int64   `json:"mem_available"` // KB（含可回收缓存，反映实际可用内存）
-	MemUsed         int64   `json:"mem_used"`      // KB（基于 MemAvailable 计算的实际占用）
-	SwapTotal       int64   `json:"swap_total"`    // KB
-	SwapFree        int64   `json:"swap_free"`     // KB
-	SwapUsed        int64   `json:"swap_used"`     // KB
-	DiskTotal       int64   `json:"disk_total"`    // KB
-	DiskUsed        int64   `json:"disk_used"`     // KB
-	DiskFree        int64   `json:"disk_free"`     // KB
+	MemTotal        int64   `json:"mem_total"`      // KB
+	MemFree         int64   `json:"mem_free"`       // KB（不含 buffer/cache，仅供参考）
+	MemAvailable    int64   `json:"mem_available"`  // KB（含可回收缓存，反映实际可用内存）
+	MemUsed         int64   `json:"mem_used"`       // KB（基于 MemAvailable 计算的实际占用）
+	SwapTotal       int64   `json:"swap_total"`     // KB
+	SwapFree        int64   `json:"swap_free"`      // KB
+	SwapUsed        int64   `json:"swap_used"`      // KB
+	DiskTotal       int64   `json:"disk_total"`     // KB
+	DiskUsed        int64   `json:"disk_used"`      // KB
+	DiskFree        int64   `json:"disk_free"`      // KB
+	VMDiskActual    int64   `json:"vm_disk_actual"` // 所有虚拟机实际磁盘占用总和（KB）
 	NetRxBytes      int64   `json:"net_rx_bytes"`
 	NetTxBytes      int64   `json:"net_tx_bytes"`
 	DiskRdBytes     int64   `json:"disk_rd_bytes"`
@@ -228,6 +229,7 @@ type DiskInfoResult struct {
 	Device         string
 	Path           string
 	Size           string
+	ActualSize     int64 // 实际磁盘占用（字节）
 	Template       string
 	HasBackingFile bool
 }

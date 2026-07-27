@@ -241,6 +241,7 @@ func GetVMDiskInfo(name string) DiskInfoResult {
 		if info.Size != "-" && info.Size != "" {
 			info.Size += " GB"
 		}
+		info.ActualSize = parseQemuActualSizeBytes(qemuInfoResult.Stdout)
 		backing := strings.TrimSpace(D.ParseQemuInfoStr(qemuInfoResult.Stdout, "backing-filename"))
 		if backing != "" {
 			parts := strings.Split(backing, "/")

@@ -21,6 +21,8 @@ interface DualUsageBarProps {
   colorEnd: string
   /** 理论量条颜色（默认电紫） */
   theoryColor?: string
+  /** 悬停提示底部说明文案（默认“理论最大 = 全部虚拟机同时满载时的占用”） */
+  theoryNote?: string
 }
 
 export default function DualUsageBar({
@@ -31,6 +33,7 @@ export default function DualUsageBar({
   color,
   colorEnd,
   theoryColor = '#8B5CF6',
+  theoryNote,
 }: DualUsageBarProps) {
   // 轨道归一化比例尺：取当前/理论/100% 三者最大值，保证理论超配时能完整展示
   const scale = Math.max(currentRatio, theoryRatio, 1)
@@ -43,7 +46,7 @@ export default function DualUsageBar({
     <div style={{ fontSize: 12, lineHeight: 1.8 }}>
       <div>当前使用：{currentText}</div>
       <div>理论最大：{theoryText}</div>
-      <div style={{ opacity: 0.7, marginTop: 2 }}>理论最大 = 全部虚拟机同时满载时的占用</div>
+      <div style={{ opacity: 0.7, marginTop: 2 }}>{theoryNote || '理论最大 = 全部虚拟机同时满载时的占用'}</div>
     </div>
   )
 

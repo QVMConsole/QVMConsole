@@ -13,6 +13,7 @@ import NotFound from '@/views/error/NotFound'
 // 页面懒加载（后续业务模块迁移后在此追加）
 const LoginPage = lazy(() => import('@/views/login'))
 const DashboardPage = lazy(() => import('@/views/dashboard'))
+const VmListPage = lazy(() => import('@/views/vm'))
 
 /** 懒加载页面统一加载态 */
 function lazyPage(node: ReactNode) {
@@ -41,8 +42,13 @@ const mainChildren = [
     element: lazyPage(<DashboardPage />),
     handle: { title: '首页' },
   },
+  {
+    path: 'vm',
+    element: lazyPage(<VmListPage />),
+    handle: { title: '虚拟机列表' },
+  },
   // TODO(重构迭代): 以下路由随各模块迁移逐步补齐
-  // vm/list、vm/detail/:id、template/list、network、public-ip、firewall、
+  // vm/detail/:id、template/list、network、public-ip、firewall、
   // storage-pool/list、nodes、my-storage、user/list、scheduler/events、
   // settings、api-docs、task/recent、about
   { path: '*', element: <NotFound />, handle: { title: '页面不存在' } },

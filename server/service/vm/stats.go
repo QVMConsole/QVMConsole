@@ -251,6 +251,10 @@ func GetHostStats() (*HostStats, error) {
 		stats.DiskFree = available
 	}
 
+	// 虚拟机实际磁盘占用（带缓存，异步刷新，避免阻塞 SSE 推送）
+	// 用于计算存储理论最大值时扣除系统占用部分
+	stats.VMDiskActual = GetTotalVMActualDiskUsage() / 1024 // 字节转 KB
+
 	// 宿主机网络 IO (累加常见物理网卡，排除 virbr, vnet, docker, lo)
 	netIOResult := utils.ExecShell(`awk 'NR>2 {if ($1 !~ /lo|virbr|vnet|docker/) {rx+=$2; tx+=$10}} END {print rx, tx}' /proc/net/dev`)
 	if netIOResult.Error == nil {

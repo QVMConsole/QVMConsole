@@ -26,8 +26,6 @@ export interface NavItem {
   icon: ReactNode
   /** 目标路由（后续模块路由） */
   path?: string
-  /** 是否展示虚拟机快捷切换子列表 */
-  vmSubList?: boolean
   /** 徽标类型：vm=虚拟机数量 task=活动任务数 */
   badge?: 'vm' | 'task'
   /** 本轮未迁移，点击提示 */
@@ -48,7 +46,7 @@ export const ADMIN_NAV: NavGroup[] = [
   {
     group: '计算',
     items: [
-      { key: 'vm', title: '虚拟机', icon: <IconDesktop />, path: '/vm', badge: 'vm', vmSubList: true, coming: true },
+      { key: 'vm', title: '虚拟机', icon: <IconDesktop />, path: '/vm', badge: 'vm' },
       { key: 'template', title: '模板管理', icon: <IconLayers />, path: '/template', coming: true },
     ],
   },
@@ -94,7 +92,7 @@ export const USER_NAV: NavGroup[] = [
   {
     group: '计算',
     items: [
-      { key: 'vm', title: '我的虚拟机', icon: <IconDesktop />, path: '/vm', badge: 'vm', vmSubList: true, coming: true },
+      { key: 'vm', title: '我的虚拟机', icon: <IconDesktop />, path: '/vm', badge: 'vm' },
     ],
   },
   {

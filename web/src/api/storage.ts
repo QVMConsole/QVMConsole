@@ -1,6 +1,8 @@
 /**
- * 存储池相关 API（本轮仅覆盖仪表盘所需接口）
- * 对应后端 /api/storage-pool 路由组
+ * 存储相关 API
+ * - /api/storage-pool：宿主机存储池（仪表盘）
+ * - /api/self/storage：用户「我的存储」
+ * - /api/self/vm/export：虚拟机导出到我的存储
  */
 import service from './client'
 import type { ApiResponse } from '@/types/api'
@@ -30,4 +32,22 @@ export function getStoragePoolList() {
   return service.get<unknown, ApiResponse<StoragePoolInfo[]>>('/storage-pool/list', {
     silent: true,
   })
+}
+
+/** 用户「我的存储」信息 */
+export interface UserStorageInfo {
+  initialized: boolean
+  path?: string
+  quota_gb?: number
+  used_gb?: number
+}
+
+/** 获取当前用户存储池信息 */
+export function getStorageInfo() {
+  return service.get<unknown, ApiResponse<UserStorageInfo>>('/self/storage/info')
+}
+
+/** 导出虚拟机磁盘到我的存储 */
+export function exportVM(data: { vm_name: string }) {
+  return service.post<unknown, ApiResponse<{ task_id?: string }>>('/self/vm/export', data)
 }

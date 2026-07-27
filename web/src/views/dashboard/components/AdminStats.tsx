@@ -43,11 +43,14 @@ export default function AdminStats({ stats, vms }: AdminStatsProps) {
   const memCurrent = memTotalMB > 0 ? memUsedMB / memTotalMB : 0
   const memTheory = memTotalMB > 0 ? theory.memSumMB / memTotalMB : 0
 
-  // 磁盘：当前 = 已用 / 总量；理论 = Σ虚拟机磁盘容量 / 宿主机总量
+  // 磁盘：当前 = 已用 / 总量；理论 = (系统占用 + 虚拟机磁盘配置总和) / 总量
+  // 系统占用 = 根分区已用 - 虚拟机实际磁盘占用（vm_disk_actual 由后端缓存提供）
   const diskTotalGB = (stats?.disk_total || 0) / 1024 / 1024
   const diskUsedGB = (stats?.disk_used || 0) / 1024 / 1024
+  const vmDiskActualGB = (stats?.vm_disk_actual || 0) / 1024 / 1024
+  const systemUsageGB = Math.max(diskUsedGB - vmDiskActualGB, 0)
   const diskCurrent = diskTotalGB > 0 ? diskUsedGB / diskTotalGB : 0
-  const diskTheory = diskTotalGB > 0 ? theory.diskSumGB / diskTotalGB : 0
+  const diskTheory = diskTotalGB > 0 ? (theory.diskSumGB + systemUsageGB) / diskTotalGB : 0
 
   return (
     <section className="qvm-stats">
@@ -141,7 +144,8 @@ export default function AdminStats({ stats, vms }: AdminStatsProps) {
           currentRatio={diskCurrent}
           theoryRatio={diskTheory}
           currentText={`${(diskCurrent * 100).toFixed(1)}%（${formatKB(stats?.disk_used || 0)} / ${formatKB(stats?.disk_total || 0)}）`}
-          theoryText={`${(diskTheory * 100).toFixed(1)}%（${theory.diskSumGB.toFixed(0)} GB / ${formatKB(stats?.disk_total || 0)}）`}
+          theoryText={`${(diskTheory * 100).toFixed(1)}%（${(theory.diskSumGB + systemUsageGB).toFixed(0)} GB / ${formatKB(stats?.disk_total || 0)}）`}
+          theoryNote={`理论最大 = 系统占用 ${systemUsageGB.toFixed(0)} GB + 虚拟机满载 ${theory.diskSumGB.toFixed(0)} GB`}
           color="#FBBF24"
           colorEnd="#F59E0B"
         />

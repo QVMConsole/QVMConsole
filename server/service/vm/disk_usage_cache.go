@@ -1,0 +1,115 @@
+package vm
+
+import (
+	"encoding/json"
+	"strings"
+	"sync"
+	"time"
+
+	"kvm_console/logger"
+	"kvm_console/service/libvirt_rpc"
+	"kvm_console/utils"
+)
+
+// 虚拟机实际磁盘占用缓存
+//
+// 由于遍历所有虚拟机并执行 qemu-img info 较为耗时，
+// 采用内存缓存 + 异步刷新策略，避免阻塞宿主机状态采集（SSE 每 5 秒推送一次）。
+var (
+	vmDiskActualCache      int64     // 所有虚拟机第一块磁盘的实际占用总和（字节）
+	vmDiskActualCacheTime  time.Time // 上次刷新时间
+	vmDiskActualCacheMu    sync.RWMutex
+	vmDiskActualRefreshing bool
+	vmDiskActualCacheTTL   = 60 * time.Second // 缓存有效期
+)
+
+// GetTotalVMActualDiskUsage 获取所有虚拟机实际磁盘占用总和（字节，带缓存）。
+// 首次调用或缓存过期时触发异步刷新，返回上次缓存值（首次返回 0）。
+func GetTotalVMActualDiskUsage() int64 {
+	vmDiskActualCacheMu.RLock()
+	if !vmDiskActualCacheTime.IsZero() && time.Since(vmDiskActualCacheTime) < vmDiskActualCacheTTL {
+		val := vmDiskActualCache
+		vmDiskActualCacheMu.RUnlock()
+		return val
+	}
+	vmDiskActualCacheMu.RUnlock()
+
+	// 缓存已过期（或未初始化），异步刷新避免阻塞调用方
+	refreshVMActualDiskUsageAsync()
+
+	// 返回旧缓存值（首次调用时为 0，待异步刷新完成后下次即可取到）
+	vmDiskActualCacheMu.RLock()
+	val := vmDiskActualCache
+	vmDiskActualCacheMu.RUnlock()
+	return val
+}
+
+// refreshVMActualDiskUsageAsync 异步刷新虚拟机实际磁盘占用缓存。
+// 通过 vmDiskActualRefreshing 标志防止并发刷新。
+func refreshVMActualDiskUsageAsync() {
+	vmDiskActualCacheMu.Lock()
+	if vmDiskActualRefreshing {
+		vmDiskActualCacheMu.Unlock()
+		return
+	}
+	vmDiskActualRefreshing = true
+	vmDiskActualCacheMu.Unlock()
+
+	go func() {
+		defer utils.RecoverAndLog("vm-disk-usage-refresh")
+		defer func() {
+			vmDiskActualCacheMu.Lock()
+			vmDiskActualRefreshing = false
+			vmDiskActualCacheMu.Unlock()
+		}()
+
+		total := calculateTotalVMActualDiskUsage()
+		vmDiskActualCacheMu.Lock()
+		vmDiskActualCache = total
+		vmDiskActualCacheTime = time.Now()
+		vmDiskActualCacheMu.Unlock()
+		logger.App.Debug("虚拟机实际磁盘占用缓存已刷新", "total_bytes", total)
+	}()
+}
+
+// calculateTotalVMActualDiskUsage 遍历所有虚拟机，累加每台虚拟机第一块磁盘的实际占用（字节）。
+// 通过 GetVMDiskInfo 获取磁盘路径和 ActualSize（由 qemu-img info 解析）。
+func calculateTotalVMActualDiskUsage() int64 {
+	domains, err := libvirt_rpc.ListAllDomainsRPC()
+	if err != nil {
+		logger.App.Warn("获取虚拟机列表失败，无法统计实际磁盘占用", "error", err)
+		return 0
+	}
+
+	var total int64
+	for _, dom := range domains {
+		name := strings.TrimSpace(dom.Name)
+		if name == "" {
+			continue
+		}
+		diskInfo := GetVMDiskInfo(name)
+		if diskInfo.Path == "" {
+			continue
+		}
+		total += diskInfo.ActualSize
+	}
+	return total
+}
+
+// parseQemuActualSizeBytes 从 qemu-img info --output=json 的输出中解析 actual-size 字段（字节）。
+// actual-size 表示 qcow2 文件在宿主机上实际分配的数据量（稀疏文件场景下通常小于 virtual-size）。
+func parseQemuActualSizeBytes(output string) int64 {
+	var data map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(output), &data); err != nil {
+		return 0
+	}
+	raw, ok := data["actual-size"]
+	if !ok {
+		return 0
+	}
+	var val int64
+	if err := json.Unmarshal(raw, &val); err != nil {
+		return 0
+	}
+	return val
+}

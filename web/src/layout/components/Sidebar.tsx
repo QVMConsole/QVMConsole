@@ -1,7 +1,6 @@
 /**
  * 悬浮式侧边栏
  * - 按角色渲染导航分组（管理员 / 普通用户）
- * - 虚拟机快速切换子列表（ESXi 资源树思路）
  * - 小屏时转为抽屉模式
  */
 import { useEffect, useMemo, useState } from 'react'
@@ -15,16 +14,6 @@ import { useTaskStore } from '@/stores/task'
 import { usePageTabsStore } from '@/stores/pageTabs'
 import { getVmList, getSelfVMs, type VmListItem } from '@/api/vm'
 import { CLOUD_TYPES, ROLES } from '@/config/constants'
-
-/** 子列表最多展示的虚拟机数量 */
-const SUB_VM_LIMIT = 4
-
-/** 虚拟机状态点映射 */
-function vmDotClass(status: string): 'run' | 'warn' | 'off' {
-  if (status === 'running') return 'run'
-  if (status === 'paused' || status === 'migrating') return 'warn'
-  return 'off'
-}
 
 interface SidebarProps {
   mobileOpen: boolean
@@ -83,12 +72,6 @@ export default function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
     onCloseMobile()
   }
 
-  const handleVmSubClick = (vm: VmListItem) => {
-    // 虚拟机详情页随后续迭代迁移，本轮先提示
-    Toast.info({ content: `「${vm.name}」详情页将在后续迭代提供`, duration: 2 })
-    onCloseMobile()
-  }
-
   const handleLogout = () => {
     Modal.confirm({
       title: '退出登录',
@@ -141,22 +124,6 @@ export default function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
                       </span>
                     )}
                   </div>
-                  {/* 虚拟机快速切换子列表 */}
-                  {item.vmSubList && (
-                    <div className="qvm-nav-sub">
-                      {vms.length === 0 && <div className="qvm-nav-sub-empty">暂无虚拟机</div>}
-                      {vms.slice(0, SUB_VM_LIMIT).map((vm) => (
-                        <div
-                          key={vm.name}
-                          className="qvm-nav-sub-item"
-                          onClick={() => handleVmSubClick(vm)}
-                        >
-                          <span className={`qvm-dot ${vmDotClass(vm.status)}`} />
-                          {vm.name}
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
               )
             })}
