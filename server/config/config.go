@@ -135,10 +135,6 @@ type Config struct {
 	NetworkCaptureMaxSeconds     int    `json:"network_capture_max_seconds"`
 	NetworkCaptureMaxMB          int    `json:"network_capture_max_mb"`
 	NetworkCaptureMaxPackets     int    `json:"network_capture_max_packets"`
-	// 端口转发 HTTP 探测
-	PortForwardHTTPProbeEnabled         bool `json:"port_forward_http_probe_enabled"`
-	PortForwardHTTPProbeIntervalMinutes int  `json:"port_forward_http_probe_interval_minutes"`
-	PortForwardHTTPProbeTimeoutSeconds  int  `json:"port_forward_http_probe_timeout_seconds"`
 	// 虚拟机磁盘 IOPS 默认限制（0 表示不限制）
 	DefaultDiskIOPSTotal int `json:"default_disk_iops_total"` // 默认总 IOPS 限制
 	DefaultDiskIOPSRead  int `json:"default_disk_iops_read"`  // 默认读 IOPS 限制
@@ -276,9 +272,6 @@ func Init() {
 		NetworkCaptureMaxSeconds:              getEnvInt("KVM_NETWORK_CAPTURE_MAX_SECONDS", 120),
 		NetworkCaptureMaxMB:                   getEnvInt("KVM_NETWORK_CAPTURE_MAX_MB", 64),
 		NetworkCaptureMaxPackets:              getEnvInt("KVM_NETWORK_CAPTURE_MAX_PACKETS", 5000),
-		PortForwardHTTPProbeEnabled:           getEnvBool("KVM_PORT_FORWARD_HTTP_PROBE_ENABLED", true),
-		PortForwardHTTPProbeIntervalMinutes:   getEnvInt("KVM_PORT_FORWARD_HTTP_PROBE_INTERVAL_MINUTES", 60),
-		PortForwardHTTPProbeTimeoutSeconds:    getEnvInt("KVM_PORT_FORWARD_HTTP_PROBE_TIMEOUT_SECONDS", 3),
 		BatchCloneMaxConcurrency:              getEnvInt("KVM_BATCH_CLONE_MAX_CONCURRENCY", 10),
 		RateLimitPublicPerMin:                 getEnvInt("KVM_RATE_LIMIT_PUBLIC", 20),
 		RateLimitAuthPerMin:                   getEnvInt("KVM_RATE_LIMIT_AUTH", 0),
@@ -749,18 +742,6 @@ func (c *Config) LoadFromDB(settings map[string]string) {
 			if v, err := strconv.Atoi(value); err == nil {
 				c.SchedulerEventRetentionHours = v
 			}
-		case "port_forward_http_probe_enabled":
-			if v, err := strconv.ParseBool(value); err == nil {
-				c.PortForwardHTTPProbeEnabled = v
-			}
-		case "port_forward_http_probe_interval_minutes":
-			if v, err := strconv.Atoi(value); err == nil {
-				c.PortForwardHTTPProbeIntervalMinutes = v
-			}
-		case "port_forward_http_probe_timeout_seconds":
-			if v, err := strconv.Atoi(value); err == nil {
-				c.PortForwardHTTPProbeTimeoutSeconds = v
-			}
 		case "vpc_subnet_prefix":
 			c.VPCSubnetPrefix = value
 		case "vpc_vlan_start":
@@ -895,9 +876,6 @@ func (c *Config) ToSettingsMap() map[string]string {
 		"dynamic_memory_cooldown_seconds":           strconv.Itoa(c.DynamicMemoryCooldownSeconds),
 		"dynamic_memory_observation_hours":          strconv.Itoa(c.DynamicMemoryObservationHours),
 		"scheduler_event_retention_hours":           strconv.Itoa(c.SchedulerEventRetentionHours),
-		"port_forward_http_probe_enabled":           strconv.FormatBool(c.PortForwardHTTPProbeEnabled),
-		"port_forward_http_probe_interval_minutes":  strconv.Itoa(c.PortForwardHTTPProbeIntervalMinutes),
-		"port_forward_http_probe_timeout_seconds":   strconv.Itoa(c.PortForwardHTTPProbeTimeoutSeconds),
 		"vpc_subnet_prefix":                         c.VPCSubnetPrefix,
 		"vpc_vlan_start":                            strconv.Itoa(c.VPCVLANStart),
 		"vpc_vlan_end":                              strconv.Itoa(c.VPCVLANEnd),

@@ -277,16 +277,8 @@ func Setup() *gin.Engine {
 				network.POST("/port-forward/add", handler.AddPortForward)
 				network.PUT("/port-forward/:id", handler.UpdatePortForward)
 				network.DELETE("/port-forward/:id", handler.DeletePortForward)
-				network.DELETE("/port-forward/by-key/:rule_key", handler.DeletePortForwardByRuleKey)
 				network.POST("/port-forward/batch-delete", handler.BatchDeletePortForward)
 				network.POST("/port-forward/save", handler.SavePortForwardRules)
-				network.POST("/port-forward/probe/run", handler.RunPortForwardHTTPProbe)
-				network.GET("/port-forward/whitelist/summary", handler.GetPortForwardWhitelistSummary)
-				network.GET("/port-forward/whitelist", middleware.AdminMiddleware(), handler.GetPortForwardWhitelistList)
-				network.POST("/port-forward/whitelist/user", middleware.AdminMiddleware(), handler.AddPortForwardUserWhitelist)
-				network.DELETE("/port-forward/whitelist/user/:username", middleware.AdminMiddleware(), handler.DeletePortForwardUserWhitelist)
-				network.POST("/port-forward/whitelist/vm", middleware.AdminMiddleware(), handler.AddPortForwardVMWhitelist)
-				network.DELETE("/port-forward/whitelist/vm/:vm_name", middleware.AdminMiddleware(), handler.DeletePortForwardVMWhitelist)
 
 				// 端口转发手动 IP 映射
 				network.GET("/port-forward/ip-mapping", handler.GetPortForwardIPs)

@@ -97,7 +97,6 @@ func main() {
 	service.StartStatsCollector()
 	vmmemory.StartMemoryBalloonScheduler()
 	service.StartSchedulerEventCleanup()
-	service.StartPortForwardHTTPProbeScheduler()
 	service.StartVMScheduleRunner()
 	service.StartJWTSecretRotator()
 	service.StartExpiredUploadSessionCleanup() // 清理过期分片上传会话
@@ -875,13 +874,6 @@ func registerTaskHandlers() {
 			return "", fmt.Errorf("解析参数失败: %w", err)
 		}
 		return service.ExecutePublicIPOperation(ctx, params, progress)
-	})
-	taskqueue.RegisterHandler(model.TaskTypePortForwardHTTPProbe, func(ctx context.Context, task *model.Task, progress func(int, string)) (string, error) {
-		var params service.PortForwardHTTPProbeTaskParams
-		if err := json.Unmarshal([]byte(task.Params), &params); err != nil {
-			return "", fmt.Errorf("解析参数失败: %w", err)
-		}
-		return service.ExecuteManualPortForwardHTTPProbe(ctx, &params, task.CreatedBy, progress)
 	})
 	taskqueue.RegisterHandler(model.TaskTypeEnterMaintenanceMode, func(ctx context.Context, task *model.Task, progress func(int, string)) (string, error) {
 		var params service.MaintenanceModeTaskParams

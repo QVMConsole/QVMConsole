@@ -200,12 +200,6 @@ func init() {
 	netpkg.HookGetUserVMList = GetUserVMList
 	netpkg.HookFindVMOwner = FindVMOwner
 
-	// ── Port forward probe hooks ──
-	netpkg.HookSyncPortForwardProbeStateOnAdd = SyncPortForwardProbeStateOnAdd
-	netpkg.HookSyncPortForwardProbeStateOnDelete = SyncPortForwardProbeStateOnDelete
-	netpkg.HookMergePortForwardProbeState = MergePortForwardProbeState
-	netpkg.HookGetPortForwardProbeStateByRuleKey = GetPortForwardProbeStateByRuleKey
-
 	// ── Utility hooks ──
 	netpkg.HookWriteFileIfChanged = ovspkg.WriteFileIfChanged
 }
@@ -225,11 +219,6 @@ func ListPortForwards() ([]PortForwardRule, error) {
 // findLivePortForwardByStableKey delegates to network.FindLivePortForwardByStableKey
 func findLivePortForwardByStableKey(ruleKey string) (*PortForwardRule, error) {
 	return netpkg.FindLivePortForwardByStableKey(ruleKey)
-}
-
-// deleteLivePortForwardByStableKey delegates to network.DeleteLivePortForwardByStableKey
-func deleteLivePortForwardByStableKey(ruleKey string, preserveProbeState bool) error {
-	return netpkg.DeleteLivePortForwardByStableKey(ruleKey, preserveProbeState)
 }
 
 // AddPortForward delegates to network.AddPortForward

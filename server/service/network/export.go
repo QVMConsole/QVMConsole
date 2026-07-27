@@ -7,11 +7,6 @@ func FindLivePortForwardByStableKey(ruleKey string) (*PortForwardRule, error) {
 	return findLivePortForwardByStableKey(ruleKey)
 }
 
-// DeleteLivePortForwardByStableKey exports deleteLivePortForwardByStableKey
-func DeleteLivePortForwardByStableKey(ruleKey string, preserveProbeState bool) error {
-	return deleteLivePortForwardByStableKey(ruleKey, preserveProbeState)
-}
-
 // GetHostIP exports getHostIP
 func GetHostIP() string {
 	return getHostIP()

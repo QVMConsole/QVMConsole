@@ -39,13 +39,6 @@ type PortForwardRule struct {
 	RegionFilterEnabled   bool   `json:"region_filter_enabled"`   // 是否继承入站区域限制
 	RegionFilterInherited bool   `json:"region_filter_inherited"` // 是否继承全局入站策略
 	RuleKey               string `json:"rule_key"`                // 稳定规则标识
-	Live                  bool   `json:"live"`                    // 当前是否仍存在于 iptables
-	ProbeStatus           string `json:"probe_status"`            // 探测状态
-	ProbeReason           string `json:"probe_reason"`            // 探测或封禁原因
-	ProbeLastCheckedAt    string `json:"probe_last_checked_at"`   // 最近探测时间
-	ProbeHTTPStatusCode   int    `json:"probe_http_status_code"`  // 最近 HTTP 状态码
-	ProbeWhitelistScope   string `json:"probe_whitelist_scope"`   // 命中的白名单范围
-	Banned                bool   `json:"banned"`                  // 是否已自动封禁
 }
 
 // StableKey 返回端口转发规则的稳定标识，避免依赖 iptables 行号。

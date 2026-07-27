@@ -2,11 +2,8 @@ package service
 
 // Network export adapters - export unexported functions for network subpackage Hook injection
 import (
-	"kvm_console/model"
-
 	netpkg "kvm_console/service/network"
 	ovspkg "kvm_console/service/ovs"
-	probepkg "kvm_console/service/network/probe"
 )
 
 // WriteOVSStaticHostsForNetwork exports writeOVSStaticHosts for network Hook
@@ -16,11 +13,6 @@ func WriteOVSStaticHostsForNetwork(hosts []netpkg.OVSStaticHost) error {
 		converted[i] = ovspkg.OVSStaticHost{VMName: h.VMName, MAC: h.MAC, IP: h.IP}
 	}
 	return ovspkg.WriteOVSStaticHosts(converted)
-}
-
-// GetPortForwardProbeStateByRuleKey delegates to probe subpackage
-func GetPortForwardProbeStateByRuleKey(ruleKey string) (*model.PortForwardProbeState, error) {
-	return probepkg.GetPortForwardProbeStateByRuleKey(ruleKey)
 }
 
 // SetPortForwardFirewallExemptionForNetwork wraps SetPortForwardFirewallExemption

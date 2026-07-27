@@ -147,7 +147,6 @@ func listLivePortForwardsFromIPTables() ([]PortForwardRule, error) {
 		}
 		rule.FirewallKey = rule.StableKey()
 		rule.RuleKey = rule.StableKey()
-		rule.Live = true
 		rule.RegionFilterInherited = true
 		rule.RegionFilterEnabled = true
 		if policy != nil && policy.PortForwardExemptions != nil && policy.PortForwardExemptions[rule.FirewallKey] {
@@ -168,7 +167,7 @@ func ListPortForwards() ([]PortForwardRule, error) {
 	if err != nil {
 		return nil, err
 	}
-	return HookMergePortForwardProbeState(rules), nil
+	return rules, nil
 }
 
 // GetPortForwardRuleByID 根据当前 iptables 行号获取端口转发规则。
@@ -272,7 +271,6 @@ func AddPortForward(params *PortForwardAddParams) error {
 		if err := HookEnsureHostFirewallPortForwardRule(params.HostPort, proto, params.Comment); err != nil {
 			return err
 		}
-		HookSyncPortForwardProbeStateOnAdd(params, proto, HookFindVMOwner(strings.TrimSpace(params.Comment)))
 	}
 
 	// 自动持久化规则
@@ -379,7 +377,7 @@ func cleanupOVSStaticHostsForVMs(vmNames []string) {
 	HookReloadOVSDNSMasq()
 }
 
-func deletePortForwardWithOptions(ruleID int, preserveProbeState bool) error {
+func deletePortForwardWithOptions(ruleID int) error {
 	// 直接用 iptables 行号获取规则信息（不过滤 grep，避免行号错位）
 	ruleInfo := utils.ExecShell(fmt.Sprintf(
 		"iptables -t nat -L PREROUTING %d -n 2>/dev/null", ruleID))
@@ -448,7 +446,6 @@ func deletePortForwardWithOptions(ruleID int, preserveProbeState bool) error {
 		_ = HookDeleteHostFirewallPortForwardRule(hostPort, proto)
 	}
 	_ = HookClearPortForwardFirewallExemption(stableKey)
-	HookSyncPortForwardProbeStateOnDelete(stableKey, preserveProbeState)
 
 	cleanupErr := removeSecurityGroupAllowsPortForwardIfUnused(destIP, proto, destPort)
 
@@ -460,18 +457,7 @@ func deletePortForwardWithOptions(ruleID int, preserveProbeState bool) error {
 
 // DeletePortForward 按编号删除端口转发规则
 func DeletePortForward(ruleID int) error {
-	return deletePortForwardWithOptions(ruleID, false)
-}
-
-func deleteLivePortForwardByStableKey(ruleKey string, preserveProbeState bool) error {
-	rule, err := findLivePortForwardByStableKey(ruleKey)
-	if err != nil {
-		return err
-	}
-	if rule == nil {
-		return fmt.Errorf("规则 %s 不存在", ruleKey)
-	}
-	return deletePortForwardWithOptions(rule.ID, preserveProbeState)
+	return deletePortForwardWithOptions(ruleID)
 }
 
 // DeletePortForwards 按批量删除端口转发规则。
@@ -525,7 +511,6 @@ func UpdatePortForward(ruleID int, params *PortForwardUpdateParams) error {
 	if err != nil {
 		return err
 	}
-	oldState, _ := HookGetPortForwardProbeStateByRuleKey(oldRule.StableKey())
 
 	oldProtocol := strings.ToLower(strings.TrimSpace(oldRule.Protocol))
 	newProtocol := params.Protocol
@@ -568,14 +553,6 @@ func UpdatePortForward(ruleID int, params *PortForwardUpdateParams) error {
 		CreatedBy:      strings.TrimSpace(params.CreatedBy),
 		CreatedByAdmin: params.CreatedByAdmin,
 	}
-	if oldState != nil {
-		if strings.TrimSpace(rollbackParams.CreatedBy) == "" {
-			rollbackParams.CreatedBy = strings.TrimSpace(oldState.CreatedBy)
-		}
-		if !rollbackParams.CreatedByAdmin {
-			rollbackParams.CreatedByAdmin = oldState.CreatedByAdmin
-		}
-	}
 
 	if err := DeletePortForward(ruleID); err != nil {
 		return err
@@ -589,14 +566,6 @@ func UpdatePortForward(ruleID int, params *PortForwardUpdateParams) error {
 		Comment:        comment,
 		CreatedBy:      strings.TrimSpace(params.CreatedBy),
 		CreatedByAdmin: params.CreatedByAdmin,
-	}
-	if oldState != nil {
-		if strings.TrimSpace(addParams.CreatedBy) == "" {
-			addParams.CreatedBy = strings.TrimSpace(oldState.CreatedBy)
-		}
-		if !addParams.CreatedByAdmin {
-			addParams.CreatedByAdmin = oldState.CreatedByAdmin
-		}
 	}
 	if err := AddPortForward(addParams); err != nil {
 		restoreErr := AddPortForward(rollbackParams)

@@ -834,9 +834,6 @@ body[theme-mode='dark'] .qvm-action-item.lock {
 .qvm-network-tab .semi-tabs-content {
   padding-top: 12px;
 }
-.qvm-forward-banner {
-  margin-bottom: 12px;
-}
 .qvm-forward-addr {
   display: inline-flex;
   align-items: center;

@@ -70,9 +70,6 @@ type SettingsResponse struct {
 	DynamicMemoryCooldownSeconds          int    `json:"dynamic_memory_cooldown_seconds"`
 	DynamicMemoryObservationHours         int    `json:"dynamic_memory_observation_hours"`
 	SchedulerEventRetentionHours          int    `json:"scheduler_event_retention_hours"`
-	PortForwardHTTPProbeEnabled           bool   `json:"port_forward_http_probe_enabled"`
-	PortForwardHTTPProbeIntervalMinutes   int    `json:"port_forward_http_probe_interval_minutes"`
-	PortForwardHTTPProbeTimeoutSeconds    int    `json:"port_forward_http_probe_timeout_seconds"`
 	// 虚拟机磁盘 IOPS 默认限制
 	DefaultDiskIOPSTotal int `json:"default_disk_iops_total"` // 默认总 IOPS 限制（0 表示不限制）
 	DefaultDiskIOPSRead  int `json:"default_disk_iops_read"`  // 默认读 IOPS 限制（0 表示不限制）
@@ -140,9 +137,6 @@ type UpdateSettingsRequest struct {
 	DynamicMemoryCooldownSeconds          *int    `json:"dynamic_memory_cooldown_seconds"`
 	DynamicMemoryObservationHours         *int    `json:"dynamic_memory_observation_hours"`
 	SchedulerEventRetentionHours          *int    `json:"scheduler_event_retention_hours"`
-	PortForwardHTTPProbeEnabled           *bool   `json:"port_forward_http_probe_enabled"`
-	PortForwardHTTPProbeIntervalMinutes   *int    `json:"port_forward_http_probe_interval_minutes"`
-	PortForwardHTTPProbeTimeoutSeconds    *int    `json:"port_forward_http_probe_timeout_seconds"`
 	// 虚拟机磁盘 IOPS 默认限制
 	DefaultDiskIOPSTotal *int `json:"default_disk_iops_total"` // 默认总 IOPS 限制（0 表示不限制）
 	DefaultDiskIOPSRead  *int `json:"default_disk_iops_read"`  // 默认读 IOPS 限制（0 表示不限制）
@@ -261,9 +255,6 @@ func GetSettings(c *gin.Context) {
 			DynamicMemoryCooldownSeconds:          cfg.DynamicMemoryCooldownSeconds,
 			DynamicMemoryObservationHours:         cfg.DynamicMemoryObservationHours,
 			SchedulerEventRetentionHours:          cfg.SchedulerEventRetentionHours,
-			PortForwardHTTPProbeEnabled:           cfg.PortForwardHTTPProbeEnabled,
-			PortForwardHTTPProbeIntervalMinutes:   cfg.PortForwardHTTPProbeIntervalMinutes,
-			PortForwardHTTPProbeTimeoutSeconds:    cfg.PortForwardHTTPProbeTimeoutSeconds,
 			DefaultDiskIOPSTotal:                  cfg.DefaultDiskIOPSTotal,
 			DefaultDiskIOPSRead:                   cfg.DefaultDiskIOPSRead,
 			DefaultDiskIOPSWrite:                  cfg.DefaultDiskIOPSWrite,
@@ -511,23 +502,6 @@ func UpdateSettings(c *gin.Context) {
 			return
 		}
 		cfg.SchedulerEventRetentionHours = *req.SchedulerEventRetentionHours
-	}
-	if req.PortForwardHTTPProbeEnabled != nil {
-		cfg.PortForwardHTTPProbeEnabled = *req.PortForwardHTTPProbeEnabled
-	}
-	if req.PortForwardHTTPProbeIntervalMinutes != nil {
-		if *req.PortForwardHTTPProbeIntervalMinutes < 5 || *req.PortForwardHTTPProbeIntervalMinutes > 1440 {
-			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "端口转发 HTTP 探测间隔需在 5 - 1440 分钟之间"})
-			return
-		}
-		cfg.PortForwardHTTPProbeIntervalMinutes = *req.PortForwardHTTPProbeIntervalMinutes
-	}
-	if req.PortForwardHTTPProbeTimeoutSeconds != nil {
-		if *req.PortForwardHTTPProbeTimeoutSeconds < 1 || *req.PortForwardHTTPProbeTimeoutSeconds > 30 {
-			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "端口转发 HTTP 探测超时需在 1 - 30 秒之间"})
-			return
-		}
-		cfg.PortForwardHTTPProbeTimeoutSeconds = *req.PortForwardHTTPProbeTimeoutSeconds
 	}
 	if req.DefaultDiskIOPSTotal != nil {
 		if *req.DefaultDiskIOPSTotal < 0 {

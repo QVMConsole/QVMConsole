@@ -1,12 +1,11 @@
 /**
  * 端口转发面板
- * - 规则列表（协议/宿主机端口/完整访问地址/状态/目标/区域限制/操作）
- * - 添加 / 编辑 / 删除 / 批量删除 / HTTP 探测（管理员）
- * - 白名单横幅与首次开通引导（未固定 IP 时显示）
+ * - 规则列表（协议/宿主机端口/完整访问地址/目标/区域限制/操作）
+ * - 添加 / 编辑 / 删除 / 批量删除
+ * - 首次开通引导（未固定 IP 时显示）
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  Banner,
   Button,
   Card,
   Input,
@@ -25,9 +24,7 @@ import {
   batchDeletePortForward,
   bindStaticIP,
   deletePortForward,
-  deletePortForwardByRuleKey,
   getPortForwardList,
-  runPortForwardHTTPProbe,
   setPortForwardFirewall,
   updatePortForward,
   type PortForwardRule,
@@ -41,8 +38,6 @@ interface PortForwardPanelProps {
   vmName: string
   shared: NetworkSharedData
 }
-
-const BANNED_REASON = '检测到存在建站或HTTP访问且未报备，当前转发已封禁，请联系管理员'
 
 interface ForwardFormState {
   id: number | null
@@ -66,7 +61,6 @@ export default function PortForwardPanel({ vmName, shared }: PortForwardPanelPro
     dhcpLeases,
     runtimeStatus,
     manualIPs,
-    whitelistSummary,
     refreshStaticIPs,
     refreshRuntimeStatus,
     refreshVPCBinding,
@@ -77,7 +71,6 @@ export default function PortForwardPanel({ vmName, shared }: PortForwardPanelPro
   const [rules, setRules] = useState<PortForwardRule[]>([])
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [probeSubmitting, setProbeSubmitting] = useState(false)
   const [selectedKeys, setSelectedKeys] = useState<string[]>([])
   const [dialogVisible, setDialogVisible] = useState(false)
   const [form, setForm] = useState<ForwardFormState>(EMPTY_FORM)
@@ -140,10 +133,6 @@ export default function PortForwardPanel({ vmName, shared }: PortForwardPanelPro
       : selfQuota?.max_port_forwards || 0
   const quotaReached = !isAdmin && quotaLimit > 0 && quotaUsed >= quotaLimit
   const quotaVisible = isLightweight || isLightweightVM || !!selfQuota
-
-  // 白名单横幅
-  const showWhitelistBanner =
-    !isAdmin && !!whitelistSummary && !whitelistSummary.effective_whitelisted
 
   // 首次开通引导
   const introStorageKey = `vm-port-forward-intro-seen:${username || 'default'}:${vmName || 'default'}`
@@ -276,13 +265,8 @@ export default function PortForwardPanel({ vmName, shared }: PortForwardPanelPro
     const ok = await confirmModal({ title: '删除端口转发', content: '确定删除此转发规则？' })
     if (!ok) return
     try {
-      if (row.live) {
-        await deletePortForward(row.id)
-        Toast.success('规则已删除')
-      } else {
-        await deletePortForwardByRuleKey(row.rule_key)
-        Toast.success('封禁记录已删除')
-      }
+      await deletePortForward(row.id)
+      Toast.success('规则已删除')
       void fetchRules()
       void refreshQuotaAfterChange()
     } catch {
@@ -320,19 +304,6 @@ export default function PortForwardPanel({ vmName, shared }: PortForwardPanelPro
       void fetchRules()
     } catch {
       void fetchRules()
-    }
-  }
-
-  // ============ 探测 ============
-  const handleProbe = async () => {
-    setProbeSubmitting(true)
-    try {
-      const res = await runPortForwardHTTPProbe({ vm_name: vmName })
-      Toast.success(res.message || '当前虚拟机端口转发 HTTP 探测任务已提交')
-    } catch {
-      // 请求层已提示
-    } finally {
-      setProbeSubmitting(false)
     }
   }
 
@@ -377,19 +348,6 @@ export default function PortForwardPanel({ vmName, shared }: PortForwardPanelPro
         </span>
       ),
     },
-    {
-      title: '状态',
-      dataIndex: 'banned',
-      width: 90,
-      render: (_text, row) =>
-        !row.live && row.banned ? (
-          <Tooltip content={BANNED_REASON} position="top">
-            <Tag size="small" color="red">封禁</Tag>
-          </Tooltip>
-        ) : (
-          <Tag size="small" color="green">正常</Tag>
-        ),
-    },
     { title: '目标 IP', dataIndex: 'dest_ip', width: 120, render: (text) => <span className="qvm-mono">{text}</span> },
     { title: '目标端口', dataIndex: 'dest_port', width: 90, render: (text) => <span className="qvm-mono">{text}</span> },
     ...(isAdmin
@@ -402,7 +360,6 @@ export default function PortForwardPanel({ vmName, shared }: PortForwardPanelPro
               <Switch
                 checked={!!row.region_filter_enabled}
                 size="small"
-                disabled={!row.live}
                 onChange={(checked) => void handleFirewallToggle(row, checked)}
               />
             ),
@@ -415,11 +372,9 @@ export default function PortForwardPanel({ vmName, shared }: PortForwardPanelPro
       width: 130,
       render: (_text, row) => (
         <div className="qvm-snap-actions">
-          {row.live && (
-            <Button size="small" theme="borderless" type="primary" onClick={() => openEdit(row)}>
-              编辑
-            </Button>
-          )}
+          <Button size="small" theme="borderless" type="primary" onClick={() => openEdit(row)}>
+            编辑
+          </Button>
           <Button size="small" theme="borderless" type="danger" onClick={() => void handleDelete(row)}>
             删除
           </Button>
@@ -430,25 +385,11 @@ export default function PortForwardPanel({ vmName, shared }: PortForwardPanelPro
 
   return (
     <div className="qvm-forward-panel">
-      {showWhitelistBanner && (
-        <Banner
-          type="warning"
-          closeIcon={null}
-          className="qvm-forward-banner"
-          description="注意：您当前不在白名单中，不能建站以及网页类型。系统会自动探测每个端口若发现建站则自动封禁。如果需要申请网页访问权限请联系管理员。"
-        />
-      )}
-
       <div className="qvm-tab-toolbar">
         <div className="qvm-tab-toolbar-left">
           <Button type="primary" size="small" icon={<IconPlus />} onClick={openAdd} disabled={quotaReached}>
             添加转发
           </Button>
-          {isAdmin && (
-            <Button type="warning" theme="light" size="small" loading={probeSubmitting} onClick={() => void handleProbe()}>
-              探测当前 VM TCP 转发
-            </Button>
-          )}
           <Button
             type="danger"
             theme="light"
@@ -478,7 +419,6 @@ export default function PortForwardPanel({ vmName, shared }: PortForwardPanelPro
           rowSelection={{
             selectedRowKeys: selectedKeys,
             onChange: (keys) => setSelectedKeys((keys || []) as string[]),
-            getCheckboxProps: (row) => ({ disabled: !row?.live }),
           }}
         />
       </div>
@@ -489,7 +429,7 @@ export default function PortForwardPanel({ vmName, shared }: PortForwardPanelPro
           <Card className="qvm-intro-card" title="端口转发说明">
             <p>端口转发用于从外网的访问流量转发到虚拟机，实现公网访问目的。</p>
             <p>开通端口转发时，系统将自动把当前虚拟机 IP 绑定为静态地址，避免转发目标在 DHCP 变化后失效。</p>
-            <p>请确认您暴露到公网的服务已经完成必要的安全加固；若涉及网页访问，还会受到建站探测与白名单策略约束。</p>
+            <p>请确认您暴露到公网的服务已经完成必要的安全加固。</p>
             <div className="qvm-intro-actions">
               <Button type="primary" loading={opening} onClick={() => void handleOpenPanel()}>
                 立即开通

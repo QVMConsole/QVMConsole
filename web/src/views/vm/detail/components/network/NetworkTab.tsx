@@ -1,7 +1,7 @@
 /**
  * 网络管理 Tab 容器
  * - 子面板：端口转发 / 静态 IP / 运行状态（管理员）/ 网络诊断（管理员）
- * - 统一加载共享数据：VPC 绑定、配额、静态绑定与 DHCP 租约、运行状态、手动 IP、白名单摘要
+ * - 统一加载共享数据：VPC 绑定、配额、静态绑定与 DHCP 租约、运行状态、手动 IP
  * - 桥接直通交换机自动隐藏端口转发与静态 IP 面板
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -10,11 +10,9 @@ import type { VmDetailInfo, VmNetworkStatus, QuotaUsage } from '@/api/vm'
 import { getVMNetworkStatus, getSelfQuota } from '@/api/vm'
 import {
   getPortForwardIPs,
-  getPortForwardWhitelistSummary,
   getStaticIPList,
   type DhcpLease,
   type PortForwardIPMapping,
-  type PortForwardWhitelistSummary,
   type StaticIPBinding,
 } from '@/api/network'
 import { getVMVPCBinding, type VpcBindingInfo } from '@/api/vpc'
@@ -37,7 +35,6 @@ export interface NetworkSharedData {
   dhcpLeases: DhcpLease[]
   runtimeStatus: VmNetworkStatus | null
   manualIPs: PortForwardIPMapping[]
-  whitelistSummary: PortForwardWhitelistSummary | null
   isAdmin: boolean
   isLightweight: boolean
   /** 当前 VM 是否存在 NAT 交换机（桥接直通为 false） */
@@ -49,7 +46,6 @@ export interface NetworkSharedData {
   refreshVPCBinding: () => Promise<void>
   refreshSelfQuota: () => Promise<void>
   refreshManualIPs: () => Promise<void>
-  refreshWhitelistSummary: () => Promise<void>
 }
 
 export default function NetworkTab({ vm }: NetworkTabProps) {
@@ -65,7 +61,6 @@ export default function NetworkTab({ vm }: NetworkTabProps) {
   const [dhcpLeases, setDhcpLeases] = useState<DhcpLease[]>([])
   const [runtimeStatus, setRuntimeStatus] = useState<VmNetworkStatus | null>(null)
   const [manualIPs, setManualIPs] = useState<PortForwardIPMapping[]>([])
-  const [whitelistSummary, setWhitelistSummary] = useState<PortForwardWhitelistSummary | null>(null)
 
   // ============ 数据加载 ============
   const refreshVPCBinding = useCallback(async () => {
@@ -118,30 +113,18 @@ export default function NetworkTab({ vm }: NetworkTabProps) {
     }
   }, [vmName])
 
-  const refreshWhitelistSummary = useCallback(async () => {
-    if (!vmName) return
-    try {
-      const res = await getPortForwardWhitelistSummary(vmName)
-      setWhitelistSummary(res.data || null)
-    } catch {
-      setWhitelistSummary(null)
-    }
-  }, [vmName])
-
   useEffect(() => {
     void refreshVPCBinding()
     void refreshSelfQuota()
     void refreshStaticIPs()
     void refreshRuntimeStatus()
     void refreshManualIPs()
-    void refreshWhitelistSummary()
   }, [
     refreshVPCBinding,
     refreshSelfQuota,
     refreshStaticIPs,
     refreshRuntimeStatus,
     refreshManualIPs,
-    refreshWhitelistSummary,
   ])
 
   // ============ 可见性计算 ============
@@ -181,7 +164,6 @@ export default function NetworkTab({ vm }: NetworkTabProps) {
       dhcpLeases,
       runtimeStatus,
       manualIPs,
-      whitelistSummary,
       isAdmin,
       isLightweight,
       hasNatSwitch,
@@ -191,7 +173,6 @@ export default function NetworkTab({ vm }: NetworkTabProps) {
       refreshVPCBinding,
       refreshSelfQuota,
       refreshManualIPs,
-      refreshWhitelistSummary,
     }),
     [
       vpcInfo,
@@ -200,7 +181,6 @@ export default function NetworkTab({ vm }: NetworkTabProps) {
       dhcpLeases,
       runtimeStatus,
       manualIPs,
-      whitelistSummary,
       isAdmin,
       isLightweight,
       hasNatSwitch,
@@ -210,7 +190,6 @@ export default function NetworkTab({ vm }: NetworkTabProps) {
       refreshVPCBinding,
       refreshSelfQuota,
       refreshManualIPs,
-      refreshWhitelistSummary,
     ],
   )
 

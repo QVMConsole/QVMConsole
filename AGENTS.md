@@ -30,3 +30,10 @@
 24. 新增功能字段时，如果前端高级设置表单同时存在于编辑模式的选项卡和创建模式的步骤引导中，需要**两个位置都添加**（编辑模式在 VmForm.vue 的 `<el-tab-pane name="advanced">` 内，创建模式在 `createStep === 'advanced'` 的 step-pane 内）。后端同理：ISO 创建路径（CreateVmRequest → CreateVMParams → CreateVM）和模板克隆路径（CloneVmRequest/BatchCloneRequest → CloneParams/BatchCloneParams → CloneVM/defineAndStartNonWindowsClone/cloneWindows）是独立链路，需要**同步补齐字段**和 XML 注入。
 25. 本项目没有测试代码。不需要写测试代码 代码写完之后直接告诉我即可，我自己去测试。
 26. 编写前端的时候必须要读semi-ui-skills技能
+27. 深色模式下卡片/列表内的大面积标题与正文文字不要直接使用近白色 --qvm-text-0（#e7ebf3），高对比白字在暗背景上刺眼伤眼。应通过 body[theme-mode='dark'] 覆盖为柔和灰（模板页用 #b8c1cf）。仅极少量关键强调文字可保留高亮。新增页面的深色适配必须检查文字对比度，浅色仍以设计令牌为准不受影响。
+28. 本项目列表/行内操作按钮统一采用「纯图标 + Tooltip」模式：图标放按钮内，操作文字写到按钮外的 Tooltip 中（参考 VmActionsCell 的 qvm-act-ic 模式：span.tpl-act-ic/qvm-act-ic + Tooltip position="top"）。禁止把中文长文本直接写进小尺寸或 borderless 按钮内，行内空间不足时会逐字换行导致文字竖排。加载中状态用 IconRefresh spin 替换原图标。弹窗底部主操作按钮（取消/确定等）不受此限，可正常带文字。
+
+行内操作超过 2~3 个时容易误触，只保留 1 个高频操作图标在外，其余收进 ⋯ 下拉菜单（Dropdown trigger="click" position="bottomRight" clickToHide，危险项 type="danger"，与 VmActionsCell 一致），行级任务进行中时 ⋯ 图标显示 IconRefresh spin。
+
+同理，Semi Switch 也不要用 checkedText/uncheckedText 内嵌中文（过窄会竖排），统一使用共享组件 features/vm-form/sections/TextSwitch.tsx（Switch + 右侧外部状态文字）。
+29.项目中所有Switch组件禁止使用checkedText/uncheckedText内嵌中文文字（因宽度不足会导致文字竖排），必须统一使用共享组件features/vm-form/sections/TextSwitch.tsx（Switch + 右侧外部状态文字）。

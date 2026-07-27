@@ -46,3 +46,17 @@ export function confirmSelfLightweightVmRegistration(
 export function selfCloneVm(data: import('./vm').CloneVmPayload) {
   return service.post<unknown, ApiResponse<{ task_id?: string }>>('/self/vm/clone', data)
 }
+
+// ==================== 用户管理（仅管理员） ====================
+
+/** 用户列表项 */
+export interface UserListItem {
+  username: string
+  email?: string
+  role?: string
+}
+
+/** 获取用户列表（管理员，用于「所属用户」下拉选项） */
+export function getUserList() {
+  return service.get<unknown, ApiResponse<UserListItem[]>>('/user/list', { silent: true })
+}

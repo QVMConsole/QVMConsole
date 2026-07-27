@@ -1,0 +1,422 @@
+/**
+ * 网络中心页样式（深空极光，浅色优先 + 深色适配）
+ * 迁移自旧前端 views/network/index.vue，改用 --qvm- 设计令牌
+ */
+
+.net-page {
+  padding: 4px 2px 24px;
+  width: 100%;
+}
+
+/* ==================== 页头 ==================== */
+.net-page-header {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.net-page-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+}
+.net-page-sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--qvm-text-2);
+}
+.net-header-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* ==================== 统计卡片 ==================== */
+.net-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+.net-stat-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--qvm-card-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--qvm-card-shadow);
+  border: 1px solid var(--qvm-stroke);
+}
+.net-stat-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex: none;
+  background: var(--qvm-acc-bg);
+  color: var(--qvm-acc-ink);
+}
+.net-stat-card.healthy .net-stat-icon {
+  background: rgba(52, 211, 153, 0.14);
+  color: #10b981;
+}
+.net-stat-card.warning .net-stat-icon {
+  background: rgba(251, 191, 36, 0.16);
+  color: #d97706;
+}
+.net-stat-icon.down {
+  background: rgba(56, 189, 248, 0.14);
+  color: #0284c7;
+}
+.net-stat-icon.up {
+  background: rgba(167, 139, 250, 0.16);
+  color: #7c3aed;
+}
+.net-stat-icon.down-bandwidth {
+  background: rgba(45, 212, 191, 0.14);
+  color: #0d9488;
+}
+.net-stat-icon.up-bandwidth {
+  background: rgba(244, 114, 182, 0.14);
+  color: #db2777;
+}
+.net-stat-label {
+  font-size: 12px;
+  color: var(--qvm-text-2);
+}
+.net-stat-value {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--qvm-text-0);
+  margin-top: 2px;
+  word-break: break-all;
+}
+.net-stat-sub {
+  font-size: 11px;
+  color: var(--qvm-text-2);
+  margin-top: 2px;
+}
+
+/* ==================== 信息卡片 ==================== */
+.net-card {
+  border-radius: 14px;
+  background: var(--qvm-card-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--qvm-card-shadow);
+  border: 1px solid var(--qvm-stroke);
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+.net-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--qvm-stroke);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+}
+.net-card-header .semi-icon {
+  color: var(--qvm-acc-ink);
+  font-size: 16px;
+}
+.net-card-header .net-card-extra {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.net-card-body {
+  padding: 14px 18px;
+}
+.net-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.net-info-grid .net-card {
+  margin-bottom: 0;
+}
+.net-info-list {
+  display: flex;
+  flex-direction: column;
+}
+.net-info-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--qvm-stroke);
+  font-size: 13px;
+}
+.net-info-item:last-child {
+  border-bottom: none;
+}
+.net-info-label {
+  color: var(--qvm-text-2);
+  flex: none;
+}
+.net-info-value {
+  color: var(--qvm-text-0);
+  text-align: right;
+  word-break: break-all;
+}
+
+/* ==================== 工具栏 / 筛选栏 ==================== */
+.net-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.net-toolbar-left,
+.net-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.net-table-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+}
+.net-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+/* ==================== 表格 ==================== */
+.net-table-card {
+  border-radius: 14px;
+  background: var(--qvm-card-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--qvm-card-shadow);
+  border: 1px solid var(--qvm-stroke);
+  padding: 12px;
+  overflow-x: auto;
+}
+.net-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+}
+.net-name-cell .semi-icon {
+  color: var(--qvm-acc-ink);
+  flex: none;
+}
+.net-security-tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.net-traffic-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 130px;
+}
+.net-traffic-cell .net-traffic-text {
+  font-size: 12px;
+  color: var(--qvm-text-1);
+  font-family: var(--qvm-num-font);
+}
+.net-text-danger {
+  color: var(--qvm-danger);
+}
+.net-text-muted {
+  color: var(--qvm-text-2);
+}
+.net-pagination {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+/* 操作列（文字小按钮） */
+.net-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: wrap;
+}
+
+/* ==================== 展开规则面板 ==================== */
+.net-rule-panel {
+  padding: 8px 4px;
+}
+.net-rule-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.net-rule-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+}
+
+/* ==================== ACL 代码块 ==================== */
+.net-code-block {
+  border: 1px solid var(--qvm-stroke);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.net-code-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--qvm-hover-bg);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--qvm-text-1);
+}
+.net-code-header .semi-button {
+  margin-left: auto;
+}
+.net-code-body {
+  margin: 0;
+  padding: 14px;
+  max-height: 520px;
+  overflow: auto;
+  font-family: var(--qvm-num-font);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--qvm-text-1);
+  background: var(--qvm-card-bg);
+  white-space: pre;
+}
+
+/* ==================== 弹窗表单（与 vm 页保持一致） ==================== */
+.qvm-form-item {
+  margin-bottom: 14px;
+}
+.qvm-form-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--qvm-text-1);
+  margin-bottom: 6px;
+}
+.qvm-form-label.required::before {
+  content: '*';
+  color: var(--qvm-danger);
+  margin-right: 4px;
+}
+.qvm-form-tip {
+  font-size: 12px;
+  color: var(--qvm-text-2);
+  line-height: 1.5;
+  margin-top: 5px;
+}
+.qvm-form-tip.warn {
+  color: var(--qvm-warn);
+}
+.qvm-form-divider {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--qvm-text-2);
+  letter-spacing: 1px;
+  margin: 16px 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.qvm-form-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--qvm-stroke);
+}
+
+/* 开关行（状态文字外置） */
+.net-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.net-switch-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.net-switch-state {
+  font-size: 12px;
+  color: var(--qvm-text-1);
+  white-space: nowrap;
+}
+
+/* 接口配置：当前信息展示 */
+.net-iface-current {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--qvm-hover-bg);
+  margin-bottom: 14px;
+}
+.net-iface-line {
+  display: flex;
+  gap: 8px;
+  font-size: 12.5px;
+}
+.net-iface-line .k {
+  color: var(--qvm-text-2);
+  flex: none;
+  min-width: 64px;
+}
+.net-iface-line .v {
+  color: var(--qvm-text-0);
+  word-break: break-all;
+}
+
+/* ==================== 深色模式：大面积文字降对比 ==================== */
+body[theme-mode='dark'] .net-page-header h2,
+body[theme-mode='dark'] .net-stat-value,
+body[theme-mode='dark'] .net-card-header,
+body[theme-mode='dark'] .net-table-title,
+body[theme-mode='dark'] .net-name-cell,
+body[theme-mode='dark'] .net-info-value,
+body[theme-mode='dark'] .net-rule-title {
+  color: #b8c1cf;
+}
+
+/* ==================== 响应式 ==================== */
+@media (max-width: 720px) {
+  .net-stat-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .net-info-grid {
+    grid-template-columns: 1fr;
+  }
+  .net-stat-value {
+    font-size: 15px;
+  }
+}

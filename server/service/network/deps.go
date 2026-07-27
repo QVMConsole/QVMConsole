@@ -99,15 +99,6 @@ var (
 	HookFindVMOwner   func(vmName string) string
 )
 
-// ── Port forward probe hooks ──
-
-var (
-	HookSyncPortForwardProbeStateOnAdd    func(params *PortForwardAddParams, protocol string, ownerUsername string)
-	HookSyncPortForwardProbeStateOnDelete func(ruleKey string, deletedByBan bool)
-	HookMergePortForwardProbeState        func(rules []PortForwardRule) []PortForwardRule
-	HookGetPortForwardProbeStateByRuleKey func(ruleKey string) (*model.PortForwardProbeState, error)
-)
-
 // ── Utility hooks ──
 
 var (

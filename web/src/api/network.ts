@@ -62,10 +62,6 @@ export interface PortForwardRule {
   access_address?: string
   firewall_key?: string
   region_filter_enabled?: boolean
-  live: boolean
-  banned?: boolean
-  probe_status?: string
-  probe_reason?: string
 }
 
 /** 获取端口转发列表 */
@@ -97,15 +93,8 @@ export function deletePortForward(id: number) {
   return service.delete<unknown, ApiResponse<unknown>>(`/network/port-forward/${id}`)
 }
 
-/** 删除端口转发（按 rule_key，用于非持久化规则） */
-export function deletePortForwardByRuleKey(ruleKey: string) {
-  return service.delete<unknown, ApiResponse<unknown>>(
-    `/network/port-forward/by-key/${encodeURIComponent(ruleKey)}`,
-  )
-}
-
 /** 批量删除端口转发 */
-export function batchDeletePortForward(data: { ids: number[]; rule_keys?: string[] }) {
+export function batchDeletePortForward(data: { ids: number[] }) {
   return service.post<unknown, ApiResponse<unknown>>('/network/port-forward/batch-delete', data)
 }
 
@@ -137,26 +126,6 @@ export function deletePortForwardIP(id: number) {
 /** 设置端口转发是否豁免入站区域限制（key 为规则 firewall_key） */
 export function setPortForwardFirewall(data: { key: string; exempt: boolean }) {
   return service.put<unknown, ApiResponse<unknown>>('/firewall/port-forward', data)
-}
-
-/** 手动触发端口转发 HTTP 探测（仅管理员） */
-export function runPortForwardHTTPProbe(data: { vm_name?: string } = {}) {
-  return service.post<unknown, ApiResponse<unknown>>('/network/port-forward/probe/run', data)
-}
-
-/** 端口转发白名单摘要 */
-export interface PortForwardWhitelistSummary {
-  user_whitelisted?: boolean
-  vm_whitelisted?: boolean
-  effective_whitelisted?: boolean
-}
-
-/** 获取端口转发白名单摘要（当前用户 + 指定 VM） */
-export function getPortForwardWhitelistSummary(vmName: string) {
-  return service.get<unknown, ApiResponse<PortForwardWhitelistSummary>>(
-    '/network/port-forward/whitelist/summary',
-    { params: { vm_name: vmName }, silent: true },
-  )
 }
 
 // ==================== 抓包会话 ====================
@@ -197,4 +166,102 @@ export function getNetworkCaptureDownloadUrl(taskId: number): string {
 /** 删除抓包文件 */
 export function deleteNetworkCapture(taskId: number) {
   return service.delete<unknown, ApiResponse<unknown>>(`/network/captures/${taskId}`)
+}
+
+// ==================== 宿主机网桥管理（仅管理员） ====================
+
+/** 宿主机网桥信息 */
+export interface NetworkBridge {
+  id: number
+  name: string
+  mode: string // nat / bridge
+  uplink_if: string
+  migrate_host_ip: boolean
+  is_default: boolean
+  exists: boolean
+  active: boolean
+  switch_count: number
+  host_addrs?: string
+  host_gateway?: string
+  host_dns?: string
+}
+
+/** 获取宿主机网桥列表 */
+export function getNetworkBridges() {
+  return service.get<unknown, ApiResponse<NetworkBridge[]>>('/network/bridges', { silent: true })
+}
+
+/** 创建桥接网桥 */
+export function createNetworkBridge(data: {
+  name: string
+  mode: string
+  uplink_if: string
+  migrate_host_ip: boolean
+}) {
+  return service.post<unknown, ApiResponse<unknown>>('/network/bridges', data)
+}
+
+/** 删除网桥（id 为数据库主键，name 用于辅助确认） */
+export function deleteNetworkBridge(id: number, name = '') {
+  const params = name ? { name } : undefined
+  return service.delete<unknown, ApiResponse<unknown>>(`/network/bridges/${id}`, { params })
+}
+
+// ==================== 宿主机物理网卡（仅管理员） ====================
+
+/** 宿主机网卡信息 */
+export interface HostInterface {
+  name: string
+  mac: string
+  state: string
+  mtu: number
+  addresses?: string[]
+  default_route?: boolean
+  ovs_bridge?: string
+  ovs_port?: boolean
+  physical?: boolean
+  managed_bridge?: string
+  risk?: string
+}
+
+/** 获取宿主机网卡列表 */
+export function getHostInterfaces() {
+  return service.get<unknown, ApiResponse<HostInterface[]>>('/network/host/interfaces', {
+    silent: true,
+  })
+}
+
+// ==================== 接口 IP/DNS 配置（仅管理员） ====================
+
+/** 接口当前 IP/DNS 配置 */
+export interface InterfaceConfig {
+  name: string
+  type: string // bridge / nic
+  bridge_name?: string
+  addrs?: string[]
+  gateway?: string
+  metric?: string
+  dns?: string[]
+  configurable: boolean
+  reason?: string
+  managed_bridge?: boolean
+  migrate_host_ip?: boolean
+}
+
+/** 获取接口 IP/DNS 配置 */
+export function getInterfaceConfig(name: string) {
+  return service.get<unknown, ApiResponse<InterfaceConfig>>(
+    `/network/interfaces/${encodeURIComponent(name)}/config`,
+  )
+}
+
+/** 设置接口 IP/DNS 配置（clear=true 时清除全部静态配置） */
+export function setInterfaceConfig(
+  name: string,
+  data: { addrs?: string; gateway?: string; dns?: string; clear?: boolean },
+) {
+  return service.put<unknown, ApiResponse<unknown>>(
+    `/network/interfaces/${encodeURIComponent(name)}/config`,
+    data,
+  )
 }
