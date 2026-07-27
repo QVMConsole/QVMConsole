@@ -1,0 +1,768 @@
+/**
+ * 仪表盘样式（深空极光 · 浅色优先）
+ * 管理员视图 + 普通用户视图共用
+ */
+
+/* ============ 通用面板 ============ */
+.qvm-panel-card {
+  border-radius: 16px;
+  background: var(--qvm-card-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--qvm-card-shadow);
+  padding: 18px;
+  position: relative;
+}
+.qvm-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.qvm-panel-title {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--qvm-text-0);
+}
+.qvm-panel-sub {
+  font-size: 11px;
+  color: var(--qvm-text-2);
+}
+.qvm-panel-link {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--qvm-acc3-ink);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.qvm-panel-link:hover {
+  text-decoration: underline;
+}
+
+/* ============ 管理员：统计卡片 ============ */
+.qvm-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.qvm-stat-card {
+  border-radius: 16px;
+  padding: 18px;
+  background: var(--qvm-card-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--qvm-card-shadow);
+  position: relative;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.qvm-stat-card:hover {
+  transform: translateY(-2px);
+}
+.qvm-stat-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.qvm-stat-label {
+  font-size: 12px;
+  color: var(--qvm-text-1);
+}
+.qvm-stat-ic {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.qvm-stat-val {
+  font-family: var(--qvm-num-font);
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--qvm-text-0);
+}
+.qvm-stat-val small {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--qvm-text-2);
+  margin-left: 3px;
+}
+.qvm-stat-foot {
+  font-size: 11px;
+  color: var(--qvm-text-2);
+  margin-top: 9px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.qvm-trend-up {
+  color: var(--qvm-acc-ink);
+  font-family: var(--qvm-num-font);
+}
+
+/* ============ 理论最大量双进度条 ============ */
+.qvm-dual {
+  margin-top: 10px;
+  cursor: default;
+}
+.qvm-dual-track {
+  position: relative;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--qvm-track-bg);
+  overflow: hidden;
+}
+/* 下层：理论最大量 */
+.qvm-dual-theory {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 4px;
+  opacity: 0.5;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(255, 255, 255, 0.35) 0,
+    rgba(255, 255, 255, 0.35) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+  transition: width 0.6s cubic-bezier(0.22, 0.8, 0.36, 1);
+}
+/* 上层：当前使用（遮罩在理论层之上） */
+.qvm-dual-current {
+  position: absolute;
+  left: 0;
+  top: 1.5px;
+  bottom: 1.5px;
+  border-radius: 3px;
+  transition: width 0.6s cubic-bezier(0.22, 0.8, 0.36, 1);
+  z-index: 1;
+}
+/* 100% 刻度线（理论量超过 100% 时展示） */
+.qvm-dual-mark {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 1.5px;
+  background: var(--qvm-text-2);
+  opacity: 0.65;
+  z-index: 2;
+}
+.qvm-dual-legend {
+  display: flex;
+  gap: 14px;
+  font-size: 10.5px;
+  color: var(--qvm-text-2);
+  margin-top: 7px;
+}
+.qvm-dual-legend span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.qvm-dual-legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+/* ============ 管理员：图表区 ============ */
+.qvm-chart-row {
+  display: grid;
+  grid-template-columns: 1fr 330px;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.qvm-legend {
+  display: flex;
+  gap: 14px;
+  font-size: 11px;
+  color: var(--qvm-text-1);
+}
+.qvm-legend span {
+  display: flex;
+  align-items: center;
+}
+.qvm-legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+  display: inline-block;
+  margin-right: 5px;
+}
+.qvm-chart-box {
+  height: 220px;
+  width: 100%;
+}
+.qvm-chart-empty {
+  height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--qvm-text-2);
+  font-size: 12.5px;
+}
+
+/* 实时资源环 */
+.qvm-rings {
+  display: flex;
+  justify-content: space-around;
+  padding: 10px 0 6px;
+}
+.qvm-ring {
+  text-align: center;
+}
+.qvm-ring-val {
+  font-family: var(--qvm-num-font);
+  font-size: 16px;
+  font-weight: 700;
+  margin-top: 2px;
+}
+.qvm-ring-label {
+  font-size: 11px;
+  color: var(--qvm-text-2);
+  margin-top: 2px;
+}
+.qvm-health {
+  margin-top: 10px;
+  padding: 11px 13px;
+  border-radius: 12px;
+  background: var(--qvm-acc-bg);
+  border: 1px solid var(--qvm-acc-stroke);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12px;
+  color: var(--qvm-acc-ink);
+}
+.qvm-health.warn {
+  background: rgba(251, 191, 36, 0.08);
+  border-color: rgba(251, 191, 36, 0.25);
+  color: var(--qvm-warn);
+}
+
+/* ============ 管理员：底部行（虚拟机列表 + 存储池） ============ */
+.qvm-bottom-row {
+  display: grid;
+  grid-template-columns: 1fr 330px;
+  gap: 16px;
+}
+.qvm-vm-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+  white-space: nowrap;
+}
+.qvm-vm-ic {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--qvm-acc-bg);
+  border: 1px solid var(--qvm-acc-stroke);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--qvm-acc-ink);
+  flex: none;
+}
+.qvm-vm-ic.off {
+  background: var(--qvm-hover-bg);
+  border-color: var(--qvm-stroke);
+  color: var(--qvm-text-2);
+}
+
+/* 状态 pill */
+.qvm-st-pill {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.qvm-st-pill i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+.qvm-st-pill.run {
+  background: var(--qvm-acc-bg);
+  color: var(--qvm-acc-ink);
+}
+.qvm-st-pill.run i {
+  background: #2dd4bf;
+  box-shadow: 0 0 6px rgba(45, 212, 191, 0.9);
+}
+.qvm-st-pill.stop {
+  background: var(--qvm-hover-bg);
+  color: var(--qvm-text-1);
+}
+.qvm-st-pill.stop i {
+  background: #8b97ad;
+}
+.qvm-st-pill.warn {
+  background: rgba(251, 191, 36, 0.1);
+  color: var(--qvm-warn);
+}
+.qvm-st-pill.warn i {
+  background: #fbbf24;
+  box-shadow: 0 0 6px rgba(251, 191, 36, 0.8);
+}
+
+/* 存储池用量行 */
+.qvm-pool-row {
+  padding: 12px 2px;
+  border-bottom: 1px solid var(--qvm-stroke);
+}
+.qvm-pool-row:last-child {
+  border-bottom: none;
+}
+.qvm-pool-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.qvm-pool-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.qvm-pool-tag {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(139, 92, 246, 0.12);
+  color: var(--qvm-acc2-ink);
+  border: 1px solid rgba(139, 92, 246, 0.22);
+  flex: none;
+}
+.qvm-pool-val {
+  margin-left: auto;
+  font-family: var(--qvm-num-font);
+  font-size: 11px;
+  color: var(--qvm-text-2);
+  flex: none;
+}
+.qvm-pool-track {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--qvm-track-bg);
+  overflow: hidden;
+}
+.qvm-pool-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.6s cubic-bezier(0.22, 0.8, 0.36, 1);
+}
+.qvm-pool-empty,
+.qvm-empty-text {
+  padding: 24px 0;
+  text-align: center;
+  color: var(--qvm-text-2);
+  font-size: 12px;
+}
+
+/* ============ 用户：配额总览卡 ============ */
+.qvm-quota-cards {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.qvm-q-card {
+  border-radius: 16px;
+  padding: 16px;
+  background: var(--qvm-card-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--qvm-card-shadow);
+  position: relative;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.qvm-q-card:hover {
+  transform: translateY(-2px);
+}
+.qvm-q-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.qvm-q-ic {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.qvm-q-label {
+  font-size: 12px;
+  color: var(--qvm-text-1);
+}
+.qvm-q-val {
+  font-family: var(--qvm-num-font);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--qvm-text-0);
+}
+.qvm-q-val small {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--qvm-text-2);
+  margin-left: 3px;
+}
+.qvm-q-track {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--qvm-track-bg);
+  margin-top: 11px;
+  overflow: hidden;
+}
+.qvm-q-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.6s cubic-bezier(0.22, 0.8, 0.36, 1);
+}
+.qvm-q-foot {
+  font-size: 10.5px;
+  margin-top: 8px;
+  color: var(--qvm-text-2);
+}
+.qvm-q-foot.danger {
+  color: var(--qvm-danger);
+  font-weight: 600;
+}
+
+/* ============ 用户：配额详情折叠分类 ============ */
+.qvm-section-title {
+  font-size: 15px;
+  font-weight: 800;
+  margin: 20px 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--qvm-text-0);
+}
+.qvm-section-title::before {
+  content: '';
+  width: 3px;
+  height: 15px;
+  border-radius: 2px;
+  background: var(--qvm-grad);
+  box-shadow: 0 0 8px rgba(45, 212, 191, 0.6);
+}
+.qvm-section-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+.qvm-btn-sm.semi-button {
+  height: 30px;
+  padding: 0 13px;
+  border-radius: 9px;
+  font-size: 12px;
+}
+
+.qvm-qcat {
+  padding: 0;
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+.qvm-qcat-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 15px 18px;
+  cursor: pointer;
+  user-select: none;
+}
+.qvm-qcat-ic {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.qvm-qcat-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--qvm-text-0);
+  white-space: nowrap;
+}
+.qvm-qcat-summary {
+  font-size: 11.5px;
+  color: var(--qvm-text-2);
+  margin-left: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.qvm-qcat-chevron {
+  margin-left: auto;
+  color: var(--qvm-text-2);
+  transition: transform 0.2s;
+  flex: none;
+  display: flex;
+}
+.qvm-qcat-chevron.open {
+  transform: rotate(180deg);
+}
+.qvm-qcat-body {
+  padding: 2px 18px 14px;
+  display: none;
+}
+.qvm-qcat-body.open {
+  display: block;
+  animation: qvm-fade-up 0.3s ease both;
+}
+.qvm-qrow {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--qvm-stroke);
+}
+.qvm-qrow:last-child {
+  border-bottom: none;
+}
+.qvm-qrow-ic {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.qvm-qrow-info {
+  width: 150px;
+  flex: none;
+}
+.qvm-qrow-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+}
+.qvm-qrow-desc {
+  font-size: 10.5px;
+  color: var(--qvm-text-2);
+  margin-top: 2px;
+}
+.qvm-qrow-track {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--qvm-track-bg);
+  overflow: hidden;
+}
+.qvm-qrow-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.6s cubic-bezier(0.22, 0.8, 0.36, 1);
+}
+.qvm-qrow-nobar {
+  flex: 1;
+  font-size: 11px;
+  color: var(--qvm-text-2);
+}
+.qvm-qrow-val {
+  width: 130px;
+  flex: none;
+  text-align: right;
+  font-family: var(--qvm-num-font);
+  font-size: 12px;
+  color: var(--qvm-text-1);
+}
+
+/* ============ 用户：VM 资源追踪 ============ */
+.qvm-vm-panel {
+  padding: 0;
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+.qvm-vm-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 15px 18px;
+  cursor: pointer;
+  user-select: none;
+}
+.qvm-vm-meta {
+  margin-left: auto;
+  display: flex;
+  gap: 16px;
+  font-family: var(--qvm-num-font);
+  font-size: 11.5px;
+  color: var(--qvm-text-2);
+  flex: none;
+}
+.qvm-vm-meta span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.qvm-vm-chevron {
+  color: var(--qvm-text-2);
+  transition: transform 0.2s;
+  flex: none;
+  display: flex;
+}
+.qvm-vm-chevron.open {
+  transform: rotate(180deg);
+}
+.qvm-vm-body {
+  display: none;
+  padding: 4px 18px 16px;
+  border-top: 1px solid var(--qvm-stroke);
+}
+.qvm-vm-body.open {
+  display: block;
+  animation: qvm-fade-up 0.3s ease both;
+}
+.qvm-vm-chart-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 14px;
+}
+.qvm-mini-chart {
+  border-radius: 12px;
+  background: var(--qvm-hover-bg);
+  border: 1px solid var(--qvm-stroke);
+  padding: 12px 14px;
+}
+.qvm-mc-title {
+  font-size: 11px;
+  color: var(--qvm-text-1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.qvm-mc-title b {
+  font-family: var(--qvm-num-font);
+  font-size: 12px;
+}
+.qvm-vm-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+.qvm-lnk-btn {
+  font-size: 12px;
+  color: var(--qvm-acc3-ink);
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.qvm-lnk-btn:hover {
+  text-decoration: underline;
+}
+
+/* 面板内表格：不需要 sticky 表头与任务栏底色 */
+.qvm-panel-card .qvm-table th {
+  position: static;
+  background: transparent;
+}
+
+/* ============ 骨架加载 ============ */
+.qvm-skel {
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--qvm-track-bg) 25%, var(--qvm-hover-bg) 50%, var(--qvm-track-bg) 75%);
+  background-size: 200% 100%;
+  animation: qvm-skel-move 1.4s ease infinite;
+}
+@keyframes qvm-skel-move {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* ============ 响应式 ============ */
+@media (max-width: 1180px) {
+  .qvm-quota-cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .qvm-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 960px) {
+  .qvm-chart-row,
+  .qvm-bottom-row {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 820px) {
+  .qvm-stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .qvm-stat-card {
+    padding: 14px;
+  }
+  .qvm-stat-val {
+    font-size: 24px;
+  }
+  .qvm-quota-cards {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .qvm-vm-chart-grid {
+    grid-template-columns: 1fr;
+  }
+  .qvm-qrow-info {
+    width: 110px;
+  }
+  .qvm-qrow-val {
+    width: 100px;
+  }
+  .qvm-vm-meta {
+    display: none;
+  }
+  .qvm-qcat-summary {
+    display: none;
+  }
+  .qvm-topline .qvm-btn-new span {
+    display: none;
+  }
+  .qvm-topline .qvm-btn-new.semi-button {
+    padding: 0 12px;
+  }
+}
+@media (max-width: 520px) {
+  .qvm-stats {
+    grid-template-columns: 1fr;
+  }
+}

@@ -9,10 +9,10 @@ import { useUserStore } from '@/stores/user'
 import { CLOUD_TYPES, ROLES } from '@/config/constants'
 
 /** 轻量云普通用户可访问的路径前缀白名单 */
-const LIGHTWEIGHT_ALLOWED_PATHS = ['/vm/list', '/vm/detail/', '/api-docs', '/about']
+const LIGHTWEIGHT_ALLOWED_PATHS = ['/dashboard', '/vm/list', '/vm/detail/', '/api-docs', '/about']
 
-/** 轻量云用户默认首页 */
-const LIGHTWEIGHT_HOME = '/vm/list'
+/** 轻量云用户默认首页（虚拟机列表迁移完成后恢复为 /vm/list） */
+const LIGHTWEIGHT_HOME = '/dashboard'
 
 export function RequireAuth({ children }: { children: ReactNode }) {
   const location = useLocation()
@@ -31,7 +31,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
     const allowed =
       LIGHTWEIGHT_ALLOWED_PATHS.some((p) => path === p || path.startsWith(p)) ||
       path.endsWith('/vnc-window')
-    if (path === '/' || path === '/dashboard') {
+    if (path === '/') {
       return <Navigate to={LIGHTWEIGHT_HOME} replace />
     }
     if (!allowed) {

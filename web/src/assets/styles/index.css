@@ -25,8 +25,8 @@ body {
     'Hiragino Sans GB',
     'Microsoft YaHei',
     sans-serif;
-  background-color: var(--semi-color-bg-0);
-  color: var(--semi-color-text-0);
+  background-color: var(--qvm-bg, var(--semi-color-bg-0));
+  color: var(--qvm-text-0, var(--semi-color-text-0));
   transition: background-color 0.2s ease;
 }
 

@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QVMConsole · 普通用户工作台概念稿</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#070B14;
+  --panel:#0C1322;
+  --card:rgba(255,255,255,.028);
+  --stroke:rgba(148,163,184,.09);
+  --txt:#E7EBF3;
+  --txt2:#8B95AB;
+  --txt3:#59627A;
+  --acc:#2DD4BF;
+  --acc2:#8B5CF6;
+  --acc3:#38BDF8;
+  --warn:#FBBF24;
+  --danger:#FB7185;
+  --grad:linear-gradient(120deg,#2DD4BF,#38BDF8);
+  --grad2:linear-gradient(120deg,#8B5CF6,#38BDF8);
+  --num-font:"Space Grotesk",-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  --sidebar-w:248px;
+}
+*{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+body{min-height:100vh;background:var(--bg);color:var(--txt);display:flex;position:relative;overflow-x:hidden}
+
+/* ============ 极光背景 ============ */
+.aurora{position:fixed;inset:0;pointer-events:none;z-index:0}
+.aurora::before{content:"";position:absolute;width:640px;height:640px;top:-220px;right:-120px;border-radius:50%;
+  background:radial-gradient(circle,rgba(45,212,191,.10),transparent 65%)}
+.aurora::after{content:"";position:absolute;width:720px;height:720px;bottom:-300px;left:180px;border-radius:50%;
+  background:radial-gradient(circle,rgba(139,92,246,.10),transparent 65%)}
+.grid-tex{position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.5;
+  background-image:linear-gradient(rgba(148,163,184,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(148,163,184,.04) 1px,transparent 1px);
+  background-size:44px 44px;
+  mask-image:radial-gradient(ellipse 90% 70% at 60% 0%,#000 30%,transparent 75%);
+  -webkit-mask-image:radial-gradient(ellipse 90% 70% at 60% 0%,#000 30%,transparent 75%)}
+
+/* ============ 渐变描边 ============ */
+.g-border{position:relative}
+.g-border::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;pointer-events:none;
+  background:linear-gradient(160deg,rgba(45,212,191,.30),rgba(139,92,246,.12) 42%,rgba(148,163,184,.05) 72%);
+  -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude}
+
+/* ============ 悬浮式侧边栏（用户视角精简菜单） ============ */
+.sidebar{width:var(--sidebar-w);height:calc(100vh - 32px);margin:16px 0 16px 16px;border-radius:20px;flex:none;z-index:2;
+  background:linear-gradient(175deg,rgba(19,28,50,.92),rgba(9,14,26,.94));
+  display:flex;flex-direction:column;position:sticky;top:16px;
+  box-shadow:0 20px 50px rgba(0,0,0,.45)}
+.logo-zone{display:flex;align-items:center;gap:11px;padding:20px 18px 16px;position:relative}
+.logo-zone::after{content:"";position:absolute;left:18px;right:18px;bottom:0;height:1px;
+  background:linear-gradient(90deg,rgba(45,212,191,.5),rgba(139,92,246,.25),transparent)}
+.logo-mark{width:38px;height:38px;border-radius:11px;background:var(--grad);display:flex;align-items:center;justify-content:center;
+  font-family:var(--num-font);font-weight:700;font-size:19px;color:#06281F;box-shadow:0 0 24px rgba(45,212,191,.22)}
+.logo-name{font-family:var(--num-font);font-size:16px;font-weight:700;letter-spacing:.3px}
+.logo-sub{font-size:10px;color:var(--txt3);margin-top:1px;letter-spacing:.5px}
+.nav{flex:1;overflow-y:auto;padding:12px 12px 8px;scrollbar-width:none}
+.nav::-webkit-scrollbar{display:none}
+.nav-group{font-size:10.5px;color:var(--txt3);letter-spacing:2px;padding:14px 10px 7px;font-weight:600}
+.nav-item{display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:11px;font-size:13px;color:var(--txt2);
+  margin-bottom:2px;position:relative;transition:all .18s;cursor:pointer}
+.nav-item svg{flex:none;opacity:.85}
+.nav-item:hover{color:var(--txt);background:rgba(255,255,255,.04)}
+.nav-item.on{color:#fff;background:linear-gradient(100deg,rgba(45,212,191,.16),rgba(56,189,248,.07))}
+.nav-item.on::before{content:"";position:absolute;left:-12px;top:20%;bottom:20%;width:3px;border-radius:0 3px 3px 0;
+  background:var(--grad);box-shadow:0 0 12px rgba(45,212,191,.8)}
+.nav-item.on svg{color:var(--acc);opacity:1;filter:drop-shadow(0 0 6px rgba(45,212,191,.6))}
+.nav-bdg{margin-left:auto;font-family:var(--num-font);font-size:10px;padding:2px 7px;border-radius:8px;
+  background:rgba(45,212,191,.12);color:var(--acc);border:1px solid rgba(45,212,191,.25)}
+.nav-sub{margin:2px 0 6px 17px;padding-left:14px;border-left:1px solid rgba(148,163,184,.12)}
+.nav-sub-item{display:flex;align-items:center;gap:8px;padding:6px 9px;border-radius:8px;font-size:12px;color:var(--txt3);
+  cursor:pointer;transition:all .15s}
+.nav-sub-item:hover{color:var(--acc);background:rgba(45,212,191,.06)}
+.vdot{width:6px;height:6px;border-radius:50%;flex:none}
+.vdot.run{background:#2DD4BF;box-shadow:0 0 6px rgba(45,212,191,.8)}
+.vdot.off{background:#5B6478}
+.side-user{margin:10px 12px 14px;padding:12px;border-radius:14px;background:rgba(255,255,255,.03);
+  border:1px solid var(--stroke);display:flex;align-items:center;gap:10px}
+.su-avatar{width:34px;height:34px;border-radius:10px;background:var(--grad2);display:flex;align-items:center;justify-content:center;
+  font-weight:700;font-size:13px;color:#fff;flex:none}
+.su-name{font-size:13px;font-weight:600}
+.su-role{font-size:10.5px;margin-top:1px;color:var(--acc3)}
+.su-out{margin-left:auto;color:var(--txt3)}
+
+/* ============ 主区域 ============ */
+.main{flex:1;min-width:0;padding:22px 26px 90px;position:relative;z-index:1}
+.topline{display:flex;align-items:center;gap:14px;margin-bottom:16px}
+.hello{font-size:22px;font-weight:700;letter-spacing:.2px}
+.hello em{font-style:normal;background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.cloud-tag{font-size:10.5px;padding:3px 10px;border-radius:8px;background:rgba(56,189,248,.1);
+  border:1px solid rgba(56,189,248,.28);color:#7DD3FC;font-weight:600;margin-left:10px;vertical-align:3px}
+.hello-sub{font-size:12.5px;color:var(--txt2);margin-top:4px;display:flex;align-items:center;gap:7px}
+.pulse{width:7px;height:7px;border-radius:50%;background:var(--acc);box-shadow:0 0 0 0 rgba(45,212,191,.5);animation:pulse 2s infinite}
+@keyframes pulse{70%{box-shadow:0 0 0 8px rgba(45,212,191,0)}100%{box-shadow:0 0 0 0 rgba(45,212,191,0)}}
+.top-tools{margin-left:auto;display:flex;align-items:center;gap:10px}
+.tool-ic{width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,.035);border:1px solid var(--stroke);
+  display:flex;align-items:center;justify-content:center;color:var(--txt2);position:relative;transition:all .18s;cursor:pointer}
+.tool-ic:hover{color:var(--acc);border-color:rgba(45,212,191,.3)}
+.tool-dot{position:absolute;top:8px;right:8px;width:7px;height:7px;border-radius:50%;background:var(--acc2);box-shadow:0 0 8px rgba(139,92,246,.9)}
+.btn-ghost{height:38px;padding:0 16px;border-radius:12px;background:rgba(255,255,255,.035);border:1px solid var(--stroke);
+  color:var(--txt2);font-size:12.5px;display:flex;align-items:center;gap:7px;cursor:pointer}
+.btn-ghost:hover{color:var(--txt);border-color:rgba(148,163,184,.25)}
+.btn-new{height:38px;padding:0 18px;border:none;border-radius:12px;background:var(--grad);color:#052822;font-weight:700;font-size:13px;
+  display:flex;align-items:center;gap:7px;cursor:pointer;box-shadow:0 6px 20px rgba(45,212,191,.3);font-family:var(--num-font)}
+
+/* ============ 顶部页面标签页栏 ============ */
+.tabs-bar{display:flex;align-items:center;gap:8px;margin-bottom:18px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.tabs-bar::-webkit-scrollbar{display:none}
+.pg-tab{display:flex;align-items:center;gap:8px;height:34px;padding:0 13px;border-radius:10px;flex:none;
+  background:rgba(255,255,255,.03);border:1px solid var(--stroke);font-size:12.5px;color:var(--txt2);
+  cursor:pointer;transition:all .16s;user-select:none}
+.pg-tab:hover{color:var(--txt);border-color:rgba(148,163,184,.2)}
+.pg-tab.on{background:linear-gradient(100deg,rgba(45,212,191,.15),rgba(56,189,248,.07));
+  color:#fff;border-color:rgba(45,212,191,.35);box-shadow:0 0 16px rgba(45,212,191,.12)}
+.pg-tab .tdot{width:6px;height:6px;border-radius:50%;flex:none}
+.pg-tab .tdot.run{background:#2DD4BF;box-shadow:0 0 6px rgba(45,212,191,.8)}
+.pg-tab .tdot.off{background:#5B6478}
+.tab-x{width:16px;height:16px;border-radius:5px;display:flex;align-items:center;justify-content:center;color:var(--txt3);flex:none}
+.tab-x:hover{color:#FB7185;background:rgba(251,113,133,.12)}
+.pg-tab.pin{color:var(--acc);border-color:rgba(45,212,191,.25);background:rgba(45,212,191,.07)}
+
+/* ============ 资源总览 5 卡 ============ */
+.quota-cards{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:18px}
+.q-card{border-radius:16px;padding:16px;background:var(--card);backdrop-filter:blur(8px)}
+.q-top{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.q-ic{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex:none}
+.q-label{font-size:12px;color:var(--txt2)}
+.q-val{font-family:var(--num-font);font-size:22px;font-weight:700;line-height:1}
+.q-val small{font-size:12px;font-weight:500;color:var(--txt3);margin-left:3px}
+.q-track{height:5px;border-radius:3px;background:rgba(255,255,255,.06);margin-top:11px;overflow:hidden}
+.q-fill{height:100%;border-radius:3px}
+.q-foot{font-size:10.5px;margin-top:8px;color:var(--txt3)}
+.q-foot.danger{color:var(--danger);font-weight:600}
+
+/* ============ 配额详情折叠分类 ============ */
+.panel-card{border-radius:16px;background:var(--card);backdrop-filter:blur(8px);padding:0;margin-bottom:14px;overflow:hidden}
+.qcat-head{display:flex;align-items:center;gap:12px;padding:15px 18px;cursor:pointer;user-select:none}
+.qcat-ic{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex:none}
+.qcat-title{font-size:14px;font-weight:700}
+.qcat-summary{font-size:11.5px;color:var(--txt3);margin-left:4px}
+.qcat-chevron{margin-left:auto;color:var(--txt3);transition:transform .2s}
+.qcat-chevron.open{transform:rotate(180deg)}
+.qcat-body{padding:2px 18px 14px;display:none}
+.qcat-body.open{display:block}
+.qrow{display:flex;align-items:center;gap:13px;padding:11px 0;border-bottom:1px solid rgba(148,163,184,.06)}
+.qrow:last-child{border-bottom:none}
+.qrow-ic{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex:none}
+.qrow-info{width:150px;flex:none}
+.qrow-label{font-size:12.5px;font-weight:600}
+.qrow-desc{font-size:10.5px;color:var(--txt3);margin-top:2px}
+.qrow-track{flex:1;height:6px;border-radius:3px;background:rgba(255,255,255,.06);overflow:hidden}
+.qrow-fill{height:100%;border-radius:3px}
+.qrow-nobar{flex:1;font-size:11px;color:var(--txt3)}
+.qrow-val{width:130px;flex:none;text-align:right;font-family:var(--num-font);font-size:12px;color:var(--txt2)}
+/* 云类型切换 */
+.cloud-tabs{display:inline-flex;background:rgba(255,255,255,.045);border:1px solid var(--stroke);border-radius:10px;padding:3px;margin-left:auto}
+.cloud-tabs span{font-size:11px;padding:4px 14px;border-radius:8px;color:var(--txt2);cursor:pointer}
+.cloud-tabs span.on{background:linear-gradient(120deg,rgba(45,212,191,.2),rgba(56,189,248,.12));color:var(--acc);font-weight:600}
+.cloud-src{font-size:11px;color:var(--txt3);padding:10px 0 0;display:flex;align-items:center;gap:7px}
+.cloud-src i{width:6px;height:6px;border-radius:50%;background:var(--acc3)}
+
+/* ============ 我的虚拟机资源追踪 ============ */
+.vm-panel{border-radius:16px;background:var(--card);backdrop-filter:blur(8px);padding:0;margin-bottom:14px;overflow:hidden}
+.vm-head{display:flex;align-items:center;gap:12px;padding:15px 18px;cursor:pointer;user-select:none}
+.vm-name{display:flex;align-items:center;gap:10px;font-size:13.5px;font-weight:700}
+.vm-ic{width:30px;height:30px;border-radius:8px;background:rgba(45,212,191,.1);border:1px solid rgba(45,212,191,.18);
+  display:flex;align-items:center;justify-content:center;flex:none}
+.st-pill{font-size:11px;padding:3px 10px;border-radius:20px;display:inline-flex;align-items:center;gap:6px;flex:none}
+.st-pill i{width:5px;height:5px;border-radius:50%}
+.st-run{background:rgba(45,212,191,.1);color:var(--acc)}
+.st-run i{background:var(--acc);box-shadow:0 0 6px rgba(45,212,191,.9)}
+.st-stop{background:rgba(148,163,184,.1);color:var(--txt2)}
+.st-stop i{background:#7C8698}
+.vm-meta{margin-left:auto;display:flex;gap:16px;font-family:var(--num-font);font-size:11.5px;color:var(--txt3)}
+.vm-meta span{display:flex;align-items:center;gap:5px}
+.vm-chevron{color:var(--txt3);transition:transform .2s;flex:none}
+.vm-chevron.open{transform:rotate(180deg)}
+.vm-body{display:none;padding:4px 18px 16px;border-top:1px solid rgba(148,163,184,.06)}
+.vm-body.open{display:block}
+.vm-chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+.mini-chart{border-radius:12px;background:rgba(255,255,255,.02);border:1px solid rgba(148,163,184,.07);padding:12px 14px}
+.mc-title{font-size:11px;color:var(--txt2);display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.mc-title b{font-family:var(--num-font);font-size:12px}
+.vm-foot{display:flex;justify-content:flex-end;margin-top:12px}
+.lnk-btn{font-size:12px;color:var(--acc3);font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px}
+.section-title{font-size:15px;font-weight:800;margin:20px 0 12px;display:flex;align-items:center;gap:9px}
+.section-title::before{content:"";width:3px;height:15px;border-radius:2px;background:var(--grad);box-shadow:0 0 8px rgba(45,212,191,.6)}
+.section-actions{margin-left:auto;display:flex;gap:8px}
+.btn-sm{height:30px;padding:0 13px;border-radius:9px;font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer;border:1px solid var(--stroke);background:rgba(255,255,255,.035);color:var(--txt2)}
+.btn-sm.pri{background:var(--grad);border:none;color:#052822;font-weight:700}
+
+/* ============ 底部常驻任务栏 ============ */
+.taskbar{position:fixed;left:292px;right:26px;bottom:14px;z-index:20;height:46px;overflow:hidden;
+  border-radius:16px;background:rgba(11,18,33,.94);backdrop-filter:blur(16px);
+  border:1px solid rgba(148,163,184,.14);box-shadow:0 -10px 44px rgba(0,0,0,.55);
+  transition:height .28s cubic-bezier(.4,0,.2,1)}
+.taskbar.open{height:320px}
+.tb-head{height:46px;display:flex;align-items:center;gap:10px;padding:0 14px;cursor:pointer;user-select:none}
+.tb-title{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:700}
+.tb-title svg{color:var(--acc)}
+.tb-badge{font-size:10.5px;padding:2px 9px;border-radius:12px;background:rgba(45,212,191,.12);color:var(--acc);
+  border:1px solid rgba(45,212,191,.28);font-weight:600;font-family:var(--num-font)}
+.tb-sep{width:1px;height:18px;background:rgba(148,163,184,.14)}
+.tb-current{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--txt2);min-width:0;flex:1}
+.tb-current .name{color:var(--txt);font-weight:600;white-space:nowrap}
+.tb-current .msg{color:var(--txt3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tb-prog{display:flex;align-items:center;gap:8px;flex:none}
+.tb-prog-track{width:90px;height:5px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden}
+.tb-prog-fill{height:100%;width:81%;border-radius:3px;background:var(--grad);box-shadow:0 0 8px rgba(45,212,191,.5)}
+.tb-prog-num{font-family:var(--num-font);font-size:11px;color:var(--acc)}
+.sse-st{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--txt3);flex:none}
+.sse-st i{width:6px;height:6px;border-radius:50%;background:var(--acc);box-shadow:0 0 6px rgba(45,212,191,.8)}
+.tb-toggle{flex:none;width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--txt3);
+  transition:transform .28s}
+.taskbar.open .tb-toggle{transform:rotate(180deg)}
+.tb-body{height:calc(100% - 46px);overflow-y:auto;padding:2px 14px 14px}
+.tb-table{width:100%;border-collapse:collapse}
+.tb-table th{font-size:10.5px;color:var(--txt3);text-align:left;font-weight:600;letter-spacing:1px;
+  padding:7px 10px;border-bottom:1px solid var(--stroke);position:sticky;top:0;background:rgba(11,18,33,.98)}
+.tb-table td{font-size:12px;color:#C6CDDC;padding:9px 10px;border-bottom:1px solid rgba(148,163,184,.05);vertical-align:middle}
+.type-tag{font-size:10.5px;padding:2px 9px;border-radius:7px;font-weight:600;white-space:nowrap}
+.tt-clone{background:rgba(139,92,246,.12);color:#B7A2F7;border:1px solid rgba(139,92,246,.25)}
+.tt-snap{background:rgba(56,189,248,.12);color:#7DD3FC;border:1px solid rgba(56,189,248,.25)}
+.tt-power{background:rgba(52,211,153,.12);color:#6EE7B7;border:1px solid rgba(52,211,153,.25)}
+.st-tag{font-size:11px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.st-tag i{width:5px;height:5px;border-radius:50%}
+.st-running{color:var(--acc3)}
+.st-running i{background:var(--acc3);box-shadow:0 0 6px rgba(56,189,248,.9);animation:blink 1.2s infinite}
+@keyframes blink{50%{opacity:.35}}
+.st-success{color:var(--acc)}
+.st-success i{background:var(--acc)}
+.cell-prog{display:flex;align-items:center;gap:8px}
+.cell-prog-track{width:74px;height:5px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden}
+.cell-prog-fill{height:100%;border-radius:3px}
+.cell-prog-num{font-family:var(--num-font);font-size:11px;color:var(--txt2)}
+.cell-msg{color:var(--txt3);max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mono{font-family:var(--num-font);font-size:12px;color:var(--txt2)}
+.act-btn{font-size:12px;font-weight:600;color:var(--acc3);cursor:pointer;white-space:nowrap}
+
+/* ============ 响应式 ============ */
+@media (max-width:1180px){
+  :root{--sidebar-w:78px}
+  .logo-name,.logo-sub,.nav-group,.nav-item span.nav-txt,.nav-bdg,.nav-sub,.su-info,.su-out{display:none}
+  .nav-item{justify-content:center;padding:11px}
+  .nav-item.on::before{display:none}
+  .logo-zone{justify-content:center}
+  .side-user{justify-content:center;padding:10px 6px}
+  .quota-cards{grid-template-columns:repeat(3,1fr)}
+  .taskbar{left:120px}
+}
+@media (max-width:820px){
+  .sidebar{display:none}
+  .quota-cards{grid-template-columns:repeat(2,1fr)}
+  .vm-chart-grid{grid-template-columns:1fr}
+  .taskbar{left:12px;right:12px}
+  .qrow-info{width:110px}
+  .qrow-val{width:100px}
+}
+</style>
+</head>
+<body>
+
+<div class="aurora"></div>
+<div class="grid-tex"></div>
+
+<!-- ============ 悬浮式侧边栏（普通用户精简菜单） ============ -->
+<aside class="sidebar g-border">
+  <div class="logo-zone">
+    <div class="logo-mark">Q</div>
+    <div>
+      <div class="logo-name">QVMConsole</div>
+      <div class="logo-sub">KVM 虚拟化管理平台</div>
+    </div>
+  </div>
+
+  <nav class="nav">
+    <div class="nav-group">概览</div>
+    <div class="nav-item on">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+      <span class="nav-txt">工作台</span>
+    </div>
+
+    <div class="nav-group">计算</div>
+    <div class="nav-item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      <span class="nav-txt">我的虚拟机</span><span class="nav-bdg">3</span>
+    </div>
+    <div class="nav-sub">
+      <div class="nav-sub-item"><i class="vdot run"></i>web-server-01</div>
+      <div class="nav-sub-item"><i class="vdot run"></i>db-mysql-prod</div>
+      <div class="nav-sub-item"><i class="vdot off"></i>test-env-02</div>
+    </div>
+
+    <div class="nav-group">网络</div>
+    <div class="nav-item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="2.5"/><circle cx="5" cy="19" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="M12 7.5 6 16.8M12 7.5l6 9.3M7.5 19h9"/></svg>
+      <span class="nav-txt">VPC 网络</span>
+    </div>
+
+    <div class="nav-group">存储</div>
+    <div class="nav-item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.7-.9L9.2 3.9A2 2 0 0 0 7.5 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/></svg>
+      <span class="nav-txt">我的存储</span>
+    </div>
+
+    <div class="nav-group">系统</div>
+    <div class="nav-item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      <span class="nav-txt">任务中心</span><span class="nav-bdg">1</span>
+    </div>
+
+    <div class="nav-group">支持</div>
+    <div class="nav-item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/></svg>
+      <span class="nav-txt">API 文档</span>
+    </div>
+    <div class="nav-item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>
+      <span class="nav-txt">关于项目</span>
+    </div>
+  </nav>
+
+  <div class="side-user">
+    <div class="su-avatar">De</div>
+    <div class="su-info">
+      <div class="su-name">dev-user</div>
+      <div class="su-role">弹性云用户</div>
+    </div>
+    <svg class="su-out" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+  </div>
+</aside>
+
+<!-- ============ 主内容区 ============ -->
+<main class="main">
+
+  <div class="topline">
+    <div>
+      <div class="hello">晚上好，<em>dev-user</em><span class="cloud-tag">弹性云</span></div>
+      <div class="hello-sub"><span class="pulse"></span>2 台虚拟机运行中 · 磁盘配额已达 92%，请及时清理</div>
+    </div>
+    <div class="top-tools">
+      <div class="tool-ic">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+      </div>
+      <div class="tool-ic">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+      </div>
+      <button class="btn-new">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 5v14M5 12h14"/></svg>
+        从模板创建
+      </button>
+    </div>
+  </div>
+
+  <!-- 页面标签页栏 -->
+  <div class="tabs-bar">
+    <div class="pg-tab pin">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+      工作台
+    </div>
+    <div class="pg-tab">
+      <i class="tdot run"></i>web-server-01
+      <span class="tab-x"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg></span>
+    </div>
+    <div class="pg-tab">
+      <i class="tdot run"></i>db-mysql-prod
+      <span class="tab-x"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg></span>
+    </div>
+  </div>
+
+  <!-- 资源总览 5 卡 -->
+  <section class="quota-cards">
+    <div class="q-card g-border">
+      <div class="q-top">
+        <div class="q-ic" style="background:rgba(45,212,191,.1);border:1px solid rgba(45,212,191,.2)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2DD4BF" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/></svg>
+        </div>
+        <span class="q-label">CPU 配额</span>
+      </div>
+      <div class="q-val">6<small>/ 16 核</small></div>
+      <div class="q-track"><div class="q-fill" style="width:38%;background:linear-gradient(90deg,#2DD4BF,#38BDF8)"></div></div>
+      <div class="q-foot">使用率 38%</div>
+    </div>
+    <div class="q-card g-border">
+      <div class="q-top">
+        <div class="q-ic" style="background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.2)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" stroke-width="2"><path d="M6 19a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2z"/><path d="M9 9h6v6H9zM2 9h2M2 15h2M20 9h2M20 15h2"/></svg>
+        </div>
+        <span class="q-label">内存配额</span>
+      </div>
+      <div class="q-val">12<small>/ 32 GB</small></div>
+      <div class="q-track"><div class="q-fill" style="width:38%;background:linear-gradient(90deg,#8B5CF6,#C084FC)"></div></div>
+      <div class="q-foot">使用率 38%</div>
+    </div>
+    <div class="q-card g-border">
+      <div class="q-top">
+        <div class="q-ic" style="background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.2)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#38BDF8" stroke-width="2"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        </div>
+        <span class="q-label">虚拟机数量</span>
+      </div>
+      <div class="q-val">3<small>/ 5 台</small></div>
+      <div class="q-track"><div class="q-fill" style="width:60%;background:linear-gradient(90deg,#38BDF8,#2DD4BF)"></div></div>
+      <div class="q-foot">还可创建 2 台</div>
+    </div>
+    <div class="q-card g-border">
+      <div class="q-top">
+        <div class="q-ic" style="background:rgba(251,113,133,.09);border:1px solid rgba(251,113,133,.25)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FB7185" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
+        </div>
+        <span class="q-label">磁盘配额</span>
+      </div>
+      <div class="q-val">276<small>/ 300 GB</small></div>
+      <div class="q-track"><div class="q-fill" style="width:92%;background:linear-gradient(90deg,#FB7185,#F43F5E)"></div></div>
+      <div class="q-foot danger">使用率 92% · 即将耗尽</div>
+    </div>
+    <div class="q-card g-border">
+      <div class="q-top">
+        <div class="q-ic" style="background:rgba(251,191,36,.09);border:1px solid rgba(251,191,36,.2)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+        </div>
+        <span class="q-label">本月运行时长</span>
+      </div>
+      <div class="q-val">126<small>/ 200 小时</small></div>
+      <div class="q-track"><div class="q-fill" style="width:63%;background:linear-gradient(90deg,#FBBF24,#F59E0B)"></div></div>
+      <div class="q-foot">剩余 74 小时</div>
+    </div>
+  </section>
+
+  <!-- 配额详情 -->
+  <div class="section-title">配额详情</div>
+
+  <!-- 计算与实例（默认展开） -->
+  <div class="panel-card g-border">
+    <div class="qcat-head">
+      <div class="qcat-ic" style="background:rgba(45,212,191,.1);border:1px solid rgba(45,212,191,.2)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2DD4BF" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/></svg>
+      </div>
+      <span class="qcat-title">计算与实例配额</span>
+      <span class="qcat-summary">核心 6/16 · 内存 12/32 GB · 实例 3/5</span>
+      <svg class="qcat-chevron open" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+    </div>
+    <div class="qcat-body open">
+      <div class="qrow">
+        <div class="qrow-ic" style="background:rgba(45,212,191,.1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2DD4BF" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/></svg></div>
+        <div class="qrow-info"><div class="qrow-label">CPU 核心</div><div class="qrow-desc">已分配 / 总额度</div></div>
+        <div class="qrow-track"><div class="qrow-fill" style="width:38%;background:linear-gradient(90deg,#2DD4BF,#38BDF8)"></div></div>
+        <div class="qrow-val">6 / 16 核</div>
+      </div>
+      <div class="qrow">
+        <div class="qrow-ic" style="background:rgba(139,92,246,.1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" stroke-width="2"><path d="M6 19a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2z"/><path d="M9 9h6v6H9z"/></svg></div>
+        <div class="qrow-info"><div class="qrow-label">内存</div><div class="qrow-desc">已分配 / 总额度</div></div>
+        <div class="qrow-track"><div class="qrow-fill" style="width:38%;background:linear-gradient(90deg,#8B5CF6,#C084FC)"></div></div>
+        <div class="qrow-val">12 / 32 GB</div>
+      </div>
+      <div class="qrow">
+        <div class="qrow-ic" style="background:rgba(56,189,248,.1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#38BDF8" stroke-width="2"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+        <div class="qrow-info"><div class="qrow-label">虚拟机数量</div><div class="qrow-desc">含已停止实例</div></div>
+        <div class="qrow-track"><div class="qrow-fill" style="width:60%;background:linear-gradient(90deg,#38BDF8,#2DD4BF)"></div></div>
+        <div class="qrow-val">3 / 5 台</div>
+      </div>
+      <div class="qrow">
+        <div class="qrow-ic" style="background:rgba(251,191,36,.09)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg></div>
+        <div class="qrow-info"><div class="qrow-label">运行时长</div><div class="qrow-desc">本月累计</div></div>
+        <div class="qrow-track"><div class="qrow-fill" style="width:63%;background:linear-gradient(90deg,#FBBF24,#F59E0B)"></div></div>
+        <div class="qrow-val">126 / 200 小时</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 存储配额（收起） -->
+  <div class="panel-card g-border">
+    <div class="qcat-head">
+      <div class="qcat-ic" style="background:rgba(251,113,133,.09);border:1px solid rgba(251,113,133,.25)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FB7185" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
+      </div>
+      <span class="qcat-title">存储配额</span>
+      <span class="qcat-summary">磁盘 276/300 GB · 快照 4/10 · 存储空间 68/100 GB</span>
+      <svg class="qcat-chevron" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+    </div>
+    <div class="qcat-body">
+      <div class="qrow">
+        <div class="qrow-ic" style="background:rgba(251,113,133,.09)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FB7185" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/></svg></div>
+        <div class="qrow-info"><div class="qrow-label">磁盘容量</div><div class="qrow-desc">虚拟机磁盘总和</div></div>
+        <div class="qrow-track"><div class="qrow-fill" style="width:92%;background:linear-gradient(90deg,#FB7185,#F43F5E)"></div></div>
+        <div class="qrow-val">276 / 300 GB</div>
+      </div>
+      <div class="qrow">
+        <div class="qrow-ic" style="background:rgba(56,189,248,.1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#38BDF8" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>
+        <div class="qrow-info"><div class="qrow-label">快照数量</div><div class="qrow-desc">全部虚拟机合计</div></div>
+        <div class="qrow-track"><div class="qrow-fill" style="width:40%;background:linear-gradient(90deg,#38BDF8,#2DD4BF)"></div></div>
+        <div class="qrow-val">4 / 10</div>
+      </div>
+      <div class="qrow">
+        <div class="qrow-ic" style="background:rgba(139,92,246,.1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" stroke-width="2"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.7-.9L9.2 3.9A2 2 0 0 0 7.5 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/></svg></div>
+        <div class="qrow-info"><div class="qrow-label">存储空间</div><div class="qrow-desc">我的存储项目配额</div></div>
+        <div class="qrow-track"><div class="qrow-fill" style="width:68%;background:linear-gradient(90deg,#8B5CF6,#C084FC)"></div></div>
+        <div class="qrow-val">68 / 100 GB</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 网络资源配额（收起，带弹性云/轻量云切换演示） -->
+  <div class="panel-card g-border">
+    <div class="qcat-head">
+      <div class="qcat-ic" style="background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.2)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#38BDF8" stroke-width="2"><circle cx="12" cy="5" r="2.5"/><circle cx="5" cy="19" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="M12 7.5 6 16.8M12 7.5l6 9.3M7.5 19h9"/></svg>
+      </div>
+      <span class="qcat-title">网络资源配额</span>
+      <span class="qcat-summary">带宽 100 Mbps · 公网 IP 2/3 · 端口转发 8/20</span>
+      <svg class="qcat-chevron" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+    </div>
+    <div class="qcat-body">
+      <div style="display:flex;align-items:center;padding:10px 0 2px">
+        <span style="font-size:11.5px;color:var(--txt3)">统计口径</span>
+        <div class="cloud-tabs">
+          <span class="on" data-cloud="elastic">弹性云</span><span data-cloud="light">轻量云</span>
+        </div>
+      </div>
+      <!-- 弹性云组 -->
+      <div class="cloud-group" data-cloud="elastic">
+        <div class="qrow">
+          <div class="qrow-ic" style="background:rgba(56,189,248,.1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#38BDF8" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></div>
+          <div class="qrow-info"><div class="qrow-label">下行带宽</div><div class="qrow-desc">经由 VPC 交换机限速</div></div>
+          <div class="qrow-nobar"></div>
+          <div class="qrow-val">100 Mbps</div>
+        </div>
+        <div class="qrow">
+          <div class="qrow-ic" style="background:rgba(45,212,191,.1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2DD4BF" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg></div>
+          <div class="qrow-info"><div class="qrow-label">上行带宽</div><div class="qrow-desc">经由 VPC 交换机限速</div></div>
+          <div class="qrow-nobar"></div>
+          <div class="qrow-val">50 Mbps</div>
+        </div>
+        <div class="qrow">
+          <div class="qrow-ic" style="background:rgba(251,191,36,.09)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" stroke-width="2"><path d="M3 3v18h18"/><path d="m7 14 4-4 4 3 5-6"/></svg></div>
+          <div class="qrow-info"><div class="qrow-label">下行流量 (日)</div><div class="qrow-desc">VPC 交换机出口统计</div></div>
+          <div class="qrow-track"><div class="qrow-fill" style="width:33%;background:linear-gradient(90deg,#FBBF24,#F59E0B)"></div></div>
+          <div class="qrow-val">32.5 / 100 GB</div>
+        </div>
+        <div class="qrow">
+          <div class="qrow-ic" style="background:rgba(139,92,246,.1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" stroke-width="2"><path d="M3 3v18h18"/><path d="m7 14 4-4 4 3 5-6"/></svg></div>
+          <div class="qrow-info"><div class="qrow-label">上行流量 (日)</div><div class="qrow-desc">VPC 交换机入口统计</div></div>
+          <div class="qrow-track"><div class="qrow-fill" style="width:26%;background:linear-gradient(90deg,#8B5CF6,#C084FC)"></div></div>
+          <div class="qrow-val">12.8 / 50 GB</div>
+        </div>
+        <div class="qrow">
+          <div class="qrow-ic" style="background:rgba(56,189,248,.1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#38BDF8" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.7 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.7-3.8-9S9.5 5.6 12 3z"/></svg></div>
+          <div class="qrow-info"><div class="qrow-label">公网 IPv4</div><div class="qrow-desc">绑定至 VPC 弹性网卡</div></div>
+          <div class="qrow-track"><div class="qrow-fill" style="width:67%;background:linear-gradient(90deg,#38BDF8,#2DD4BF)"></div></div>
+          <div class="qrow-val">2 / 3</div>
+        </div>
+        <div class="qrow">
+          <div class="qrow-ic" style="background:rgba(45,212,191,.1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2DD4BF" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg></div>
+          <div class="qrow-info"><div class="qrow-label">端口转发规则</div><div class="qrow-desc">VPC NAT 网关规则</div></div>
+          <div class="qrow-track"><div class="qrow-fill" style="width:40%;background:linear-gradient(90deg,#2DD4BF,#38BDF8)"></div></div>
+          <div class="qrow-val">8 / 20</div>
+        </div>
+        <div class="cloud-src"><i></i>流量来源：VPC 虚拟交换机</div>
+      </div>
+      <!-- 轻量云组（默认隐藏） -->
+      <div class="cloud-group" data-cloud="light" style="display:none">
+        <div class="qrow">
+          <div class="qrow-ic" style="background:rgba(56,189,248,.1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#38BDF8" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></div>
+          <div class="qrow-info"><div class="qrow-label">下行带宽</div><div class="qrow-desc">宿主机网桥直接限速</div></div>
+          <div class="qrow-nobar"></div>
+          <div class="qrow-val">50 Mbps</div>
+        </div>
+        <div class="qrow">
+          <div class="qrow-ic" style="background:rgba(45,212,191,.1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2DD4BF" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg></div>
+          <div class="qrow-info"><div class="qrow-label">上行带宽</div><div class="qrow-desc">宿主机网桥直接限速</div></div>
+          <div class="qrow-nobar"></div>
+          <div class="qrow-val">20 Mbps</div>
+        </div>
+        <div class="qrow">
+          <div class="qrow-ic" style="background:rgba(251,191,36,.09)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" stroke-width="2"><path d="M3 3v18h18"/><path d="m7 14 4-4 4 3 5-6"/></svg></div>
+          <div class="qrow-info"><div class="qrow-label">下行流量 (日)</div><div class="qrow-desc">网桥接口统计</div></div>
+          <div class="qrow-track"><div class="qrow-fill" style="width:36%;background:linear-gradient(90deg,#FBBF24,#F59E0B)"></div></div>
+          <div class="qrow-val">18.2 / 50 GB</div>
+        </div>
+        <div class="qrow">
+          <div class="qrow-ic" style="background:rgba(139,92,246,.1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" stroke-width="2"><path d="M3 3v18h18"/><path d="m7 14 4-4 4 3 5-6"/></svg></div>
+          <div class="qrow-info"><div class="qrow-label">上行流量 (日)</div><div class="qrow-desc">网桥接口统计</div></div>
+          <div class="qrow-track"><div class="qrow-fill" style="width:32%;background:linear-gradient(90deg,#8B5CF6,#C084FC)"></div></div>
+          <div class="qrow-val">6.4 / 20 GB</div>
+        </div>
+        <div class="qrow">
+          <div class="qrow-ic" style="background:rgba(45,212,191,.1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2DD4BF" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg></div>
+          <div class="qrow-info"><div class="qrow-label">端口转发规则</div><div class="qrow-desc">iptables DNAT 规则</div></div>
+          <div class="qrow-track"><div class="qrow-fill" style="width:30%;background:linear-gradient(90deg,#2DD4BF,#38BDF8)"></div></div>
+          <div class="qrow-val">3 / 10</div>
+        </div>
+        <div class="cloud-src"><i></i>流量来源：宿主机网桥</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 我的虚拟机资源追踪 -->
+  <div class="section-title">我的虚拟机 · 资源追踪
+    <div class="section-actions">
+      <div class="btn-sm">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        管理我的虚拟机
+      </div>
+      <div class="btn-sm pri">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 5v14M5 12h14"/></svg>
+        从模板创建
+      </div>
+    </div>
+  </div>
+
+  <!-- VM 1（展开） -->
+  <div class="vm-panel g-border">
+    <div class="vm-head">
+      <div class="vm-name">
+        <div class="vm-ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2DD4BF" stroke-width="2"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+        web-server-01
+      </div>
+      <span class="st-pill st-run"><i></i>运行中</span>
+      <div class="vm-meta">
+        <span>4 核</span><span>8 GB</span><span>10.0.0.12</span><span>已运行 12 天</span>
+      </div>
+      <svg class="vm-chevron open" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+    </div>
+    <div class="vm-body open">
+      <div class="vm-chart-grid">
+        <div class="mini-chart">
+          <div class="mc-title">CPU 使用率 · 近 24 小时<b style="color:#2DD4BF">31%</b></div>
+          <svg width="100%" height="72" viewBox="0 0 320 72" preserveAspectRatio="none">
+            <defs><linearGradient id="mc1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2DD4BF" stop-opacity=".25"/><stop offset="1" stop-color="#2DD4BF" stop-opacity="0"/></linearGradient></defs>
+            <path d="M0,44 C30,40 48,28 80,32 C112,36 128,48 160,44 C192,40 208,26 240,24 C272,22 288,34 320,30 L320,72 L0,72 Z" fill="url(#mc1)"/>
+            <path d="M0,44 C30,40 48,28 80,32 C112,36 128,48 160,44 C192,40 208,26 240,24 C272,22 288,34 320,30" fill="none" stroke="#2DD4BF" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="mini-chart">
+          <div class="mc-title">内存使用率 · 近 24 小时<b style="color:#8B5CF6">64%</b></div>
+          <svg width="100%" height="72" viewBox="0 0 320 72" preserveAspectRatio="none">
+            <defs><linearGradient id="mc2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8B5CF6" stop-opacity=".22"/><stop offset="1" stop-color="#8B5CF6" stop-opacity="0"/></linearGradient></defs>
+            <path d="M0,30 C30,28 48,38 80,40 C112,42 128,30 160,28 C192,26 208,38 240,40 C272,42 288,34 320,32 L320,72 L0,72 Z" fill="url(#mc2)"/>
+            <path d="M0,30 C30,28 48,38 80,40 C112,42 128,30 160,28 C192,26 208,38 240,40 C272,42 288,34 320,32" fill="none" stroke="#8B5CF6" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="mini-chart">
+          <div class="mc-title">网络吞吐 · 近 24 小时<b style="color:#38BDF8">8.2 MB/s</b></div>
+          <svg width="100%" height="72" viewBox="0 0 320 72" preserveAspectRatio="none">
+            <defs><linearGradient id="mc3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#38BDF8" stop-opacity=".22"/><stop offset="1" stop-color="#38BDF8" stop-opacity="0"/></linearGradient></defs>
+            <path d="M0,52 C30,48 48,40 80,44 C112,48 128,56 160,52 C192,48 208,38 240,36 C272,34 288,46 320,42 L320,72 L0,72 Z" fill="url(#mc3)"/>
+            <path d="M0,52 C30,48 48,40 80,44 C112,48 128,56 160,52 C192,48 208,38 240,36 C272,34 288,46 320,42" fill="none" stroke="#38BDF8" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="mini-chart">
+          <div class="mc-title">磁盘 IO · 近 24 小时<b style="color:#FBBF24">120 IOPS</b></div>
+          <svg width="100%" height="72" viewBox="0 0 320 72" preserveAspectRatio="none">
+            <defs><linearGradient id="mc4" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FBBF24" stop-opacity=".2"/><stop offset="1" stop-color="#FBBF24" stop-opacity="0"/></linearGradient></defs>
+            <path d="M0,48 C30,44 48,34 80,38 C112,42 128,52 160,48 C192,44 208,32 240,30 C272,28 288,40 320,36 L320,72 L0,72 Z" fill="url(#mc4)"/>
+            <path d="M0,48 C30,44 48,34 80,38 C112,42 128,52 160,48 C192,44 208,32 240,30 C272,28 288,40 320,36" fill="none" stroke="#FBBF24" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+      </div>
+      <div class="vm-foot">
+        <span class="lnk-btn">前往虚拟机详情
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- VM 2（收起） -->
+  <div class="vm-panel g-border">
+    <div class="vm-head">
+      <div class="vm-name">
+        <div class="vm-ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2DD4BF" stroke-width="2"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+        db-mysql-prod
+      </div>
+      <span class="st-pill st-run"><i></i>运行中</span>
+      <div class="vm-meta">
+        <span>8 核</span><span>16 GB</span><span>10.0.0.23</span><span>已运行 45 天</span>
+      </div>
+      <svg class="vm-chevron" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+    </div>
+    <div class="vm-body"></div>
+  </div>
+
+  <!-- VM 3（收起，已关机） -->
+  <div class="vm-panel g-border">
+    <div class="vm-head">
+      <div class="vm-name">
+        <div class="vm-ic" style="background:rgba(148,163,184,.08);border-color:rgba(148,163,184,.15)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8B95AB" stroke-width="2"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+        test-env-02
+      </div>
+      <span class="st-pill st-stop"><i></i>已关机</span>
+      <div class="vm-meta">
+        <span>2 核</span><span>4 GB</span><span>未分配 IP</span>
+      </div>
+      <svg class="vm-chevron" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+    </div>
+    <div class="vm-body"></div>
+  </div>
+
+</main>
+
+<!-- ============ 底部常驻任务栏（用户版） ============ -->
+<div class="taskbar" id="taskbar">
+  <div class="tb-head" id="tbHead">
+    <div class="tb-title">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      异步任务
+      <span class="tb-badge">1 运行中</span>
+    </div>
+    <div class="tb-sep"></div>
+    <div class="tb-current">
+      <span class="name">从模板创建 dev-app-01</span>
+      <span class="msg">克隆磁盘数据…</span>
+    </div>
+    <div class="tb-prog">
+      <div class="tb-prog-track"><div class="tb-prog-fill"></div></div>
+      <span class="tb-prog-num">81%</span>
+    </div>
+    <div class="tb-sep"></div>
+    <div class="sse-st"><i></i>实时推送已连接</div>
+    <div class="tb-toggle">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m18 15-6-6-6 6"/></svg>
+    </div>
+  </div>
+  <div class="tb-body">
+    <table class="tb-table">
+      <thead>
+        <tr><th>类型</th><th>任务描述</th><th>状态</th><th>进度</th><th>状态消息</th><th>时间</th><th>操作</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="type-tag tt-clone">创建</span></td>
+          <td>从模板创建 dev-app-01（Ubuntu 24.04）</td>
+          <td><span class="st-tag st-running"><i></i>运行中</span></td>
+          <td><div class="cell-prog"><div class="cell-prog-track"><div class="cell-prog-fill" style="width:81%;background:linear-gradient(90deg,#2DD4BF,#38BDF8)"></div></div><span class="cell-prog-num">81%</span></div></td>
+          <td class="cell-msg">克隆磁盘数据（16.2G / 20G）…</td>
+          <td class="mono">14:36:52</td>
+          <td><span class="act-btn">详情</span></td>
+        </tr>
+        <tr>
+          <td><span class="type-tag tt-snap">快照</span></td>
+          <td>创建快照 web-server-01（每日自动）</td>
+          <td><span class="st-tag st-success"><i></i>成功</span></td>
+          <td><div class="cell-prog"><div class="cell-prog-track"><div class="cell-prog-fill" style="width:100%;background:#2DD4BF"></div></div><span class="cell-prog-num">100%</span></div></td>
+          <td class="cell-msg">快照创建完成，耗时 2.8 秒</td>
+          <td class="mono">04:00:12</td>
+          <td><span class="act-btn">详情</span></td>
+        </tr>
+        <tr>
+          <td><span class="type-tag tt-power">电源</span></td>
+          <td>关闭虚拟机 test-env-02</td>
+          <td><span class="st-tag st-success"><i></i>成功</span></td>
+          <td><div class="cell-prog"><div class="cell-prog-track"><div class="cell-prog-fill" style="width:100%;background:#2DD4BF"></div></div><span class="cell-prog-num">100%</span></div></td>
+          <td class="cell-msg">虚拟机已安全关机</td>
+          <td class="mono">昨天 22:14</td>
+          <td><span class="act-btn">详情</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+/* ===== 配额分类 / 虚拟机面板：折叠展开 ===== */
+document.querySelectorAll('.qcat-head').forEach(function (head) {
+  head.addEventListener('click', function () {
+    var body = head.parentElement.querySelector('.qcat-body');
+    var chevron = head.querySelector('.qcat-chevron');
+    body.classList.toggle('open');
+    chevron.classList.toggle('open');
+  });
+});
+document.querySelectorAll('.vm-head').forEach(function (head) {
+  head.addEventListener('click', function () {
+    var body = head.parentElement.querySelector('.vm-body');
+    var chevron = head.querySelector('.vm-chevron');
+    body.classList.toggle('open');
+    chevron.classList.toggle('open');
+  });
+});
+
+/* ===== 弹性云 / 轻量云 统计口径切换 ===== */
+document.querySelectorAll('.cloud-tabs span').forEach(function (tab) {
+  tab.addEventListener('click', function (e) {
+    e.stopPropagation();
+    var cloud = tab.getAttribute('data-cloud');
+    document.querySelectorAll('.cloud-tabs span').forEach(function (t) { t.classList.remove('on'); });
+    tab.classList.add('on');
+    document.querySelectorAll('.cloud-group').forEach(function (g) {
+      g.style.display = g.getAttribute('data-cloud') === cloud ? '' : 'none';
+    });
+  });
+});
+
+/* ===== 页面标签页：点击切换 / 关闭 ===== */
+document.querySelectorAll('.pg-tab').forEach(function (tab) {
+  tab.addEventListener('click', function (e) {
+    if (e.target.closest('.tab-x')) {
+      var wasOn = tab.classList.contains('on');
+      tab.remove();
+      if (wasOn) {
+        var first = document.querySelector('.tabs-bar .pg-tab:not(.pin)');
+        if (first) first.classList.add('on');
+      }
+      return;
+    }
+    document.querySelectorAll('.pg-tab').forEach(function (t) { t.classList.remove('on'); });
+    tab.classList.add('on');
+  });
+});
+
+/* ===== 底部任务栏：展开 / 收起 ===== */
+document.getElementById('tbHead').addEventListener('click', function () {
+  document.getElementById('taskbar').classList.toggle('open');
+});
+</script>
+
+</body>
+</html>

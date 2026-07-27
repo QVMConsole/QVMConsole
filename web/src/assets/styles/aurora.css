@@ -1,0 +1,247 @@
+/**
+ * 深空极光设计令牌与通用工具类
+ * - 浅色为默认主题（浅色优先），深色通过 body[theme-mode="dark"] 适配
+ * - 命名统一使用 --qvm- 前缀，避免与 Semi 变量冲突
+ */
+
+:root {
+  /* ===== 品牌色（两主题通用，主要用于渐变填充与发光） ===== */
+  --qvm-acc: #2dd4bf; /* 霓虹青 */
+  --qvm-acc2: #8b5cf6; /* 电紫 */
+  --qvm-acc3: #38bdf8; /* 冰蓝 */
+  --qvm-warn: #f59e0b;
+  --qvm-danger: #fb7185;
+  --qvm-grad: linear-gradient(120deg, #2dd4bf, #38bdf8);
+  --qvm-grad2: linear-gradient(120deg, #8b5cf6, #38bdf8);
+  --qvm-num-font:
+    'Space Grotesk', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+
+  /* ===== 浅色主题（默认） ===== */
+  --qvm-bg: #edf1f7;
+  --qvm-text-0: #1b2434;
+  --qvm-text-1: #55617a;
+  --qvm-text-2: #8b97ad;
+  --qvm-stroke: rgba(30, 41, 59, 0.09);
+  --qvm-stroke-strong: rgba(30, 41, 59, 0.16);
+  --qvm-card-bg: rgba(255, 255, 255, 0.66);
+  --qvm-panel-bg: rgba(255, 255, 255, 0.72);
+  --qvm-sidebar-bg: linear-gradient(
+    175deg,
+    rgba(255, 255, 255, 0.9),
+    rgba(244, 247, 252, 0.92)
+  );
+  --qvm-taskbar-bg: rgba(255, 255, 255, 0.88);
+  --qvm-hover-bg: rgba(15, 23, 42, 0.045);
+  --qvm-track-bg: rgba(15, 23, 42, 0.07);
+  /* 强调色在浅色下需要更深的可读变体（文字/图标用） */
+  --qvm-acc-ink: #0d9488;
+  --qvm-acc2-ink: #7c3aed;
+  --qvm-acc3-ink: #0284c7;
+  --qvm-acc-bg: rgba(13, 148, 136, 0.1);
+  --qvm-acc-stroke: rgba(13, 148, 136, 0.28);
+  --qvm-active-bg: linear-gradient(
+    100deg,
+    rgba(45, 212, 191, 0.2),
+    rgba(56, 189, 248, 0.1)
+  );
+  --qvm-glow: 0 0 24px rgba(45, 212, 191, 0.3);
+  --qvm-panel-shadow: 0 18px 44px rgba(51, 65, 85, 0.14);
+  --qvm-card-shadow: 0 8px 24px rgba(51, 65, 85, 0.08);
+  --qvm-aurora-1: rgba(45, 212, 191, 0.16);
+  --qvm-aurora-2: rgba(139, 92, 246, 0.14);
+  --qvm-grid-line: rgba(30, 41, 59, 0.05);
+  --qvm-on-grad-text: #052822; /* 渐变按钮上的文字色 */
+}
+
+/* ===== 深色主题适配 ===== */
+body[theme-mode='dark'] {
+  --qvm-bg: #070b14;
+  --qvm-text-0: #e7ebf3;
+  --qvm-text-1: #8b95ab;
+  --qvm-text-2: #59627a;
+  --qvm-stroke: rgba(148, 163, 184, 0.1);
+  --qvm-stroke-strong: rgba(148, 163, 184, 0.2);
+  --qvm-card-bg: rgba(255, 255, 255, 0.028);
+  --qvm-panel-bg: rgba(12, 19, 34, 0.72);
+  --qvm-sidebar-bg: linear-gradient(
+    175deg,
+    rgba(19, 28, 50, 0.92),
+    rgba(9, 14, 26, 0.94)
+  );
+  --qvm-taskbar-bg: rgba(11, 18, 33, 0.94);
+  --qvm-hover-bg: rgba(255, 255, 255, 0.04);
+  --qvm-track-bg: rgba(255, 255, 255, 0.07);
+  --qvm-acc-ink: #2dd4bf;
+  --qvm-acc2-ink: #a78bfa;
+  --qvm-acc3-ink: #38bdf8;
+  --qvm-acc-bg: rgba(45, 212, 191, 0.1);
+  --qvm-acc-stroke: rgba(45, 212, 191, 0.3);
+  --qvm-active-bg: linear-gradient(
+    100deg,
+    rgba(45, 212, 191, 0.16),
+    rgba(56, 189, 248, 0.07)
+  );
+  --qvm-glow: 0 0 24px rgba(45, 212, 191, 0.22);
+  --qvm-panel-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+  --qvm-card-shadow: 0 10px 28px rgba(0, 0, 0, 0.3);
+  --qvm-aurora-1: rgba(45, 212, 191, 0.1);
+  --qvm-aurora-2: rgba(139, 92, 246, 0.1);
+  --qvm-grid-line: rgba(148, 163, 184, 0.045);
+}
+
+/* ===== 极光氛围背景（fixed，全局一份） ===== */
+.qvm-aurora {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+.qvm-aurora::before {
+  content: '';
+  position: absolute;
+  width: 640px;
+  height: 640px;
+  top: -220px;
+  right: -120px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--qvm-aurora-1), transparent 65%);
+}
+.qvm-aurora::after {
+  content: '';
+  position: absolute;
+  width: 720px;
+  height: 720px;
+  bottom: -300px;
+  left: 180px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--qvm-aurora-2), transparent 65%);
+}
+.qvm-grid-tex {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.5;
+  background-image:
+    linear-gradient(var(--qvm-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--qvm-grid-line) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse 90% 70% at 60% 0%, #000 30%, transparent 75%);
+  -webkit-mask-image: radial-gradient(
+    ellipse 90% 70% at 60% 0%,
+    #000 30%,
+    transparent 75%
+  );
+}
+
+/* ===== 渐变描边（glass 卡片通用） ===== */
+.qvm-g-border {
+  position: relative;
+}
+.qvm-g-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  pointer-events: none;
+  background: linear-gradient(
+    160deg,
+    rgba(45, 212, 191, 0.32),
+    rgba(139, 92, 246, 0.14) 42%,
+    rgba(148, 163, 184, 0.07) 72%
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+/* ===== 玻璃拟态面板 ===== */
+.qvm-panel {
+  border-radius: 16px;
+  background: var(--qvm-card-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--qvm-card-shadow);
+}
+
+/* ===== 数字字体 ===== */
+.qvm-num {
+  font-family: var(--qvm-num-font);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===== 动画 ===== */
+@keyframes qvm-pulse {
+  70% {
+    box-shadow: 0 0 0 8px rgba(45, 212, 191, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(45, 212, 191, 0);
+  }
+}
+@keyframes qvm-floaty {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-14px);
+  }
+}
+@keyframes qvm-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes qvm-blink {
+  50% {
+    opacity: 0.35;
+  }
+}
+@keyframes qvm-bar-grow {
+  from {
+    width: 0;
+  }
+}
+
+/* 入场动画：配合 --qvm-delay 实现 stagger 效果 */
+.qvm-fade-up {
+  animation: qvm-fade-up 0.45s cubic-bezier(0.22, 0.8, 0.36, 1) both;
+  animation-delay: var(--qvm-delay, 0ms);
+}
+
+/* 状态点 */
+.qvm-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: none;
+  display: inline-block;
+}
+.qvm-dot.run {
+  background: #2dd4bf;
+  box-shadow: 0 0 6px rgba(45, 212, 191, 0.8);
+}
+.qvm-dot.warn {
+  background: #fbbf24;
+  box-shadow: 0 0 6px rgba(251, 191, 36, 0.7);
+}
+.qvm-dot.off {
+  background: #8b97ad;
+}
+body[theme-mode='dark'] .qvm-dot.off {
+  background: #5b6478;
+}
+
+/* 进度条生长动画（数值变化时平滑过渡） */
+.qvm-bar-anim {
+  transition: width 0.6s cubic-bezier(0.22, 0.8, 0.36, 1);
+}

@@ -1,0 +1,151 @@
+/**
+ * 管理员仪表盘：统计卡片区（4 张）
+ * - 虚拟机总数 / CPU 使用率 / 内存使用率 / 存储使用
+ * - CPU / 内存 / 存储卡片带「理论最大量」双进度条（全部虚拟机满载口径）
+ */
+import { useMemo } from 'react'
+import type { HostStats } from '@/api/host'
+import type { VmListItem } from '@/api/vm'
+import { formatKB, parseSizeToGB } from '@/utils/format'
+import DualUsageBar from './DualUsageBar'
+import { CpuIcon, MemIcon, DiskIcon, VmIcon } from './icons'
+
+interface AdminStatsProps {
+  stats: HostStats | null
+  vms: VmListItem[]
+}
+
+export default function AdminStats({ stats, vms }: AdminStatsProps) {
+  // 理论最大量：全部虚拟机同时 100% 满载时的占用合计
+  const theory = useMemo(() => {
+    let vcpuSum = 0
+    let memSumMB = 0
+    let diskSumGB = 0
+    for (const vm of vms) {
+      vcpuSum += vm.vcpu || 0
+      memSumMB += vm.max_memory || vm.memory || 0
+      diskSumGB += parseSizeToGB(vm.disk_size)
+    }
+    return { vcpuSum, memSumMB, diskSumGB }
+  }, [vms])
+
+  const runningCount = stats?.vm_running ?? vms.filter((v) => v.status === 'running').length
+  const totalCount = stats?.vm_total ?? vms.length
+
+  // CPU：当前 = 宿主机实时使用率；理论 = ΣvCPU / 宿主机核数
+  const cpuCount = stats?.cpu_count || 0
+  const cpuCurrent = (stats?.cpu_percent || 0) / 100
+  const cpuTheory = cpuCount > 0 ? theory.vcpuSum / cpuCount : 0
+
+  // 内存：当前 = 已用 / 总量；理论 = Σ虚拟机内存 / 宿主机总量
+  const memTotalMB = (stats?.mem_total || 0) / 1024
+  const memUsedMB = (stats?.mem_used || 0) / 1024
+  const memCurrent = memTotalMB > 0 ? memUsedMB / memTotalMB : 0
+  const memTheory = memTotalMB > 0 ? theory.memSumMB / memTotalMB : 0
+
+  // 磁盘：当前 = 已用 / 总量；理论 = Σ虚拟机磁盘容量 / 宿主机总量
+  const diskTotalGB = (stats?.disk_total || 0) / 1024 / 1024
+  const diskUsedGB = (stats?.disk_used || 0) / 1024 / 1024
+  const diskCurrent = diskTotalGB > 0 ? diskUsedGB / diskTotalGB : 0
+  const diskTheory = diskTotalGB > 0 ? theory.diskSumGB / diskTotalGB : 0
+
+  return (
+    <section className="qvm-stats">
+      {/* 虚拟机总数 */}
+      <div className="qvm-stat-card qvm-g-border qvm-fade-up">
+        <div className="qvm-stat-top">
+          <span className="qvm-stat-label">虚拟机总数</span>
+          <div
+            className="qvm-stat-ic"
+            style={{ background: 'rgba(45,212,191,.1)', border: '1px solid rgba(45,212,191,.2)' }}
+          >
+            <VmIcon color="#2DD4BF" size={16} />
+          </div>
+        </div>
+        <div className="qvm-stat-val">
+          {totalCount}
+          <small>台</small>
+        </div>
+        <div className="qvm-stat-foot">
+          <span className="qvm-trend-up">运行中 {runningCount}</span> · 已停止 {Math.max(totalCount - runningCount, 0)}
+        </div>
+      </div>
+
+      {/* CPU 使用率 */}
+      <div className="qvm-stat-card qvm-g-border qvm-fade-up" style={{ '--qvm-delay': '60ms' } as React.CSSProperties}>
+        <div className="qvm-stat-top">
+          <span className="qvm-stat-label">CPU 使用率</span>
+          <div
+            className="qvm-stat-ic"
+            style={{ background: 'rgba(56,189,248,.1)', border: '1px solid rgba(56,189,248,.2)' }}
+          >
+            <CpuIcon color="#38BDF8" size={16} />
+          </div>
+        </div>
+        <div className="qvm-stat-val">
+          {(cpuCurrent * 100).toFixed(0)}
+          <small>%</small>
+        </div>
+        <DualUsageBar
+          currentRatio={cpuCurrent}
+          theoryRatio={cpuTheory}
+          currentText={`${(cpuCurrent * 100).toFixed(1)}%（约 ${(cpuCurrent * cpuCount).toFixed(1)} / ${cpuCount} 核）`}
+          theoryText={`${(cpuTheory * 100).toFixed(1)}%（${theory.vcpuSum} / ${cpuCount} 核）`}
+          color="#38BDF8"
+          colorEnd="#2DD4BF"
+        />
+      </div>
+
+      {/* 内存使用率 */}
+      <div className="qvm-stat-card qvm-g-border qvm-fade-up" style={{ '--qvm-delay': '120ms' } as React.CSSProperties}>
+        <div className="qvm-stat-top">
+          <span className="qvm-stat-label">内存使用率</span>
+          <div
+            className="qvm-stat-ic"
+            style={{ background: 'rgba(139,92,246,.1)', border: '1px solid rgba(139,92,246,.2)' }}
+          >
+            <MemIcon color="#8B5CF6" size={16} />
+          </div>
+        </div>
+        <div className="qvm-stat-val">
+          {(memCurrent * 100).toFixed(0)}
+          <small>%</small>
+        </div>
+        <DualUsageBar
+          currentRatio={memCurrent}
+          theoryRatio={memTheory}
+          currentText={`${(memCurrent * 100).toFixed(1)}%（${formatKB(stats?.mem_used || 0)} / ${formatKB(stats?.mem_total || 0)}）`}
+          theoryText={`${(memTheory * 100).toFixed(1)}%（${formatKB(theory.memSumMB * 1024)} / ${formatKB(stats?.mem_total || 0)}）`}
+          color="#8B5CF6"
+          colorEnd="#C084FC"
+          theoryColor="#38BDF8"
+        />
+      </div>
+
+      {/* 存储使用 */}
+      <div className="qvm-stat-card qvm-g-border qvm-fade-up" style={{ '--qvm-delay': '180ms' } as React.CSSProperties}>
+        <div className="qvm-stat-top">
+          <span className="qvm-stat-label">存储使用</span>
+          <div
+            className="qvm-stat-ic"
+            style={{ background: 'rgba(251,191,36,.09)', border: '1px solid rgba(251,191,36,.2)' }}
+          >
+            <DiskIcon color="#FBBF24" size={16} />
+          </div>
+        </div>
+        <div className="qvm-stat-val">
+          {(diskCurrent * 100).toFixed(0)}
+          <small>%</small>
+        </div>
+        <DualUsageBar
+          currentRatio={diskCurrent}
+          theoryRatio={diskTheory}
+          currentText={`${(diskCurrent * 100).toFixed(1)}%（${formatKB(stats?.disk_used || 0)} / ${formatKB(stats?.disk_total || 0)}）`}
+          theoryText={`${(diskTheory * 100).toFixed(1)}%（${theory.diskSumGB.toFixed(0)} GB / ${formatKB(stats?.disk_total || 0)}）`}
+          color="#FBBF24"
+          colorEnd="#F59E0B"
+        />
+      </div>
+    </section>
+  )
+}

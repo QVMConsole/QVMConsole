@@ -29,9 +29,10 @@
 | **状态管理** | `web/src/stores/user.ts` | ✅ | 用户 Store（token/username/role/cloud_type/security 持久化） |
 | | `web/src/stores/app.ts` | ✅ | 应用 Store（主题/侧边栏状态/站点信息） |
 | | `web/src/stores/highRisk.ts` | ✅ | 高风险验证 Store（428 弹窗流程、2FA/邮箱码） |
-| **页面** | `web/src/views/login/index.tsx` | ✅ (基础版) | 登录页 stage=success 分支已实现 |
-| | `web/src/views/dashboard/index.tsx` | ✅ | 首页占位卡片 |
+| **页面** | `web/src/views/login/index.tsx` | ✅ (设计版) | 深空极光登录页（渐变背景图 + 品牌区），stage=success 分支已实现 |
+| | `web/src/views/dashboard/index.tsx` | ✅ | 角色双视图：管理员（理论最大量双条/监控/存储池）+ 用户（配额/VM 追踪） |
 | | `web/src/views/error/NotFound.tsx` | ✅ | 404 页面 |
+| **布局** | `web/src/layout/index.tsx` | ✅ | 深空极光主布局：悬浮侧边栏 / 顶部标签页栏 / 底部任务栏（SSE） |
 | **路由** | `web/src/router/index.tsx` | ✅ | React Router 路由（懒加载、RequireAuth 守卫） |
 | **工具** | `web/src/utils/clipboard.ts` | ✅ | 剪贴板兼容降级（HTTP 场景） |
 | | `web/src/utils/validate.ts` | ✅ | 密码校验（弱密码库+HIBP 检测 + 生成强密码） |
@@ -50,7 +51,7 @@
 | 优先级 | 模块 | 后端 API 范围 | 预计工作量 | 负责人 | 状态 | 备注 |
 |--------|------|--------------|------------|--------|------|------|
 | P0 | **认证完整流程** | `/auth/*` | 3 天 | [待分配] | 🟡 地基已完 | 多阶段登录 stage 状态机 |
-| P0 | **仪表盘（Dashboard）** | `/host/stats`(admin)/`/self/quota`(user) | 2 天 | [待分配] | 🟡 占位已完 | SSE 实时推送差值算速率 |
+| P0 | **仪表盘（Dashboard）** | `/host/stats`(admin)/`/self/quota`(user) | 2 天 | [待分配] | ✅ 已完成 | SSE 实时推送；管理员含理论最大量双进度条 |
 | P1 | **虚拟机列表** | `/vm/list` / `/self/vms` + SSE | 4 天 | [待分配] | ⬜ | 缓存优先机制/分组逻辑/批量保护 |
 | P1 | **虚拟机详情页** | `/vm/:id` + createVmDetailSSE | 5 天 | [待分配] | ⬜ | SSE 详情通道/懒加载策略/Tab 惰性加载 |
 | P2 | **VNC 控制台** | `/vm/:id/vnc/ws` + @novnc/novnc | 3 天 | [待分配] | ⬜ | noVNC 连接逻辑/快捷键发送 |

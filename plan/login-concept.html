@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QVMConsole · 登录页概念稿</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#070B14;
+  --card:rgba(255,255,255,.028);
+  --stroke:rgba(148,163,184,.09);
+  --txt:#E7EBF3;
+  --txt2:#8B95AB;
+  --txt3:#59627A;
+  --acc:#2DD4BF;
+  --acc2:#8B5CF6;
+  --acc3:#38BDF8;
+  --grad:linear-gradient(120deg,#2DD4BF,#38BDF8);
+  --grad2:linear-gradient(120deg,#8B5CF6,#38BDF8);
+  --num-font:"Space Grotesk",-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+body{min-height:100vh;background:var(--bg);color:var(--txt);display:flex;position:relative;overflow:hidden}
+
+/* ============ 极光背景（与主布局一致） ============ */
+.aurora{position:fixed;inset:0;pointer-events:none;z-index:0}
+.aurora::before{content:"";position:absolute;width:680px;height:680px;top:-240px;left:-160px;border-radius:50%;
+  background:radial-gradient(circle,rgba(45,212,191,.12),transparent 65%)}
+.aurora::after{content:"";position:absolute;width:760px;height:760px;bottom:-320px;right:-140px;border-radius:50%;
+  background:radial-gradient(circle,rgba(139,92,246,.12),transparent 65%)}
+.grid-tex{position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.5;
+  background-image:linear-gradient(rgba(148,163,184,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(148,163,184,.04) 1px,transparent 1px);
+  background-size:44px 44px;
+  mask-image:radial-gradient(ellipse 80% 70% at 50% 40%,#000 30%,transparent 78%);
+  -webkit-mask-image:radial-gradient(ellipse 80% 70% at 50% 40%,#000 30%,transparent 78%)}
+
+/* ============ 渐变描边 ============ */
+.g-border{position:relative}
+.g-border::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;pointer-events:none;
+  background:linear-gradient(160deg,rgba(45,212,191,.35),rgba(139,92,246,.14) 42%,rgba(148,163,184,.06) 72%);
+  -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude}
+
+/* ============ 左侧品牌区 ============ */
+.brand{width:46%;padding:56px 60px;display:flex;flex-direction:column;position:relative;z-index:1}
+.brand-logo{display:flex;align-items:center;gap:13px}
+.logo-mark{width:44px;height:44px;border-radius:13px;background:var(--grad);display:flex;align-items:center;justify-content:center;
+  font-family:var(--num-font);font-weight:700;font-size:23px;color:#06281F;box-shadow:0 0 28px rgba(45,212,191,.3)}
+.brand-logo-name{font-family:var(--num-font);font-size:19px;font-weight:700;letter-spacing:.3px}
+.brand-logo-sub{font-size:10.5px;color:var(--txt3);letter-spacing:.6px;margin-top:1px}
+.brand-mid{margin:auto 0;padding:40px 0}
+.brand-slogan{font-size:34px;font-weight:800;line-height:1.35;letter-spacing:.3px}
+.brand-slogan em{font-style:normal;background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.brand-desc{font-size:14px;color:var(--txt2);line-height:1.8;margin-top:16px;max-width:420px}
+.feature-list{margin-top:34px;display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:480px}
+.feature-item{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--txt2)}
+.feature-ic{width:32px;height:32px;border-radius:9px;flex:none;display:flex;align-items:center;justify-content:center}
+.brand-foot{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--txt3)}
+.brand-foot .dot-ok{width:7px;height:7px;border-radius:50%;background:var(--acc);box-shadow:0 0 8px rgba(45,212,191,.8)}
+
+/* 浮动 VM 装饰卡片 */
+.float-vm{position:absolute;border-radius:14px;background:rgba(13,20,36,.85);border:1px solid rgba(148,163,184,.14);
+  backdrop-filter:blur(10px);padding:12px 16px;box-shadow:0 18px 44px rgba(0,0,0,.45);animation:floaty 7s ease-in-out infinite}
+.float-vm .fv-name{font-size:12px;font-weight:700;display:flex;align-items:center;gap:7px}
+.float-vm .fv-meta{font-family:var(--num-font);font-size:10.5px;color:var(--txt3);margin-top:5px}
+.fv-dot{width:6px;height:6px;border-radius:50%;background:var(--acc);box-shadow:0 0 6px rgba(45,212,191,.9)}
+.fvm-1{right:26px;top:15%;animation-delay:0s}
+.fvm-2{right:110px;top:44%;animation-delay:2.2s}
+.fvm-3{right:40px;bottom:14%;animation-delay:4.1s}
+.fvm-3 .fv-dot{background:#5B6478;box-shadow:none}
+@keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-14px)}}
+
+/* ============ 右侧登录区 ============ */
+.login-side{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;z-index:1;padding:40px 32px}
+.login-card{width:420px;max-width:100%;border-radius:22px;padding:38px 38px 30px;
+  background:rgba(12,19,34,.72);backdrop-filter:blur(18px);box-shadow:0 30px 70px rgba(0,0,0,.5)}
+.lc-head{text-align:center;margin-bottom:28px}
+.lc-logo{width:52px;height:52px;border-radius:15px;background:var(--grad);display:inline-flex;align-items:center;justify-content:center;
+  font-family:var(--num-font);font-weight:700;font-size:27px;color:#06281F;box-shadow:0 0 30px rgba(45,212,191,.32)}
+.lc-title{font-size:21px;font-weight:800;margin-top:16px}
+.lc-sub{font-size:12.5px;color:var(--txt3);margin-top:6px}
+/* 表单 */
+.field{margin-bottom:16px}
+.field-label{font-size:12px;color:var(--txt2);margin-bottom:8px;display:block}
+.input-wrap{display:flex;align-items:center;gap:10px;height:46px;padding:0 14px;border-radius:13px;
+  background:rgba(255,255,255,.04);border:1px solid var(--stroke);transition:all .18s}
+.input-wrap:focus-within{border-color:rgba(45,212,191,.5);box-shadow:0 0 0 3px rgba(45,212,191,.12)}
+.input-wrap svg{flex:none;color:var(--txt3)}
+.input-wrap:focus-within svg{color:var(--acc)}
+.input-wrap input{flex:1;min-width:0;background:none;border:none;outline:none;color:var(--txt);font-size:14px;height:100%}
+.input-wrap input::placeholder{color:var(--txt3)}
+.eye{cursor:pointer;display:flex}
+.eye:hover{color:var(--txt2)!important}
+/* 协议勾选 */
+.agreement{display:flex;align-items:flex-start;gap:9px;font-size:12px;color:var(--txt2);margin:4px 0 20px;line-height:1.6}
+.ckb{width:17px;height:17px;border-radius:6px;border:1px solid rgba(148,163,184,.3);background:rgba(255,255,255,.04);
+  flex:none;margin-top:2px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.ckb.checked{background:var(--grad);border-color:transparent;box-shadow:0 0 10px rgba(45,212,191,.4)}
+.ckb svg{opacity:0}
+.ckb.checked svg{opacity:1}
+.agreement a{color:var(--acc3);text-decoration:none}
+.agreement a:hover{text-decoration:underline}
+/* 登录按钮 */
+.btn-login{width:100%;height:46px;border:none;border-radius:13px;background:var(--grad);color:#052822;
+  font-size:15px;font-weight:800;letter-spacing:4px;cursor:pointer;font-family:var(--num-font);
+  box-shadow:0 8px 26px rgba(45,212,191,.3);transition:all .18s}
+.btn-login:hover{box-shadow:0 10px 32px rgba(45,212,191,.45);transform:translateY(-1px)}
+.btn-login:disabled{opacity:.45;cursor:not-allowed;box-shadow:none;transform:none}
+/* 辅助链接 */
+.helper{display:flex;justify-content:space-between;align-items:center;margin-top:18px;font-size:12.5px}
+.helper a{color:var(--acc3);text-decoration:none;cursor:pointer}
+.helper a:hover{text-decoration:underline}
+.helper .reg-tip{color:var(--txt3)}
+/* 页脚 */
+.page-foot{position:absolute;bottom:22px;left:0;right:0;text-align:center;font-size:12px;color:var(--txt3);z-index:1}
+.page-foot a{color:var(--txt2);text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+.page-foot a:hover{color:var(--acc)}
+
+/* ============ 响应式 ============ */
+@media (max-width:960px){
+  .brand{display:none}
+  .login-side{padding:24px 18px}
+  .login-card{padding:30px 24px 24px}
+}
+</style>
+</head>
+<body>
+
+<div class="aurora"></div>
+<div class="grid-tex"></div>
+
+<!-- ============ 左侧品牌区 ============ -->
+<section class="brand">
+  <div class="brand-logo">
+    <div class="logo-mark">Q</div>
+    <div>
+      <div class="brand-logo-name">QVMConsole</div>
+      <div class="brand-logo-sub">OPENSOURCE KVM PANEL</div>
+    </div>
+  </div>
+
+  <div class="brand-mid">
+    <div class="brand-slogan">自托管的<br><em>KVM 虚拟化</em>管理平台</div>
+    <div class="brand-desc">
+      开源自托管的虚拟机管理控制台，一台物理机即可构建属于自己的私有云。从模板秒级开出虚拟机，网络、存储、配额一站式管理。
+    </div>
+    <div class="feature-list">
+      <div class="feature-item">
+        <div class="feature-ic" style="background:rgba(45,212,191,.1);border:1px solid rgba(45,212,191,.2)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2DD4BF" stroke-width="2"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg>
+        </div>
+        模板克隆 秒级开机
+      </div>
+      <div class="feature-item">
+        <div class="feature-ic" style="background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.2)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#38BDF8" stroke-width="2"><circle cx="12" cy="5" r="2.5"/><circle cx="5" cy="19" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="M12 7.5 6 16.8M12 7.5l6 9.3M7.5 19h9"/></svg>
+        </div>
+        VPC 网络 与防火墙
+      </div>
+      <div class="feature-item">
+        <div class="feature-ic" style="background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.2)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M15.5 3.1a4 4 0 0 1 0 7.8"/></svg>
+        </div>
+        多租户 配额管理
+      </div>
+      <div class="feature-item">
+        <div class="feature-ic" style="background:rgba(251,191,36,.09);border:1px solid rgba(251,191,36,.2)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" stroke-width="2"><path d="M3 3v18h18"/><path d="m7 14 4-4 4 3 5-6"/></svg>
+        </div>
+        实时监控 SSE 推送
+      </div>
+    </div>
+  </div>
+
+  <div class="brand-foot">
+    <span class="dot-ok"></span>
+    服务运行正常 · 已稳定运行 128 天
+  </div>
+
+  <!-- 浮动 VM 装饰卡片 -->
+  <div class="float-vm fvm-1">
+    <div class="fv-name"><span class="fv-dot"></span>web-server-01</div>
+    <div class="fv-meta">4C / 8G · 运行 12 天</div>
+  </div>
+  <div class="float-vm fvm-2">
+    <div class="fv-name"><span class="fv-dot"></span>db-mysql-prod</div>
+    <div class="fv-meta">8C / 16G · 运行 45 天</div>
+  </div>
+  <div class="float-vm fvm-3">
+    <div class="fv-name"><span class="fv-dot"></span>test-env-02</div>
+    <div class="fv-meta">2C / 4G · 已停止</div>
+  </div>
+</section>
+
+<!-- ============ 右侧登录卡片 ============ -->
+<section class="login-side">
+  <div class="login-card g-border">
+    <div class="lc-head">
+      <div class="lc-logo">Q</div>
+      <div class="lc-title">欢迎回来</div>
+      <div class="lc-sub">登录 QVMConsole 开源虚拟机管理控制台</div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">用户名</label>
+      <div class="input-wrap">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <input type="text" placeholder="请输入用户名" autocomplete="username">
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">密码</label>
+      <div class="input-wrap">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <input type="password" id="pwdInput" placeholder="请输入密码" autocomplete="current-password">
+        <span class="eye" id="pwdEye">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </span>
+      </div>
+    </div>
+
+    <div class="agreement">
+      <span class="ckb" id="agreeCkb">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#052822" stroke-width="3.5"><path d="M20 6 9 17l-5-5"/></svg>
+      </span>
+      <span>我已阅读并同意 <a href="https://qvmcdocs.xiaozhuhouses.asia/agreement?return=%2Fdocs%2Finstall%2F" target="_blank" rel="noopener noreferrer">《用户协议》</a> 和 <a href="https://qvmcdocs.xiaozhuhouses.asia/agreement?return=%2Fdocs%2Finstall%2F" target="_blank" rel="noopener noreferrer">《公测协议》</a></span>
+    </div>
+
+    <button class="btn-login" id="loginBtn" disabled>登 录</button>
+
+    <div class="helper">
+      <span class="reg-tip">邀请注册请联系管理员获取链接</span>
+      <a>忘记密码</a>
+    </div>
+  </div>
+
+  <div class="page-foot">
+    <a href="https://github.com/QVMConsole/QVMConsole" target="_blank" rel="noopener noreferrer">
+      <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      © QVMConsole · Open source Apache 2.0
+    </a>
+  </div>
+</section>
+
+<script>
+/* ===== 协议勾选联动登录按钮（交互演示） ===== */
+var ckb = document.getElementById('agreeCkb');
+var btn = document.getElementById('loginBtn');
+ckb.addEventListener('click', function () {
+  ckb.classList.toggle('checked');
+  btn.disabled = !ckb.classList.contains('checked');
+});
+
+/* ===== 密码可见性切换（交互演示） ===== */
+var eye = document.getElementById('pwdEye');
+var pwd = document.getElementById('pwdInput');
+eye.addEventListener('click', function () {
+  pwd.type = pwd.type === 'password' ? 'text' : 'password';
+});
+</script>
+
+</body>
+</html>
