@@ -1,0 +1,343 @@
+/**
+ * 用户管理页样式（深空极光，浅色优先 + 深色适配）
+ * 迁移自旧前端 views/user/index.vue，改用 --qvm- 设计令牌
+ */
+
+.usr-page {
+  padding: 4px 2px 24px;
+  width: 100%;
+}
+
+/* ==================== 页头 ==================== */
+.usr-page-header {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.usr-page-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+}
+.usr-page-sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--qvm-text-2);
+}
+.usr-header-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* ==================== 筛选栏 ==================== */
+.usr-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+/* ==================== 表格 ==================== */
+.usr-table-card {
+  border-radius: 14px;
+  background: var(--qvm-card-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--qvm-card-shadow);
+  border: 1px solid var(--qvm-stroke);
+  padding: 12px;
+  overflow-x: auto;
+}
+.usr-pagination {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+.usr-name {
+  font-weight: 600;
+  color: var(--qvm-text-0);
+}
+.usr-muted {
+  color: var(--qvm-text-2);
+  font-size: 13px;
+}
+.usr-muted.sm {
+  font-size: 12px;
+  line-height: 1.6;
+}
+.usr-tag-group {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.usr-vm-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.usr-vm-tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* ==================== 紧凑配额单元格 ==================== */
+.usr-quota-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  cursor: default;
+  min-width: 0;
+}
+.usr-quota-cell.lw {
+  gap: 6px;
+  align-items: flex-start;
+}
+.usr-mini-bar {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  align-items: center;
+  font-size: 12px;
+}
+.usr-mini-bar-label {
+  color: var(--qvm-text-2);
+  grid-row: span 2;
+}
+.usr-mini-bar-text {
+  color: var(--qvm-text-1);
+  font-family: var(--qvm-num-font);
+  line-height: 1.35;
+  white-space: nowrap;
+}
+.usr-mini-bar-progress {
+  width: 100%;
+}
+
+/* 悬浮配额明细 */
+.usr-quota-detail {
+  padding: 4px 2px;
+  max-width: 380px;
+}
+.usr-quota-detail-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+  margin-bottom: 6px;
+}
+.usr-quota-detail-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 12.5px;
+  line-height: 1.9;
+}
+.usr-quota-detail-label {
+  color: var(--qvm-text-2);
+  flex-shrink: 0;
+}
+.usr-quota-detail-value {
+  color: var(--qvm-text-1);
+  font-family: var(--qvm-num-font);
+  text-align: right;
+  word-break: break-all;
+}
+.usr-quota-detail-value.danger {
+  color: var(--qvm-danger);
+}
+
+/* ==================== 行内操作（纯图标 + Tooltip + 下拉） ==================== */
+.usr-act-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.usr-act-ic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  color: var(--qvm-text-2);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.16s;
+}
+.usr-act-ic.config:hover {
+  color: var(--qvm-acc-ink);
+  background: var(--qvm-acc-bg);
+  border-color: var(--qvm-acc-stroke);
+}
+.usr-act-ic.more:hover {
+  color: var(--qvm-text-0);
+  background: var(--qvm-hover-bg);
+  border-color: var(--qvm-stroke);
+}
+.usr-act-ic.danger:hover {
+  color: var(--qvm-danger);
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.28);
+}
+.usr-act-ic:hover:not(.disabled):not(.config):not(.more):not(.danger) {
+  color: var(--qvm-acc-ink);
+  background: var(--qvm-acc-bg);
+  border-color: var(--qvm-acc-stroke);
+}
+.usr-act-ic.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ==================== 配额表单（创建/编辑弹窗共用） ==================== */
+.usr-quota-form {
+  margin-top: 4px;
+}
+.usr-quota-section {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 18px 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--qvm-stroke);
+}
+.usr-quota-section.sub {
+  border-bottom: none;
+  margin: 12px 0 6px;
+  padding-bottom: 0;
+}
+.usr-quota-section-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+}
+.usr-quota-section.sub .usr-quota-section-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--qvm-text-1);
+}
+.usr-quota-section-tip {
+  font-size: 12px;
+  color: var(--qvm-text-2);
+}
+.usr-quota-grid {
+  display: grid;
+  gap: 10px 16px;
+}
+.usr-quota-grid.cols-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.usr-quota-grid.cols-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.usr-quota-field-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--qvm-text-1);
+  margin-bottom: 6px;
+}
+.usr-quota-field-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.usr-quota-used {
+  font-size: 12px;
+  color: var(--qvm-text-2);
+  white-space: nowrap;
+  min-width: 88px;
+  text-align: right;
+}
+
+/* ==================== 轻量云注册面板 ==================== */
+.usr-reg-panel {
+  margin: 12px 0 6px;
+  padding: 14px;
+  border: 1px solid var(--qvm-stroke);
+  border-radius: 10px;
+  background: var(--qvm-hover-bg);
+}
+.usr-reg-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.usr-reg-panel-header strong {
+  font-size: 13.5px;
+  color: var(--qvm-text-0);
+}
+.usr-reg-hint {
+  margin-left: 10px;
+  color: var(--qvm-text-2);
+  font-size: 12px;
+}
+.usr-lw-vm-name {
+  font-weight: 600;
+  color: var(--qvm-text-1);
+  word-break: break-all;
+}
+
+/* ==================== 无权限提示 ==================== */
+.usr-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--qvm-text-2);
+  font-size: 14px;
+}
+.usr-empty-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+/* ==================== 删除确认文案 ==================== */
+.usr-del-warn {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: var(--qvm-warn);
+  line-height: 1.6;
+}
+.usr-del-warn .semi-icon {
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+.usr-del-danger {
+  color: var(--qvm-danger);
+  font-weight: 600;
+}
+
+/* ==================== 深色模式：大面积文字降对比 ==================== */
+body[theme-mode='dark'] .usr-page-header h2,
+body[theme-mode='dark'] .usr-name,
+body[theme-mode='dark'] .usr-quota-detail-title,
+body[theme-mode='dark'] .usr-quota-section-title,
+body[theme-mode='dark'] .usr-reg-panel-header strong {
+  color: #b8c1cf;
+}
+
+/* ==================== 响应式 ==================== */
+@media (max-width: 720px) {
+  .usr-page-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .usr-header-actions {
+    width: 100%;
+  }
+  .usr-quota-grid.cols-2,
+  .usr-quota-grid.cols-3 {
+    grid-template-columns: 1fr;
+  }
+}

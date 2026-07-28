@@ -68,7 +68,7 @@ export const ADMIN_NAV: NavGroup[] = [
   {
     group: '系统',
     items: [
-      { key: 'user', title: '用户管理', icon: <IconUserGroup />, path: '/user', coming: true },
+      { key: 'user', title: '用户管理', icon: <IconUserGroup />, path: '/user' },
       { key: 'scheduler', title: '调度事件', icon: <IconClockStroked />, path: '/scheduler', coming: true },
       { key: 'task', title: '任务中心', icon: <IconCheckList />, path: '/task', badge: 'task', coming: true },
       { key: 'settings', title: '系统设置', icon: <IconSetting />, path: '/settings', coming: true },

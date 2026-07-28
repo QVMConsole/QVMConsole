@@ -50,25 +50,25 @@ const TYPE_OPTIONS: Array<{ value: TemplateType; label: string }> = [
 /** 选择「不初始化」时的风险确认文案 */
 const NONE_INIT_CONFIRM: Record<TemplateType, { title: string; content: string; okText: string }> = {
   linux: {
-    title: '⚠️ 风险确认：不初始化模板',
+    title: '风险确认：不初始化模板',
     content:
       '选择「不初始化」意味着克隆此模板时不会进行任何系统初始化操作（不会设置 hostname、不会扩容磁盘、不会注入密码），克隆出的虚拟机将完全保留模板的原始状态。\n\n请确保：\n1. 模板内已自行完成通用化处理（如删除 SSH 主机密钥、清理 machine-id 等）\n2. 模板磁盘大小已满足最终需求，后续不会自动扩容\n3. 你清楚克隆后需自行登录虚拟机进行个性化配置',
     okText: '我已知晓风险，继续',
   },
   windows: {
-    title: '⚠️ 风险确认：不初始化模板',
+    title: '风险确认：不初始化模板',
     content:
-      '选择「不初始化」意味着克隆此模板时不会进行任何系统初始化操作（不会注入 ConfigDrive、不会设置密码、不会执行 cloudbase-init）。克隆出的虚拟机将完全保留模板的原始状态。\n\n⚠ 请在制作模板前务必对源虚拟机执行 sysprep 通用化：\n1. 运行 sysprep.exe 并勾选「通用」选项（/generalize）\n2. 关机后制作模板，确保 SID 和其他唯一标识已被清除\n3. 克隆后的 Windows 将在首次启动时重新进入 OOBE 初始化流程\n\n未通用化的 Windows 模板将导致克隆虚拟机出现 SID 冲突、域加入失败等问题。',
+      '选择「不初始化」意味着克隆此模板时不会进行任何系统初始化操作（不会注入 ConfigDrive、不会设置密码、不会执行 cloudbase-init）。克隆出的虚拟机将完全保留模板的原始状态。\n\n请在制作模板前务必对源虚拟机执行 sysprep 通用化：\n1. 运行 sysprep.exe 并勾选「通用」选项（/generalize）\n2. 关机后制作模板，确保 SID 和其他唯一标识已被清除\n3. 克隆后的 Windows 将在首次启动时重新进入 OOBE 初始化流程\n\n未通用化的 Windows 模板将导致克隆虚拟机出现 SID 冲突、域加入失败等问题。',
     okText: '已通用化，继续',
   },
   fnos: {
-    title: '⚠️ 风险确认：不初始化模板',
+    title: '风险确认：不初始化模板',
     content:
       '选择「不初始化」意味着克隆此模板时不会进行任何系统初始化操作。克隆出的虚拟机将完全保留模板的原始状态。\n\n请确保模板已完成必要的通用化处理。',
     okText: '我已知晓风险，继续',
   },
   openwrt: {
-    title: '⚠️ 风险确认：不初始化模板',
+    title: '风险确认：不初始化模板',
     content:
       '选择「不初始化」意味着克隆此模板时不会注入任何网络配置。克隆出的 OpenWrt 将保留模板原始 IP 配置。\n\n请确保模板已完成必要的通用化处理。',
     okText: '我已知晓风险，继续',
