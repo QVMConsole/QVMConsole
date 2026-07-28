@@ -37,11 +37,11 @@ export default function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
   const isAdmin = role === ROLES.admin
   const [vms, setVms] = useState<VmListItem[]>([])
 
-  // 轻量云用户不展示 VPC 菜单（轻量云走宿主机网桥直通）
+  // 轻量云用户不展示 VPC 菜单（轻量云走宿主机网桥直通）与我的存储菜单
   const navGroups = useMemo(() => {
     const base = isAdmin ? ADMIN_NAV : USER_NAV
     if (!isAdmin && cloudType === CLOUD_TYPES.lightweight) {
-      return base.filter((g) => g.group !== '网络')
+      return base.filter((g) => g.group !== '网络' && g.group !== '存储')
     }
     return base
   }, [isAdmin, cloudType])

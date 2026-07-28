@@ -4,7 +4,7 @@
  * - 分配已有 VM：选择未占用 VM 并逐台设置单 VM 配额
  * - 支持编辑单 VM 配额、删除待注册项、移除已开通 VM（不删除虚拟机本体）
  */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Banner,
   Button,
@@ -27,7 +27,8 @@ import {
   type LightweightVmQuotaPayload,
   type UserListItem,
 } from '@/api/user'
-import { getVmList } from '@/api/vm'
+import { getVmList, type VmListItem } from '@/api/vm'
+import { vmConfigText } from '@/views/vm/utils'
 import type { VpcSwitch } from '@/api/vpc'
 import { confirmModal } from '@/utils/confirm'
 import CreateVmWizard, { type RegistrationDraft } from '@/features/vm-form/CreateVmWizard'
@@ -89,10 +90,10 @@ export default function RegistrationDialog({
   )
   const [quotas, setQuotas] = useState((row.lightweight_quotas || []).map((item) => ({ ...item })))
   const [drafts, setDrafts] = useState<(RegistrationDraft & { client_id: string })[]>([])
-  // 分配已有 VM
+  // 分配已有 VM（列表同时用于已开通 VM 规格回显）
   const [existingVms, setExistingVms] = useState<string[]>([])
   const [existingQuotas, setExistingQuotas] = useState<LightweightVmQuotaPayload[]>([])
-  const [allVms, setAllVms] = useState<string[]>([])
+  const [allVms, setAllVms] = useState<VmListItem[]>([])
   const [loadingVms, setLoadingVms] = useState(false)
   const [vmsLoaded, setVmsLoaded] = useState(false)
   const [wizardVisible, setWizardVisible] = useState(false)
@@ -111,7 +112,7 @@ export default function RegistrationDialog({
     setLoadingVms(true)
     try {
       const res = await getVmList()
-      setAllVms((res.data || []).map((vm) => vm.name))
+      setAllVms(res.data || [])
       setVmsLoaded(true)
     } catch {
       // 请求层已提示
@@ -119,6 +120,15 @@ export default function RegistrationDialog({
       setLoadingVms(false)
     }
   }
+
+  // 存在仅配额的已开通 VM（无注册记录）时，加载 VM 列表用于规格回显
+  useEffect(() => {
+    const registeredNames = new Set(registrations.map((item) => item.vm_name))
+    if (quotas.some((item) => !registeredNames.has(item.vm_name))) {
+      void ensureVmList()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   /** VM 是否已被其他用户占用 */
   const isVmAssigned = (vmName: string) =>
@@ -334,7 +344,14 @@ export default function RegistrationDialog({
       title: '规格',
       dataIndex: 'vcpu',
       width: 130,
-      render: (_t, r) => `${r.vcpu}C / ${r.ram}GB / ${r.disk_size}GB`,
+      render: (_t, r) => {
+        // 已开通 VM 无注册记录，从 VM 列表回显真实规格
+        if (r.quota_only) {
+          const vm = allVms.find((item) => item.name === r.vm_name)
+          return vm ? vmConfigText(vm) : '-'
+        }
+        return `${r.vcpu}C / ${r.ram}GB / ${r.disk_size}GB`
+      },
     },
     {
       title: '状态',
@@ -473,10 +490,10 @@ export default function RegistrationDialog({
                 placeholder="选择要分配给该用户的已有 VM"
                 style={{ width: '100%' }}
                 maxTagCount={6}
-                optionList={allVms.map((name) => ({
-                  label: isVmAssigned(name) ? `${name}（已被占用）` : name,
-                  value: name,
-                  disabled: isVmAssigned(name),
+                optionList={allVms.map((vm) => ({
+                  label: isVmAssigned(vm.name) ? `${vm.name}（已被占用）` : vm.name,
+                  value: vm.name,
+                  disabled: isVmAssigned(vm.name),
                 }))}
               />
             </div>

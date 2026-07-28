@@ -1,0 +1,138 @@
+/**
+ * 邀请注册页样式（复用登录页背景与卡片基础样式）
+ */
+
+/* 邀请页整体：内容可纵向滚动（卡片内容较长） */
+.qvm-invite {
+  overflow-y: auto;
+}
+.qvm-invite-wrap {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  position: relative;
+  z-index: 1;
+  padding: 48px 24px 56px;
+}
+
+/* 邀请卡片比登录卡片更宽（需展示配额与服务器表格） */
+.qvm-invite-card.qvm-login-card {
+  width: 720px;
+}
+
+/* 加载 / 失效态 */
+.qvm-invite-loading {
+  display: flex;
+  justify-content: center;
+  padding: 48px 0;
+}
+.qvm-invite-invalid {
+  padding-top: 4px;
+}
+
+/* 分组小标题 */
+.qvm-invite-sec-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--qvm-text-1);
+  margin: 22px 0 10px;
+  padding-left: 10px;
+  border-left: 3px solid var(--qvm-acc);
+  line-height: 1.4;
+}
+.qvm-invite-sec-title:first-of-type {
+  margin-top: 0;
+}
+
+/* 账号信息描述列表 */
+.qvm-invite-desc .semi-descriptions-key {
+  color: var(--qvm-text-2);
+}
+.qvm-invite-desc .semi-descriptions-value {
+  color: var(--qvm-text-1);
+}
+
+/* 配额网格 */
+.qvm-invite-quota-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.qvm-invite-quota-item {
+  border: 1px solid var(--qvm-stroke);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--qvm-panel-bg);
+}
+.qvm-invite-quota-item .qk {
+  font-size: 11.5px;
+  color: var(--qvm-text-2);
+}
+.qvm-invite-quota-item .qv {
+  font-family: var(--qvm-num-font);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--qvm-text-1);
+}
+
+/* 轻量云提示与表格 */
+.qvm-invite-banner {
+  margin-top: 4px;
+  border-radius: 12px;
+}
+.qvm-invite-table {
+  border: 1px solid var(--qvm-stroke);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.qvm-invite-note {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--qvm-text-2);
+  line-height: 1.6;
+}
+
+/* 密码提示与返回链接 */
+.qvm-invite-pwd-tip {
+  font-size: 12px;
+  color: var(--qvm-text-2);
+  margin: 10px 0 18px;
+  line-height: 1.6;
+}
+.qvm-invite-back {
+  text-align: center;
+  margin-top: 16px;
+  font-size: 12.5px;
+  color: var(--qvm-text-2);
+}
+.qvm-invite-back a {
+  color: var(--qvm-acc3-ink);
+  text-decoration: none;
+  cursor: pointer;
+}
+.qvm-invite-back a:hover {
+  text-decoration: underline;
+}
+
+/* 深色模式：大面积正文降对比为柔和灰 */
+body[theme-mode='dark'] .qvm-invite-desc .semi-descriptions-value,
+body[theme-mode='dark'] .qvm-invite-quota-item .qv {
+  color: #b8c1cf;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .qvm-invite-wrap {
+    padding: 24px 14px 40px;
+  }
+  .qvm-invite-card.qvm-login-card {
+    width: 100%;
+  }
+  .qvm-invite-quota-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

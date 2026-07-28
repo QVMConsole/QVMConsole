@@ -24,6 +24,7 @@ import { useAppStore } from '@/stores/app'
 import { useTheme } from '@/hooks/useTheme'
 import { LOGIN_STAGES, CLOUD_TYPES, type CloudType } from '@/config/constants'
 import { applyDocumentTitle } from '@/config/site'
+import ForgotPasswordModal from './ForgotPasswordModal'
 import loginBgDark from '@/assets/img/login-bg.png'
 import loginBgLight from '@/assets/img/login-bg-light.png'
 import './login.css'
@@ -54,6 +55,7 @@ export default function LoginPage() {
   const [stageTip, setStageTip] = useState('')
   const [agreed, setAgreed] = useState(false)
   const [pwdVisible, setPwdVisible] = useState(false)
+  const [forgotVisible, setForgotVisible] = useState(false)
 
   useEffect(() => {
     applyDocumentTitle('登录')
@@ -261,11 +263,12 @@ export default function LoginPage() {
 
           <div className="qvm-login-helper">
             <span className="reg-tip">邀请注册请联系管理员获取链接</span>
-            <a onClick={() => Toast.info({ content: '找回密码流程将在后续迭代提供', duration: 3 })}>
-              忘记密码
-            </a>
+            <a onClick={() => setForgotVisible(true)}>忘记密码</a>
           </div>
         </div>
+
+        {/* 找回密码弹窗 */}
+        <ForgotPasswordModal visible={forgotVisible} onClose={() => setForgotVisible(false)} />
 
         <div className="qvm-login-foot">
           <a href="https://github.com/QVMConsole/QVMConsole" target="_blank" rel="noopener noreferrer">

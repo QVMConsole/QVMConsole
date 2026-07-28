@@ -1,5 +1,7 @@
-/**
- * 侧边栏导航配置（按角色区分）
+/** 侧边栏导航配置（按角色区分）
+ * - lightweight：工作台、虚拟机、任务中心、支持
+ * - elastic：+ VPC + 存储
+ * - admin：全部模块 + 系统管理
  * - path 为后续模块迭代预留；coming=true 表示本轮尚未迁移，点击提示
  */
 import type { ReactNode } from 'react'
@@ -83,7 +85,7 @@ export const ADMIN_NAV: NavGroup[] = [
   },
 ]
 
-/** 普通用户导航（弹性云；轻量云在弹性云基础上精简网络菜单） */
+/** 普通用户导航（弹性云：工作台、虚拟机、VPC、存储、任务中心；轻量云在基础上精简网络/存储） */
 export const USER_NAV: NavGroup[] = [
   {
     group: '概览',

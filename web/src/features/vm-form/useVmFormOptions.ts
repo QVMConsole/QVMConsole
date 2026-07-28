@@ -86,13 +86,16 @@ export function useVmFormOptions({ isAdmin }: UseVmFormOptionsParams) {
         })
         .catch(() => undefined),
     )
-    tasks.push(
-      getSettings()
-        .then((res) => {
-          if (res.data?.iso_dir) setIsoStorageDir(res.data.iso_dir)
-        })
-        .catch(() => undefined),
-    )
+    // 系统设置为管理员专属接口，普通用户调用会被 403 拦截并弹出全局错误提示
+    if (isAdmin) {
+      tasks.push(
+        getSettings()
+          .then((res) => {
+            if (res.data?.iso_dir) setIsoStorageDir(res.data.iso_dir)
+          })
+          .catch(() => undefined),
+      )
+    }
     tasks.push(
       getCPUAffinityPresets()
         .then((res) => setCpuAffinityPresets(res.data || []))
@@ -108,7 +111,7 @@ export function useVmFormOptions({ isAdmin }: UseVmFormOptionsParams) {
     )
     await Promise.all(tasks)
     return result
-  }, [hostArch, hostCores, spiceSupported, spiceDefault])
+  }, [isAdmin, hostArch, hostCores, spiceSupported, spiceDefault])
 
   /** ISO 列表（管理员聚合全部存储池，普通用户取自己的存储） */
   const loadISOs = useCallback(async () => {

@@ -12,6 +12,8 @@ import NotFound from '@/views/error/NotFound'
 
 // 页面懒加载（后续业务模块迁移后在此追加）
 const LoginPage = lazy(() => import('@/views/login'))
+const InviteRegisterPage = lazy(() => import('@/views/invite'))
+const ResetPasswordPage = lazy(() => import('@/views/reset-password'))
 const DashboardPage = lazy(() => import('@/views/dashboard'))
 const VmListPage = lazy(() => import('@/views/vm'))
 const VmDetailPage = lazy(() => import('@/views/vm/detail'))
@@ -126,11 +128,20 @@ export const router = createBrowserRouter([
     handle: { title: '登录' },
   },
   {
+    path: '/invite',
+    element: lazyPage(<InviteRegisterPage />),
+    handle: { title: '邀请注册' },
+  },
+  {
+    path: '/reset-password',
+    element: lazyPage(<ResetPasswordPage />),
+    handle: { title: '重置密码' },
+  },
+  {
     path: '/vm/:id/vnc-window',
     element: <VncWindowPage />,
     handle: { title: 'VNC 控制台' },
   },
-  // TODO(重构迭代): /invite、/reset-password
   {
     path: '/',
     element: (
