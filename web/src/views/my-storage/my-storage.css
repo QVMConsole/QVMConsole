@@ -1,0 +1,263 @@
+/**
+ * 我的存储页样式（深空极光，浅色优先 + 深色适配）
+ * 迁移自旧前端 views/storage/index.vue，对齐新前端设计令牌
+ */
+
+/* ===== 基础布局 ===== */
+.mst-page { position: relative; z-index: 1; width: 100%; padding: 22px 20px 48px; }
+
+/* ===== 页头 ===== */
+.mst-page-header {
+  margin-bottom: 14px;
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 10px;
+}
+.mst-page-header h2 {
+  margin: 0; font-size: 20px; font-weight: 600; color: var(--qvm-text-0);
+  display: flex; align-items: center; gap: 8px;
+}
+.mst-page-header h2 svg { color: var(--qvm-acc-ink); }
+.mst-page-sub { margin: 4px 0 0; font-size: 13px; color: var(--qvm-text-2); }
+.mst-header-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+/* ===== 未初始化空状态 ===== */
+.mst-init-card {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 64px 24px; margin-top: 16px;
+  border-radius: 14px;
+  background: var(--qvm-card-bg);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--qvm-card-shadow);
+  border: 1px solid var(--qvm-stroke);
+  text-align: center;
+}
+.mst-init-icon {
+  font-size: 42px; color: var(--qvm-text-2); margin-bottom: 14px;
+  display: inline-flex;
+}
+.mst-init-title { font-size: 16px; font-weight: 600; color: var(--qvm-text-0); margin-bottom: 6px; }
+.mst-init-desc { font-size: 13px; color: var(--qvm-text-2); margin-bottom: 20px; max-width: 400px; line-height: 1.6; }
+
+/* ===== 配额概览卡 ===== */
+.mst-quota-card {
+  display: block; padding: 16px 18px 14px; margin-bottom: 14px;
+  border-radius: 14px;
+  background: var(--qvm-card-bg);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--qvm-card-shadow);
+  border: 1px solid var(--qvm-stroke);
+}
+.mst-quota-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 12px; flex-wrap: wrap; gap: 8px;
+}
+.mst-quota-title {
+  font-size: 14px; font-weight: 600; color: var(--qvm-text-0);
+  display: flex; align-items: center; gap: 6px;
+}
+.mst-quota-title svg { color: var(--qvm-acc-ink); font-size: 16px; }
+.mst-quota-stats {
+  display: flex; gap: 40px; margin-bottom: 10px; flex-wrap: wrap;
+}
+.mst-quota-item { display: flex; flex-direction: column; }
+.mst-quota-label { font-size: 12.5px; color: var(--qvm-text-2); margin-bottom: 2px; }
+.mst-quota-value {
+  font-size: 20px; font-weight: 700; color: var(--qvm-text-0);
+  font-family: var(--qvm-num-font); line-height: 1.25;
+}
+
+/* ===== 未完成上传恢复区 ===== */
+.mst-pending-card {
+  display: block; padding: 14px 18px; margin-bottom: 14px;
+  border-radius: 14px;
+  background: var(--qvm-card-bg);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--qvm-card-shadow);
+  border: 1px solid var(--qvm-stroke);
+}
+.mst-pending-title {
+  font-size: 13px; font-weight: 600; color: var(--qvm-text-0);
+  margin-bottom: 10px; display: flex; align-items: center; gap: 6px;
+}
+.mst-pending-title svg { color: var(--qvm-warn); }
+.mst-pending-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 0; flex-wrap: wrap;
+}
+.mst-pending-row + .mst-pending-row { border-top: 1px solid var(--qvm-stroke); }
+.mst-pending-name {
+  flex-shrink: 0; max-width: 220px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+  font-size: 13px; color: var(--qvm-text-1);
+}
+.mst-pending-progress { flex: 1; min-width: 120px; }
+
+/* ===== 文件管理卡片 ===== */
+.mst-files-card {
+  display: block; padding: 0; margin-top: 14px;
+  border-radius: 14px; overflow: hidden;
+  background: var(--qvm-card-bg);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--qvm-card-shadow);
+  border: 1px solid var(--qvm-stroke);
+}
+.mst-files-card .semi-tabs { padding: 0 18px; }
+/* 内容区左右不留白，表格通栏贴住卡片边框 */
+.mst-files-card .semi-tabs-content { padding: 12px 0 0; }
+
+/* Tabs 栏与卡片融合：分隔线用设计令牌描边色 */
+.mst-files-card .semi-tabs-bar-line.semi-tabs-bar-top {
+  border-bottom: 1px solid var(--qvm-stroke);
+}
+.mst-files-card .semi-tabs-bar .semi-tabs-tab {
+  color: var(--qvm-text-2);
+}
+.mst-files-card .semi-tabs-bar .semi-tabs-tab:hover {
+  color: var(--qvm-text-0);
+}
+.mst-files-card .semi-tabs-bar .semi-tabs-tab-active {
+  color: var(--qvm-acc-ink);
+}
+
+/* ===== Semi Table 极光化覆盖（与虚拟机列表页 qvm-vm-table 一致） ===== */
+.mst-page .semi-table,
+.mst-page .semi-table-container {
+  background: transparent;
+}
+.mst-page .semi-table-thead > .semi-table-row > .semi-table-row-head {
+  background: transparent;
+  color: var(--qvm-text-2);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--qvm-stroke);
+}
+.mst-page .semi-table-tbody > .semi-table-row {
+  background: transparent;
+}
+.mst-page .semi-table-tbody > .semi-table-row > .semi-table-row-cell {
+  border-bottom: 1px solid var(--qvm-stroke);
+  color: var(--qvm-text-1);
+  font-size: 12.5px;
+}
+.mst-page .semi-table-tbody > .semi-table-row:last-child > .semi-table-row-cell {
+  border-bottom: none;
+}
+.mst-page .semi-table-tbody > .semi-table-row:hover > .semi-table-row-cell,
+.mst-page .semi-table-tbody > .semi-table-row.semi-table-row-hovered > .semi-table-row-cell {
+  background-image: none;
+  background-color: var(--qvm-hover-bg);
+}
+/* 首尾列与卡片边框对齐留白（表格本体通栏贴边） */
+.mst-page .semi-table-thead > .semi-table-row > .semi-table-row-head:first-child,
+.mst-page .semi-table-tbody > .semi-table-row > .semi-table-row-cell:first-child {
+  padding-left: 18px;
+}
+.mst-page .semi-table-thead > .semi-table-row > .semi-table-row-head:last-child,
+.mst-page .semi-table-tbody > .semi-table-row > .semi-table-row-cell:last-child {
+  padding-right: 18px;
+}
+/* 空态占位背景透明 */
+.mst-page .semi-table-placeholder {
+  background: transparent;
+  border-bottom: none;
+}
+
+/* ===== 工具栏 ===== */
+.mst-toolbar {
+  display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; align-items: center;
+  padding: 0 18px;
+}
+
+/* 类别说明（disk 提示等，跟随工具栏左右留白） */
+.mst-cat-tip {
+  margin: 0 18px 12px;
+  font-size: 12.5px; color: var(--qvm-text-2); line-height: 1.6;
+}
+
+/* ===== 操作图标（纯图标 + Tooltip） ===== */
+.mst-act-cell {
+  display: flex; align-items: center; gap: 6px;
+}
+.mst-act-ic {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: 7px;
+  color: var(--qvm-text-2); border: 1px solid transparent;
+  cursor: pointer; transition: all 0.16s;
+}
+.mst-act-ic:hover {
+  color: var(--qvm-text-0);
+  background: var(--qvm-hover-bg);
+  border-color: var(--qvm-stroke);
+}
+.mst-act-ic.go:hover {
+  color: var(--qvm-acc-ink);
+  background: var(--qvm-acc-bg);
+  border-color: var(--qvm-acc-stroke);
+}
+.mst-act-ic.info:hover {
+  color: var(--qvm-acc3-ink);
+  background: rgba(56, 189, 248, 0.1);
+  border-color: rgba(56, 189, 248, 0.3);
+}
+.mst-act-ic.danger:hover {
+  color: var(--qvm-danger);
+  background: rgba(251, 113, 133, 0.1);
+  border-color: rgba(251, 113, 133, 0.3);
+}
+.mst-act-ic.disabled {
+  opacity: 0.4; cursor: not-allowed; pointer-events: none;
+}
+
+/* ===== 挂载命令说明 ===== */
+.mst-mount-cmds {
+  background: var(--qvm-hover-bg); padding: 16px; border-radius: 10px;
+  font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace;
+  font-size: 13px; line-height: 2;
+}
+.mst-mount-cmds .cmd-label { color: var(--qvm-text-1); margin: 0 0 6px; font-size: 12.5px; }
+.mst-mount-cmds .cmd-label:not(:first-child) { margin-top: 12px; }
+.mst-mount-cmds code {
+  display: block; padding: 6px 12px; border-radius: 6px;
+  background: var(--qvm-card-bg); color: var(--qvm-warn);
+  border: 1px solid var(--qvm-stroke);
+  word-break: break-all; user-select: all;
+}
+
+/* ===== 空状态 ===== */
+.mst-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 48px 24px; color: var(--qvm-text-2); font-size: 13px; gap: 10px;
+}
+.mst-empty svg { font-size: 36px; opacity: 0.5; }
+
+/* ===== 深色模式适配：大面积文字降对比 ===== */
+body[theme-mode='dark'] .mst-init-title,
+body[theme-mode='dark'] .mst-quota-value,
+body[theme-mode='dark'] .mst-quota-title,
+body[theme-mode='dark'] .mst-pending-title {
+  color: #b8c1cf;
+}
+body[theme-mode='dark'] .mst-pending-name {
+  color: #8b95ab;
+}
+
+/* ===== 响应式 ===== */
+@media (max-width: 768px) {
+  .mst-page { padding: 12px 10px 32px; }
+  .mst-page-header h2 { font-size: 17px; }
+  .mst-quota-stats { gap: 20px; }
+  .mst-pending-name { max-width: 140px; }
+  .mst-toolbar { gap: 6px; padding: 0 12px; }
+  .mst-cat-tip { margin: 0 12px 10px; }
+  .mst-files-card .semi-tabs { padding: 0 12px; }
+  .mst-files-card .semi-tabs-content { padding: 10px 0 0; }
+  .mst-page .semi-table-thead > .semi-table-row > .semi-table-row-head:first-child,
+  .mst-page .semi-table-tbody > .semi-table-row > .semi-table-row-cell:first-child {
+    padding-left: 12px;
+  }
+  .mst-page .semi-table-thead > .semi-table-row > .semi-table-row-head:last-child,
+  .mst-page .semi-table-tbody > .semi-table-row > .semi-table-row-cell:last-child {
+    padding-right: 12px;
+  }
+}

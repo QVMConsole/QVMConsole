@@ -21,6 +21,7 @@ const NetworkPage = lazy(() => import('@/views/network'))
 const PublicIpPage = lazy(() => import('@/views/public-ip'))
 const FirewallPage = lazy(() => import('@/views/firewall'))
 const StoragePoolPage = lazy(() => import('@/views/storage-pool'))
+const MyStoragePage = lazy(() => import('@/views/my-storage'))
 
 /** 懒加载页面统一加载态 */
 function lazyPage(node: ReactNode) {
@@ -84,8 +85,13 @@ const mainChildren = [
     element: lazyPage(<StoragePoolPage />),
     handle: { title: '存储池' },
   },
+  {
+    path: 'my-storage',
+    element: lazyPage(<MyStoragePage />),
+    handle: { title: '我的存储' },
+  },
   // TODO(重构迭代): 以下路由随各模块迁移逐步补齐
-  // nodes、my-storage、user/list、scheduler/events、
+  // nodes、user/list、scheduler/events、
   // settings、api-docs、task/recent、about
   { path: '*', element: <NotFound />, handle: { title: '页面不存在' } },
 ] as const

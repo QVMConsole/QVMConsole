@@ -62,7 +62,7 @@ export const ADMIN_NAV: NavGroup[] = [
     group: '存储',
     items: [
       { key: 'storage-pool', title: '存储池', icon: <IconServer />, path: '/storage-pool' },
-      { key: 'my-storage', title: '我的存储', icon: <IconFolder />, path: '/my-storage', coming: true },
+      { key: 'my-storage', title: '我的存储', icon: <IconFolder />, path: '/my-storage' },
     ],
   },
   {
@@ -104,7 +104,7 @@ export const USER_NAV: NavGroup[] = [
   {
     group: '存储',
     items: [
-      { key: 'my-storage', title: '我的存储', icon: <IconFolder />, path: '/my-storage', coming: true },
+      { key: 'my-storage', title: '我的存储', icon: <IconFolder />, path: '/my-storage' },
     ],
   },
   {
