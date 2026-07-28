@@ -28,6 +28,7 @@ const UserPage = lazy(() => import('@/views/user'))
 const SchedulerPage = lazy(() => import('@/views/scheduler'))
 const TaskCenterPage = lazy(() => import('@/views/task'))
 const SettingsPage = lazy(() => import('@/views/settings'))
+const SecurityPage = lazy(() => import('@/views/security'))
 const ApiDocsPage = lazy(() => import('@/views/api-docs'))
 const AboutPage = lazy(() => import('@/views/about'))
 
@@ -117,6 +118,11 @@ const mainChildren = [
     path: 'settings',
     element: lazyPage(<SettingsPage />),
     handle: { title: '系统设置' },
+  },
+  {
+    path: 'security',
+    element: lazyPage(<SecurityPage />),
+    handle: { title: '安全中心' },
   },
   {
     path: 'api-docs',

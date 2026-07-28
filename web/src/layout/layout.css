@@ -207,6 +207,22 @@
   color: #fff;
   flex: none;
 }
+/* 用户卡片可点击区域：跳转个人安全中心 */
+.qvm-su-profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  padding: 4px;
+  margin: -4px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.qvm-su-profile:hover {
+  background: var(--qvm-hover-bg);
+}
 .qvm-su-name {
   font-size: 13px;
   font-weight: 600;

@@ -1,0 +1,201 @@
+/**
+ * 个人安全中心页样式（深空极光，浅色优先 + 深色适配）
+ * 迁移自旧前端 layout/index.vue 安全设置对话框，改用 --qvm- 设计令牌
+ */
+
+.sec-page {
+  padding: 4px 2px 24px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ==================== 页头 ==================== */
+.sec-page-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+  display: flex;
+  align-items: center;
+}
+.sec-page-sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--qvm-text-2);
+  max-width: 860px;
+  line-height: 1.6;
+}
+
+/* ==================== 区块卡片 ==================== */
+.sec-section-card {
+  border-radius: 14px;
+  background: var(--qvm-card-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--qvm-card-shadow);
+  border: 1px solid var(--qvm-stroke);
+  padding: 8px 16px 16px;
+}
+
+/* ==================== Tab 内容区 ==================== */
+.sec-tab-pane {
+  max-width: 640px;
+  padding: 8px 2px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sec-banner {
+  border-radius: 10px;
+}
+
+.sec-sub-title {
+  margin-top: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+}
+
+.sec-divider {
+  height: 1px;
+  background: var(--qvm-stroke);
+}
+
+/* ==================== 表单行 ==================== */
+.sec-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.sec-row-label {
+  flex: none;
+  width: 110px;
+  padding-top: 6px;
+  font-size: 13.5px;
+  color: var(--qvm-text-1);
+  text-align: right;
+  line-height: 1.45;
+  word-break: break-word;
+}
+.sec-row-main {
+  flex: 1;
+  min-width: 0;
+}
+.sec-row-tip {
+  margin-top: 5px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--qvm-text-2);
+}
+.sec-plain-tip {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--qvm-text-2);
+}
+.sec-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ==================== 2FA 配置面板 ==================== */
+.sec-totp-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--qvm-stroke);
+  border-radius: 12px;
+  background: var(--qvm-hover-bg);
+}
+.sec-qr-image {
+  width: 180px;
+  height: 180px;
+  border-radius: 8px;
+  background: #fff;
+  padding: 6px;
+}
+.sec-totp-secret {
+  font-family: var(--qvm-num-font);
+  font-size: 13.5px;
+  color: var(--qvm-text-0);
+  word-break: break-all;
+  user-select: all;
+}
+
+/* ==================== 恢复码弹窗 ==================== */
+.sec-recovery-warn {
+  margin-bottom: 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--semi-color-danger);
+}
+.sec-recovery-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px 16px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--qvm-hover-bg);
+  border: 1px solid var(--qvm-stroke);
+  margin-bottom: 10px;
+}
+.sec-recovery-item {
+  font-family: var(--qvm-num-font);
+  font-size: 13px;
+  line-height: 1.9;
+  color: var(--qvm-text-0);
+  user-select: all;
+}
+.sec-recovery-no {
+  color: var(--qvm-text-2);
+  margin-right: 6px;
+}
+.sec-recovery-code {
+  font-weight: 600;
+}
+.sec-recovery-tip {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--qvm-text-2);
+}
+.sec-recovery-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ==================== 深色模式：大面积文字降对比 ==================== */
+body[theme-mode='dark'] .sec-page-header h2,
+body[theme-mode='dark'] .sec-sub-title,
+body[theme-mode='dark'] .sec-totp-secret,
+body[theme-mode='dark'] .sec-recovery-item {
+  color: #b8c1cf;
+}
+/* 二维码图片在深色下保持白底，确保可扫描 */
+body[theme-mode='dark'] .sec-qr-image {
+  background: #fff;
+}
+
+/* ==================== 响应式 ==================== */
+@media (max-width: 720px) {
+  .sec-row {
+    flex-direction: column;
+    gap: 4px;
+  }
+  .sec-row-label {
+    width: auto;
+    text-align: left;
+    padding-top: 0;
+  }
+  .sec-section-card {
+    padding: 6px 10px 12px;
+  }
+  .sec-recovery-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -132,13 +132,16 @@ export default function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
       </nav>
 
       <div className="qvm-side-user">
-        <div className="qvm-su-avatar">
-          {username ? username.charAt(0).toUpperCase() + username.slice(1, 2) : 'U'}
-        </div>
-        <div className="qvm-su-info">
-          <div className="qvm-su-name">{username || '用户'}</div>
-          <div className="qvm-su-role">
-            {isAdmin ? '系统管理员' : cloudType === CLOUD_TYPES.lightweight ? '轻量云用户' : '弹性云用户'}
+        {/* 用户卡片：点击进入个人安全中心（对齐旧版头像菜单“安全设置”入口） */}
+        <div className="qvm-su-profile" onClick={() => navigate('/security')} title="安全中心">
+          <div className="qvm-su-avatar">
+            {username ? username.charAt(0).toUpperCase() + username.slice(1, 2) : 'U'}
+          </div>
+          <div className="qvm-su-info">
+            <div className="qvm-su-name">{username || '用户'}</div>
+            <div className="qvm-su-role">
+              {isAdmin ? '系统管理员' : cloudType === CLOUD_TYPES.lightweight ? '轻量云用户' : '弹性云用户'}
+            </div>
           </div>
         </div>
         <span className="qvm-su-out" onClick={handleLogout} title="退出登录">

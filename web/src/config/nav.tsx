@@ -18,6 +18,7 @@ import {
   IconClockStroked,
   IconCheckList,
   IconSetting,
+  IconSafeStroked,
   IconCodeStroked,
   IconInfoCircle,
 } from '@douyinfe/semi-icons'
@@ -74,6 +75,7 @@ export const ADMIN_NAV: NavGroup[] = [
       { key: 'scheduler', title: '调度事件', icon: <IconClockStroked />, path: '/scheduler' },
       { key: 'task', title: '任务中心', icon: <IconCheckList />, path: '/task', badge: 'task' },
       { key: 'settings', title: '系统设置', icon: <IconSetting />, path: '/settings' },
+      { key: 'security', title: '安全中心', icon: <IconSafeStroked />, path: '/security' },
     ],
   },
   {
@@ -113,6 +115,7 @@ export const USER_NAV: NavGroup[] = [
     group: '系统',
     items: [
       { key: 'task', title: '任务中心', icon: <IconCheckList />, path: '/task', badge: 'task' },
+      { key: 'security', title: '安全中心', icon: <IconSafeStroked />, path: '/security' },
     ],
   },
   {

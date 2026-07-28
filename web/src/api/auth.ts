@@ -128,6 +128,97 @@ export function getUserInfo() {
   return service.get<unknown, ApiResponse<UserInfo>>('/auth/info')
 }
 
+// ==================== 安全中心（个人安全设置） ====================
+
+/** 修改密码请求 */
+export interface ChangePasswordRequest {
+  old_password: string
+  new_password: string
+}
+
+/** 修改用户名请求 */
+export interface ChangeUsernameRequest {
+  new_username: string
+  password: string
+}
+
+/** 修改用户名响应（后端重新签发访问令牌） */
+export interface ChangeUsernameResult {
+  token: string
+  username: string
+}
+
+/** 发送邮箱绑定验证码响应 */
+export interface EmailCodeSendResult {
+  challenge_id: number
+  masked_email: string
+  expires_in: number
+}
+
+/** 绑定/换绑邮箱请求 */
+export interface EmailBindRequest {
+  email: string
+  code: string
+  challenge_id: number
+}
+
+/** 2FA 配置（POST /auth/2fa/setup 响应） */
+export interface TotpSetupInfo {
+  secret: string
+  otpauth_url: string
+}
+
+/** 恢复码（启用 2FA / 重新生成时返回，仅展示一次） */
+export interface RecoverySetup {
+  recovery_codes: string[]
+}
+
+/** 携带恢复码的响应（recovery 与 data 平级，仅 enable2FA / regenRecoveryCodes） */
+export type ApiResponseWithRecovery<T> = ApiResponse<T> & { recovery?: RecoverySetup }
+
+/** 修改当前用户密码（高风险操作，428 二次验证由请求层自动处理） */
+export function changePassword(data: ChangePasswordRequest) {
+  return service.put<unknown, ApiResponse<null>>('/auth/password', data)
+}
+
+/** 修改当前用户用户名 */
+export function changeUsername(data: ChangeUsernameRequest) {
+  return service.put<unknown, ApiResponse<ChangeUsernameResult>>('/auth/username', data)
+}
+
+/** 发送邮箱绑定验证码（未传 email 时发送到当前已绑定邮箱） */
+export function sendEmailCode(data: { email: string }) {
+  return service.post<unknown, ApiResponse<EmailCodeSendResult>>('/auth/email/code/send', data)
+}
+
+/** 绑定或更新邮箱（安全中心场景均为 access 令牌，返回最新安全状态） */
+export function bindEmail(data: EmailBindRequest) {
+  return service.post<unknown, ApiResponse<{ security: SecurityState }>>('/auth/email/bind', data)
+}
+
+/** 生成 2FA 配置（密钥 + otpauth 链接，前端据此渲染二维码） */
+export function setup2FA() {
+  return service.post<unknown, ApiResponse<TotpSetupInfo>>('/auth/2fa/setup')
+}
+
+/** 启用 2FA（成功后返回一次性恢复码） */
+export function enable2FA(data: { secret: string; code: string }) {
+  return service.post<unknown, ApiResponseWithRecovery<{ security: SecurityState }>>(
+    '/auth/2fa/enable',
+    data,
+  )
+}
+
+/** 关闭 2FA（需当前密码 + 2FA 验证码） */
+export function disable2FA(data: { password: string; code: string }) {
+  return service.post<unknown, ApiResponse<{ security: SecurityState }>>('/auth/2fa/disable', data)
+}
+
+/** 重新生成恢复码（旧码立即失效，需当前密码 + 2FA 验证码） */
+export function regenRecoveryCodes(data: { password: string; code: string }) {
+  return service.post<unknown, ApiResponseWithRecovery<null>>('/auth/2fa/recovery/regen', data)
+}
+
 /** 泄露密码检测（后端 HIBP k-匿名检测 + 本地弱密码库） */
 export function checkPasswordBreach(password: string) {
   return service.post<unknown, ApiResponse<PasswordBreachResult>>(
