@@ -41,6 +41,33 @@
   text-decoration: underline;
 }
 
+/* ============ 管理员：宿主机状态横幅（正常 / 警告） ============ */
+.qvm-status-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 16px;
+  border-radius: 14px;
+  margin-bottom: 16px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  background: var(--qvm-acc-bg);
+  border: 1px solid var(--qvm-acc-stroke);
+  color: var(--qvm-acc-ink);
+}
+.qvm-status-banner .semi-icon {
+  flex: none;
+  font-size: 16px;
+}
+.qvm-status-banner.warn {
+  background: rgba(251, 191, 36, 0.09);
+  border-color: rgba(251, 191, 36, 0.3);
+  color: var(--qvm-warn);
+}
+.qvm-status-banner b {
+  font-weight: 700;
+}
+
 /* ============ 管理员：统计卡片 ============ */
 .qvm-stats {
   display: grid;
@@ -103,6 +130,12 @@
   align-items: center;
   gap: 6px;
 }
+/* 内存卡片 KSM / zRAM 优化信息行（进度条下方，随系统设置显隐） */
+.qvm-mem-opt {
+  margin-top: 7px;
+  flex-wrap: wrap;
+  font-family: var(--qvm-num-font);
+}
 .qvm-trend-up {
   color: var(--qvm-acc-ink);
   font-family: var(--qvm-num-font);
@@ -157,9 +190,28 @@
   opacity: 0.65;
   z-index: 2;
 }
+/* zRAM 区段：右端对齐物理 100% 位置从后往前（理论层之上、当前层之下） */
+.qvm-dual-zram {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 4px;
+  opacity: 0.45;
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.4) 0,
+    rgba(255, 255, 255, 0.4) 3px,
+    transparent 3px,
+    transparent 6px
+  );
+  transition:
+    left 0.6s cubic-bezier(0.22, 0.8, 0.36, 1),
+    width 0.6s cubic-bezier(0.22, 0.8, 0.36, 1);
+}
 .qvm-dual-legend {
   display: flex;
-  gap: 14px;
+  flex-wrap: wrap;
+  gap: 4px 14px;
   font-size: 10.5px;
   color: var(--qvm-text-2);
   margin-top: 7px;
@@ -176,85 +228,38 @@
   display: inline-block;
 }
 
-/* ============ 管理员：图表区 ============ */
-.qvm-chart-row {
-  display: grid;
-  grid-template-columns: 1fr 330px;
-  gap: 16px;
+/* ============ 管理员：宿主机资源监控四图 ============ */
+.qvm-hostmon {
   margin-bottom: 18px;
 }
-.qvm-legend {
-  display: flex;
-  gap: 14px;
-  font-size: 11px;
-  color: var(--qvm-text-1);
-}
-.qvm-legend span {
+.qvm-hostmon-ops {
+  margin-left: auto;
   display: flex;
   align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
-.qvm-legend i {
-  width: 8px;
-  height: 8px;
-  border-radius: 3px;
-  display: inline-block;
-  margin-right: 5px;
+.qvm-hostmon-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
-.qvm-chart-box {
-  height: 220px;
+.qvm-hostmon-card {
+  border: 1px solid var(--qvm-stroke);
+  border-radius: 14px;
+  background: var(--qvm-card-bg);
+  padding: 10px 8px 6px;
+  min-width: 0;
+}
+.qvm-hostmon .qvm-chart-box {
+  height: 240px;
   width: 100%;
 }
-.qvm-chart-empty {
-  height: 220px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--qvm-text-2);
-  font-size: 12.5px;
-}
 
-/* 实时资源环 */
-.qvm-rings {
-  display: flex;
-  justify-content: space-around;
-  padding: 10px 0 6px;
-}
-.qvm-ring {
-  text-align: center;
-}
-.qvm-ring-val {
-  font-family: var(--qvm-num-font);
-  font-size: 16px;
-  font-weight: 700;
-  margin-top: 2px;
-}
-.qvm-ring-label {
-  font-size: 11px;
-  color: var(--qvm-text-2);
-  margin-top: 2px;
-}
-.qvm-health {
-  margin-top: 10px;
-  padding: 11px 13px;
-  border-radius: 12px;
-  background: var(--qvm-acc-bg);
-  border: 1px solid var(--qvm-acc-stroke);
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  font-size: 12px;
-  color: var(--qvm-acc-ink);
-}
-.qvm-health.warn {
-  background: rgba(251, 191, 36, 0.08);
-  border-color: rgba(251, 191, 36, 0.25);
-  color: var(--qvm-warn);
-}
-
-/* ============ 管理员：底部行（虚拟机列表 + 存储池） ============ */
+/* ============ 管理员：底部行（最近虚拟机列表） ============ */
 .qvm-bottom-row {
   display: grid;
-  grid-template-columns: 1fr 330px;
+  grid-template-columns: 1fr;
   gap: 16px;
 }
 .qvm-vm-name {
@@ -322,56 +327,7 @@
   box-shadow: 0 0 6px rgba(251, 191, 36, 0.8);
 }
 
-/* 存储池用量行 */
-.qvm-pool-row {
-  padding: 12px 2px;
-  border-bottom: 1px solid var(--qvm-stroke);
-}
-.qvm-pool-row:last-child {
-  border-bottom: none;
-}
-.qvm-pool-top {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-.qvm-pool-name {
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--qvm-text-0);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.qvm-pool-tag {
-  font-size: 10px;
-  padding: 2px 7px;
-  border-radius: 6px;
-  background: rgba(139, 92, 246, 0.12);
-  color: var(--qvm-acc2-ink);
-  border: 1px solid rgba(139, 92, 246, 0.22);
-  flex: none;
-}
-.qvm-pool-val {
-  margin-left: auto;
-  font-family: var(--qvm-num-font);
-  font-size: 11px;
-  color: var(--qvm-text-2);
-  flex: none;
-}
-.qvm-pool-track {
-  height: 5px;
-  border-radius: 3px;
-  background: var(--qvm-track-bg);
-  overflow: hidden;
-}
-.qvm-pool-fill {
-  height: 100%;
-  border-radius: 3px;
-  transition: width 0.6s cubic-bezier(0.22, 0.8, 0.36, 1);
-}
-.qvm-pool-empty,
+/* 空态文案 */
 .qvm-empty-text {
   padding: 24px 0;
   text-align: center;
@@ -719,8 +675,7 @@
   }
 }
 @media (max-width: 960px) {
-  .qvm-chart-row,
-  .qvm-bottom-row {
+  .qvm-hostmon-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -753,12 +708,6 @@
   }
   .qvm-qcat-summary {
     display: none;
-  }
-  .qvm-topline .qvm-btn-new span {
-    display: none;
-  }
-  .qvm-topline .qvm-btn-new.semi-button {
-    padding: 0 12px;
   }
 }
 @media (max-width: 520px) {

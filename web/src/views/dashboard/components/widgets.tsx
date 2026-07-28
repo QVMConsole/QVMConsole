@@ -1,5 +1,5 @@
 /**
- * 通用展示小组件：虚拟机状态 pill / SVG 环形仪表 / SVG 迷你折线
+ * 通用展示小组件：虚拟机状态 pill / SVG 迷你折线
  */
 import { useMemo } from 'react'
 import { vmStatusKind, vmStatusText } from './vmStatus'
@@ -13,50 +13,6 @@ export function StatusPill({ status }: { status: string }) {
       <i />
       {vmStatusText(status)}
     </span>
-  )
-}
-
-// ==================== SVG 环形仪表 ====================
-
-interface RingGaugeProps {
-  /** 百分比 0-100 */
-  percent: number
-  color: string
-  size?: number
-  strokeWidth?: number
-}
-
-export function RingGauge({ percent, color, size = 82, strokeWidth = 7 }: RingGaugeProps) {
-  const r = (size - strokeWidth * 2) / 2
-  const c = 2 * Math.PI * r
-  const clamped = Math.max(0, Math.min(percent, 100))
-  const dash = (clamped / 100) * c
-  const center = size / 2
-  return (
-    <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
-      <circle
-        cx={center}
-        cy={center}
-        r={r}
-        fill="none"
-        stroke="var(--qvm-track-bg)"
-        strokeWidth={strokeWidth}
-      />
-      <circle
-        cx={center}
-        cy={center}
-        r={r}
-        fill="none"
-        stroke={color}
-        strokeWidth={strokeWidth}
-        strokeLinecap="round"
-        strokeDasharray={`${dash} ${c}`}
-        style={{
-          filter: `drop-shadow(0 0 5px ${color}80)`,
-          transition: 'stroke-dasharray 0.6s cubic-bezier(0.22,0.8,0.36,1)',
-        }}
-      />
-    </svg>
   )
 }
 

@@ -329,13 +329,19 @@
   border-bottom: 1px solid var(--qvm-stroke);
   transition: left 0.22s ease;
 }
-/* 右侧扩展区（预留：搜索、通知等） */
+/* 右侧扩展区（主题切换等，预留：搜索、通知） */
 .qvm-topbar-extra {
   margin-left: auto;
   flex: none;
   display: flex;
   align-items: center;
   gap: 10px;
+}
+/* 顶栏内工具按钮统一缩小以适配 54px 高度 */
+.qvm-topbar .qvm-tool-ic {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
 }
 
 /* 顶部问候行 */
@@ -446,12 +452,6 @@
   border-radius: 50%;
   background: var(--qvm-acc2);
   box-shadow: 0 0 8px rgba(139, 92, 246, 0.9);
-}
-.qvm-btn-new.semi-button {
-  height: 38px;
-  padding: 0 18px;
-  border-radius: 12px;
-  font-size: 13px;
 }
 
 /* 渐变主按钮（全站通用：工作台顶部、虚拟机列表等） */

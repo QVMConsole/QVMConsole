@@ -2,11 +2,13 @@
  * 管理员仪表盘：统计卡片区（4 张）
  * - 虚拟机总数 / CPU 使用率 / 内存使用率 / 存储使用
  * - CPU / 内存 / 存储卡片带「理论最大量」双进度条（全部虚拟机满载口径）
+ * - 系统设置开启 KSM / zRAM 时，在内存使用率卡片统一体现节省与压缩情况
  */
 import { useMemo } from 'react'
 import type { HostStats } from '@/api/host'
 import type { VmListItem } from '@/api/vm'
-import { formatKB, parseSizeToGB } from '@/utils/format'
+import { formatKB, formatMB, parseSizeToGB } from '@/utils/format'
+import { useHostMemOptimize } from '@/hooks/useHostMemOptimize'
 import DualUsageBar from './DualUsageBar'
 import { CpuIcon, MemIcon, DiskIcon, VmIcon } from './icons'
 
@@ -16,6 +18,8 @@ interface AdminStatsProps {
 }
 
 export default function AdminStats({ stats, vms }: AdminStatsProps) {
+  const memOptimize = useHostMemOptimize()
+
   // 理论最大量：全部虚拟机同时 100% 满载时的占用合计
   const theory = useMemo(() => {
     let vcpuSum = 0
@@ -42,6 +46,22 @@ export default function AdminStats({ stats, vms }: AdminStatsProps) {
   const memUsedMB = (stats?.mem_used || 0) / 1024
   const memCurrent = memTotalMB > 0 ? memUsedMB / memTotalMB : 0
   const memTheory = memTotalMB > 0 ? theory.memSumMB / memTotalMB : 0
+
+  // KSM 节省内存（KB）：被共享页 × 4KB（与旧前端口径一致），由 SSE 实时刷新
+  const ksmSavedKB = (stats?.ksm_pages_sharing || 0) * 4
+  const showKsm = memOptimize.ksmEnabled && ksmSavedKB > 0
+  const showZram = memOptimize.zramEnabled && memOptimize.zramSizeMB > 0
+  // 进度条区段占比（相对宿主机内存总量）
+  const memTotalKB = stats?.mem_total || 0
+  const zramRatio = showZram && memTotalKB > 0 ? (memOptimize.zramSizeMB * 1024) / memTotalKB : 0
+  // 进度条悬停提示扩展行
+  const memExtraTips: string[] = []
+  if (showKsm) memExtraTips.push(`KSM 去重节省：${formatMB(ksmSavedKB / 1024)}`)
+  if (showZram) {
+    memExtraTips.push(
+      `zRAM 压缩交换：已用 ${formatMB(memOptimize.zramUsedMB)} / ${formatMB(memOptimize.zramSizeMB)}${memOptimize.zramAlgorithm ? `（${memOptimize.zramAlgorithm}）` : ''}`,
+    )
+  }
 
   // 磁盘：当前 = 已用 / 总量；理论 = (系统占用 + 虚拟机磁盘配置总和) / 总量
   // 系统占用 = 根分区已用 - 虚拟机实际磁盘占用（vm_disk_actual 由后端缓存提供）
@@ -119,10 +139,18 @@ export default function AdminStats({ stats, vms }: AdminStatsProps) {
           theoryRatio={memTheory}
           currentText={`${(memCurrent * 100).toFixed(1)}%（${formatKB(stats?.mem_used || 0)} / ${formatKB(stats?.mem_total || 0)}）`}
           theoryText={`${(memTheory * 100).toFixed(1)}%（${formatKB(theory.memSumMB * 1024)} / ${formatKB(stats?.mem_total || 0)}）`}
+          extraTipLines={memExtraTips}
+          zramRatio={zramRatio}
           color="#8B5CF6"
           colorEnd="#C084FC"
           theoryColor="#38BDF8"
         />
+        {/* KSM 开启时以文本体现节省量（跟随系统设置） */}
+        {showKsm && (
+          <div className="qvm-stat-foot qvm-mem-opt">
+            <span className="qvm-trend-up">KSM 节省 {formatMB(ksmSavedKB / 1024)}</span>
+          </div>
+        )}
       </div>
 
       {/* 存储使用 */}

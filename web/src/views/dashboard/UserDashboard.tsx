@@ -47,7 +47,6 @@ export default function UserDashboard() {
             {diskDanger ? ' · 磁盘配额即将耗尽，请及时清理' : ' · 资源使用正常'}
           </>
         }
-        actionText="从模板创建"
       />
       {!isLightweight && (
         <>

@@ -1,14 +1,15 @@
 /**
  * 管理员仪表盘
- * - 统计卡片（含理论最大量）+ 资源监控 + 实时资源 + 最近虚拟机 + 存储池用量
+ * - 顶部状态横幅（正常 / 警告）+ 统计卡片（含理论最大量）+ 宿主机资源监控四图 + 最近虚拟机
  * - 宿主机实时数据来自 SSE 推送
  */
 import { useEffect, useState } from 'react'
 import { useHostStatsSSE } from '@/hooks/useHostStatsSSE'
 import { getVmList, type VmListItem } from '@/api/vm'
 import TopLine from './components/TopLine'
+import HostStatusBanner from './components/HostStatusBanner'
 import AdminStats from './components/AdminStats'
-import AdminCharts from './components/AdminCharts'
+import HostMonitorCharts from './components/HostMonitorCharts'
 import AdminBottom from './components/AdminBottom'
 
 export default function AdminDashboard() {
@@ -40,11 +41,11 @@ export default function AdminDashboard() {
             {stats?.arch ? `（${stats.arch}）` : ''}
           </>
         }
-        actionText="新建虚拟机"
         showSearch
       />
+      <HostStatusBanner stats={stats} />
       <AdminStats stats={stats} vms={vms} />
-      <AdminCharts stats={stats} />
+      <HostMonitorCharts externalStats={stats} />
       <AdminBottom vms={vms} />
     </>
   )

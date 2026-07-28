@@ -1,43 +1,20 @@
 /**
- * 管理员仪表盘：底部行（最近虚拟机列表 + 存储池用量）
+ * 管理员仪表盘：底部行（最近虚拟机列表）
  */
-import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { IconDesktop } from '@douyinfe/semi-icons'
 import type { VmListItem } from '@/api/vm'
-import { getStoragePoolList, type StoragePoolInfo } from '@/api/storage'
-import { formatBytes, formatRuntime } from '@/utils/format'
+import { formatRuntime } from '@/utils/format'
 import { StatusPill } from './widgets'
 
 interface AdminBottomProps {
   vms: VmListItem[]
 }
 
-/** 存储池用量条配色（按使用率） */
-function poolColor(percent: number): string {
-  if (percent >= 85) return 'linear-gradient(90deg,#FBBF24,#F59E0B)'
-  if (percent >= 60) return 'linear-gradient(90deg,#2DD4BF,#38BDF8)'
-  return 'linear-gradient(90deg,#8B5CF6,#C084FC)'
-}
-
 const RECENT_VM_LIMIT = 5
 
 export default function AdminBottom({ vms }: AdminBottomProps) {
   const navigate = useNavigate()
-  const [pools, setPools] = useState<StoragePoolInfo[]>([])
-
-  useEffect(() => {
-    let mounted = true
-    getStoragePoolList()
-      .then((res) => {
-        if (mounted) setPools((res.data || []).filter((p) => p.enabled))
-      })
-      .catch(() => undefined)
-    return () => {
-      mounted = false
-    }
-  }, [])
-
   const recentVms = vms.slice(0, RECENT_VM_LIMIT)
 
   return (
@@ -96,37 +73,6 @@ export default function AdminBottom({ vms }: AdminBottomProps) {
               ))}
             </tbody>
           </table>
-        )}
-      </div>
-
-      {/* 存储池用量 */}
-      <div className="qvm-panel-card qvm-g-border qvm-fade-up" style={{ '--qvm-delay': '420ms' } as React.CSSProperties}>
-        <div className="qvm-panel-head">
-          <span className="qvm-panel-title">存储池用量</span>
-          <span className="qvm-panel-link" onClick={() => navigate('/storage-pool')}>
-            管理 →
-          </span>
-        </div>
-        {pools.length === 0 ? (
-          <div className="qvm-pool-empty">暂无存储池</div>
-        ) : (
-          pools.map((pool) => (
-            <div className="qvm-pool-row" key={pool.id}>
-              <div className="qvm-pool-top">
-                <span className="qvm-pool-name">{pool.display_name || pool.name}</span>
-                <span className="qvm-pool-tag">{pool.fstype || pool.type || '目录'}</span>
-                <span className="qvm-pool-val">
-                  {formatBytes(pool.used || 0)} / {formatBytes(pool.size)} · {pool.use_percent || 0}%
-                </span>
-              </div>
-              <div className="qvm-pool-track">
-                <div
-                  className="qvm-pool-fill"
-                  style={{ width: `${Math.min(pool.use_percent || 0, 100)}%`, background: poolColor(pool.use_percent || 0) }}
-                />
-              </div>
-            </div>
-          ))
         )}
       </div>
     </section>
