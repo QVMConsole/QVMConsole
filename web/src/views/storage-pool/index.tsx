@@ -118,20 +118,6 @@ export default function StoragePoolPage() {
     [handleSetDefault],
   )
 
-  // ==================== 渲染 ====================
-  if (!isAdmin) {
-    return (
-      <div className="sp-page">
-        <div className="sp-empty">
-          <div className="sp-empty-icon">
-            <IconServer />
-          </div>
-          <div>存储池管理仅对管理员开放</div>
-        </div>
-      </div>
-    )
-  }
-
   // Tab 分类计数
   const tabCounts = useMemo(() => {
     const counts: Record<DiskCategory, number> = { all: 0, pending: 0, inuse: 0, vg: 0, other: 0 }
@@ -145,6 +131,20 @@ export default function StoragePoolPage() {
 
   // VG 统计（用于第 4 张卡）
   const vgStats = useMemo(() => computeVGStats(tableData), [tableData])
+
+  // ==================== 渲染 ====================
+  if (!isAdmin) {
+    return (
+      <div className="sp-page">
+        <div className="sp-empty">
+          <div className="sp-empty-icon">
+            <IconServer />
+          </div>
+          <div>存储池管理仅对管理员开放</div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="sp-page">

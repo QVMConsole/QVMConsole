@@ -353,7 +353,7 @@ export function captureVncFrame(vmName: string, token: string, timeoutMs = 4500)
       rfb.addEventListener('securityfailure', () => {
         if (!settled) finish(false)
       })
-    } catch (err) {
+    } catch {
       finish(false)
     }
   })

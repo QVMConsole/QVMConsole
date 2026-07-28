@@ -1,36 +1,36 @@
 /**
  * 路由配置
  * 按模块拆分：公共页面（登录等）与主框架页面（Layout 嵌套）。
- * 所有页面组件使用 React.lazy 懒加载，新增业务模块时照此模式追加。
+ * 页面组件在 ./pages 中统一以 React.lazy 懒加载声明，新增业务模块时在此追加路由。
  */
-import { lazy, Suspense, type ReactNode } from 'react'
+import { Suspense, type ReactNode } from 'react'
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { Spin } from '@douyinfe/semi-ui'
 import Layout from '@/layout'
 import { RequireAuth } from './guards'
 import NotFound from '@/views/error/NotFound'
-
-// 页面懒加载（后续业务模块迁移后在此追加）
-const LoginPage = lazy(() => import('@/views/login'))
-const InviteRegisterPage = lazy(() => import('@/views/invite'))
-const ResetPasswordPage = lazy(() => import('@/views/reset-password'))
-const DashboardPage = lazy(() => import('@/views/dashboard'))
-const VmListPage = lazy(() => import('@/views/vm'))
-const VmDetailPage = lazy(() => import('@/views/vm/detail'))
-const VncWindowPage = lazy(() => import('@/views/vm/vnc-window'))
-const TemplateListPage = lazy(() => import('@/views/template'))
-const NetworkPage = lazy(() => import('@/views/network'))
-const PublicIpPage = lazy(() => import('@/views/public-ip'))
-const FirewallPage = lazy(() => import('@/views/firewall'))
-const StoragePoolPage = lazy(() => import('@/views/storage-pool'))
-const MyStoragePage = lazy(() => import('@/views/my-storage'))
-const UserPage = lazy(() => import('@/views/user'))
-const SchedulerPage = lazy(() => import('@/views/scheduler'))
-const TaskCenterPage = lazy(() => import('@/views/task'))
-const SettingsPage = lazy(() => import('@/views/settings'))
-const SecurityPage = lazy(() => import('@/views/security'))
-const ApiDocsPage = lazy(() => import('@/views/api-docs'))
-const AboutPage = lazy(() => import('@/views/about'))
+import {
+  LoginPage,
+  InviteRegisterPage,
+  ResetPasswordPage,
+  DashboardPage,
+  VmListPage,
+  VmDetailPage,
+  VncWindowPage,
+  TemplateListPage,
+  NetworkPage,
+  PublicIpPage,
+  FirewallPage,
+  StoragePoolPage,
+  MyStoragePage,
+  UserPage,
+  SchedulerPage,
+  TaskCenterPage,
+  SettingsPage,
+  SecurityPage,
+  ApiDocsPage,
+  AboutPage,
+} from './pages'
 
 /** 懒加载页面统一加载态 */
 function lazyPage(node: ReactNode) {
