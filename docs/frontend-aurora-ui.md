@@ -25,7 +25,14 @@
   - 浅色：`web/src/assets/img/login-bg-light.png`
   - 深色：`web/src/assets/img/login-bg.png`
 - 布局：左侧品牌区（logo / 标语 / 特性 / 浮动 VM 装饰卡片，≤960px 隐藏）+ 右侧登录卡片。
-- 交互：勾选《用户协议》《公测协议》后登录按钮才可点击；密码可见性切换；多阶段登录（login_verify / bootstrap_security / 强制改密）保留 stage 占位提示，后续迭代接入完整流程。
+- 交互：勾选《用户协议》《公测协议》后登录按钮才可点击；密码可见性切换；多阶段登录（强制改密 / 安全初始化 / 登录二次验证）已全部接入。
+- **登录二次验证**（`web/src/views/login/LoginVerifyPanel.tsx`）：登录返回 `stage=login_verify` 时右侧卡片切换为验证面板，持 login 令牌（15 分钟）调 `/auth/login/verify`；多方式时 RadioGroup 按钮切换（管理员仅 2FA 动态码 / 恢复码，普通用户为邮箱验证码，绑定 2FA 后可选动态码 / 恢复码），邮箱方式需先点「发送邮箱验证码」（`/auth/login/email/send`，Banner 显示掩码邮箱），恢复码方式为 16 位输入并提示一次性失效；验证通过返回完整登录态直接进入系统，「返回登录」放弃验证。后端配套修复：已绑定 2FA 的管理员即使曾跳过安全初始化（`bootstrap_skipped`）也强制登录验证（`service/security/account.go` 的 `NeedsLoginVerification`）。
+- **强制修改默认密码**（`web/src/views/login/ForcePasswordModal.tsx`）：登录返回 `force_password_change` 时仅写入临时 token（后端中间件只放行改密/登出等白名单接口）并弹出改密弹窗；当前密码预填登录密码，新密码经本地弱密码快速检测 + HIBP 泄露检测（后端 k-匿名）后提交 `PUT /auth/password`（此场景后端跳过 428 高风险验证）；改密成功后旧 token 随 `security_updated_at` 更新立即失效，前端用新密码自动重新登录并进入系统；点击「退出登录」则清除临时会话回到登录表单。
+- **安全初始化**（`web/src/views/login/BootstrapSecurityPanel.tsx`）：登录返回 `stage=bootstrap_security` 时右侧卡片切换为引导面板（520px、内部滚动），全程持登录返回的 bootstrap 令牌（30 分钟）调用接口，不写入用户 Store：
+  - 管理员依次呈现三个区块：SMTP 配置（未配置时显示，先「发送测试邮件」验证通过后才出现「保存 SMTP」，配置以 `getSettings/updateSettings/testSMTP` 携带 stage 令牌读写）→ 绑定邮箱（发送验证码 + 绑定，SMTP 未配置时禁用并提示）→ 绑定 2FA（生成配置渲染二维码 → 输入动态码启用）；普通用户仅显示绑定邮箱。
+  - 后端判定全部安全要求完成时（`/auth/email/bind`、`/auth/2fa/enable` 在 bootstrap 令牌下）直接返回完整登录态（stage=success + access token），前端应用会话进入系统；启用 2FA 返回的一次性恢复码复用安全中心的 `RecoveryCodesModal`（样式已抽出为组件自带 `recovery-codes.css`），确认「我已安全保存」后才应用会话。
+  - 管理员可「跳过安全设置」：风险确认弹窗（Modal.confirm 危险色）后调 `POST /auth/skip-bootstrap`，同样返回完整登录态；「返回登录」放弃本次初始化回到登录表单。
+  - 相关 API（`api/auth.ts` 的 `sendEmailCode/bindEmail/setup2FA/enable2FA` 与 `api/settings.ts` 的 `getSettings/updateSettings/testSMTP`）均支持可选 `stageToken` 参数，未传时仍走请求层默认注入，安全中心等既有调用不受影响。
 
 ## 3. 主布局
 
@@ -55,8 +62,8 @@
 - 区块：状态横幅 → 4 统计卡 → 宿主机资源监控四图 → 最近虚拟机（5 台）。
 - **宿主机状态横幅**（`components/HostStatusBanner.tsx`）
   - 两种状态：正常（青色，「宿主机运行正常，各项指标处于健康区间」）/ 警告（琥珀色，列出具体原因）。
-  - 警告触发条件：CPU 使用率 ≥ 90%、内存使用率 ≥ 90%、存储剩余 < 10 GB，多个原因用顿号并列展示。
-  - 数据来自宿主机 SSE 实时推送（5s），状态自动切换；首屏数据未到达时不渲染避免闪烁。
+  - 警告触发条件：CPU 使用率 ≥ 90%、内存使用率 ≥ 90%、存储剩余 < 10 GB，多个原因用顿号并列展示；此外系统未配置 SMTP 时同样触发警告（「您当前没有设置 SMTP，请尽快前往系统设置进行设置」，与负载类原因用分号分句并列）。
+  - 负载数据来自宿主机 SSE 实时推送（5s），状态自动切换；SMTP 配置状态来自安全状态（进入概览页时调 `/auth/info` 刷新用户 Store 的 security，避免登录后配置变更不同步）；首屏数据未到达时不渲染避免闪烁。
 - 顶部问候行（`components/TopLine.tsx`）仅保留问候语 + 状态摘要；原「全局搜索 / 新建虚拟机 / 通知中心 / 任务中心」入口已移除，主题切换上移至顶部导航栏。
 - **内存使用率卡片 KSM / zRAM 体现**（`hooks/useHostMemOptimize.ts`）
   - 系统设置开启 KSM 且宿主机支持时，内存卡片进度条下方显示文本行：`KSM 节省 xx`（青色高亮），悬停 Tooltip 同步展示 KSM / zRAM 明细（zRAM 含已用/容量与压缩算法）。

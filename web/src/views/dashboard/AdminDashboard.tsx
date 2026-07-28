@@ -6,6 +6,8 @@
 import { useEffect, useState } from 'react'
 import { useHostStatsSSE } from '@/hooks/useHostStatsSSE'
 import { getVmList, type VmListItem } from '@/api/vm'
+import { getUserInfo } from '@/api/auth'
+import { useUserStore } from '@/stores/user'
 import TopLine from './components/TopLine'
 import HostStatusBanner from './components/HostStatusBanner'
 import AdminStats from './components/AdminStats'
@@ -15,6 +17,8 @@ import AdminBottom from './components/AdminBottom'
 export default function AdminDashboard() {
   const { stats } = useHostStatsSSE()
   const [vms, setVms] = useState<VmListItem[]>([])
+  const security = useUserStore((s) => s.security)
+  const setSecurity = useUserStore((s) => s.setSecurity)
 
   useEffect(() => {
     let mounted = true
@@ -23,9 +27,17 @@ export default function AdminDashboard() {
         if (mounted) setVms(res.data || [])
       })
       .catch(() => undefined)
+    // 刷新安全状态（含 SMTP 配置情况），驱动状态横幅的 SMTP 未配置警告
+    getUserInfo()
+      .then((res) => {
+        if (mounted && res.data?.security) setSecurity(res.data.security)
+      })
+      .catch(() => undefined)
     return () => {
       mounted = false
     }
+    // setSecurity 为 store 稳定引用，仅挂载时刷新一次
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const runningCount = stats?.vm_running ?? vms.filter((v) => v.status === 'running').length
@@ -42,7 +54,7 @@ export default function AdminDashboard() {
           </>
         }
       />
-      <HostStatusBanner stats={stats} />
+      <HostStatusBanner stats={stats} smtpConfigured={security ? security.smtp_configured : undefined} />
       <AdminStats stats={stats} vms={vms} />
       <HostMonitorCharts externalStats={stats} />
       <AdminBottom vms={vms} />

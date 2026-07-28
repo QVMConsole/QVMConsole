@@ -1,0 +1,55 @@
+/**
+ * 恢复码弹窗样式（组件自带，登录页安全初始化与个人安全中心均会复用）
+ * 原样式位于 security.css，抽出后随 RecoveryCodesModal 组件按需加载
+ */
+.sec-recovery-warn {
+  margin-bottom: 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--semi-color-danger);
+}
+.sec-recovery-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px 16px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--qvm-hover-bg);
+  border: 1px solid var(--qvm-stroke);
+  margin-bottom: 10px;
+}
+.sec-recovery-item {
+  font-family: var(--qvm-num-font);
+  font-size: 13px;
+  line-height: 1.9;
+  color: var(--qvm-text-0);
+  user-select: all;
+}
+.sec-recovery-no {
+  color: var(--qvm-text-2);
+  margin-right: 6px;
+}
+.sec-recovery-code {
+  font-weight: 600;
+}
+.sec-recovery-tip {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--qvm-text-2);
+}
+.sec-recovery-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* 深色模式：大面积文字降对比 */
+body[theme-mode='dark'] .sec-recovery-item {
+  color: #b8c1cf;
+}
+
+@media (max-width: 720px) {
+  .sec-recovery-grid {
+    grid-template-columns: 1fr;
+  }
+}

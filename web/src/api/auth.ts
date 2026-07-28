@@ -37,6 +37,8 @@ export interface PasswordBreachResult {
 export interface LoginVerifyRequest {
   method: string
   code: string
+  /** 邮箱验证码方式必传（发送验证码时返回） */
+  challenge_id?: number
 }
 
 /** 轻量云待确认开通服务器（邀请详情内嵌） */
@@ -118,6 +120,11 @@ export interface ForgotPasswordSelectResult {
 
 // ==================== 接口 ====================
 
+/** 构造阶段令牌请求头（bootstrap / login_verify 中间态令牌，未传时走请求层默认注入） */
+function withStageToken(stageToken?: string) {
+  return stageToken ? { headers: { Authorization: `Bearer ${stageToken}` } } : {}
+}
+
 /** 用户登录（可能返回多阶段状态：success / bootstrap_security / login_verify） */
 export function login(data: LoginRequest) {
   return service.post<unknown, ApiResponse<LoginStageResponse>>('/auth/login', data)
@@ -176,6 +183,15 @@ export interface RecoverySetup {
 /** 携带恢复码的响应（recovery 与 data 平级，仅 enable2FA / regenRecoveryCodes） */
 export type ApiResponseWithRecovery<T> = ApiResponse<T> & { recovery?: RecoverySetup }
 
+/**
+ * 安全设置变更结果（bindEmail / enable2FA 共用）
+ * 普通场景 data 仅含 security；bootstrap 令牌下完成全部安全要求时，
+ * 后端直接返回完整登录态（stage=success + access token），据此结束安全初始化。
+ */
+export interface SecurityUpdateResult extends Partial<LoginStageResponse> {
+  security: SecurityState
+}
+
 /** 修改当前用户密码（高风险操作，428 二次验证由请求层自动处理） */
 export function changePassword(data: ChangePasswordRequest) {
   return service.put<unknown, ApiResponse<null>>('/auth/password', data)
@@ -186,26 +202,39 @@ export function changeUsername(data: ChangeUsernameRequest) {
   return service.put<unknown, ApiResponse<ChangeUsernameResult>>('/auth/username', data)
 }
 
-/** 发送邮箱绑定验证码（未传 email 时发送到当前已绑定邮箱） */
-export function sendEmailCode(data: { email: string }) {
-  return service.post<unknown, ApiResponse<EmailCodeSendResult>>('/auth/email/code/send', data)
+/** 发送邮箱绑定验证码（未传 email 时发送到当前已绑定邮箱；bootstrap 阶段传 stageToken） */
+export function sendEmailCode(data: { email: string }, stageToken?: string) {
+  return service.post<unknown, ApiResponse<EmailCodeSendResult>>(
+    '/auth/email/code/send',
+    data,
+    withStageToken(stageToken),
+  )
 }
 
-/** 绑定或更新邮箱（安全中心场景均为 access 令牌，返回最新安全状态） */
-export function bindEmail(data: EmailBindRequest) {
-  return service.post<unknown, ApiResponse<{ security: SecurityState }>>('/auth/email/bind', data)
+/** 绑定或更新邮箱（bootstrap 阶段传 stageToken，完成全部安全要求时返回完整登录态） */
+export function bindEmail(data: EmailBindRequest, stageToken?: string) {
+  return service.post<unknown, ApiResponse<SecurityUpdateResult>>(
+    '/auth/email/bind',
+    data,
+    withStageToken(stageToken),
+  )
 }
 
-/** 生成 2FA 配置（密钥 + otpauth 链接，前端据此渲染二维码） */
-export function setup2FA() {
-  return service.post<unknown, ApiResponse<TotpSetupInfo>>('/auth/2fa/setup')
+/** 生成 2FA 配置（密钥 + otpauth 链接，前端据此渲染二维码；bootstrap 阶段传 stageToken） */
+export function setup2FA(stageToken?: string) {
+  return service.post<unknown, ApiResponse<TotpSetupInfo>>(
+    '/auth/2fa/setup',
+    {},
+    withStageToken(stageToken),
+  )
 }
 
-/** 启用 2FA（成功后返回一次性恢复码） */
-export function enable2FA(data: { secret: string; code: string }) {
-  return service.post<unknown, ApiResponseWithRecovery<{ security: SecurityState }>>(
+/** 启用 2FA（成功后返回一次性恢复码；bootstrap 阶段管理员启用后返回完整登录态） */
+export function enable2FA(data: { secret: string; code: string }, stageToken?: string) {
+  return service.post<unknown, ApiResponseWithRecovery<SecurityUpdateResult>>(
     '/auth/2fa/enable',
     data,
+    withStageToken(stageToken),
   )
 }
 
@@ -243,6 +272,15 @@ export function verifyLoginStage(data: LoginVerifyRequest, token: string) {
     '/auth/login/verify',
     data,
     { headers: { Authorization: `Bearer ${token}` } },
+  )
+}
+
+/** 管理员跳过安全初始化（bootstrap 阶段，返回完整登录态） */
+export function skipBootstrap(stageToken: string) {
+  return service.post<unknown, ApiResponse<LoginStageResponse>>(
+    '/auth/skip-bootstrap',
+    { confirm: true },
+    withStageToken(stageToken),
   )
 }
 

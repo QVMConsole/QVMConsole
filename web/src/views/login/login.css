@@ -359,6 +359,99 @@ body[theme-mode='dark'] .qvm-login-bg::after {
   border-radius: 12px;
 }
 
+/* ============ 安全初始化面板（bootstrap_security） ============ */
+.qvm-bs-card {
+  width: 520px;
+  max-height: 86vh;
+  overflow-y: auto;
+  padding: 32px 34px 26px;
+}
+.qvm-bs-section {
+  border: 1px solid var(--qvm-stroke);
+  border-radius: 14px;
+  padding: 16px 18px;
+  margin-bottom: 14px;
+  background: var(--qvm-hover-bg);
+}
+.qvm-bs-sec-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+  margin-bottom: 12px;
+}
+.qvm-bs-banner {
+  margin-bottom: 12px;
+  border-radius: 10px;
+}
+.qvm-bs-grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 14px;
+}
+.qvm-bs-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+.qvm-bs-totp {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+.qvm-bs-qr {
+  width: 160px;
+  height: 160px;
+  border-radius: 12px;
+  border: 1px solid var(--qvm-stroke);
+  background: #fff;
+  padding: 6px;
+}
+.qvm-bs-secret {
+  font-family: var(--qvm-num-font);
+  font-size: 13px;
+  color: var(--qvm-text-0);
+  word-break: break-all;
+  user-select: all;
+}
+.qvm-bs-tip {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--qvm-text-2);
+}
+.qvm-bs-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+}
+
+/* 深色模式：大面积文字降对比，避免近白色刺眼 */
+body[theme-mode='dark'] .qvm-bs-sec-title,
+body[theme-mode='dark'] .qvm-bs-secret {
+  color: #b8c1cf;
+}
+
+/* ============ 登录二次验证面板（login_verify） ============ */
+.qvm-lv-methods {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+.qvm-lv-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+}
+.qvm-lv-submit {
+  flex: 1;
+}
+.qvm-lv-foot {
+  margin-top: 12px;
+  text-align: center;
+}
+
 /* ============ 响应式 ============ */
 @media (max-width: 960px) {
   .qvm-login-brand {
@@ -369,5 +462,12 @@ body[theme-mode='dark'] .qvm-login-bg::after {
   }
   .qvm-login-card {
     padding: 30px 24px 24px;
+  }
+  .qvm-bs-card {
+    width: 100%;
+    padding: 26px 20px 20px;
+  }
+  .qvm-bs-grid2 {
+    grid-template-columns: 1fr;
   }
 }

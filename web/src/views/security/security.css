@@ -127,53 +127,12 @@
   user-select: all;
 }
 
-/* ==================== 恢复码弹窗 ==================== */
-.sec-recovery-warn {
-  margin-bottom: 10px;
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--semi-color-danger);
-}
-.sec-recovery-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 4px 16px;
-  padding: 12px 14px;
-  border-radius: 10px;
-  background: var(--qvm-hover-bg);
-  border: 1px solid var(--qvm-stroke);
-  margin-bottom: 10px;
-}
-.sec-recovery-item {
-  font-family: var(--qvm-num-font);
-  font-size: 13px;
-  line-height: 1.9;
-  color: var(--qvm-text-0);
-  user-select: all;
-}
-.sec-recovery-no {
-  color: var(--qvm-text-2);
-  margin-right: 6px;
-}
-.sec-recovery-code {
-  font-weight: 600;
-}
-.sec-recovery-tip {
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--qvm-text-2);
-}
-.sec-recovery-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
+/* 恢复码弹窗样式已抽出到 components/recovery-codes.css（随组件按需加载，登录页安全初始化复用） */
 
 /* ==================== 深色模式：大面积文字降对比 ==================== */
 body[theme-mode='dark'] .sec-page-header h2,
 body[theme-mode='dark'] .sec-sub-title,
-body[theme-mode='dark'] .sec-totp-secret,
-body[theme-mode='dark'] .sec-recovery-item {
+body[theme-mode='dark'] .sec-totp-secret {
   color: #b8c1cf;
 }
 /* 二维码图片在深色下保持白底，确保可扫描 */
@@ -194,8 +153,5 @@ body[theme-mode='dark'] .sec-qr-image {
   }
   .sec-section-card {
     padding: 6px 10px 12px;
-  }
-  .sec-recovery-grid {
-    grid-template-columns: 1fr;
   }
 }

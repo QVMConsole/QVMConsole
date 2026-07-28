@@ -7,6 +7,7 @@ import { useState } from 'react'
 import { Button, Modal, Toast } from '@douyinfe/semi-ui'
 import { IconCopy, IconDownload } from '@douyinfe/semi-icons'
 import { copyTextWithFallback } from '@/utils/clipboard'
+import './recovery-codes.css'
 
 interface RecoveryCodesModalProps {
   visible: boolean

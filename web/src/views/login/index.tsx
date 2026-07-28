@@ -1,8 +1,11 @@
 /**
  * 登录页（深空极光设计稿重构版）
- * 已实现：账号密码登录（stage=success）
- * 待后续迭代：login_verify（登录二次验证）、bootstrap_security（安全初始化）、
- *             force_password_change（强制改密）、邀请注册、找回密码
+ * 多阶段登录已全部接入：
+ * - 账号密码登录（stage=success）
+ * - 强制修改默认密码（force_password_change）
+ * - 安全初始化（bootstrap_security：SMTP / 绑定邮箱 / 绑定 2FA / 管理员跳过）
+ * - 登录二次验证（login_verify：2FA 动态码 / 恢复码 / 邮箱验证码）
+ * 待后续迭代：邀请注册
  */
 import { useEffect, useState, type CSSProperties } from 'react'
 import { Button, Checkbox, Form, Banner, Toast } from '@douyinfe/semi-ui'
@@ -18,13 +21,16 @@ import {
   IconActivity,
 } from '@douyinfe/semi-icons'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { login } from '@/api/auth'
+import { login, type LoginStageResponse } from '@/api/auth'
 import { useUserStore } from '@/stores/user'
 import { useAppStore } from '@/stores/app'
 import { useTheme } from '@/hooks/useTheme'
 import { LOGIN_STAGES, CLOUD_TYPES, type CloudType } from '@/config/constants'
 import { applyDocumentTitle } from '@/config/site'
 import ForgotPasswordModal from './ForgotPasswordModal'
+import ForcePasswordModal from './ForcePasswordModal'
+import BootstrapSecurityPanel, { type BootstrapStageInfo } from './BootstrapSecurityPanel'
+import LoginVerifyPanel, { type LoginVerifyStageInfo } from './LoginVerifyPanel'
 import loginBgDark from '@/assets/img/login-bg.png'
 import loginBgLight from '@/assets/img/login-bg-light.png'
 import './login.css'
@@ -49,6 +55,7 @@ export default function LoginPage() {
   const [searchParams] = useSearchParams()
   const setToken = useUserStore((s) => s.setToken)
   const setUserInfo = useUserStore((s) => s.setUserInfo)
+  const logout = useUserStore((s) => s.logout)
   const siteTitle = useAppStore((s) => s.siteTitle)
   const { isDark } = useTheme()
   const [loading, setLoading] = useState(false)
@@ -56,10 +63,29 @@ export default function LoginPage() {
   const [agreed, setAgreed] = useState(false)
   const [pwdVisible, setPwdVisible] = useState(false)
   const [forgotVisible, setForgotVisible] = useState(false)
+  // 强制修改默认密码弹窗（暂存账号与登录密码，改密成功后自动重新登录）
+  const [forcePwd, setForcePwd] = useState({ visible: false, username: '', password: '' })
+  // 安全初始化阶段（bootstrap_security：SMTP / 绑定邮箱 / 绑定 2FA）
+  const [bootstrap, setBootstrap] = useState<BootstrapStageInfo | null>(null)
+  // 登录二次验证阶段（login_verify：2FA / 恢复码 / 邮箱验证码）
+  const [loginVerify, setLoginVerify] = useState<LoginVerifyStageInfo | null>(null)
 
   useEffect(() => {
     applyDocumentTitle('登录')
   }, [])
+
+  /** 应用登录会话并跳转（stage=success 且无强制改密时调用） */
+  const applySession = (data: LoginStageResponse) => {
+    setToken(data.token || '')
+    setUserInfo(
+      data.username,
+      data.role,
+      data.security,
+      (data.cloud_type || CLOUD_TYPES.elastic) as CloudType,
+    )
+    const redirect = searchParams.get('redirect')
+    navigate(redirect ? decodeURIComponent(redirect) : '/', { replace: true })
+  }
 
   const handleSubmit = async (values: { username: string; password: string }) => {
     if (!agreed) {
@@ -72,30 +98,34 @@ export default function LoginPage() {
       const res = await login({ username: values.username.trim(), password: values.password })
       const data = res.data
       if (data.stage === LOGIN_STAGES.success && data.token) {
-        setToken(data.token)
-        setUserInfo(
-          data.username,
-          data.role,
-          data.security,
-          (data.cloud_type || CLOUD_TYPES.elastic) as CloudType,
-        )
         if (data.force_password_change) {
-          // TODO(重构迭代): 强制修改密码流程
-          setStageTip('当前账号需先修改默认密码，该流程将在后续迭代提供')
+          // 首次登录需修改默认密码：先写入临时 token（后端仅放行改密/登出接口），弹出改密弹窗
+          setToken(data.token)
+          setForcePwd({ visible: true, username: values.username.trim(), password: values.password })
           return
         }
-        const redirect = searchParams.get('redirect')
-        navigate(redirect ? decodeURIComponent(redirect) : '/', { replace: true })
+        applySession(data)
         return
       }
-      if (data.stage === LOGIN_STAGES.loginVerify) {
-        // TODO(重构迭代): 登录二次验证（TOTP / 邮箱验证码）
-        setStageTip('该账号已开启登录验证，完整验证流程将在后续迭代提供')
+      if (data.stage === LOGIN_STAGES.loginVerify && data.token) {
+        // 登录二次验证：切换到验证面板（login 令牌 15 分钟有效）
+        setLoginVerify({
+          token: data.token,
+          username: data.username,
+          role: data.role,
+          security: data.security,
+          allowedMethods: data.allowed_methods || [],
+        })
         return
       }
-      if (data.stage === LOGIN_STAGES.bootstrapSecurity) {
-        // TODO(重构迭代): 安全初始化引导（绑定邮箱 / 2FA）
-        setStageTip('该账号需先完成安全初始化，引导流程将在后续迭代提供')
+      if (data.stage === LOGIN_STAGES.bootstrapSecurity && data.token) {
+        // 安全初始化：切换到引导面板（bootstrap 令牌 30 分钟有效）
+        setBootstrap({
+          token: data.token,
+          username: data.username,
+          role: data.role,
+          security: data.security,
+        })
         return
       }
       setStageTip('未知的登录状态，请稍后再试')
@@ -104,6 +134,35 @@ export default function LoginPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  /** 强制改密成功：旧 token 已失效（后端更新安全时间戳），用新密码自动重新登录 */
+  const handleForcePwdSuccess = async (newPassword: string) => {
+    const username = forcePwd.username
+    setForcePwd({ visible: false, username: '', password: '' })
+    setLoading(true)
+    try {
+      const res = await login({ username, password: newPassword })
+      const data = res.data
+      if (data.stage === LOGIN_STAGES.success && data.token && !data.force_password_change) {
+        applySession(data)
+        return
+      }
+      // 兜底：默认账号理论上不会进入其他阶段，出现异常时回到登录表单
+      logout()
+      setStageTip('密码已修改成功，请使用新密码重新登录')
+    } catch {
+      logout()
+      setStageTip('密码已修改成功，请使用新密码重新登录')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  /** 放弃强制改密：清除临时会话，回到登录表单 */
+  const handleForcePwdExit = () => {
+    logout()
+    setForcePwd({ visible: false, username: '', password: '' })
   }
 
   return (
@@ -169,8 +228,27 @@ export default function LoginPage() {
         ))}
       </section>
 
-      {/* ============ 右侧登录卡片 ============ */}
+      {/* ============ 右侧登录卡片 / 安全初始化 / 登录验证面板 ============ */}
       <section className="qvm-login-side">
+        {loginVerify ? (
+          <LoginVerifyPanel
+            stage={loginVerify}
+            onExit={() => setLoginVerify(null)}
+            onComplete={(data) => {
+              setLoginVerify(null)
+              applySession(data)
+            }}
+          />
+        ) : bootstrap ? (
+          <BootstrapSecurityPanel
+            stage={bootstrap}
+            onExit={() => setBootstrap(null)}
+            onComplete={(data) => {
+              setBootstrap(null)
+              applySession(data)
+            }}
+          />
+        ) : (
         <div className="qvm-login-card qvm-g-border qvm-fade-up" style={{ '--qvm-delay': '100ms' } as CSSProperties}>
           <div className="qvm-lc-head">
             <div className="qvm-lc-logo">Q</div>
@@ -266,9 +344,18 @@ export default function LoginPage() {
             <a onClick={() => setForgotVisible(true)}>忘记密码</a>
           </div>
         </div>
+        )}
 
         {/* 找回密码弹窗 */}
         <ForgotPasswordModal visible={forgotVisible} onClose={() => setForgotVisible(false)} />
+
+        {/* 首次登录强制修改默认密码弹窗 */}
+        <ForcePasswordModal
+          visible={forcePwd.visible}
+          initialPassword={forcePwd.password}
+          onExit={handleForcePwdExit}
+          onSuccess={(newPassword) => void handleForcePwdSuccess(newPassword)}
+        />
 
         <div className="qvm-login-foot">
           <a href="https://github.com/QVMConsole/QVMConsole" target="_blank" rel="noopener noreferrer">

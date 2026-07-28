@@ -663,7 +663,11 @@ func NeedsLoginVerification(user *model.User) bool {
 		return false
 	}
 	if user.Role == "admin" {
-		// 管理员跳过了安全初始化，不需要2FA登录验证
+		// 已绑定 2FA 的管理员必须完成登录验证（即使曾跳过安全初始化）
+		if user.TOTPEnabled {
+			return true
+		}
+		// 未绑定 2FA 且跳过了安全初始化，无法进行登录验证
 		if user.BootstrapSkipped {
 			return false
 		}

@@ -37,19 +37,27 @@ export interface SystemSettings {
   [key: string]: unknown
 }
 
-/** 获取系统设置 */
-export function getSettings() {
-  return service.get<unknown, ApiResponse<SystemSettings>>('/settings', { silent: true })
+/** 构造阶段令牌请求头（安全初始化 bootstrap 令牌，未传时走请求层默认注入） */
+function withStageToken(stageToken?: string) {
+  return stageToken ? { headers: { Authorization: `Bearer ${stageToken}` } } : {}
+}
+
+/** 获取系统设置（bootstrap 阶段传 stageToken） */
+export function getSettings(stageToken?: string) {
+  return service.get<unknown, ApiResponse<SystemSettings>>('/settings', {
+    silent: true,
+    ...withStageToken(stageToken),
+  })
 }
 
 /** 更新系统设置（含维护模式切换时触发 428 高风险二次验证，由请求层自动处理） */
-export function updateSettings(data: Record<string, unknown>) {
-  return service.put<unknown, ApiResponse>('/settings', data)
+export function updateSettings(data: Record<string, unknown>, stageToken?: string) {
+  return service.put<unknown, ApiResponse>('/settings', data, withStageToken(stageToken))
 }
 
-/** 测试 SMTP 发信 */
-export function testSMTP(data: { email: string }) {
-  return service.post<unknown, ApiResponse>('/settings/smtp/test', data)
+/** 测试 SMTP 发信（可携带未保存的 SMTP 配置直接测试；bootstrap 阶段传 stageToken） */
+export function testSMTP(data: { email: string } & Record<string, unknown>, stageToken?: string) {
+  return service.post<unknown, ApiResponse>('/settings/smtp/test', data, withStageToken(stageToken))
 }
 
 /** 手动轮换 JWT 密钥（高风险操作） */
