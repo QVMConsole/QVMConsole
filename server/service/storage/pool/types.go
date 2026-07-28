@@ -47,6 +47,10 @@ type HostStoragePoolInfo struct {
 	PVCount int    `json:"pv_count,omitempty"`  // VG 节点的 PV 数量
 	LVCount int    `json:"lv_count,omitempty"`  // VG 节点的 LV 数量
 	IsLVMVG bool   `json:"is_lvm_vg,omitempty"` // 标记为 LVM VG 合成节点
+	// ===== VM 磁盘占用统计扩展字段 =====
+	VmUsageList    []VMDiskUsageInfo `json:"vm_usage_list,omitempty"`    // 该分区/存储池上的虚拟机列表
+	VmTotalVirtual int64             `json:"vm_total_virtual,omitempty"` // 所有 VM 虚拟配置总大小 (Bytes)
+	VmTotalActual  int64             `json:"vm_total_actual,omitempty"`  // 所有 VM 实际占用总大小 (Bytes)
 }
 
 // VMStorageTarget 是创建虚拟机时可选择的落盘位置。

@@ -1,38 +1,15 @@
 /**
  * 存储相关 API
- * - /api/storage-pool：宿主机存储池（仪表盘）
+ * - /api/storage-pool：宿主机存储池（管理接口统一收敛于 ./storagePool，此处 re-export 兼容仪表盘）
  * - /api/self/storage：用户「我的存储」
  * - /api/self/vm/export：虚拟机导出到我的存储
  */
 import service from './client'
 import type { ApiResponse } from '@/types/api'
 
-/** 宿主机存储池信息 */
-export interface StoragePoolInfo {
-  id: string
-  name: string
-  display_name: string
-  device_path: string
-  type: string
-  size: number // Bytes
-  fstype: string
-  mount_path: string
-  vm_dir: string
-  model: string
-  rota: boolean
-  readonly: boolean
-  used: number // Bytes
-  available: number // Bytes
-  use_percent: number
-  enabled: boolean
-}
-
-/** 管理员：获取存储池列表 */
-export function getStoragePoolList() {
-  return service.get<unknown, ApiResponse<StoragePoolInfo[]>>('/storage-pool/list', {
-    silent: true,
-  })
-}
+// 宿主机存储池列表（完整类型见 ./storagePool）
+export { getStoragePoolList } from './storagePool'
+export type { HostStoragePoolInfo as StoragePoolInfo } from './storagePool'
 
 /** 用户「我的存储」信息 */
 export interface UserStorageInfo {

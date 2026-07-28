@@ -1,0 +1,1298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>存储池页面重设计 · 设计稿 v1</title>
+<style>
+/* ============================================================
+ * 存储池页面重设计 · 设计稿
+ * 配色复用项目 --qvm- 设计令牌（深空极光，浅色优先 + 深色适配）
+ * ============================================================ */
+:root {
+  --qvm-bg: #edf1f7;
+  --qvm-text-0: #1b2434;
+  --qvm-text-1: #55617a;
+  --qvm-text-2: #8b97ad;
+  --qvm-stroke: rgba(30, 41, 59, 0.09);
+  --qvm-stroke-strong: rgba(30, 41, 59, 0.16);
+  --qvm-card-bg: rgba(255, 255, 255, 0.66);
+  --qvm-panel-bg: rgba(255, 255, 255, 0.72);
+  --qvm-hover-bg: rgba(15, 23, 42, 0.045);
+  --qvm-track-bg: rgba(15, 23, 42, 0.07);
+  --qvm-acc: #2dd4bf;
+  --qvm-acc2: #8b5cf6;
+  --qvm-acc3: #38bdf8;
+  --qvm-acc-ink: #0d9488;
+  --qvm-acc2-ink: #7c3aed;
+  --qvm-acc3-ink: #0284c7;
+  --qvm-acc-bg: rgba(13, 148, 136, 0.1);
+  --qvm-acc-stroke: rgba(13, 148, 136, 0.28);
+  --qvm-active-bg: linear-gradient(100deg, rgba(45, 212, 191, 0.16), rgba(56, 189, 248, 0.1));
+  --qvm-warn: #f59e0b;
+  --qvm-warn-ink: #d97706;
+  --qvm-danger: #fb7185;
+  --qvm-danger-ink: #e11d48;
+  --qvm-ok-ink: #059669;
+  --qvm-grad: linear-gradient(120deg, #2dd4bf, #38bdf8);
+  --qvm-grad2: linear-gradient(120deg, #8b5cf6, #38bdf8);
+  --qvm-card-shadow: 0 8px 24px rgba(51, 65, 85, 0.08);
+  --qvm-aurora-1: rgba(45, 212, 191, 0.16);
+  --qvm-aurora-2: rgba(139, 92, 246, 0.14);
+  --qvm-grid-line: rgba(30, 41, 59, 0.05);
+  --qvm-num-font: 'DIN Alternate', 'Bahnschrift', 'SF Mono', Consolas, monospace;
+  --seg-gap: #ffffff;
+}
+body[theme-mode='dark'] {
+  --qvm-bg: #070b14;
+  --qvm-text-0: #e7ebf3;
+  --qvm-text-1: #8b95ab;
+  --qvm-text-2: #59627a;
+  --qvm-stroke: rgba(148, 163, 184, 0.1);
+  --qvm-stroke-strong: rgba(148, 163, 184, 0.2);
+  --qvm-card-bg: rgba(255, 255, 255, 0.028);
+  --qvm-panel-bg: rgba(12, 19, 34, 0.72);
+  --qvm-hover-bg: rgba(255, 255, 255, 0.04);
+  --qvm-track-bg: rgba(255, 255, 255, 0.07);
+  --qvm-acc-ink: #2dd4bf;
+  --qvm-acc2-ink: #a78bfa;
+  --qvm-acc3-ink: #38bdf8;
+  --qvm-acc-bg: rgba(45, 212, 191, 0.1);
+  --qvm-acc-stroke: rgba(45, 212, 191, 0.3);
+  --qvm-warn-ink: #fbbf24;
+  --qvm-danger-ink: #fb7185;
+  --qvm-ok-ink: #34d399;
+  --qvm-card-shadow: 0 10px 28px rgba(0, 0, 0, 0.3);
+  --qvm-aurora-1: rgba(45, 212, 191, 0.1);
+  --qvm-aurora-2: rgba(139, 92, 246, 0.1);
+  --qvm-grid-line: rgba(148, 163, 184, 0.045);
+  --seg-gap: rgba(7, 11, 20, 0.9);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { font-size: 14px; }
+body {
+  font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', -apple-system, 'Segoe UI', sans-serif;
+  background: var(--qvm-bg);
+  color: var(--qvm-text-0);
+  transition: background-color 0.2s ease;
+  min-height: 100vh;
+}
+button { font-family: inherit; }
+
+/* ===== 极光氛围背景 ===== */
+.qvm-aurora { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+.qvm-aurora::before {
+  content: ''; position: absolute; width: 640px; height: 640px;
+  top: -220px; right: -120px; border-radius: 50%;
+  background: radial-gradient(circle, var(--qvm-aurora-1), transparent 65%);
+}
+.qvm-aurora::after {
+  content: ''; position: absolute; width: 720px; height: 720px;
+  bottom: -300px; left: 180px; border-radius: 50%;
+  background: radial-gradient(circle, var(--qvm-aurora-2), transparent 65%);
+}
+.qvm-grid-tex {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: 0.5;
+  background-image:
+    linear-gradient(var(--qvm-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--qvm-grid-line) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse 90% 70% at 60% 0%, #000 30%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 90% 70% at 60% 0%, #000 30%, transparent 75%);
+}
+
+.sp-page { position: relative; z-index: 1; max-width: 1180px; margin: 0 auto; padding: 22px 20px 48px; }
+
+/* ===== 设计稿说明条 ===== */
+.draft-note {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 12px 16px; margin-bottom: 18px;
+  border-radius: 12px;
+  background: linear-gradient(120deg, rgba(139, 92, 246, 0.08), rgba(56, 189, 248, 0.08));
+  border: 1px dashed var(--qvm-acc2-ink);
+  font-size: 12.5px; color: var(--qvm-text-1); line-height: 1.7;
+}
+.draft-note svg { flex: none; margin-top: 2px; color: var(--qvm-acc2-ink); }
+.draft-note b { color: var(--qvm-acc2-ink); font-weight: 600; }
+
+/* ===== 页头 ===== */
+.sp-page-header {
+  margin-bottom: 14px;
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 10px;
+}
+.sp-page-header h2 {
+  margin: 0; font-size: 20px; font-weight: 600; color: var(--qvm-text-0);
+  display: flex; align-items: center; gap: 8px;
+}
+.sp-page-header h2 svg { color: var(--qvm-acc-ink); }
+.sp-page-sub { margin: 4px 0 0; font-size: 13px; color: var(--qvm-text-2); }
+.sp-header-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+/* ===== 按钮（Semi 风格） ===== */
+.sp-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 32px; padding: 0 14px;
+  border-radius: 8px; border: 1px solid transparent;
+  font-size: 13px; font-weight: 500; cursor: pointer;
+  transition: all 0.16s; white-space: nowrap;
+  background: var(--qvm-hover-bg); color: var(--qvm-text-1);
+}
+.sp-btn:hover { background: var(--qvm-track-bg); color: var(--qvm-text-0); }
+.sp-btn.primary {
+  background: var(--qvm-active-bg); color: var(--qvm-acc-ink);
+  border-color: var(--qvm-acc-stroke);
+}
+.sp-btn.primary:hover { box-shadow: 0 0 14px rgba(45, 212, 191, 0.25); }
+.sp-btn.danger-ghost { color: var(--qvm-danger-ink); border-color: rgba(251, 113, 133, 0.35); background: rgba(251, 113, 133, 0.08); }
+.sp-btn.danger-ghost:hover { background: rgba(251, 113, 133, 0.16); }
+.sp-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.sp-btn.sm { height: 26px; padding: 0 10px; font-size: 12px; border-radius: 7px; }
+
+/* ===== 顶部提示 Banner ===== */
+.sp-banner {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px; margin-bottom: 14px;
+  border-radius: 10px; font-size: 12.5px;
+  color: var(--qvm-warn-ink);
+  background: rgba(245, 158, 11, 0.09);
+  border: 1px solid rgba(245, 158, 11, 0.28);
+}
+.sp-banner svg { flex: none; }
+
+/* ===== 概览统计卡 ===== */
+.sp-overview-row {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 12px; margin-bottom: 14px;
+}
+.sp-overview-card {
+  display: flex; align-items: center; gap: 12px;
+  padding: 13px 16px; border-radius: 14px;
+  background: var(--qvm-card-bg);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--qvm-card-shadow);
+  border: 1px solid var(--qvm-stroke);
+}
+.sp-overview-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 38px; height: 38px; border-radius: 11px; font-size: 19px; flex: none;
+}
+.sp-overview-icon.teal { color: #0d9488; background: rgba(45, 212, 191, 0.14); }
+.sp-overview-icon.purple { color: #7c3aed; background: rgba(139, 92, 246, 0.14); }
+.sp-overview-icon.blue { color: #0284c7; background: rgba(56, 189, 248, 0.14); }
+.sp-overview-icon.amber { color: #d97706; background: rgba(245, 158, 11, 0.14); }
+.sp-overview-label { font-size: 12.5px; color: var(--qvm-text-2); font-weight: 500; }
+.sp-overview-value {
+  font-size: 18px; font-weight: 700; color: var(--qvm-text-0);
+  line-height: 1.25; font-family: var(--qvm-num-font);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sp-overview-sub { font-size: 12px; color: var(--qvm-text-2); margin-top: 1px; }
+
+/* ===== 状态筛选 Tab ===== */
+.sp-tab-row {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin: 4px 0 14px;
+}
+.sp-tab {
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 32px; padding: 0 14px; border-radius: 999px;
+  border: 1px solid var(--qvm-stroke);
+  background: var(--qvm-card-bg);
+  color: var(--qvm-text-1); font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: all 0.16s;
+}
+.sp-tab:hover { border-color: var(--qvm-acc-stroke); color: var(--qvm-acc-ink); }
+.sp-tab.active {
+  background: var(--qvm-active-bg);
+  border-color: var(--qvm-acc-stroke);
+  color: var(--qvm-acc-ink); font-weight: 600;
+}
+.sp-tab-count {
+  min-width: 20px; height: 18px; padding: 0 5px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 999px; font-size: 11px; font-weight: 600;
+  font-family: var(--qvm-num-font);
+  background: var(--qvm-track-bg); color: var(--qvm-text-2);
+}
+.sp-tab.active .sp-tab-count { background: var(--qvm-acc-bg); color: var(--qvm-acc-ink); }
+.sp-tab-count.warn { background: rgba(245, 158, 11, 0.16); color: var(--qvm-warn-ink); }
+.sp-tab-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+
+/* ===== 磁盘卡片列表 ===== */
+.sp-disk-list { display: flex; flex-direction: column; gap: 14px; }
+.sp-disk-card {
+  border-radius: 14px;
+  background: var(--qvm-card-bg);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--qvm-card-shadow);
+  border: 1px solid var(--qvm-stroke);
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.sp-disk-card:hover { border-color: var(--qvm-stroke-strong); }
+/* 待初始化盘：高亮引导边框 */
+.sp-disk-card.pending { border: 1px dashed var(--qvm-warn-ink); }
+.sp-disk-card.vg-card { border-left: 3px solid var(--qvm-warn); }
+
+/* ---- 卡片头 ---- */
+.sp-dc-head {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 14px 18px 10px;
+}
+.sp-dc-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border-radius: 10px; flex: none;
+  color: var(--qvm-acc3-ink); background: rgba(56, 189, 248, 0.12);
+}
+.sp-dc-icon.hdd { color: var(--qvm-acc3-ink); background: rgba(56, 189, 248, 0.12); }
+.sp-dc-icon.ssd { color: var(--qvm-acc-ink); background: var(--qvm-acc-bg); }
+.sp-dc-icon.nvme { color: var(--qvm-acc2-ink); background: rgba(139, 92, 246, 0.13); }
+.sp-dc-icon.vg { color: var(--qvm-warn-ink); background: rgba(245, 158, 11, 0.13); }
+.sp-dc-icon.usb { color: var(--qvm-text-2); background: var(--qvm-track-bg); }
+.sp-dc-main { flex: 1; min-width: 0; }
+.sp-dc-name-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sp-dc-name { font-size: 15px; font-weight: 700; color: var(--qvm-text-0); }
+.sp-dc-meta {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
+  font-size: 12.5px; color: var(--qvm-text-2); margin-top: 4px;
+}
+.sp-meta-sep { opacity: 0.6; margin: 0 3px; }
+.sp-mono { font-family: var(--qvm-num-font); font-size: 12px; }
+
+/* ---- 徽章 ---- */
+.sp-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 20px; padding: 0 8px; border-radius: 6px;
+  font-size: 11.5px; font-weight: 600; line-height: 1;
+}
+.sp-badge.pending { color: var(--qvm-warn-ink); background: rgba(245, 158, 11, 0.13); }
+.sp-badge.enabled { color: var(--qvm-acc-ink); background: var(--qvm-acc-bg); }
+.sp-badge.default { color: var(--qvm-ok-ink); background: rgba(52, 211, 153, 0.13); }
+.sp-badge.system { color: var(--qvm-text-2); background: var(--qvm-track-bg); }
+.sp-badge.vg { color: var(--qvm-warn-ink); background: rgba(245, 158, 11, 0.13); }
+.sp-badge.readonly { color: var(--qvm-text-2); background: var(--qvm-track-bg); }
+.sp-badge.purple { color: var(--qvm-acc2-ink); background: rgba(139, 92, 246, 0.13); }
+
+/* ---- 卡片头操作区：主操作外显 + ⋯ 收折 ---- */
+.sp-dc-acts { display: flex; align-items: center; gap: 8px; flex: none; }
+.sp-act-ic {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 7px;
+  color: var(--qvm-text-2); border: 1px solid transparent;
+  cursor: pointer; transition: all 0.16s; background: transparent;
+}
+.sp-act-ic:hover { color: var(--qvm-acc-ink); background: var(--qvm-acc-bg); border-color: var(--qvm-acc-stroke); }
+.sp-act-ic.more:hover { color: var(--qvm-text-0); background: var(--qvm-hover-bg); border-color: var(--qvm-stroke); }
+.sp-act-ic.danger:hover { color: var(--qvm-danger-ink); background: rgba(251, 113, 133, 0.14); border-color: rgba(251, 113, 133, 0.3); }
+.sp-act-ic.disabled, .sp-act-ic.disabled:hover {
+  opacity: 0.4; cursor: not-allowed;
+  color: var(--qvm-text-2); background: transparent; border-color: transparent;
+}
+
+/* ---- 空间分配条（核心新增） ---- */
+.sp-dc-space { padding: 2px 18px 12px; }
+.sp-space-title {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 12px; color: var(--qvm-text-2); margin-bottom: 6px;
+}
+.sp-space-title .total { font-family: var(--qvm-num-font); }
+.sp-spacebar {
+  display: flex; height: 20px; border-radius: 7px; overflow: hidden;
+  background: var(--qvm-track-bg);
+  border: 1px solid var(--qvm-stroke);
+}
+.seg { position: relative; height: 100%; cursor: default; transition: filter 0.15s; }
+.seg:hover { filter: brightness(1.12); }
+.seg + .seg { box-shadow: -2px 0 0 var(--seg-gap); }
+.seg.used { background: linear-gradient(180deg, #34d8c3, #14b8a6); }
+.seg.used-warn { background: linear-gradient(180deg, #fbbf24, #f59e0b); }
+.seg.used-danger { background: linear-gradient(180deg, #fb8296, #f43f5e); }
+.seg.held { background: repeating-linear-gradient(-45deg, rgba(139, 92, 246, 0.5) 0 6px, rgba(139, 92, 246, 0.3) 6px 12px); }
+.seg.sys { background: repeating-linear-gradient(-45deg, rgba(139, 151, 173, 0.4) 0 6px, rgba(139, 151, 173, 0.22) 6px 12px); }
+.seg.free { background: transparent; }
+.sp-space-legend {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px 16px;
+  margin-top: 8px; font-size: 12px; color: var(--qvm-text-1);
+}
+.lg-item { display: inline-flex; align-items: center; gap: 6px; }
+.lg-dot { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+.lg-dot.used { background: #14b8a6; }
+.lg-dot.used-warn { background: #f59e0b; }
+.lg-dot.used-danger { background: #f43f5e; }
+.lg-dot.held { background: rgba(139, 92, 246, 0.55); }
+.lg-dot.sys { background: rgba(139, 151, 173, 0.5); }
+.lg-dot.free { background: transparent; border: 1.5px dashed var(--qvm-text-2); }
+.lg-num { font-family: var(--qvm-num-font); color: var(--qvm-text-2); }
+
+/* ---- 历史数据警告 ---- */
+.sp-dc-alert {
+  display: flex; align-items: flex-start; gap: 8px;
+  margin: 0 18px 12px; padding: 9px 12px;
+  border-radius: 9px; font-size: 12.5px; line-height: 1.6;
+  color: var(--qvm-warn-ink);
+  background: rgba(245, 158, 11, 0.09);
+  border: 1px solid rgba(245, 158, 11, 0.28);
+}
+.sp-dc-alert svg { flex: none; margin-top: 2px; }
+
+/* ---- 初始化引导区（待初始化盘专属） ---- */
+.sp-dc-guide {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  margin: 0 18px 14px; padding: 13px 16px;
+  border-radius: 11px;
+  background: linear-gradient(120deg, rgba(45, 212, 191, 0.09), rgba(56, 189, 248, 0.09));
+  border: 1px solid var(--qvm-acc-stroke);
+}
+.sp-dc-guide .guide-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 9px; flex: none;
+  color: var(--qvm-acc-ink); background: var(--qvm-acc-bg);
+}
+.sp-dc-guide .guide-text { flex: 1; min-width: 180px; }
+.sp-dc-guide .guide-title { font-size: 13.5px; font-weight: 600; color: var(--qvm-text-0); }
+.sp-dc-guide .guide-sub { font-size: 12px; color: var(--qvm-text-2); margin-top: 2px; }
+.sp-dc-guide .guide-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ---- 分区区块 ---- */
+.sp-dc-parts { border-top: 1px solid var(--qvm-stroke); }
+.sp-parts-toggle {
+  display: flex; align-items: center; gap: 7px;
+  width: 100%; padding: 9px 18px;
+  background: var(--qvm-hover-bg); border: none;
+  font-size: 12.5px; font-weight: 600; color: var(--qvm-text-1);
+  cursor: pointer; transition: background 0.15s; text-align: left;
+}
+.sp-parts-toggle:hover { background: var(--qvm-track-bg); }
+.sp-parts-toggle svg { transition: transform 0.18s; color: var(--qvm-text-2); }
+.sp-parts-toggle.open svg { transform: rotate(90deg); }
+.sp-parts-toggle .cnt { color: var(--qvm-text-2); font-weight: 500; font-family: var(--qvm-num-font); }
+
+/* ---- 分区行 ---- */
+.sp-part-row {
+  display: flex; align-items: center; gap: 16px;
+  padding: 11px 18px;
+  border-top: 1px solid var(--qvm-stroke);
+  transition: background-color 0.15s;
+}
+.sp-part-row:hover { background: var(--qvm-hover-bg); }
+.sp-part-row.depth-1 { padding-left: 34px; }
+.sp-part-main { flex: 1; min-width: 0; }
+.sp-part-name-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap; }
+.sp-part-name { font-size: 13.5px; font-weight: 600; color: var(--qvm-text-0); display: inline-flex; align-items: center; gap: 6px; }
+.sp-part-name svg { color: var(--qvm-text-2); }
+.sp-part-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; font-size: 12px; color: var(--qvm-text-2); }
+.sp-part-cap { flex: none; width: 190px; }
+.sp-capbar { height: 6px; border-radius: 999px; background: var(--qvm-track-bg); overflow: hidden; }
+.sp-capbar i { display: block; height: 100%; border-radius: 999px; }
+.sp-cap-text { display: flex; align-items: baseline; gap: 4px; font-size: 11.5px; color: var(--qvm-text-2); margin-top: 4px; font-family: var(--qvm-num-font); }
+.sp-cap-text b { color: var(--qvm-acc-ink); font-weight: 600; }
+.sp-cap-text b.warn { color: var(--qvm-warn-ink); }
+.sp-cap-text b.danger { color: var(--qvm-danger-ink); }
+
+/* ---- VG 分区段标题 ---- */
+.sp-vg-sec-title {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 18px 4px;
+  font-size: 12px; font-weight: 600; color: var(--qvm-text-2); letter-spacing: 0.5px;
+}
+.sp-vg-sec-title svg { color: var(--qvm-text-2); }
+
+/* ---- 底部折叠图表区 ---- */
+.sp-chart-fold {
+  margin-top: 16px; border-radius: 14px;
+  background: var(--qvm-card-bg); border: 1px solid var(--qvm-stroke);
+  box-shadow: var(--qvm-card-shadow); overflow: hidden;
+}
+.sp-chart-fold-head {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; padding: 12px 18px; border: none; background: transparent;
+  font-size: 13.5px; font-weight: 600; color: var(--qvm-text-1);
+  cursor: pointer; text-align: left;
+}
+.sp-chart-fold-head svg { color: var(--qvm-text-2); transition: transform 0.18s; }
+.sp-chart-fold-head.open svg { transform: rotate(90deg); }
+.sp-chart-fold-head .hint { margin-left: auto; font-size: 12px; color: var(--qvm-text-2); font-weight: 400; }
+.sp-chart-fold-body { padding: 4px 18px 18px; display: none; }
+.sp-chart-fold-body.open { display: block; }
+.sp-chart-placeholder {
+  height: 200px; border-radius: 10px; border: 1px dashed var(--qvm-stroke-strong);
+  display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px;
+  color: var(--qvm-text-2); font-size: 12.5px;
+}
+
+/* ---- 空态 ---- */
+.sp-empty { text-align: center; padding: 56px 20px; color: var(--qvm-text-2); font-size: 14px; }
+.sp-empty svg { display: block; margin: 0 auto 12px; opacity: 0.5; }
+
+/* ---- 主题切换浮动按钮（演示用） ---- */
+.theme-toggle {
+  position: fixed; right: 20px; bottom: 20px; z-index: 50;
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 36px; padding: 0 16px; border-radius: 999px;
+  border: 1px solid var(--qvm-stroke-strong);
+  background: var(--qvm-panel-bg); color: var(--qvm-text-1);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--qvm-card-shadow);
+  font-size: 13px; cursor: pointer; transition: all 0.16s;
+}
+.theme-toggle:hover { color: var(--qvm-acc-ink); border-color: var(--qvm-acc-stroke); }
+
+/* ---- 简单 Toast（演示用） ---- */
+.sp-toast {
+  position: fixed; top: 24px; left: 50%; transform: translateX(-50%) translateY(-16px);
+  z-index: 99; padding: 9px 18px; border-radius: 10px;
+  background: var(--qvm-panel-bg); border: 1px solid var(--qvm-acc-stroke);
+  color: var(--qvm-acc-ink); font-size: 13px; font-weight: 500;
+  box-shadow: var(--qvm-card-shadow); opacity: 0; pointer-events: none;
+  transition: all 0.25s ease;
+}
+.sp-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ---- 深色模式：大面积文字降对比为柔和灰 ---- */
+body[theme-mode='dark'] .sp-page-header h2,
+body[theme-mode='dark'] .sp-overview-value,
+body[theme-mode='dark'] .sp-dc-name,
+body[theme-mode='dark'] .sp-part-name,
+body[theme-mode='dark'] .sp-dc-guide .guide-title { color: #b8c1cf; }
+
+/* ---- 响应式 ---- */
+@media (max-width: 960px) {
+  .sp-overview-row { grid-template-columns: repeat(2, 1fr); }
+  .sp-dc-head { flex-wrap: wrap; }
+  .sp-dc-acts { margin-left: auto; }
+  .sp-part-row { flex-wrap: wrap; gap: 10px; }
+  .sp-part-cap { width: 100%; order: 3; }
+  .sp-part-row .sp-act-cell { order: 4; margin-left: auto; }
+}
+@media (max-width: 640px) {
+  .sp-page { padding: 14px 12px 40px; }
+  .sp-page-header { flex-direction: column; align-items: flex-start; }
+  .sp-header-actions { width: 100%; }
+  .sp-tab-right { margin-left: 0; width: 100%; }
+  .sp-dc-guide { flex-direction: column; align-items: flex-start; }
+}
+</style>
+</head>
+<body>
+<div class="qvm-aurora"></div>
+<div class="qvm-grid-tex"></div>
+
+<div class="sp-page">
+  <!-- ==================== 设计稿说明 ==================== -->
+  <div class="draft-note">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><circle cx="12" cy="16.5" r="0.5" fill="currentColor"/></svg>
+    <div>
+      <b>设计稿 v1 · 存储池页面重设计</b> —— 核心改进：① 状态筛选 Tab 按「待初始化 / 使用中 / 存储卷」分组磁盘；
+      ② 每块盘新增<b>分段空间分配条</b>，分区占比与空闲空间一目了然；
+      ③ 主操作<b>按状态外显</b>（待初始化盘直接给出「格式化挂载 / 创建分区」引导按钮），危险与低频操作仍收 ⋯ 下拉；
+      ④ 全局图表折叠移至页面底部，操作优先。右下角可切换深色预览。
+    </div>
+  </div>
+
+  <!-- ==================== 页头 ==================== -->
+  <div class="sp-page-header">
+    <div>
+      <h2>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>
+        存储池
+      </h2>
+      <p class="sp-page-sub">管理宿主机硬盘分区，配置虚拟机落盘位置与格式化挂载</p>
+    </div>
+    <div class="sp-header-actions">
+      <button class="sp-btn primary" onclick="toast('打开「创建存储卷」两步向导（LVM / Btrfs 预留）')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        创建存储卷
+      </button>
+      <button class="sp-btn" onclick="toast('刷新块设备列表')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+        刷新
+      </button>
+    </div>
+  </div>
+
+  <!-- ==================== 顶部提示 ==================== -->
+  <div class="sp-banner">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 4.1 2.9 17a2 2 0 0 0 1.7 3h14.8a2 2 0 0 0 1.7-3L13.7 4.1a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><circle cx="12" cy="16.5" r="0.5" fill="currentColor"/></svg>
+    格式化挂载、分区与存储卷操作会触发高风险验证，并通过任务队列异步执行，可在任务中心查看进度。
+  </div>
+
+  <!-- ==================== 概览统计 ==================== -->
+  <div class="sp-overview-row">
+    <div class="sp-overview-card">
+      <span class="sp-overview-icon teal">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v12c0 1.66 3.13 3 7 3s7-1.34 7-3V6"/><path d="M5 12c0 1.66 3.13 3 7 3s7-1.34 7-3"/></svg>
+      </span>
+      <div>
+        <div class="sp-overview-label">总容量</div>
+        <div class="sp-overview-value">10.9 TB</div>
+        <div class="sp-overview-sub">5 块物理硬盘</div>
+      </div>
+    </div>
+    <div class="sp-overview-card">
+      <span class="sp-overview-icon purple">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 4 4 6-7"/><path d="M15 9h3v3"/></svg>
+      </span>
+      <div>
+        <div class="sp-overview-label">已用空间</div>
+        <div class="sp-overview-value">2.86 TB</div>
+        <div class="sp-overview-sub">4 个已挂载分区</div>
+      </div>
+    </div>
+    <div class="sp-overview-card">
+      <span class="sp-overview-icon blue">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9"/><path d="M12 7v5l3.5 2"/></svg>
+      </span>
+      <div>
+        <div class="sp-overview-label">可用空间</div>
+        <div class="sp-overview-value">3.12 TB</div>
+        <div class="sp-overview-sub">含未分配 2.6 TB</div>
+      </div>
+    </div>
+    <div class="sp-overview-card">
+      <span class="sp-overview-icon amber">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.4"/><circle cx="6" cy="18" r="2.4"/><circle cx="18" cy="6" r="2.4"/><path d="M6 8.4v7.2M8 6h5.5a3 3 0 0 0 3-3"/></svg>
+      </span>
+      <div>
+        <div class="sp-overview-label">存储卷</div>
+        <div class="sp-overview-value">1 个</div>
+        <div class="sp-overview-sub">LVM 卷组 vg-data</div>
+      </div>
+    </div>
+  </div>
+
+<style>
+/* ---- 行内操作容器与模拟下拉 ---- */
+.sp-act-cell { position: relative; display: flex; align-items: center; gap: 8px; flex: none; }
+.sp-dropdown {
+  position: absolute; top: 32px; right: 0; z-index: 30;
+  min-width: 152px; padding: 5px;
+  background: var(--qvm-panel-bg); border: 1px solid var(--qvm-stroke-strong);
+  border-radius: 10px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  display: none;
+}
+.sp-dropdown.show { display: block; }
+.sp-dd-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px; border-radius: 7px;
+  font-size: 13px; color: var(--qvm-text-1); cursor: pointer;
+  white-space: nowrap;
+}
+.sp-dd-item:hover { background: var(--qvm-hover-bg); color: var(--qvm-text-0); }
+.sp-dd-item.danger { color: var(--qvm-danger-ink); }
+.sp-dd-item.danger:hover { background: rgba(251, 113, 133, 0.1); }
+.sp-dd-item.disabled, .sp-dd-item.disabled:hover {
+  opacity: 0.4; cursor: not-allowed;
+  background: transparent; color: var(--qvm-text-1);
+}
+.sp-dd-divider { height: 1px; margin: 5px 8px; background: var(--qvm-stroke); }
+</style>
+
+  <!-- ==================== 状态筛选 Tab ==================== -->
+  <div class="sp-tab-row">
+    <button class="sp-tab active" data-tab="all" onclick="switchTab('all', this)">
+      全部<span class="sp-tab-count">6</span>
+    </button>
+    <button class="sp-tab" data-tab="pending" onclick="switchTab('pending', this)">
+      待初始化<span class="sp-tab-count warn">2</span>
+    </button>
+    <button class="sp-tab" data-tab="inuse" onclick="switchTab('inuse', this)">
+      使用中<span class="sp-tab-count">2</span>
+    </button>
+    <button class="sp-tab" data-tab="vg" onclick="switchTab('vg', this)">
+      存储卷<span class="sp-tab-count">1</span>
+    </button>
+    <div class="sp-tab-right">
+      <span style="font-size:12px;color:var(--qvm-text-2)">按磁盘状态分组，快速定位可操作的硬盘</span>
+    </div>
+  </div>
+
+  <!-- ==================== 磁盘卡片列表 ==================== -->
+  <div class="sp-disk-list" id="diskList">
+
+    <!-- ========== 卡片 1：系统盘（使用中） ========== -->
+    <div class="sp-disk-card" data-cat="inuse">
+      <div class="sp-dc-head">
+        <span class="sp-dc-icon ssd">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="6" width="16" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M12 9V7.5M8 18v2M16 18v2"/></svg>
+        </span>
+        <div class="sp-dc-main">
+          <div class="sp-dc-name-row">
+            <span class="sp-dc-name">三星 870 EVO（sda）</span>
+            <span class="sp-badge system">系统盘</span>
+            <span class="sp-badge default">默认存储</span>
+            <span class="sp-badge enabled">已启用</span>
+          </div>
+          <div class="sp-dc-meta">
+            <span class="sp-mono">/dev/sda</span><span class="sp-meta-sep">·</span>
+            <span>Samsung SSD 870 EVO 500GB</span><span class="sp-meta-sep">·</span>
+            <span>SATA</span><span class="sp-meta-sep">·</span>
+            <span>SSD</span><span class="sp-meta-sep">·</span>
+            <span>465.8 GB</span>
+          </div>
+        </div>
+        <div class="sp-act-cell">
+          <button class="sp-act-ic" title="配置" onclick="toast('打开「配置存储池」弹窗：显示名称 + 启用开关')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          </button>
+          <button class="sp-act-ic more" title="更多操作" onclick="toggleMenu(event)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+          </button>
+          <div class="sp-dropdown">
+            <div class="sp-dd-item disabled" title="剩余空间不足或已是默认">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.8-4.5 4.3 1.1 6.1L12 17l-5.4 2.8 1.1-6.1L3.2 9.4l6.1-.8Z"/></svg>
+              设为默认
+            </div>
+            <div class="sp-dd-item" onclick="toast('打开「创建分区」弹窗（高风险，任务队列）')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              创建分区
+            </div>
+            <div class="sp-dd-divider"></div>
+            <div class="sp-dd-item danger disabled" title="系统盘不可清除">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6.5 7l1 13h9l1-13"/></svg>
+              清除磁盘
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- 空间分配条 -->
+      <div class="sp-dc-space">
+        <div class="sp-space-title"><span>空间分配</span><span class="total">共 465.8 GB</span></div>
+        <div class="sp-spacebar">
+          <div class="seg sys" style="width:0.5%" title="EFI 系统分区 · 512 MB"></div>
+          <div class="seg sys" style="width:25.5%" title="系统分区 / · 120 GB"></div>
+          <div class="seg used-warn" style="width:74%" title="sda3 · 虚拟机存储 · 345.3 GB（已用 78%）"></div>
+        </div>
+        <div class="sp-space-legend">
+          <span class="lg-item"><i class="lg-dot sys"></i>系统占用 <span class="lg-num">120.5 GB</span></span>
+          <span class="lg-item"><i class="lg-dot used-warn"></i>sda3 存储池 <span class="lg-num">345.3 GB · 已用 78%</span></span>
+        </div>
+      </div>
+      <!-- 分区列表 -->
+      <div class="sp-dc-parts">
+        <button class="sp-parts-toggle open" onclick="toggleParts(this)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7"/></svg>
+          分区 <span class="cnt">3</span>
+        </button>
+        <div class="sp-parts-body">
+          <div class="sp-part-row">
+            <div class="sp-part-main">
+              <div class="sp-part-name-row">
+                <span class="sp-part-name">sda1</span>
+                <span class="sp-badge system">系统分区</span>
+              </div>
+              <div class="sp-part-meta"><span class="sp-mono">/dev/sda1</span><span class="sp-meta-sep">·</span><span>vfat</span><span class="sp-meta-sep">·</span><span class="sp-mono">/boot/efi</span></div>
+            </div>
+            <div class="sp-part-cap">
+              <div class="sp-capbar"><i style="width:12%;background:#8b97ad"></i></div>
+              <div class="sp-cap-text">512 MB · 只读</div>
+            </div>
+            <div class="sp-act-cell"></div>
+          </div>
+          <div class="sp-part-row">
+            <div class="sp-part-main">
+              <div class="sp-part-name-row">
+                <span class="sp-part-name">sda2</span>
+                <span class="sp-badge system">系统分区</span>
+              </div>
+              <div class="sp-part-meta"><span class="sp-mono">/dev/sda2</span><span class="sp-meta-sep">·</span><span>ext4</span><span class="sp-meta-sep">·</span><span class="sp-mono">/</span></div>
+            </div>
+            <div class="sp-part-cap">
+              <div class="sp-capbar"><i style="width:41%;background:#8b97ad"></i></div>
+              <div class="sp-cap-text">49.2 / 120 GB</div>
+            </div>
+            <div class="sp-act-cell"></div>
+          </div>
+          <div class="sp-part-row">
+            <div class="sp-part-main">
+              <div class="sp-part-name-row">
+                <span class="sp-part-name">sda3 · 主存储池</span>
+                <span class="sp-badge default">默认</span>
+                <span class="sp-badge enabled">已启用</span>
+                <span class="sp-badge purple">可用于虚拟机</span>
+              </div>
+              <div class="sp-part-meta"><span class="sp-mono">/dev/sda3</span><span class="sp-meta-sep">·</span><span>ext4</span><span class="sp-meta-sep">·</span><span class="sp-mono">/var/lib/kvm-storage/sda3</span></div>
+            </div>
+            <div class="sp-part-cap">
+              <div class="sp-capbar"><i style="width:78%;background:#f59e0b"></i></div>
+              <div class="sp-cap-text"><b class="warn">78%</b> 269.3 / 345.3 GB</div>
+            </div>
+            <div class="sp-act-cell">
+              <button class="sp-act-ic" title="配置" onclick="toast('打开「配置存储池」弹窗')">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+              </button>
+              <button class="sp-act-ic more" title="更多操作" onclick="toggleMenu(event)">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+              </button>
+              <div class="sp-dropdown">
+                <div class="sp-dd-item disabled" title="已是默认存储位置">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.8-4.5 4.3 1.1 6.1L12 17l-5.4 2.8 1.1-6.1L3.2 9.4l6.1-.8Z"/></svg>
+                  设为默认
+                </div>
+                <div class="sp-dd-item" onclick="toast('打开「格式化挂载」弹窗（高风险）')">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4.5 4.5 0 0 0-6 6L3 18l3 3 5.7-5.7a4.5 4.5 0 0 0 6-6L14 13l-3-3 3.7-3.7Z"/></svg>
+                  格式化挂载
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 卡片 2：数据盘（使用中，含未分配空间） ========== -->
+    <div class="sp-disk-card" data-cat="inuse">
+      <div class="sp-dc-head">
+        <span class="sp-dc-icon hdd">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5"/><path d="M12 4v3M15 13.5l4 4"/></svg>
+        </span>
+        <div class="sp-dc-main">
+          <div class="sp-dc-name-row">
+            <span class="sp-dc-name">西数蓝盘 2TB（sdb）</span>
+            <span class="sp-badge enabled">已启用</span>
+          </div>
+          <div class="sp-dc-meta">
+            <span class="sp-mono">/dev/sdb</span><span class="sp-meta-sep">·</span>
+            <span>WDC WD20EZBX</span><span class="sp-meta-sep">·</span>
+            <span>SATA</span><span class="sp-meta-sep">·</span>
+            <span>HDD</span><span class="sp-meta-sep">·</span>
+            <span>1.82 TB</span>
+          </div>
+        </div>
+        <div class="sp-act-cell">
+          <button class="sp-act-ic" title="配置" onclick="toast('打开「配置存储池」弹窗')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          </button>
+          <button class="sp-act-ic more" title="更多操作" onclick="toggleMenu(event)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+          </button>
+          <div class="sp-dropdown">
+            <div class="sp-dd-item" onclick="toast('已设为默认存储位置')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.8-4.5 4.3 1.1 6.1L12 17l-5.4 2.8 1.1-6.1L3.2 9.4l6.1-.8Z"/></svg>
+              设为默认
+            </div>
+            <div class="sp-dd-item" onclick="toast('打开「格式化挂载」弹窗（高风险）')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4.5 4.5 0 0 0-6 6L3 18l3 3 5.7-5.7a4.5 4.5 0 0 0 6-6L14 13l-3-3 3.7-3.7Z"/></svg>
+              格式化挂载
+            </div>
+            <div class="sp-dd-item" onclick="toast('打开「创建分区」弹窗：剩余 634.9 GB 可分配（高风险）')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              创建分区
+            </div>
+            <div class="sp-dd-divider"></div>
+            <div class="sp-dd-item danger" onclick="toast('打开「清除磁盘」确认弹窗（危险，高风险）')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6.5 7l1 13h9l1-13"/></svg>
+              清除磁盘
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="sp-dc-space">
+        <div class="sp-space-title"><span>空间分配</span><span class="total">共 1.82 TB · 剩余可分配 634.9 GB</span></div>
+        <div class="sp-spacebar">
+          <div class="seg used" style="width:66%" title="sdb1 · 虚拟机存储 · 1.2 TB（已用 45%）"></div>
+          <div class="seg free" style="width:34%" title="未分配空间 · 634.9 GB"></div>
+        </div>
+        <div class="sp-space-legend">
+          <span class="lg-item"><i class="lg-dot used"></i>sdb1 存储池 <span class="lg-num">1.2 TB · 已用 45%</span></span>
+          <span class="lg-item"><i class="lg-dot free"></i>未分配 <span class="lg-num">634.9 GB</span></span>
+        </div>
+      </div>
+      <div class="sp-dc-parts">
+        <button class="sp-parts-toggle open" onclick="toggleParts(this)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7"/></svg>
+          分区 <span class="cnt">1</span>
+          <span style="margin-left:auto;font-weight:400;font-size:12px;color:var(--qvm-text-2)">剩余空间可继续创建分区</span>
+        </button>
+        <div class="sp-parts-body">
+          <div class="sp-part-row">
+            <div class="sp-part-main">
+              <div class="sp-part-name-row">
+                <span class="sp-part-name">sdb1 · 仓库盘</span>
+                <span class="sp-badge enabled">已启用</span>
+                <span class="sp-badge purple">可用于虚拟机</span>
+              </div>
+              <div class="sp-part-meta"><span class="sp-mono">/dev/sdb1</span><span class="sp-meta-sep">·</span><span>xfs</span><span class="sp-meta-sep">·</span><span class="sp-mono">/var/lib/kvm-storage/sdb1</span></div>
+            </div>
+            <div class="sp-part-cap">
+              <div class="sp-capbar"><i style="width:45%;background:#14b8a6"></i></div>
+              <div class="sp-cap-text"><b>45%</b> 553 / 1228.8 GB</div>
+            </div>
+            <div class="sp-act-cell">
+              <button class="sp-act-ic" title="配置" onclick="toast('打开「配置存储池」弹窗')">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+              </button>
+              <button class="sp-act-ic more" title="更多操作" onclick="toggleMenu(event)">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+              </button>
+              <div class="sp-dropdown">
+                <div class="sp-dd-item" onclick="toast('已设为默认存储位置')">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.8-4.5 4.3 1.1 6.1L12 17l-5.4 2.8 1.1-6.1L3.2 9.4l6.1-.8Z"/></svg>
+                  设为默认
+                </div>
+                <div class="sp-dd-item" onclick="toast('打开「格式化挂载」弹窗（高风险）')">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4.5 4.5 0 0 0-6 6L3 18l3 3 5.7-5.7a4.5 4.5 0 0 0 6-6L14 13l-3-3 3.7-3.7Z"/></svg>
+                  格式化挂载
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 卡片 3：全新盘（待初始化，操作引导） ========== -->
+    <div class="sp-disk-card pending" data-cat="pending">
+      <div class="sp-dc-head">
+        <span class="sp-dc-icon nvme">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="8" rx="2"/><path d="M7 12h4M17 12h.01"/></svg>
+        </span>
+        <div class="sp-dc-main">
+          <div class="sp-dc-name-row">
+            <span class="sp-dc-name">致态 TiPlus7100 1TB（sdd）</span>
+            <span class="sp-badge pending">待初始化</span>
+          </div>
+          <div class="sp-dc-meta">
+            <span class="sp-mono">/dev/sdd</span><span class="sp-meta-sep">·</span>
+            <span>ZHITAI TiPlus7100 1TB</span><span class="sp-meta-sep">·</span>
+            <span>NVMe</span><span class="sp-meta-sep">·</span>
+            <span>SSD</span><span class="sp-meta-sep">·</span>
+            <span>931.5 GB</span>
+          </div>
+        </div>
+        <div class="sp-act-cell">
+          <button class="sp-act-ic more" title="更多操作" onclick="toggleMenu(event)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+          </button>
+          <div class="sp-dropdown">
+            <div class="sp-dd-item" onclick="toast('打开「配置存储池」弹窗')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+              配置
+            </div>
+            <div class="sp-dd-divider"></div>
+            <div class="sp-dd-item danger disabled" title="磁盘无分区且未挂载，无需清除">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6.5 7l1 13h9l1-13"/></svg>
+              清除磁盘
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="sp-dc-space">
+        <div class="sp-space-title"><span>空间分配</span><span class="total">共 931.5 GB · 全部未分配</span></div>
+        <div class="sp-spacebar">
+          <div class="seg free" style="width:100%" title="未分配空间 · 931.5 GB"></div>
+        </div>
+        <div class="sp-space-legend">
+          <span class="lg-item"><i class="lg-dot free"></i>未分配 <span class="lg-num">931.5 GB</span></span>
+        </div>
+      </div>
+      <!-- 初始化引导区 -->
+      <div class="sp-dc-guide">
+        <span class="guide-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-4 10.5c.8.7 1 1.5 1 2.5h6c0-1 .2-1.8 1-2.5A6 6 0 0 0 12 3Z"/></svg>
+        </span>
+        <div class="guide-text">
+          <div class="guide-title">此磁盘尚未用于虚拟机存储</div>
+          <div class="guide-sub">可整盘格式化为存储池，或先创建分区再使用；操作将提交任务队列并需二次验证</div>
+        </div>
+        <div class="guide-acts">
+          <button class="sp-btn primary" onclick="toast('打开「格式化挂载」弹窗：ext4 / xfs / btrfs（高风险，任务队列）')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4.5 4.5 0 0 0-6 6L3 18l3 3 5.7-5.7a4.5 4.5 0 0 0 6-6L14 13l-3-3 3.7-3.7Z"/></svg>
+            格式化挂载为存储池
+          </button>
+          <button class="sp-btn" onclick="toast('打开「创建分区」弹窗：分区大小 GB，0 = 全部剩余空间（高风险）')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            创建分区
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 卡片 4：历史数据盘（待初始化 + 数据警告） ========== -->
+    <div class="sp-disk-card pending" data-cat="pending">
+      <div class="sp-dc-head">
+        <span class="sp-dc-icon hdd">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5"/><path d="M12 4v3M15 13.5l4 4"/></svg>
+        </span>
+        <div class="sp-dc-main">
+          <div class="sp-dc-name-row">
+            <span class="sp-dc-name">希捷酷狼 4TB（sdc）</span>
+            <span class="sp-badge pending">待初始化</span>
+          </div>
+          <div class="sp-dc-meta">
+            <span class="sp-mono">/dev/sdc</span><span class="sp-meta-sep">·</span>
+            <span>ST4000VN006</span><span class="sp-meta-sep">·</span>
+            <span>SATA</span><span class="sp-meta-sep">·</span>
+            <span>HDD</span><span class="sp-meta-sep">·</span>
+            <span>3.64 TB</span>
+          </div>
+        </div>
+        <div class="sp-act-cell">
+          <button class="sp-act-ic more" title="更多操作" onclick="toggleMenu(event)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+          </button>
+          <div class="sp-dropdown">
+            <div class="sp-dd-item" onclick="toast('打开「配置存储池」弹窗')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+              配置
+            </div>
+            <div class="sp-dd-divider"></div>
+            <div class="sp-dd-item danger" onclick="toast('打开「清除磁盘」确认弹窗：将删除全部分区（危险，高风险）')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6.5 7l1 13h9l1-13"/></svg>
+              清除磁盘
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- 历史数据警告 -->
+      <div class="sp-dc-alert">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 4.1 2.9 17a2 2 0 0 0 1.7 3h14.8a2 2 0 0 0 1.7-3L13.7 4.1a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><circle cx="12" cy="16.5" r="0.5" fill="currentColor"/></svg>
+        <span>检测到磁盘存在历史数据：sdc1 含有 ext4 文件系统（约 1.6 TB 旧数据）。格式化或清除分区将<b>永久删除</b>这些数据，请先确认已备份。</span>
+      </div>
+      <div class="sp-dc-space">
+        <div class="sp-space-title"><span>空间分配</span><span class="total">共 3.64 TB · 剩余可分配 2.0 TB</span></div>
+        <div class="sp-spacebar">
+          <div class="seg held" style="width:45%" title="sdc1 · 旧数据（未挂载） · 1.64 TB"></div>
+          <div class="seg free" style="width:55%" title="未分配空间 · 2.0 TB"></div>
+        </div>
+        <div class="sp-space-legend">
+          <span class="lg-item"><i class="lg-dot held"></i>sdc1 旧数据 <span class="lg-num">1.64 TB</span></span>
+          <span class="lg-item"><i class="lg-dot free"></i>未分配 <span class="lg-num">2.0 TB</span></span>
+        </div>
+      </div>
+      <!-- 初始化引导区 -->
+      <div class="sp-dc-guide">
+        <span class="guide-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-4 10.5c.8.7 1 1.5 1 2.5h6c0-1 .2-1.8 1-2.5A6 6 0 0 0 12 3Z"/></svg>
+        </span>
+        <div class="guide-text">
+          <div class="guide-title">此磁盘尚未用于虚拟机存储</div>
+          <div class="guide-sub">可在剩余 2.0 TB 空间上创建分区，或格式化整盘 / 单个分区后使用</div>
+        </div>
+        <div class="guide-acts">
+          <button class="sp-btn primary" onclick="toast('打开「创建分区」弹窗：使用剩余 2.0 TB 空间（高风险）')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            创建分区
+          </button>
+          <button class="sp-btn" onclick="toast('打开「格式化挂载」弹窗（将清除历史数据，高风险）')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4.5 4.5 0 0 0-6 6L3 18l3 3 5.7-5.7a4.5 4.5 0 0 0 6-6L14 13l-3-3 3.7-3.7Z"/></svg>
+            格式化挂载
+          </button>
+        </div>
+      </div>
+      <div class="sp-dc-parts">
+        <button class="sp-parts-toggle" onclick="toggleParts(this)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7"/></svg>
+          分区 <span class="cnt">1</span>
+        </button>
+        <div class="sp-parts-body" style="display:none">
+          <div class="sp-part-row">
+            <div class="sp-part-main">
+              <div class="sp-part-name-row">
+                <span class="sp-part-name">sdc1</span>
+                <span class="sp-badge pending">存在数据</span>
+                <span class="sp-badge system">未挂载</span>
+              </div>
+              <div class="sp-part-meta"><span class="sp-mono">/dev/sdc1</span><span class="sp-meta-sep">·</span><span>ext4</span><span class="sp-meta-sep">·</span><span>旧 NAS 数据，未配置为存储池</span></div>
+            </div>
+            <div class="sp-part-cap">
+              <div class="sp-capbar"><i style="width:100%;background:rgba(139,92,246,.45)"></i></div>
+              <div class="sp-cap-text">1.64 TB · 未挂载</div>
+            </div>
+            <div class="sp-act-cell">
+              <button class="sp-act-ic" title="格式化挂载（清除数据）" onclick="toast('打开「格式化挂载」弹窗（高风险）')">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4.5 4.5 0 0 0-6 6L3 18l3 3 5.7-5.7a4.5 4.5 0 0 0 6-6L14 13l-3-3 3.7-3.7Z"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 卡片 5：USB 只读盘（不可用，禁用态） ========== -->
+    <div class="sp-disk-card" data-cat="other">
+      <div class="sp-dc-head">
+        <span class="sp-dc-icon usb">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v14"/><path d="m9 5 3-3 3 3"/><circle cx="12" cy="19" r="3"/><path d="M12 8H8a2 2 0 0 0-2 2v2"/><path d="M12 12h4a2 2 0 0 1 2 2v1"/></svg>
+        </span>
+        <div class="sp-dc-main">
+          <div class="sp-dc-name-row">
+            <span class="sp-dc-name">金士顿 U盘（sde）</span>
+            <span class="sp-badge readonly">不可用</span>
+            <span class="sp-badge readonly">只读</span>
+          </div>
+          <div class="sp-dc-meta">
+            <span class="sp-mono">/dev/sde</span><span class="sp-meta-sep">·</span>
+            <span>Kingston DataTraveler 3.0</span><span class="sp-meta-sep">·</span>
+            <span>USB</span><span class="sp-meta-sep">·</span>
+            <span>可移除设备</span><span class="sp-meta-sep">·</span>
+            <span>28.9 GB</span>
+          </div>
+        </div>
+        <div class="sp-act-cell">
+          <button class="sp-act-ic disabled" title="可移除只读设备不可用于虚拟机存储">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="sp-dc-space">
+        <div class="sp-space-title"><span>空间分配</span><span class="total">共 28.9 GB · 只读设备</span></div>
+        <div class="sp-spacebar">
+          <div class="seg sys" style="width:100%" title="sde1 · iso9660（只读） · 28.9 GB"></div>
+        </div>
+        <div class="sp-space-legend">
+          <span class="lg-item"><i class="lg-dot sys"></i>sde1 只读镜像 <span class="lg-num">28.9 GB</span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 卡片 6：LVM 存储卷（VG） ========== -->
+    <div class="sp-disk-card vg-card" data-cat="vg">
+      <div class="sp-dc-head">
+        <span class="sp-dc-icon vg">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.4"/><circle cx="6" cy="18" r="2.4"/><circle cx="18" cy="6" r="2.4"/><path d="M6 8.4v7.2M8 6h5.5a3 3 0 0 0 3-3"/></svg>
+        </span>
+        <div class="sp-dc-main">
+          <div class="sp-dc-name-row">
+            <span class="sp-dc-name">vg-data</span>
+            <span class="sp-badge vg">LVM 卷组</span>
+            <span class="sp-badge enabled">已启用</span>
+          </div>
+          <div class="sp-dc-meta">
+            <span>2 个物理卷</span><span class="sp-meta-sep">·</span>
+            <span>3 个逻辑卷</span><span class="sp-meta-sep">·</span>
+            <span>共 1.8 TB</span>
+          </div>
+        </div>
+        <div class="sp-act-cell">
+          <button class="sp-btn danger-ghost sm" onclick="toast('打开「删除存储卷」确认弹窗：删除卷组及全部 LV/PV（危险，高风险）')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6.5 7l1 13h9l1-13"/></svg>
+            删除存储卷
+          </button>
+        </div>
+      </div>
+      <div class="sp-dc-space">
+        <div class="sp-space-title"><span>卷组空间分配</span><span class="total">共 1.8 TB · 空闲 843 GB</span></div>
+        <div class="sp-spacebar">
+          <div class="seg used-warn" style="width:27%" title="lv-vm · 500 GB（已用 72%）"></div>
+          <div class="seg used" style="width:11%" title="lv-iso · 200 GB（已用 30%）"></div>
+          <div class="seg used" style="width:16%" title="lv-backup · 300 GB（已用 12%）"></div>
+          <div class="seg free" style="width:46%" title="卷组空闲空间 · 843 GB"></div>
+        </div>
+        <div class="sp-space-legend">
+          <span class="lg-item"><i class="lg-dot used-warn"></i>lv-vm <span class="lg-num">500 GB · 72%</span></span>
+          <span class="lg-item"><i class="lg-dot used"></i>lv-iso <span class="lg-num">200 GB · 30%</span></span>
+          <span class="lg-item"><i class="lg-dot used"></i>lv-backup <span class="lg-num">300 GB · 12%</span></span>
+          <span class="lg-item"><i class="lg-dot free"></i>空闲 <span class="lg-num">843 GB</span></span>
+        </div>
+      </div>
+      <div class="sp-dc-parts">
+        <button class="sp-parts-toggle open" onclick="toggleParts(this)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7"/></svg>
+          物理卷与逻辑卷 <span class="cnt">2 PV / 3 LV</span>
+        </button>
+        <div class="sp-parts-body">
+          <div class="sp-vg-sec-title">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="6" width="16" height="12" rx="2"/><circle cx="12" cy="12" r="3"/></svg>
+            物理卷 (PV)
+          </div>
+          <div class="sp-part-row">
+            <div class="sp-part-main">
+              <div class="sp-part-name-row">
+                <span class="sp-part-name">/dev/sdf</span>
+                <span class="sp-badge system">PV</span>
+              </div>
+              <div class="sp-part-meta"><span>希捷 1TB</span><span class="sp-meta-sep">·</span><span>已加入 vg-data</span></div>
+            </div>
+            <div class="sp-part-cap">
+              <div class="sp-capbar"><i style="width:63%;background:#f59e0b"></i></div>
+              <div class="sp-cap-text">931.5 GB · 已分配 63%</div>
+            </div>
+            <div class="sp-act-cell"></div>
+          </div>
+          <div class="sp-part-row">
+            <div class="sp-part-main">
+              <div class="sp-part-name-row">
+                <span class="sp-part-name">/dev/sdg</span>
+                <span class="sp-badge system">PV</span>
+              </div>
+              <div class="sp-part-meta"><span>希捷 1TB</span><span class="sp-meta-sep">·</span><span>已加入 vg-data</span></div>
+            </div>
+            <div class="sp-part-cap">
+              <div class="sp-capbar"><i style="width:40%;background:#14b8a6"></i></div>
+              <div class="sp-cap-text">931.5 GB · 已分配 40%</div>
+            </div>
+            <div class="sp-act-cell"></div>
+          </div>
+          <div class="sp-vg-sec-title">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 5-9 5-9-5Z"/><path d="m3 13 9 5 9-5"/><path d="m3 17.5 9 5 9-5" opacity="0.4"/></svg>
+            逻辑卷 (LV)
+          </div>
+          <div class="sp-part-row">
+            <div class="sp-part-main">
+              <div class="sp-part-name-row">
+                <span class="sp-part-name">lv-vm · 虚拟机卷</span>
+                <span class="sp-badge enabled">已启用</span>
+                <span class="sp-badge purple">linear</span>
+              </div>
+              <div class="sp-part-meta"><span class="sp-mono">/dev/vg-data/lv-vm</span><span class="sp-meta-sep">·</span><span>xfs</span><span class="sp-meta-sep">·</span><span class="sp-mono">/var/lib/kvm-storage/vg-data-lv-vm</span></div>
+            </div>
+            <div class="sp-part-cap">
+              <div class="sp-capbar"><i style="width:72%;background:#f59e0b"></i></div>
+              <div class="sp-cap-text"><b class="warn">72%</b> 360 / 500 GB</div>
+            </div>
+            <div class="sp-act-cell">
+              <button class="sp-act-ic" title="配置" onclick="toast('打开「配置存储池」弹窗')">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="sp-part-row">
+            <div class="sp-part-main">
+              <div class="sp-part-name-row">
+                <span class="sp-part-name">lv-iso · 镜像卷</span>
+                <span class="sp-badge enabled">已启用</span>
+                <span class="sp-badge purple">linear</span>
+              </div>
+              <div class="sp-part-meta"><span class="sp-mono">/dev/vg-data/lv-iso</span><span class="sp-meta-sep">·</span><span>ext4</span><span class="sp-meta-sep">·</span><span class="sp-mono">/var/lib/kvm-storage/vg-data-lv-iso</span></div>
+            </div>
+            <div class="sp-part-cap">
+              <div class="sp-capbar"><i style="width:30%;background:#14b8a6"></i></div>
+              <div class="sp-cap-text"><b>30%</b> 60 / 200 GB</div>
+            </div>
+            <div class="sp-act-cell">
+              <button class="sp-act-ic" title="配置" onclick="toast('打开「配置存储池」弹窗')">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="sp-part-row">
+            <div class="sp-part-main">
+              <div class="sp-part-name-row">
+                <span class="sp-part-name">lv-backup · 备份卷</span>
+                <span class="sp-badge purple">striped · 2 条带</span>
+              </div>
+              <div class="sp-part-meta"><span class="sp-mono">/dev/vg-data/lv-backup</span><span class="sp-meta-sep">·</span><span>ext4</span><span class="sp-meta-sep">·</span><span class="sp-mono">/var/lib/kvm-storage/vg-data-lv-backup</span></div>
+            </div>
+            <div class="sp-part-cap">
+              <div class="sp-capbar"><i style="width:12%;background:#14b8a6"></i></div>
+              <div class="sp-cap-text"><b>12%</b> 36 / 300 GB</div>
+            </div>
+            <div class="sp-act-cell">
+              <button class="sp-act-ic" title="配置" onclick="toast('打开「配置存储池」弹窗')">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 筛选后无结果的空态 -->
+  <div class="sp-empty" id="emptyState" style="display:none">
+    <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>
+    当前筛选条件下没有存储设备
+  </div>
+
+  <!-- ==================== 底部：容量分析（折叠，保留现有图表） ==================== -->
+  <div class="sp-chart-fold">
+    <button class="sp-chart-fold-head" onclick="toggleCharts(this)">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7"/></svg>
+      容量分析图表
+      <span class="hint">容量分布饼图 / 已挂载池容量对比柱状图（保留现有 ECharts 实现，默认折叠）</span>
+    </button>
+    <div class="sp-chart-fold-body">
+      <div class="sp-chart-placeholder">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3v9l6.5 6.5"/></svg>
+        此处渲染现有 CapacityCharts 组件（饼图 + 柱状图）
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 主题切换（演示用） -->
+<button class="theme-toggle" onclick="toggleTheme()">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z"/></svg>
+  <span id="themeLabel">深色预览</span>
+</button>
+
+<!-- Toast（演示用） -->
+<div class="sp-toast" id="spToast"></div>
+
+<script>
+/* ===== 深色预览切换 ===== */
+function toggleTheme() {
+  var body = document.body;
+  var dark = body.getAttribute('theme-mode') === 'dark';
+  if (dark) { body.removeAttribute('theme-mode'); }
+  else { body.setAttribute('theme-mode', 'dark'); }
+  document.getElementById('themeLabel').textContent = dark ? '深色预览' : '浅色预览';
+}
+
+/* ===== Toast 提示 ===== */
+var toastTimer = null;
+function toast(msg) {
+  var el = document.getElementById('spToast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { el.classList.remove('show'); }, 2200);
+  closeAllMenus();
+}
+
+/* ===== 状态 Tab 筛选 ===== */
+var currentTab = 'all';
+function switchTab(tab, btn) {
+  currentTab = tab;
+  document.querySelectorAll('.sp-tab').forEach(function (t) { t.classList.remove('active'); });
+  btn.classList.add('active');
+  applyFilter();
+}
+
+function applyFilter() {
+  var cards = document.querySelectorAll('#diskList .sp-disk-card');
+  var visible = 0;
+  cards.forEach(function (card) {
+    var cat = card.getAttribute('data-cat');
+    var show = currentTab === 'all' || cat === currentTab;
+    card.style.display = show ? '' : 'none';
+    if (show) visible++;
+  });
+  document.getElementById('emptyState').style.display = visible === 0 ? '' : 'none';
+}
+/* 初始化：应用一次默认筛选 */
+applyFilter();
+
+/* ===== 分区列表折叠 ===== */
+function toggleParts(btn) {
+  var body = btn.nextElementSibling;
+  var open = btn.classList.toggle('open');
+  body.style.display = open ? '' : 'none';
+}
+
+/* ===== 容量图表折叠 ===== */
+function toggleCharts(btn) {
+  var body = btn.nextElementSibling;
+  var open = btn.classList.toggle('open');
+  body.classList.toggle('open', open);
+}
+
+/* ===== 模拟下拉菜单 ===== */
+function toggleMenu(e) {
+  e.stopPropagation();
+  var cell = e.currentTarget.closest('.sp-act-cell');
+  var menu = cell.querySelector('.sp-dropdown');
+  var wasOpen = menu.classList.contains('show');
+  closeAllMenus();
+  if (!wasOpen) menu.classList.add('show');
+}
+function closeAllMenus() {
+  document.querySelectorAll('.sp-dropdown.show').forEach(function (m) { m.classList.remove('show'); });
+}
+document.addEventListener('click', closeAllMenus);
+</script>
+</body>
+</html>

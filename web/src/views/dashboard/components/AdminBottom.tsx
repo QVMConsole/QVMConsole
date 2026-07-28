@@ -2,7 +2,7 @@
  * 管理员仪表盘：底部行（最近虚拟机列表 + 存储池用量）
  */
 import { useEffect, useState } from 'react'
-import { Toast } from '@douyinfe/semi-ui'
+import { useNavigate } from 'react-router-dom'
 import { IconDesktop } from '@douyinfe/semi-icons'
 import type { VmListItem } from '@/api/vm'
 import { getStoragePoolList, type StoragePoolInfo } from '@/api/storage'
@@ -23,6 +23,7 @@ function poolColor(percent: number): string {
 const RECENT_VM_LIMIT = 5
 
 export default function AdminBottom({ vms }: AdminBottomProps) {
+  const navigate = useNavigate()
   const [pools, setPools] = useState<StoragePoolInfo[]>([])
 
   useEffect(() => {
@@ -46,10 +47,7 @@ export default function AdminBottom({ vms }: AdminBottomProps) {
         <div className="qvm-panel-head">
           <span className="qvm-panel-title">虚拟机</span>
           <span className="qvm-panel-sub">最近活跃</span>
-          <span
-            className="qvm-panel-link"
-            onClick={() => Toast.info({ content: '虚拟机列表页将在后续迭代提供', duration: 2 })}
-          >
+          <span className="qvm-panel-link" onClick={() => navigate('/vm')}>
             查看全部 →
           </span>
         </div>
@@ -89,7 +87,7 @@ export default function AdminBottom({ vms }: AdminBottomProps) {
                   <td>
                     <span
                       className="qvm-act-btn"
-                      onClick={() => Toast.info({ content: '虚拟机详情页将在后续迭代提供', duration: 2 })}
+                      onClick={() => navigate(`/vm/detail/${encodeURIComponent(vm.name)}`)}
                     >
                       管理
                     </span>
@@ -105,10 +103,7 @@ export default function AdminBottom({ vms }: AdminBottomProps) {
       <div className="qvm-panel-card qvm-g-border qvm-fade-up" style={{ '--qvm-delay': '420ms' } as React.CSSProperties}>
         <div className="qvm-panel-head">
           <span className="qvm-panel-title">存储池用量</span>
-          <span
-            className="qvm-panel-link"
-            onClick={() => Toast.info({ content: '存储池管理将在后续迭代提供', duration: 2 })}
-          >
+          <span className="qvm-panel-link" onClick={() => navigate('/storage-pool')}>
             管理 →
           </span>
         </div>
@@ -121,13 +116,13 @@ export default function AdminBottom({ vms }: AdminBottomProps) {
                 <span className="qvm-pool-name">{pool.display_name || pool.name}</span>
                 <span className="qvm-pool-tag">{pool.fstype || pool.type || '目录'}</span>
                 <span className="qvm-pool-val">
-                  {formatBytes(pool.used)} / {formatBytes(pool.size)} · {pool.use_percent}%
+                  {formatBytes(pool.used || 0)} / {formatBytes(pool.size)} · {pool.use_percent || 0}%
                 </span>
               </div>
               <div className="qvm-pool-track">
                 <div
                   className="qvm-pool-fill"
-                  style={{ width: `${Math.min(pool.use_percent, 100)}%`, background: poolColor(pool.use_percent) }}
+                  style={{ width: `${Math.min(pool.use_percent || 0, 100)}%`, background: poolColor(pool.use_percent || 0) }}
                 />
               </div>
             </div>

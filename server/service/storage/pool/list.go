@@ -31,6 +31,9 @@ func ListStoragePools() ([]HostStoragePoolInfo, error) {
 		pools = injectLVMTree(pools, vgs, lvs, mounts, dfUsage, configs)
 	}
 
+	// 注入 VM 磁盘使用统计
+	pools = injectVMUsageIntoPools(pools)
+
 	return pools, nil
 }
 

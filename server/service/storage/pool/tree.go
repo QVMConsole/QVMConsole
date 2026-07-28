@@ -406,6 +406,42 @@ func injectLVMTree(pools []HostStoragePoolInfo, vgs []VGInfo, lvs []LVInfo,
 	return filteredPools
 }
 
+// injectVMUsageIntoPools 注入虚拟机磁盘使用统计到存储池树
+func injectVMUsageIntoPools(pools []HostStoragePoolInfo) []HostStoragePoolInfo {
+	// 1. 获取所有虚拟机的磁盘使用详情
+	vmUsageList := getAllVMDiskUsage()
+	if len(vmUsageList) == 0 {
+		return pools
+	}
+
+	// 2. 建立挂载点 → 存储池 ID 映射
+	poolMap := make(map[string]*HostStoragePoolInfo)
+	walkStoragePools(pools, func(p HostStoragePoolInfo) {
+		if p.MountPath != "" && p.CanUseForVM {
+			poolMap[p.MountPath] = &p
+		}
+	})
+
+	// 3. 统计每个存储池的 VM 列表及总大小
+	for _, pool := range poolMap {
+		var vmTotalVirtual, vmTotalActual int64
+		for _, vm := range vmUsageList {
+			// 检查 VM 的磁盘是否属于当前存储池
+			if vm.MountPath == pool.MountPath {
+				pool.VmUsageList = append(pool.VmUsageList, vm)
+				vmTotalVirtual += vm.VirtualSize
+				vmTotalActual += vm.ActualSize
+			}
+		}
+		pool.VmTotalVirtual = vmTotalVirtual
+		pool.VmTotalActual = vmTotalActual
+	}
+
+	return pools
+}
+
+// getMountPathFromDiskPath 从磁盘路径反推挂载点（已在 vm_usage_inject.go 中定义，这里复用）
+
 // buildLVNode 构建 LV 子节点。
 func buildLVNode(lv LVInfo, vgName string, mounts map[string]findmntInfo,
 	dfUsage map[string]mountUsage, configs map[string]model.HostStoragePool) HostStoragePoolInfo {
