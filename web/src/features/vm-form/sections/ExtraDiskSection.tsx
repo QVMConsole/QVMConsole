@@ -1,7 +1,7 @@
 /**
  * 额外数据盘分区（创建向导 · ISO / 模板模式共用）
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button, InputNumber, Select } from '@douyinfe/semi-ui'
 import { IconDelete, IconPlus } from '@douyinfe/semi-icons'
 import { DiskIcon } from '../icons'
@@ -54,6 +54,16 @@ export default function ExtraDiskSection({ title = '额外数据盘', tip }: Ext
   }
 
   const iopsDialogDisk = iopsDialogIndex >= 0 ? f.extra_disks[iopsDialogIndex] : null
+  const [lastIopsDialog, setLastIopsDialog] = useState<{
+    index: number
+    disk: NonNullable<typeof iopsDialogDisk>
+  } | null>(null)
+  useEffect(() => {
+    if (iopsDialogDisk) setLastIopsDialog({ index: iopsDialogIndex, disk: iopsDialogDisk })
+  }, [iopsDialogDisk, iopsDialogIndex])
+  const activeIopsDialog = iopsDialogDisk
+    ? { index: iopsDialogIndex, disk: iopsDialogDisk }
+    : lastIopsDialog
 
   return (
     <SectionCard icon={<DiskIcon />} title={title}>
@@ -111,19 +121,19 @@ export default function ExtraDiskSection({ title = '额外数据盘', tip }: Ext
         </Button>
       </FormField>
 
-      {iopsDialogDisk && (
+      {activeIopsDialog && (
         <DiskIopsDialog
           visible={iopsDialogIndex >= 0}
-          subtitle={`额外磁盘 #${iopsDialogIndex + 1}（${iopsDialogDisk.size}GB ${iopsDialogDisk.format} ${iopsDialogDisk.bus}）`}
+          subtitle={`额外磁盘 #${activeIopsDialog.index + 1}（${activeIopsDialog.disk.size}GB ${activeIopsDialog.disk.format} ${activeIopsDialog.disk.bus}）`}
           initial={{
-            total: iopsDialogDisk.iops_total,
-            read: iopsDialogDisk.iops_read,
-            write: iopsDialogDisk.iops_write,
+            total: activeIopsDialog.disk.iops_total,
+            read: activeIopsDialog.disk.iops_read,
+            write: activeIopsDialog.disk.iops_write,
           }}
           onApply={(values) => {
-            updateExtraDisk(iopsDialogIndex, 'iops_total', values.total)
-            updateExtraDisk(iopsDialogIndex, 'iops_read', values.read)
-            updateExtraDisk(iopsDialogIndex, 'iops_write', values.write)
+            updateExtraDisk(activeIopsDialog.index, 'iops_total', values.total)
+            updateExtraDisk(activeIopsDialog.index, 'iops_read', values.read)
+            updateExtraDisk(activeIopsDialog.index, 'iops_write', values.write)
           }}
           onClose={() => setIopsDialogIndex(-1)}
         />

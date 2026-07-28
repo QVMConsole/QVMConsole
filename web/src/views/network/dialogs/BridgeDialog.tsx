@@ -6,6 +6,7 @@
 import { useState } from 'react'
 import { Banner, Input, Modal, Select, Switch, Toast } from '@douyinfe/semi-ui'
 import { createNetworkBridge, type HostInterface } from '@/api/network'
+import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 interface BridgeDialogProps {
   hostInterfaces: HostInterface[]
@@ -14,6 +15,7 @@ interface BridgeDialogProps {
 }
 
 export default function BridgeDialog({ hostInterfaces, onClose, onSaved }: BridgeDialogProps) {
+  const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState(() => ({
     name: '',
@@ -39,6 +41,7 @@ export default function BridgeDialog({ hostInterfaces, onClose, onSaved }: Bridg
       await createNetworkBridge(form)
       Toast.success('网桥已创建')
       onSaved()
+      requestClose()
     } catch {
       // 请求层已提示
     } finally {
@@ -49,8 +52,9 @@ export default function BridgeDialog({ hostInterfaces, onClose, onSaved }: Bridg
   return (
     <Modal
       title="创建桥接网桥"
-      visible
-      onCancel={onClose}
+      visible={modalVisible}
+      afterClose={afterModalClose}
+      onCancel={requestClose}
       onOk={() => void handleSubmit()}
       okText="保存"
       cancelText="取消"

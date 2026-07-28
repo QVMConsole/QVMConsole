@@ -14,6 +14,7 @@ import {
 import type { VpcSwitch } from '@/api/vpc'
 import QuotaFormFields from '../components/QuotaFormFields'
 import { vpcOptionLabel } from './vpcOption'
+import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 interface EditQuotaDialogProps {
   row: UserListItem
@@ -28,6 +29,7 @@ export default function EditQuotaDialog({
   onClose,
   onSaved,
 }: EditQuotaDialogProps) {
+  const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const isAdminUser = row.role === 'admin'
   const [submitting, setSubmitting] = useState(false)
   const [cloudType, setCloudType] = useState(row.cloud_type || 'elastic')
@@ -67,6 +69,7 @@ export default function EditQuotaDialog({
       await updateUserQuota(row.username, payload)
       Toast.success('配额更新成功')
       onSaved()
+      requestClose()
     } catch {
       // 请求层已提示
     } finally {
@@ -77,8 +80,9 @@ export default function EditQuotaDialog({
   return (
     <Modal
       title="编辑用户配置"
-      visible
-      onCancel={onClose}
+      visible={modalVisible}
+      afterClose={afterModalClose}
+      onCancel={requestClose}
       onOk={() => void handleSubmit()}
       okText="保存"
       cancelText="取消"

@@ -9,6 +9,7 @@ import { Banner, Checkbox, Descriptions, Modal, Toast } from '@douyinfe/semi-ui'
 import type { HostStoragePoolInfo } from '@/api/storagePool'
 import { deleteStoragePartitions } from '@/api/storagePool'
 import { formatBytes } from '@/utils/format'
+import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 interface ClearDiskDialogProps {
   row: HostStoragePoolInfo
@@ -17,6 +18,7 @@ interface ClearDiskDialogProps {
 }
 
 export default function ClearDiskDialog({ row, onClose, onSubmitted }: ClearDiskDialogProps) {
+  const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const [confirmed, setConfirmed] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
@@ -35,7 +37,7 @@ export default function ClearDiskDialog({ row, onClose, onSubmitted }: ClearDisk
       await deleteStoragePartitions(row.id)
       Toast.success('删除分区任务已提交，请在任务中心查看进度')
       onSubmitted()
-      onClose()
+      requestClose()
     } catch {
       // 错误提示由请求层统一处理
     } finally {
@@ -46,8 +48,9 @@ export default function ClearDiskDialog({ row, onClose, onSubmitted }: ClearDisk
   return (
     <Modal
       title={title}
-      visible
-      onCancel={onClose}
+      visible={modalVisible}
+      afterClose={afterModalClose}
+      onCancel={requestClose}
       onOk={() => void handleSubmit()}
       okText="提交任务"
       cancelText="取消"

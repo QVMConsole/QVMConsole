@@ -24,6 +24,7 @@ import {
   PASSWORD_ALLOWED_PATTERN,
 } from '@/utils/validate'
 import { parseDiskSizeGB, resolveTemplateMinDiskSize } from '../utils'
+import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 interface VmReinstallDialogProps {
   vm: VmListItem
@@ -36,6 +37,7 @@ const USERNAME_PATTERN = /^[a-z_][a-z0-9_-]{0,31}$/
 const FNOS_DEVICE_ID_PATTERN = /^[0-9a-fA-F]{32}([0-9a-fA-F]{8})?$/
 
 export default function VmReinstallDialog({ vm, onClose, onSuccess }: VmReinstallDialogProps) {
+  const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const [templates, setTemplates] = useState<TemplateItem[]>([])
   const [templateLoading, setTemplateLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -167,7 +169,7 @@ export default function VmReinstallDialog({ vm, onClose, onSuccess }: VmReinstal
         fnos_device_id: isFnos && fnosDeviceIdMode === 'custom' ? fnosDeviceId.trim() : '',
       })
       Toast.success('重装任务已提交，请在任务中心查看进度')
-      onClose()
+      requestClose()
       onSuccess()
     } catch {
       // 错误提示由请求层统一处理
@@ -179,8 +181,9 @@ export default function VmReinstallDialog({ vm, onClose, onSuccess }: VmReinstal
   return (
     <Modal
       title="重装系统"
-      visible
-      onCancel={onClose}
+      visible={modalVisible}
+      afterClose={afterModalClose}
+      onCancel={requestClose}
       onOk={() => void handleSubmit()}
       okText="提交重装任务"
       cancelText="取消"

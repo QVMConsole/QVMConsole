@@ -12,6 +12,7 @@ import {
   normalizeTemplateCategory,
   templateCategoryOptions,
 } from '@/utils/templateCategory'
+import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 interface MakeTemplateDialogProps {
   vmName: string
@@ -80,6 +81,7 @@ function defaultInitMode(type: TemplateType): string {
 }
 
 export default function MakeTemplateDialog({ vmName, onClose }: MakeTemplateDialogProps) {
+  const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const [name, setName] = useState(`${vmName}-tpl`)
   const [displayName, setDisplayName] = useState(`${vmName}-tpl`)
   const [type, setType] = useState<TemplateType>('linux')
@@ -142,7 +144,7 @@ export default function MakeTemplateDialog({ vmName, onClose }: MakeTemplateDial
         post_boot_blocking: postBootBlocking || undefined,
       })
       Toast.success('制作模板任务已提交，请在任务中心查看进度')
-      onClose()
+      requestClose()
     } catch {
       // 错误提示由请求层统一处理
     } finally {
@@ -153,8 +155,9 @@ export default function MakeTemplateDialog({ vmName, onClose }: MakeTemplateDial
   return (
     <Modal
       title="制作模板"
-      visible
-      onCancel={onClose}
+      visible={modalVisible}
+      afterClose={afterModalClose}
+      onCancel={requestClose}
       onOk={() => void handleSubmit()}
       okText="确定"
       cancelText="取消"

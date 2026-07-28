@@ -2,7 +2,7 @@
  * 磁盘与驱动器管理分区（编辑模式）
  * 现有磁盘表 / 新增磁盘 / CD-DVD 光驱 / 软盘驱动器。
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button, InputNumber, Modal, Select, Table, Tag, Toast } from '@douyinfe/semi-ui'
 import { IconDelete, IconDisc, IconLink, IconPlus } from '@douyinfe/semi-icons'
 import { DiskIcon } from '../icons'
@@ -34,6 +34,11 @@ export default function DiskManageSection({ devices }: DiskManageSectionProps) {
   const [resizeDisk, setResizeDisk] = useState<VmDiskItem | null>(null)
   const [removeDiskTarget, setRemoveDiskTarget] = useState<VmDiskItem | null>(null)
   const [iopsDisk, setIopsDisk] = useState<VmDiskItem | null>(null)
+  const [lastIopsDisk, setLastIopsDisk] = useState<VmDiskItem | null>(null)
+  useEffect(() => {
+    if (iopsDisk) setLastIopsDisk(iopsDisk)
+  }, [iopsDisk])
+  const activeIopsDisk = iopsDisk || lastIopsDisk
 
   // ISO 按存储池分组（光驱插入用）
   const isoOptions = options.isoList.map((iso) => ({
@@ -361,20 +366,20 @@ export default function DiskManageSection({ devices }: DiskManageSectionProps) {
       <AttachDiskDialog visible={attachVisible} devices={devices} onClose={() => setAttachVisible(false)} />
       <ResizeDiskDialog visible={!!resizeDisk} disk={resizeDisk} devices={devices} onClose={() => setResizeDisk(null)} />
       <RemoveDiskDialog visible={!!removeDiskTarget} disk={removeDiskTarget} devices={devices} onClose={() => setRemoveDiskTarget(null)} />
-      {iopsDisk && (
+      {activeIopsDisk && (
         <DiskIopsDialog
           visible={!!iopsDisk}
-          subtitle={`磁盘 ${iopsDisk.device}（${iopsDisk.path || '-'}）`}
+          subtitle={`磁盘 ${activeIopsDisk.device}（${activeIopsDisk.path || '-'}）`}
           initial={{
-            total: iopsDisk.iops_total?.value || 0,
-            read: iopsDisk.iops_read?.value || 0,
-            write: iopsDisk.iops_write?.value || 0,
+            total: activeIopsDisk.iops_total?.value || 0,
+            read: activeIopsDisk.iops_read?.value || 0,
+            write: activeIopsDisk.iops_write?.value || 0,
           }}
           onApply={(values) => {
             // 将 IOPS 设置挂到磁盘对象上，保存编辑时一并提交
             setEditDisks(
               editDisks.map((d) =>
-                d.device === iopsDisk.device
+                d.device === activeIopsDisk.device
                   ? ({
                       ...d,
                       _iops_total: values.total,
@@ -387,7 +392,7 @@ export default function DiskManageSection({ devices }: DiskManageSectionProps) {
                   : d,
               ),
             )
-            Toast.success(`磁盘 ${iopsDisk.device} IOPS 限制已设置（将在保存编辑时生效）`)
+            Toast.success(`磁盘 ${activeIopsDisk.device} IOPS 限制已设置（将在保存编辑时生效）`)
           }}
           onClose={() => setIopsDisk(null)}
         />

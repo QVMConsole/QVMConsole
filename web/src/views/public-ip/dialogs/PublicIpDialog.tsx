@@ -12,6 +12,7 @@ import {
   type PublicIpMode,
 } from '@/api/publicIp'
 import { ALL_PUBLIC_IP_MODES, publicIpModeLabel } from '../utils'
+import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 interface PublicIpDialogProps {
   row?: PublicIpItem
@@ -20,6 +21,7 @@ interface PublicIpDialogProps {
 }
 
 export default function PublicIpDialog({ row, onClose, onSaved }: PublicIpDialogProps) {
+  const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const editing = !!row
   const bound = !!row?.binding
   const [submitting, setSubmitting] = useState(false)
@@ -62,6 +64,7 @@ export default function PublicIpDialog({ row, onClose, onSaved }: PublicIpDialog
       }
       Toast.success('公网 IP 已保存')
       onSaved()
+      requestClose()
     } catch {
       // 请求层已提示
     } finally {
@@ -72,8 +75,9 @@ export default function PublicIpDialog({ row, onClose, onSaved }: PublicIpDialog
   return (
     <Modal
       title={editing ? '编辑公网 IP' : '新增公网 IP'}
-      visible
-      onCancel={onClose}
+      visible={modalVisible}
+      afterClose={afterModalClose}
+      onCancel={requestClose}
       onOk={() => void handleSubmit()}
       okText="保存"
       cancelText="取消"

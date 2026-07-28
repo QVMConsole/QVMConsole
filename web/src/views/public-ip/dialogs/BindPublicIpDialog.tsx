@@ -17,6 +17,7 @@ import {
   type PublicIpPreview,
 } from '@/api/publicIp'
 import { publicIpModeLabel, publicIpTaskToast } from '../utils'
+import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 /** 虚拟机选项（含归属用户） */
 export interface BindVmOption {
@@ -41,6 +42,7 @@ export default function BindPublicIpDialog({
   onClose,
   onSubmitted,
 }: BindPublicIpDialogProps) {
+  const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const binding = row.binding
   const supportedModes = useMemo(
     () => (row.modes?.length ? row.modes : (['nat'] as PublicIpMode[])),
@@ -92,6 +94,7 @@ export default function BindPublicIpDialog({
         ),
       )
       onSubmitted()
+      requestClose()
     } catch {
       // 请求层已提示
     } finally {
@@ -102,13 +105,14 @@ export default function BindPublicIpDialog({
   return (
     <Modal
       title={action === 'migrate' ? '迁移公网 IP' : '绑定公网 IP'}
-      visible
-      onCancel={onClose}
+      visible={modalVisible}
+      afterClose={afterModalClose}
+      onCancel={requestClose}
       width={640}
       closeOnEsc
       footer={
         <>
-          <Button onClick={onClose}>取消</Button>
+          <Button onClick={requestClose}>取消</Button>
           <Button
             type="primary"
             loading={submitting}

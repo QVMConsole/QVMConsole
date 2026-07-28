@@ -17,6 +17,7 @@ import {
 } from '@/api/template'
 import { ChunkUploader } from '@/utils/chunkUploader'
 import { templateGroupLabel } from '@/utils/templateCategory'
+import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 interface ImportTemplateDialogProps {
   onClose: () => void
@@ -32,6 +33,7 @@ type UploadPhase = 'hash' | 'upload'
 const ACCEPT_EXT = ['.tar.gz', '.tgz']
 
 export default function ImportTemplateDialog({ onClose, onImported }: ImportTemplateDialogProps) {
+  const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const [importMode, setImportMode] = useState<ImportMode>('upload')
   const [sourcePath, setSourcePath] = useState('')
   const [file, setFile] = useState<File | null>(null)
@@ -77,7 +79,7 @@ export default function ImportTemplateDialog({ onClose, onImported }: ImportTemp
       setSessionKey('')
       templateUploadCancel(sessionKey).catch(() => {})
     }
-    onClose()
+    requestClose()
   }
 
   // ==================== 解析预览 ====================
@@ -153,7 +155,7 @@ export default function ImportTemplateDialog({ onClose, onImported }: ImportTemp
       Toast.success(res.message || '模板导入任务已提交，请在任务中心查看进度')
       setSessionKey('') // 已导入，临时包交给导入任务，关闭时不再清理
       onImported()
-      onClose()
+      requestClose()
     } catch (err) {
       console.error('确认导入模板失败', err)
     } finally {
@@ -221,7 +223,8 @@ export default function ImportTemplateDialog({ onClose, onImported }: ImportTemp
   return (
     <Modal
       title="导入模板包"
-      visible
+      visible={modalVisible}
+      afterClose={afterModalClose}
       onCancel={doClose}
       width={860}
       maskClosable={false}

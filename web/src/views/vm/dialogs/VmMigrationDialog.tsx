@@ -34,6 +34,7 @@ import {
 } from '@/api/migration'
 import { formatBytes } from '@/utils/format'
 import DiskMigrationPanel from './DiskMigrationPanel'
+import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 interface VmMigrationDialogProps {
   vm: VmListItem
@@ -45,6 +46,7 @@ const formatMiB = (value?: number) => `${Number(value || 0).toFixed(2)} MiB`
 const formatPercent = (value?: number) => `${Number(value || 0).toFixed(1)}%`
 
 export default function VmMigrationDialog({ vm, onClose, onSuccess }: VmMigrationDialogProps) {
+  const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const [kind, setKind] = useState<'vm' | 'disk'>('vm')
   const [nodes, setNodes] = useState<HostNode[]>([])
   const [optionsData, setOptionsData] = useState<NodeMigrationOptions | null>(null)
@@ -251,7 +253,7 @@ export default function VmMigrationDialog({ vm, onClose, onSuccess }: VmMigratio
       }
       const res = await migrateVm(vm.name, payload)
       Toast.success(res.message || '迁移任务已提交')
-      onClose()
+      requestClose()
       onSuccess()
     } catch {
       // 错误提示由请求层统一处理
@@ -309,13 +311,14 @@ export default function VmMigrationDialog({ vm, onClose, onSuccess }: VmMigratio
   return (
     <Modal
       title={kind === 'disk' ? '迁移硬盘' : '迁移虚拟机'}
-      visible
-      onCancel={onClose}
+      visible={modalVisible}
+      afterClose={afterModalClose}
+      onCancel={requestClose}
       width={920}
       closeOnEsc
       footer={
         <>
-          <Button onClick={onClose}>取消</Button>
+          <Button onClick={requestClose}>取消</Button>
           {kind === 'vm' ? (
             <Button
               theme="solid"
@@ -347,7 +350,7 @@ export default function VmMigrationDialog({ vm, onClose, onSuccess }: VmMigratio
       </div>
 
       {kind === 'disk' ? (
-        <DiskMigrationPanel vm={vm} onClose={onClose} onSuccess={onSuccess} />
+        <DiskMigrationPanel vm={vm} onClose={requestClose} onSuccess={onSuccess} />
       ) : (
         <>
           <div className="qvm-form-item">

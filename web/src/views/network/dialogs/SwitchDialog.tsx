@@ -10,6 +10,7 @@ import type { NetworkBridge } from '@/api/network'
 import { createVPCSwitch, updateVPCSwitch, type VpcQuota, type VpcSwitch } from '@/api/vpc'
 import { getUserList, type UserListItem } from '@/api/user'
 import { bridgeModeText } from '../utils'
+import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 interface SwitchDialogProps {
   row?: VpcSwitch
@@ -88,6 +89,7 @@ export default function SwitchDialog({
   onClose,
   onSaved,
 }: SwitchDialogProps) {
+  const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const editing = !!row
   const [submitting, setSubmitting] = useState(false)
   const [userOptions, setUserOptions] = useState<UserListItem[]>([])
@@ -153,6 +155,7 @@ export default function SwitchDialog({
         Toast.success('交换机已创建')
       }
       onSaved()
+      requestClose()
     } catch {
       // 请求层已提示
     } finally {
@@ -163,8 +166,9 @@ export default function SwitchDialog({
   return (
     <Modal
       title={editing ? '编辑交换机' : '创建交换机'}
-      visible
-      onCancel={onClose}
+      visible={modalVisible}
+      afterClose={afterModalClose}
+      onCancel={requestClose}
       onOk={() => void handleSubmit()}
       okText="保存"
       cancelText="取消"

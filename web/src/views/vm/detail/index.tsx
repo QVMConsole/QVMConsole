@@ -366,14 +366,14 @@ export default function VmDetailPage() {
         <VmRemarkDialog
           vm={detailToListItem(vmData)}
           onClose={() => setDialog(null)}
-          onSuccess={() => setDialog(null)}
+          onSuccess={() => undefined}
         />
       )}
       {dialog === 'reinstall' && vmData && (
         <VmReinstallDialog
           vm={detailToListItem(vmData)}
           onClose={() => setDialog(null)}
-          onSuccess={() => setDialog(null)}
+          onSuccess={() => undefined}
         />
       )}
       {dialog === 'resetPassword' && vmData && (

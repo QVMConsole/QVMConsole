@@ -7,6 +7,7 @@ import { Banner, Checkbox, Descriptions, Modal, Toast } from '@douyinfe/semi-ui'
 import type { HostStoragePoolInfo } from '@/api/storagePool'
 import { deleteLVMVolume } from '@/api/storagePool'
 import { formatBytes } from '@/utils/format'
+import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 interface DeleteVolumeDialogProps {
   row: HostStoragePoolInfo
@@ -15,6 +16,7 @@ interface DeleteVolumeDialogProps {
 }
 
 export default function DeleteVolumeDialog({ row, onClose, onSubmitted }: DeleteVolumeDialogProps) {
+  const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const [confirmed, setConfirmed] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
@@ -25,7 +27,7 @@ export default function DeleteVolumeDialog({ row, onClose, onSubmitted }: Delete
       await deleteLVMVolume(row.name)
       Toast.success('删除 LVM 存储卷任务已提交，请在任务中心查看进度')
       onSubmitted()
-      onClose()
+      requestClose()
     } catch {
       // 错误提示由请求层统一处理
     } finally {
@@ -36,8 +38,9 @@ export default function DeleteVolumeDialog({ row, onClose, onSubmitted }: Delete
   return (
     <Modal
       title="删除存储卷"
-      visible
-      onCancel={onClose}
+      visible={modalVisible}
+      afterClose={afterModalClose}
+      onCancel={requestClose}
       onOk={() => void handleSubmit()}
       okText="提交任务"
       cancelText="取消"

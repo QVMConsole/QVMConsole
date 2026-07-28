@@ -11,21 +11,23 @@ export default function HighRiskChallengeModal() {
   const pending = useHighRiskStore((s) => s.pending)
   const submit = useHighRiskStore((s) => s.submit)
   const cancel = useHighRiskStore((s) => s.cancel)
+  const [challenge, setChallenge] = useState(pending)
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
 
   // 每次打开弹窗时重置输入
   useEffect(() => {
     if (pending) {
+      setChallenge(pending)
       setCode('')
       setError('')
     }
   }, [pending])
 
-  if (!pending) return null
+  if (!challenge) return null
 
-  const isTotp = pending.method === 'totp'
-  const hasRecovery = !!pending.has_recovery
+  const isTotp = challenge.method === 'totp'
+  const hasRecovery = !!challenge.has_recovery
 
   const validate = (value: string): string => {
     const trimmed = value.trim()
@@ -47,24 +49,27 @@ export default function HighRiskChallengeModal() {
       return
     }
     // 自动判断是 TOTP 验证码还是恢复码
-    const method = isTotp && hasRecovery && trimmed.length >= 16 ? 'recovery' : pending.method || 'totp'
+    const method = isTotp && hasRecovery && trimmed.length >= 16 ? 'recovery' : challenge.method || 'totp'
     submit({
       method,
       code: trimmed,
-      challenge_id: pending.challenge_id,
-      operation: pending.operation,
+      challenge_id: challenge.challenge_id,
+      operation: challenge.operation,
     })
   }
 
   const title = isTotp ? '高风险验证' : '邮箱验证'
   const tip = isTotp
     ? `请输入 2FA 验证码${hasRecovery ? '（无法使用验证器时可输入恢复码）' : ''}`
-    : `验证码已发送至 ${pending.masked_email || '您的邮箱'}，请输入邮箱验证码`
+    : `验证码已发送至 ${challenge.masked_email || '您的邮箱'}，请输入邮箱验证码`
 
   return (
     <Modal
       title={title}
-      visible
+      visible={!!pending}
+      afterClose={() => {
+        if (!pending) setChallenge(null)
+      }}
       onOk={handleOk}
       onCancel={cancel}
       okText="验证"

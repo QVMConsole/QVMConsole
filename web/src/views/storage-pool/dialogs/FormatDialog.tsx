@@ -8,6 +8,7 @@ import { Banner, Checkbox, Descriptions, Modal, Select, Toast } from '@douyinfe/
 import type { HostStoragePoolInfo } from '@/api/storagePool'
 import { formatMountStoragePool } from '@/api/storagePool'
 import { formatBytes } from '@/utils/format'
+import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 interface FormatDialogProps {
   row: HostStoragePoolInfo
@@ -16,6 +17,7 @@ interface FormatDialogProps {
 }
 
 export default function FormatDialog({ row, onClose, onSubmitted }: FormatDialogProps) {
+  const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const [fsType, setFsType] = useState('ext4')
   const [confirmed, setConfirmed] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -26,7 +28,7 @@ export default function FormatDialog({ row, onClose, onSubmitted }: FormatDialog
       await formatMountStoragePool(row.id, fsType)
       Toast.success('格式化并挂载任务已提交，请在任务中心查看进度')
       onSubmitted()
-      onClose()
+      requestClose()
     } catch {
       // 错误提示由请求层统一处理
     } finally {
@@ -37,8 +39,9 @@ export default function FormatDialog({ row, onClose, onSubmitted }: FormatDialog
   return (
     <Modal
       title="格式化并挂载硬盘"
-      visible
-      onCancel={onClose}
+      visible={modalVisible}
+      afterClose={afterModalClose}
+      onCancel={requestClose}
       onOk={() => void handleSubmit()}
       okText="提交任务"
       cancelText="取消"

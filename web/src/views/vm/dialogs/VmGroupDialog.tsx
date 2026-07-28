@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { Input, Modal, Select, Toast } from '@douyinfe/semi-ui'
 import type { VmListItem } from '@/api/vm'
 import { updateVm } from '@/api/vm'
+import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 interface VmGroupDialogProps {
   vm: VmListItem
@@ -15,6 +16,7 @@ interface VmGroupDialogProps {
 }
 
 export default function VmGroupDialog({ vm, groups, onClose, onSuccess }: VmGroupDialogProps) {
+  const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const [groupName, setGroupName] = useState(vm.group || '')
   const [submitting, setSubmitting] = useState(false)
 
@@ -25,7 +27,7 @@ export default function VmGroupDialog({ vm, groups, onClose, onSuccess }: VmGrou
       const res = await updateVm(vm.name, { group: nextGroup })
       Toast.success(res.message || '分组已更新')
       onSuccess(vm.name, nextGroup)
-      onClose()
+      requestClose()
     } catch {
       // 错误提示由请求层统一处理
     } finally {
@@ -36,8 +38,9 @@ export default function VmGroupDialog({ vm, groups, onClose, onSuccess }: VmGrou
   return (
     <Modal
       title={`编辑分组 - ${vm.name}`}
-      visible
-      onCancel={onClose}
+      visible={modalVisible}
+      afterClose={afterModalClose}
+      onCancel={requestClose}
       onOk={() => void handleSubmit()}
       okText="保存分组"
       cancelText="取消"

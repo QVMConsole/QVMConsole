@@ -6,6 +6,7 @@
 import { useMemo, useState } from 'react'
 import { Checkbox, Input, Modal, Select, TextArea, Toast } from '@douyinfe/semi-ui'
 import { addVPCSecurityGroupRule, type VpcSecurityGroup, type VpcSwitch } from '@/api/vpc'
+import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 interface RuleDialogProps {
   group: VpcSecurityGroup
@@ -36,6 +37,7 @@ const INITIAL_FORM: RuleFormState = {
 }
 
 export default function RuleDialog({ group, switches, securityGroups, onClose, onSaved }: RuleDialogProps) {
+  const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState<RuleFormState>(INITIAL_FORM)
 
@@ -121,6 +123,7 @@ export default function RuleDialog({ group, switches, securityGroups, onClose, o
       })
       Toast.success('规则已添加')
       onSaved()
+      requestClose()
     } catch {
       // 请求层已提示
     } finally {
@@ -131,8 +134,9 @@ export default function RuleDialog({ group, switches, securityGroups, onClose, o
   return (
     <Modal
       title={`添加规则 — ${group.name}`}
-      visible
-      onCancel={onClose}
+      visible={modalVisible}
+      afterClose={afterModalClose}
+      onCancel={requestClose}
       onOk={() => void handleSubmit()}
       okText="保存"
       cancelText="取消"

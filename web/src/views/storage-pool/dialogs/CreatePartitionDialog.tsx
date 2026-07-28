@@ -9,6 +9,7 @@ import { IconInfoCircle } from '@douyinfe/semi-icons'
 import type { HostStoragePoolInfo } from '@/api/storagePool'
 import { createStoragePartition } from '@/api/storagePool'
 import { formatBytes } from '@/utils/format'
+import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 interface CreatePartitionDialogProps {
   row: HostStoragePoolInfo
@@ -21,6 +22,7 @@ export default function CreatePartitionDialog({
   onClose,
   onSubmitted,
 }: CreatePartitionDialogProps) {
+  const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const [sizeGB, setSizeGB] = useState<number>(0)
   const [confirmed, setConfirmed] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -31,7 +33,7 @@ export default function CreatePartitionDialog({
       await createStoragePartition(row.id, { size_gb: sizeGB || 0 })
       Toast.success('创建分区任务已提交，请在任务中心查看进度')
       onSubmitted()
-      onClose()
+      requestClose()
     } catch {
       // 错误提示由请求层统一处理
     } finally {
@@ -42,8 +44,9 @@ export default function CreatePartitionDialog({
   return (
     <Modal
       title="创建分区"
-      visible
-      onCancel={onClose}
+      visible={modalVisible}
+      afterClose={afterModalClose}
+      onCancel={requestClose}
       onOk={() => void handleSubmit()}
       okText="提交任务"
       cancelText="取消"

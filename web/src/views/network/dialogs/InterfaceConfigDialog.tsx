@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react'
 import { Banner, Button, Input, Modal, Spin, Tag, TextArea, Toast } from '@douyinfe/semi-ui'
 import { getInterfaceConfig, setInterfaceConfig } from '@/api/network'
 import { confirmModal } from '@/utils/confirm'
+import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 interface InterfaceConfigDialogProps {
   name: string
@@ -43,6 +44,7 @@ const EMPTY_STATE: IfaceFormState = {
 }
 
 export default function InterfaceConfigDialog({ name, onClose, onSaved }: InterfaceConfigDialogProps) {
+  const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState<IfaceFormState>(EMPTY_STATE)
@@ -83,6 +85,7 @@ export default function InterfaceConfigDialog({ name, onClose, onSaved }: Interf
       })
       Toast.success('接口配置已更新')
       onSaved()
+      requestClose()
     } catch {
       // 请求层已提示
     } finally {
@@ -103,6 +106,7 @@ export default function InterfaceConfigDialog({ name, onClose, onSaved }: Interf
       await setInterfaceConfig(name, { clear: true })
       Toast.success('接口配置已清除')
       onSaved()
+      requestClose()
     } catch {
       // 请求层已提示
     } finally {
@@ -115,13 +119,14 @@ export default function InterfaceConfigDialog({ name, onClose, onSaved }: Interf
   return (
     <Modal
       title={`配置接口 IP/DNS — ${name}`}
-      visible
-      onCancel={onClose}
+      visible={modalVisible}
+      afterClose={afterModalClose}
+      onCancel={requestClose}
       width={600}
       closeOnEsc
       footer={
         <>
-          <Button onClick={onClose}>取消</Button>
+          <Button onClick={requestClose}>取消</Button>
           <Button
             type="danger"
             theme="light"

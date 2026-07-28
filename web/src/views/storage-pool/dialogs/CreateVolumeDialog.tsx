@@ -21,6 +21,7 @@ import type { HostStoragePoolInfo, LVMVolumePayload } from '@/api/storagePool'
 import { createLVMVolume, getAvailablePVTargets } from '@/api/storagePool'
 import { formatBytes } from '@/utils/format'
 import TextSwitch from '@/features/vm-form/sections/TextSwitch'
+import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 interface CreateVolumeDialogProps {
   onClose: () => void
@@ -45,6 +46,7 @@ const INIT_FORM: LVMVolumePayload = {
 }
 
 export default function CreateVolumeDialog({ onClose, onSubmitted }: CreateVolumeDialogProps) {
+  const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const [step, setStep] = useState<VolumeStep>('type')
   const [volumeType, setVolumeType] = useState('lvm')
   const [pvTargets, setPvTargets] = useState<HostStoragePoolInfo[]>([])
@@ -95,7 +97,7 @@ export default function CreateVolumeDialog({ onClose, onSubmitted }: CreateVolum
       })
       Toast.success('创建 LVM 存储卷任务已提交，请在任务中心查看进度')
       onSubmitted()
-      onClose()
+      requestClose()
     } catch {
       // 错误提示由请求层统一处理
     } finally {
@@ -106,14 +108,15 @@ export default function CreateVolumeDialog({ onClose, onSubmitted }: CreateVolum
   return (
     <Modal
       title="创建存储卷"
-      visible
-      onCancel={onClose}
+      visible={modalVisible}
+      afterClose={afterModalClose}
+      onCancel={requestClose}
       width={680}
       closeOnEsc
       footer={
         step === 'type' ? (
           <>
-            <Button onClick={onClose}>取消</Button>
+            <Button onClick={requestClose}>取消</Button>
             <Button type="primary" theme="solid" disabled={!volumeType} onClick={() => setStep('config')}>
               下一步：配置卷
             </Button>
@@ -121,7 +124,7 @@ export default function CreateVolumeDialog({ onClose, onSubmitted }: CreateVolum
         ) : (
           <>
             <Button onClick={() => setStep('type')}>上一步</Button>
-            <Button onClick={onClose}>取消</Button>
+            <Button onClick={requestClose}>取消</Button>
             <Button
               type="primary"
               theme="solid"

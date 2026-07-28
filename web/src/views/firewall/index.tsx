@@ -5,7 +5,7 @@
  * - 应用/禁用/回滚/启用等耗时操作走任务队列，提交后延迟刷新状态
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Button, Modal, Tabs, Toast } from '@douyinfe/semi-ui'
+import { Button, Tabs, Toast } from '@douyinfe/semi-ui'
 import {
   IconBranch,
   IconDesktop,
@@ -48,6 +48,7 @@ import {
 import HostFirewallTab from './components/HostFirewallTab'
 import KvmFirewallTab from './components/KvmFirewallTab'
 import ConnectionsTab from './components/ConnectionsTab'
+import PreviewModal from '@/components/common/PreviewModal'
 import EnableHostFirewallDialog from './dialogs/EnableHostFirewallDialog'
 import HostRuleDialog from './dialogs/HostRuleDialog'
 import ImportRegionDialog from './dialogs/ImportRegionDialog'
@@ -467,7 +468,6 @@ export default function FirewallPage() {
           rules={dialog.rules}
           onClose={() => setDialog(null)}
           onEnabled={() => {
-            setDialog(null)
             refreshAfterTask()
           }}
         />
@@ -477,7 +477,6 @@ export default function FirewallPage() {
           row={dialog.row}
           onClose={() => setDialog(null)}
           onSaved={() => {
-            setDialog(null)
             void loadAll()
           }}
         />
@@ -486,26 +485,18 @@ export default function FirewallPage() {
         <ImportRegionDialog
           onClose={() => setDialog(null)}
           onSaved={() => {
-            setDialog(null)
             void loadKvmStatus()
           }}
         />
       )}
       {dialog?.type === 'preview' && (
-        <Modal
+        <PreviewModal
           title="nftables 规则预览"
-          visible
-          onCancel={() => setDialog(null)}
-          footer={
-            <Button type="primary" onClick={() => setDialog(null)}>
-              关闭
-            </Button>
-          }
+          onClose={() => setDialog(null)}
           width={820}
-          closeOnEsc
         >
           <pre className="fw-preview-code">{dialog.rules || '（无规则内容）'}</pre>
-        </Modal>
+        </PreviewModal>
       )}
     </div>
   )

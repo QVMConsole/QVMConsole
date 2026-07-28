@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { Input, Modal, TextArea, Toast } from '@douyinfe/semi-ui'
 import type { VmListItem } from '@/api/vm'
 import { updateVm } from '@/api/vm'
+import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 interface VmRemarkDialogProps {
   vm: VmListItem
@@ -13,6 +14,7 @@ interface VmRemarkDialogProps {
 }
 
 export default function VmRemarkDialog({ vm, onClose, onSuccess }: VmRemarkDialogProps) {
+  const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const [remark, setRemark] = useState(vm.remark || '')
   const [submitting, setSubmitting] = useState(false)
 
@@ -23,7 +25,7 @@ export default function VmRemarkDialog({ vm, onClose, onSuccess }: VmRemarkDialo
       const res = await updateVm(vm.name, { remark: nextRemark })
       Toast.success(res.message || '备注已更新')
       onSuccess(vm.name, nextRemark)
-      onClose()
+      requestClose()
     } catch {
       // 错误提示由请求层统一处理
     } finally {
@@ -34,8 +36,9 @@ export default function VmRemarkDialog({ vm, onClose, onSuccess }: VmRemarkDialo
   return (
     <Modal
       title={`编辑备注 - ${vm.name}`}
-      visible
-      onCancel={onClose}
+      visible={modalVisible}
+      afterClose={afterModalClose}
+      onCancel={requestClose}
       onOk={() => void handleSubmit()}
       okText="保存备注"
       cancelText="取消"

@@ -580,7 +580,6 @@ export default function UserPage() {
           natVpcSwitches={natVpcSwitches}
           onClose={() => setDialog(null)}
           onSaved={() => {
-            setDialog(null)
             void loadData()
           }}
         />
@@ -591,7 +590,6 @@ export default function UserPage() {
           natVpcSwitches={natVpcSwitches}
           onClose={() => setDialog(null)}
           onSaved={() => {
-            setDialog(null)
             void loadData()
           }}
         />
@@ -601,7 +599,6 @@ export default function UserPage() {
           row={dialog.row}
           onClose={() => setDialog(null)}
           onSaved={() => {
-            setDialog(null)
             void loadData()
           }}
         />

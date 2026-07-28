@@ -11,6 +11,7 @@ import {
   type HostFirewallRule,
 } from '@/api/firewall'
 import { normalizeRulePayload } from '../utils'
+import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 interface EnableHostFirewallDialogProps {
   /** 预览接口返回的推荐规则 */
@@ -25,6 +26,7 @@ export default function EnableHostFirewallDialog({
   onClose,
   onEnabled,
 }: EnableHostFirewallDialogProps) {
+  const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const [rows, setRows] = useState<HostFirewallRule[]>(rules)
   const [submitting, setSubmitting] = useState(false)
 
@@ -39,6 +41,7 @@ export default function EnableHostFirewallDialog({
       const res = await enableHostFirewall({ rules: rows.map(normalizeRulePayload) })
       Toast.success(res.message || '宿主机防火墙启用任务已提交')
       onEnabled()
+      requestClose()
     } catch {
       // 请求层已提示
     } finally {
@@ -145,13 +148,14 @@ export default function EnableHostFirewallDialog({
   return (
     <Modal
       title="确认启用宿主机防火墙"
-      visible
-      onCancel={onClose}
+      visible={modalVisible}
+      afterClose={afterModalClose}
+      onCancel={requestClose}
       width={960}
       closeOnEsc
       footer={
         <>
-          <Button onClick={onClose}>取消</Button>
+          <Button onClick={requestClose}>取消</Button>
           <Button type="primary" loading={submitting} onClick={() => void handleSubmit()}>
             确认启用
           </Button>

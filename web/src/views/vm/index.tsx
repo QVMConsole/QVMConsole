@@ -545,13 +545,11 @@ export default function VmListPage() {
       {dialog?.type === 'migration' && isAdmin && (
         <VmMigrationDialog vm={dialog.vm} onClose={closeDialog} onSuccess={() => void reload()} />
       )}
-      {createWizardVisible && (
-        <CreateVmWizard
-          visible={createWizardVisible}
-          onClose={() => setCreateWizardVisible(false)}
-          onSuccess={() => void reload()}
-        />
-      )}
+      <CreateVmWizard
+        visible={createWizardVisible}
+        onClose={() => setCreateWizardVisible(false)}
+        onSuccess={() => void reload()}
+      />
     </div>
   )
 

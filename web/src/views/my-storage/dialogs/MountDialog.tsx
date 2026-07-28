@@ -8,6 +8,7 @@ import { getSelfVMs, type VmListItem } from '@/api/vm'
 import { mountStorage } from '@/api/storage'
 import { useUserStore } from '@/stores/user'
 import TextSwitch from '@/features/vm-form/sections/TextSwitch'
+import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 interface MountDialogProps {
   /** 默认选中的存储类别 */
@@ -18,6 +19,7 @@ interface MountDialogProps {
 }
 
 export default function MountDialog({ defaultCategory, onClose, onMounted }: MountDialogProps) {
+  const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const username = useUserStore((s) => s.username)
   const [vmList, setVmList] = useState<VmListItem[]>([])
   const [vmListLoading, setVmListLoading] = useState(false)
@@ -54,7 +56,7 @@ export default function MountDialog({ defaultCategory, onClose, onMounted }: Mou
       const tag = `user_${username}_${category}`
       Toast.success('存储池已挂载到虚拟机')
       onMounted(tag, readonly)
-      onClose()
+      requestClose()
     } catch (err) {
       console.error('挂载失败', err)
     } finally {
@@ -65,12 +67,13 @@ export default function MountDialog({ defaultCategory, onClose, onMounted }: Mou
   return (
     <Modal
       title="挂载存储池到虚拟机"
-      visible
-      onCancel={onClose}
+      visible={modalVisible}
+      afterClose={afterModalClose}
+      onCancel={requestClose}
       width={500}
       footer={
         <>
-          <Button onClick={onClose}>取消</Button>
+          <Button onClick={requestClose}>取消</Button>
           <Button type="primary" loading={submitting} onClick={() => void handleSubmit()}>
             确认挂载
           </Button>

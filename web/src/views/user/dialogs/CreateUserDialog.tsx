@@ -41,6 +41,7 @@ import {
   formatRegistrationQuota,
 } from '../utils'
 import { vpcOptionLabel } from './vpcOption'
+import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 interface CreateUserDialogProps {
   users: UserListItem[]
@@ -76,6 +77,7 @@ export default function CreateUserDialog({
   onClose,
   onSaved,
 }: CreateUserDialogProps) {
+  const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const security = useUserStore((s) => s.security)
   const smtpConfigured = security?.smtp_configured === true
 
@@ -272,6 +274,7 @@ export default function CreateUserDialog({
       const res = await createUser(payload)
       Toast.success(res.message || (smtpConfigured ? '邀请邮件已发送' : '用户创建成功'))
       onSaved()
+      requestClose()
     } catch {
       // 请求层已提示
     } finally {
@@ -283,8 +286,9 @@ export default function CreateUserDialog({
     <>
       <Modal
         title="新增用户"
-        visible
-        onCancel={onClose}
+        visible={modalVisible}
+        afterClose={afterModalClose}
+        onCancel={requestClose}
         onOk={() => void handleSubmit()}
         okText="确定"
         cancelText="取消"
@@ -497,23 +501,21 @@ export default function CreateUserDialog({
       </Modal>
 
       {/* 轻量云登记向导（复用创建虚拟机向导） */}
-      {wizardVisible && (
-        <CreateVmWizard
-          visible
-          initialMode="template"
-          registration={{
-            enabled: true,
-            dedicated_vpc_switch_id: vpcSwitchId || 0,
-            dedicated_vpc_label: selectedVpcLabel,
-          }}
-          onDraft={(draft) => {
-            handleDraft(draft)
-            setWizardVisible(false)
-          }}
-          onClose={() => setWizardVisible(false)}
-          onSuccess={() => setWizardVisible(false)}
-        />
-      )}
+      <CreateVmWizard
+        visible={wizardVisible}
+        initialMode="template"
+        registration={{
+          enabled: true,
+          dedicated_vpc_switch_id: vpcSwitchId || 0,
+          dedicated_vpc_label: selectedVpcLabel,
+        }}
+        onDraft={(draft) => {
+          handleDraft(draft)
+          setWizardVisible(false)
+        }}
+        onClose={() => setWizardVisible(false)}
+        onSuccess={() => setWizardVisible(false)}
+      />
     </>
   )
 }

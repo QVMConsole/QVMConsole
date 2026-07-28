@@ -9,6 +9,7 @@ import { IconInfoCircle } from '@douyinfe/semi-icons'
 import type { HostStoragePoolInfo } from '@/api/storagePool'
 import { updateStoragePoolConfig } from '@/api/storagePool'
 import TextSwitch from '@/features/vm-form/sections/TextSwitch'
+import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 interface ConfigDialogProps {
   row: HostStoragePoolInfo
@@ -17,6 +18,7 @@ interface ConfigDialogProps {
 }
 
 export default function ConfigDialog({ row, onClose, onSaved }: ConfigDialogProps) {
+  const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const [displayName, setDisplayName] = useState(row.display_name || '')
   const [enabled, setEnabled] = useState(!!row.enabled)
   const [saving, setSaving] = useState(false)
@@ -27,7 +29,7 @@ export default function ConfigDialog({ row, onClose, onSaved }: ConfigDialogProp
       await updateStoragePoolConfig(row.id, { display_name: displayName, enabled })
       Toast.success('存储池配置已保存')
       onSaved()
-      onClose()
+      requestClose()
     } catch {
       // 错误提示由请求层统一处理
     } finally {
@@ -38,8 +40,9 @@ export default function ConfigDialog({ row, onClose, onSaved }: ConfigDialogProp
   return (
     <Modal
       title="配置存储池"
-      visible
-      onCancel={onClose}
+      visible={modalVisible}
+      afterClose={afterModalClose}
+      onCancel={requestClose}
       onOk={() => void handleSave()}
       okText="保存"
       cancelText="取消"

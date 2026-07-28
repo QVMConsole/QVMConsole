@@ -4,6 +4,7 @@
  */
 import { Banner, Button, Modal, Toast } from '@douyinfe/semi-ui'
 import { copyTextWithFallback } from '@/utils/clipboard'
+import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 interface MountHelpDialogProps {
   /** 挂载标签（user_xxx_category 格式） */
@@ -14,6 +15,7 @@ interface MountHelpDialogProps {
 }
 
 export default function MountHelpDialog({ tag, readonly, onClose }: MountHelpDialogProps) {
+  const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const roOpt = readonly ? ',ro' : ''
 
   const cmdMkdir = `mkdir -p /mnt/${tag}`
@@ -30,12 +32,13 @@ export default function MountHelpDialog({ tag, readonly, onClose }: MountHelpDia
   return (
     <Modal
       title="虚拟机内挂载说明"
-      visible
-      onCancel={onClose}
+      visible={modalVisible}
+      afterClose={afterModalClose}
+      onCancel={requestClose}
       width={620}
       footer={
         <>
-          <Button onClick={onClose}>关闭</Button>
+          <Button onClick={requestClose}>关闭</Button>
           <Button type="primary" onClick={handleCopy}>
             复制命令
           </Button>

@@ -6,6 +6,7 @@
 import { useState } from 'react'
 import { Input, Modal, TextArea, Toast } from '@douyinfe/semi-ui'
 import { importFirewallRegion } from '@/api/firewall'
+import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 interface ImportRegionDialogProps {
   onClose: () => void
@@ -13,6 +14,7 @@ interface ImportRegionDialogProps {
 }
 
 export default function ImportRegionDialog({ onClose, onSaved }: ImportRegionDialogProps) {
+  const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState({ code: '', name: '', source: 'local-import', cidrs: '' })
 
@@ -37,6 +39,7 @@ export default function ImportRegionDialog({ onClose, onSaved }: ImportRegionDia
       })
       Toast.success('区域 CIDR 已导入')
       onSaved()
+      requestClose()
     } catch {
       // 请求层已提示
     } finally {
@@ -47,8 +50,9 @@ export default function ImportRegionDialog({ onClose, onSaved }: ImportRegionDia
   return (
     <Modal
       title="导入区域 CIDR"
-      visible
-      onCancel={onClose}
+      visible={modalVisible}
+      afterClose={afterModalClose}
+      onCancel={requestClose}
       onOk={() => void handleSubmit()}
       okText="导入"
       cancelText="取消"

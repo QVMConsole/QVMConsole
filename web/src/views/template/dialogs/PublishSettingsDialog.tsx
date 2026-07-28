@@ -20,6 +20,7 @@ import {
   WINDOWS_TEMPLATE_CATEGORY_OPTIONS,
   normalizeTemplateCategory,
 } from '@/utils/templateCategory'
+import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 interface PublishSettingsDialogProps {
   node: TemplateItem
@@ -61,6 +62,7 @@ const FIRST_BOOT_REBOOT_OPTIONS = [
 ]
 
 export default function PublishSettingsDialog({ node, onClose, onSaved }: PublishSettingsDialogProps) {
+  const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const defaults = node.default_config || {}
   const nodeType = node.type || ''
 
@@ -121,7 +123,7 @@ export default function PublishSettingsDialog({ node, onClose, onSaved }: Publis
       })
       Toast.success('模板发布设置已保存')
       onSaved()
-      onClose()
+      requestClose()
     } catch (err) {
       console.error('保存模板发布设置失败', err)
     } finally {
@@ -132,13 +134,14 @@ export default function PublishSettingsDialog({ node, onClose, onSaved }: Publis
   return (
     <Modal
       title="发布设置"
-      visible
-      onCancel={onClose}
+      visible={modalVisible}
+      afterClose={afterModalClose}
+      onCancel={requestClose}
       width={560}
       maskClosable={false}
       footer={
         <>
-          <Button onClick={onClose} disabled={saving}>
+          <Button onClick={requestClose} disabled={saving}>
             取消
           </Button>
           <Button type="primary" loading={saving} onClick={() => void handleSave()}>

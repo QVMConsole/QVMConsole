@@ -42,6 +42,7 @@ import {
   registrationStatusTagColor,
 } from '../utils'
 import { vpcOptionLabel } from './vpcOption'
+import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 interface RegistrationDialogProps {
   row: UserListItem
@@ -81,6 +82,7 @@ export default function RegistrationDialog({
   onClose,
   onChanged,
 }: RegistrationDialogProps) {
+  const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const [vmSource, setVmSource] = useState<'existing' | 'register'>('register')
   const [submitting, setSubmitting] = useState(false)
   const [removingVm, setRemovingVm] = useState('')
@@ -288,7 +290,7 @@ export default function RegistrationDialog({
       Toast.success(res.message || '注册 VM 已保存')
       setDrafts([])
       onChanged()
-      onClose()
+      requestClose()
     } catch {
       // 请求层已提示
     } finally {
@@ -307,7 +309,7 @@ export default function RegistrationDialog({
       })
       Toast.success(res.message || '已有 VM 分配成功')
       onChanged()
-      onClose()
+      requestClose()
     } catch {
       // 请求层已提示
     } finally {
@@ -333,7 +335,6 @@ export default function RegistrationDialog({
       }
       return prev
     })
-    setQuotaEditRow(null)
     if (!quotaEditRow?.draft) onChanged()
   }
 
@@ -415,7 +416,7 @@ export default function RegistrationDialog({
 
   const footer = (
     <>
-      <Button onClick={onClose}>关闭</Button>
+      <Button onClick={requestClose}>关闭</Button>
       {vmSource === 'existing' && (
         <Button
           type="primary"
@@ -443,8 +444,9 @@ export default function RegistrationDialog({
     <>
       <Modal
         title="注册轻量云 VM"
-        visible
-        onCancel={onClose}
+        visible={modalVisible}
+        afterClose={afterModalClose}
+        onCancel={requestClose}
         footer={footer}
         width={920}
         closeOnEsc
@@ -554,23 +556,21 @@ export default function RegistrationDialog({
       </Modal>
 
       {/* 轻量云登记向导（复用创建虚拟机向导） */}
-      {wizardVisible && (
-        <CreateVmWizard
-          visible
-          initialMode="template"
-          registration={{
-            enabled: true,
-            dedicated_vpc_switch_id: row.dedicated_vpc_switch_id || 0,
-            dedicated_vpc_label: vpcLabel,
-          }}
-          onDraft={(draft) => {
-            handleDraft(draft)
-            setWizardVisible(false)
-          }}
-          onClose={() => setWizardVisible(false)}
-          onSuccess={() => setWizardVisible(false)}
-        />
-      )}
+      <CreateVmWizard
+        visible={wizardVisible}
+        initialMode="template"
+        registration={{
+          enabled: true,
+          dedicated_vpc_switch_id: row.dedicated_vpc_switch_id || 0,
+          dedicated_vpc_label: vpcLabel,
+        }}
+        onDraft={(draft) => {
+          handleDraft(draft)
+          setWizardVisible(false)
+        }}
+        onClose={() => setWizardVisible(false)}
+        onSuccess={() => setWizardVisible(false)}
+      />
 
       {/* 编辑单 VM 配额 */}
       {quotaEditRow && (

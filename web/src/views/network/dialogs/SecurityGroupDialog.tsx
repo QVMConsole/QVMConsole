@@ -10,6 +10,7 @@ import {
   updateVPCSecurityGroup,
   type VpcSecurityGroup,
 } from '@/api/vpc'
+import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 interface SecurityGroupDialogProps {
   row?: VpcSecurityGroup
@@ -26,6 +27,7 @@ export default function SecurityGroupDialog({
   onClose,
   onSaved,
 }: SecurityGroupDialogProps) {
+  const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const editing = !!row
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState({
@@ -49,6 +51,7 @@ export default function SecurityGroupDialog({
         Toast.success('安全组已创建')
       }
       onSaved()
+      requestClose()
     } catch {
       // 请求层已提示
     } finally {
@@ -59,8 +62,9 @@ export default function SecurityGroupDialog({
   return (
     <Modal
       title={editing ? '编辑安全组' : '创建安全组'}
-      visible
-      onCancel={onClose}
+      visible={modalVisible}
+      afterClose={afterModalClose}
+      onCancel={requestClose}
       onOk={() => void handleSubmit()}
       okText="保存"
       cancelText="取消"

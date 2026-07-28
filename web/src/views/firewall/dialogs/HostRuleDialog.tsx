@@ -12,6 +12,7 @@ import {
   type HostFirewallRule,
 } from '@/api/firewall'
 import { createDefaultRule, normalizeRulePayload } from '../utils'
+import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 interface HostRuleDialogProps {
   /** 编辑时传入规则行，新增时不传 */
@@ -21,6 +22,7 @@ interface HostRuleDialogProps {
 }
 
 export default function HostRuleDialog({ row, onClose, onSaved }: HostRuleDialogProps) {
+  const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const editing = !!row?.id
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState(() => ({
@@ -46,6 +48,7 @@ export default function HostRuleDialog({ row, onClose, onSaved }: HostRuleDialog
         Toast.success('宿主机防火墙规则已添加')
       }
       onSaved()
+      requestClose()
     } catch {
       // 请求层已提示
     } finally {
@@ -56,8 +59,9 @@ export default function HostRuleDialog({ row, onClose, onSaved }: HostRuleDialog
   return (
     <Modal
       title={editing ? '编辑宿主机规则' : '添加宿主机规则'}
-      visible
-      onCancel={onClose}
+      visible={modalVisible}
+      afterClose={afterModalClose}
+      onCancel={requestClose}
       onOk={() => void handleSubmit()}
       okText="保存"
       cancelText="取消"

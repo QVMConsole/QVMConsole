@@ -10,7 +10,6 @@ import {
   Button,
   Dropdown,
   Input,
-  Modal,
   Pagination,
   Select,
   Table,
@@ -57,6 +56,7 @@ import {
 } from './utils'
 import PublicIpDialog from './dialogs/PublicIpDialog'
 import BindPublicIpDialog, { type BindVmOption } from './dialogs/BindPublicIpDialog'
+import PreviewModal from '@/components/common/PreviewModal'
 import './public-ip.css'
 
 const PAGE_SIZE = 100
@@ -491,7 +491,6 @@ export default function PublicIpPage() {
           row={dialog.row}
           onClose={() => setDialog(null)}
           onSaved={() => {
-            setDialog(null)
             void loadData()
           }}
         />
@@ -504,23 +503,15 @@ export default function PublicIpPage() {
           vms={vms}
           onClose={() => setDialog(null)}
           onSubmitted={() => {
-            setDialog(null)
             refreshAfterTask()
           }}
         />
       )}
       {dialog?.type === 'preview' && (
-        <Modal
+        <PreviewModal
           title={`规则预览：${dialog.row.ip}`}
-          visible
-          onCancel={() => setDialog(null)}
-          footer={
-            <Button type="primary" onClick={() => setDialog(null)}>
-              关闭
-            </Button>
-          }
+          onClose={() => setDialog(null)}
           width={720}
-          closeOnEsc
         >
           <pre className="pip-preview-commands">
             {(dialog.preview.commands || []).join('\n')}
@@ -542,7 +533,7 @@ export default function PublicIpPage() {
               style={{ marginTop: 8 }}
             />
           ))}
-        </Modal>
+        </PreviewModal>
       )}
     </div>
   )

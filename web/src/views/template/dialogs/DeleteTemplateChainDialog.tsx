@@ -13,6 +13,7 @@ import {
   type TemplateItem,
   type TemplateRelatedVM,
 } from '@/api/template'
+import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 interface DeleteTemplateChainDialogProps {
   node: TemplateItem
@@ -33,6 +34,7 @@ export default function DeleteTemplateChainDialog({
   onClose,
   onDeleted,
 }: DeleteTemplateChainDialogProps) {
+  const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [mode, setMode] = useState<TemplateDeleteMode>('cascade')
@@ -47,7 +49,7 @@ export default function DeleteTemplateChainDialog({
         if (!cancelled) setPreview(res.data || null)
       } catch (err) {
         console.error('获取模板删除预览失败', err)
-        if (!cancelled) onClose()
+        if (!cancelled) requestClose()
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -101,7 +103,7 @@ export default function DeleteTemplateChainDialog({
       })
       Toast.success(res.message || '删除模板任务已提交，请在任务中心查看进度')
       onDeleted()
-      onClose()
+      requestClose()
     } catch (err) {
       console.error('删除模板失败', err)
     } finally {
@@ -144,13 +146,14 @@ export default function DeleteTemplateChainDialog({
   return (
     <Modal
       title="删除模板链路"
-      visible
-      onCancel={onClose}
+      visible={modalVisible}
+      afterClose={afterModalClose}
+      onCancel={requestClose}
       width={820}
       maskClosable={false}
       footer={
         <>
-          <Button onClick={onClose} disabled={submitting}>
+          <Button onClick={requestClose} disabled={submitting}>
             取消
           </Button>
           <Button
@@ -271,4 +274,3 @@ export default function DeleteTemplateChainDialog({
     </Modal>
   )
 }
-

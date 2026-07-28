@@ -93,6 +93,7 @@ export default function MyStoragePage() {
 
   // ==================== 弹窗 ====================
   const [dialog, setDialog] = useState<DialogState>(null)
+  const pendingMountHelpRef = useRef<{ tag: string; readonly: boolean } | null>(null)
 
   // ==================== 数据加载 ====================
 
@@ -554,8 +555,14 @@ export default function MyStoragePage() {
       {dialog?.type === 'mount' && (
         <MountDialog
           defaultCategory={dialog.defaultCategory}
-          onClose={() => setDialog(null)}
-          onMounted={(tag, ro) => setDialog({ type: 'mountHelp', tag, readonly: ro })}
+          onClose={() => {
+            const help = pendingMountHelpRef.current
+            pendingMountHelpRef.current = null
+            setDialog(help ? { type: 'mountHelp', ...help } : null)
+          }}
+          onMounted={(tag, readonly) => {
+            pendingMountHelpRef.current = { tag, readonly }
+          }}
         />
       )}
 

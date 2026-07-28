@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { Empty, Modal, Table, Tag } from '@douyinfe/semi-ui'
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table'
 import { getVPCSwitchVMs, type VpcSwitch, type VpcSwitchVM } from '@/api/vpc'
+import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 interface SwitchVMsDialogProps {
   row: VpcSwitch
@@ -13,6 +14,7 @@ interface SwitchVMsDialogProps {
 }
 
 export default function SwitchVMsDialog({ row, onClose }: SwitchVMsDialogProps) {
+  const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const [vms, setVms] = useState<VpcSwitchVM[]>([])
   const [loading, setLoading] = useState(false)
 
@@ -39,8 +41,9 @@ export default function SwitchVMsDialog({ row, onClose }: SwitchVMsDialogProps) 
   return (
     <Modal
       title={`交换机 - ${row.name} - 虚拟机列表`}
-      visible
-      onCancel={onClose}
+      visible={modalVisible}
+      afterClose={afterModalClose}
+      onCancel={requestClose}
       footer={null}
       width={600}
       closeOnEsc

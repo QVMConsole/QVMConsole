@@ -12,6 +12,7 @@ import {
   type LightweightVmRegistrationItem,
 } from '@/api/user'
 import { buildLightweightQuotaPayload } from '../utils'
+import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 interface RegistrationQuotaDialogProps {
   username: string
@@ -45,6 +46,7 @@ export default function RegistrationQuotaDialog({
   onClose,
   onSaved,
 }: RegistrationQuotaDialogProps) {
+  const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState<LightweightVmQuotaPayload>(buildLightweightQuotaPayload(row))
 
@@ -54,6 +56,7 @@ export default function RegistrationQuotaDialog({
     if (row.draft) {
       onSaved(payload)
       Toast.success('注册草稿配额已更新')
+      requestClose()
       return
     }
     setSubmitting(true)
@@ -61,6 +64,7 @@ export default function RegistrationQuotaDialog({
       const res = await updateLightweightVmQuota(username, payload)
       Toast.success(res.message || '轻量云 VM 配额已更新')
       onSaved(payload, res.data)
+      requestClose()
     } catch {
       // 请求层已提示
     } finally {
@@ -71,8 +75,9 @@ export default function RegistrationQuotaDialog({
   return (
     <Modal
       title="编辑轻量云 VM 配额"
-      visible
-      onCancel={onClose}
+      visible={modalVisible}
+      afterClose={afterModalClose}
+      onCancel={requestClose}
       onOk={() => void handleSubmit()}
       okText="保存"
       cancelText="取消"

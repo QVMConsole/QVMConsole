@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { Banner, Modal, Select, Toast } from '@douyinfe/semi-ui'
 import { assignVms, type UserListItem } from '@/api/user'
 import { getVmList } from '@/api/vm'
+import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 interface AssignVmDialogProps {
   row: UserListItem
@@ -14,6 +15,7 @@ interface AssignVmDialogProps {
 }
 
 export default function AssignVmDialog({ row, onClose, onSaved }: AssignVmDialogProps) {
+  const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const [submitting, setSubmitting] = useState(false)
   const [loadingVms, setLoadingVms] = useState(false)
   const [allVms, setAllVms] = useState<string[]>([])
@@ -45,6 +47,7 @@ export default function AssignVmDialog({ row, onClose, onSaved }: AssignVmDialog
       await assignVms(row.username, { vms: selected })
       Toast.success('分配成功')
       onSaved()
+      requestClose()
     } catch {
       // 请求层已提示
     } finally {
@@ -55,8 +58,9 @@ export default function AssignVmDialog({ row, onClose, onSaved }: AssignVmDialog
   return (
     <Modal
       title="分配虚拟机"
-      visible
-      onCancel={onClose}
+      visible={modalVisible}
+      afterClose={afterModalClose}
+      onCancel={requestClose}
       onOk={() => void handleSubmit()}
       okText="保存"
       cancelText="取消"

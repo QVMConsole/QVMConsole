@@ -453,7 +453,6 @@ export default function NetworkPage() {
           defaultUsername={usernameFilter}
           onClose={() => setDialog(null)}
           onSaved={() => {
-            setDialog(null)
             void loadSwitches()
           }}
         />
@@ -466,7 +465,6 @@ export default function NetworkPage() {
           hostInterfaces={hostInterfaces}
           onClose={() => setDialog(null)}
           onSaved={() => {
-            setDialog(null)
             void loadOverview()
           }}
         />
@@ -476,7 +474,6 @@ export default function NetworkPage() {
           name={dialog.name}
           onClose={() => setDialog(null)}
           onSaved={() => {
-            setDialog(null)
             void loadOverview()
           }}
         />
@@ -488,7 +485,6 @@ export default function NetworkPage() {
           defaultUsername={usernameFilter}
           onClose={() => setDialog(null)}
           onSaved={() => {
-            setDialog(null)
             void loadSecurityGroups()
           }}
         />
@@ -500,7 +496,6 @@ export default function NetworkPage() {
           securityGroups={securityGroups}
           onClose={() => setDialog(null)}
           onSaved={() => {
-            setDialog(null)
             void loadSecurityGroups()
           }}
         />

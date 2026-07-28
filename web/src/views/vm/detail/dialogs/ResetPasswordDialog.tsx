@@ -13,6 +13,7 @@ import {
   validatePassword,
   STRONG_PASSWORD_MIN_LENGTH,
 } from '@/utils/validate'
+import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 interface ResetPasswordDialogProps {
   vm: VmDetailInfo
@@ -23,6 +24,7 @@ const LINUX_USERNAME_PATTERN = /^[a-z_][a-z0-9_-]{0,31}$/
 const WINDOWS_USERNAME_INVALID = /["/\\[\]:;|=,+*?<>]/
 
 export default function ResetPasswordDialog({ vm, onClose }: ResetPasswordDialogProps) {
+  const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const osType = vm.os_type || ''
   const isWindows = osType === 'windows'
 
@@ -95,7 +97,7 @@ export default function ResetPasswordDialog({ vm, onClose }: ResetPasswordDialog
         ? 'Windows 重置任务已提交，任务完成后请手动开机一次等待系统自动处理并关机'
         : '重置密码任务已提交'
       Toast.success(isWindows ? defaultMessage : res.message || defaultMessage)
-      onClose()
+      requestClose()
     } catch {
       // 请求层已提示
     } finally {
@@ -106,8 +108,9 @@ export default function ResetPasswordDialog({ vm, onClose }: ResetPasswordDialog
   return (
     <Modal
       title={title}
-      visible
-      onCancel={onClose}
+      visible={modalVisible}
+      afterClose={afterModalClose}
+      onCancel={requestClose}
       onOk={() => void handleSubmit()}
       okText="提交任务"
       cancelText="取消"
