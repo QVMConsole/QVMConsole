@@ -393,38 +393,6 @@
   animation: qvm-pulse 2s infinite;
   flex: none;
 }
-.qvm-top-tools {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.qvm-search-box {
-  width: 230px;
-  height: 38px;
-  border-radius: 12px;
-  background: var(--qvm-card-bg);
-  border: 1px solid var(--qvm-stroke);
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 0 12px;
-  color: var(--qvm-text-2);
-  font-size: 12.5px;
-  cursor: text;
-  transition: border-color 0.18s;
-}
-.qvm-search-box:hover {
-  border-color: var(--qvm-acc-stroke);
-}
-.qvm-search-box .kbd {
-  margin-left: auto;
-  font-size: 10px;
-  border: 1px solid var(--qvm-stroke);
-  border-radius: 5px;
-  padding: 2px 6px;
-  background: var(--qvm-hover-bg);
-}
 .qvm-tool-ic {
   width: 38px;
   height: 38px;
@@ -958,9 +926,6 @@
   .qvm-tb-current .msg,
   .qvm-sse-st,
   .qvm-tb-full {
-    display: none;
-  }
-  .qvm-search-box {
     display: none;
   }
 }

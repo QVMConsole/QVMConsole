@@ -41,7 +41,6 @@ export default function AdminDashboard() {
             {stats?.arch ? `（${stats.arch}）` : ''}
           </>
         }
-        showSearch
       />
       <HostStatusBanner stats={stats} />
       <AdminStats stats={stats} vms={vms} />
