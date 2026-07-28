@@ -1,0 +1,435 @@
+/**
+ * 防火墙页样式（深空极光，浅色优先 + 深色适配）
+ * 迁移自旧前端 views/firewall/index.vue，改用 --qvm- 设计令牌
+ */
+
+.fw-page {
+  padding: 4px 2px 24px;
+  width: 100%;
+}
+
+/* ==================== 页头 ==================== */
+.fw-page-header {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.fw-page-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+}
+.fw-page-sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--qvm-text-2);
+}
+.fw-header-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.fw-tab-pane {
+  padding-top: 4px;
+}
+
+/* ==================== 状态横幅 ==================== */
+.fw-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  margin-bottom: 16px;
+  border: 1px solid var(--qvm-stroke);
+  background: var(--qvm-card-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--qvm-card-shadow);
+  flex-wrap: wrap;
+}
+.fw-banner-icon {
+  font-size: 24px;
+  display: inline-flex;
+  flex: none;
+}
+.fw-banner-body {
+  flex: 1;
+  min-width: 220px;
+}
+.fw-banner-title {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+}
+.fw-banner-desc {
+  font-size: 12.5px;
+  color: var(--qvm-text-2);
+  margin-top: 3px;
+  line-height: 1.5;
+}
+.fw-banner-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+/* 已启用：霓虹青 */
+.fw-banner.enabled {
+  border-color: rgba(13, 148, 136, 0.32);
+  background: linear-gradient(120deg, rgba(45, 212, 191, 0.12), rgba(56, 189, 248, 0.06));
+}
+.fw-banner.enabled .fw-banner-icon {
+  color: var(--qvm-acc-ink);
+}
+/* 已关闭/未生效：暖橙 */
+.fw-banner.disabled {
+  border-color: rgba(245, 158, 11, 0.32);
+  background: linear-gradient(120deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.04));
+}
+.fw-banner.disabled .fw-banner-icon {
+  color: var(--qvm-warn);
+}
+/* 信息：冰蓝 */
+.fw-banner.info {
+  border-color: rgba(56, 189, 248, 0.3);
+  background: linear-gradient(120deg, rgba(56, 189, 248, 0.1), rgba(56, 189, 248, 0.04));
+}
+.fw-banner.info .fw-banner-icon {
+  color: var(--qvm-acc3-ink);
+}
+/* 高风险：警示红 */
+.fw-banner.warning {
+  border-color: rgba(251, 113, 133, 0.34);
+  background: linear-gradient(120deg, rgba(251, 113, 133, 0.1), rgba(251, 113, 133, 0.04));
+}
+.fw-banner.warning .fw-banner-icon {
+  color: var(--qvm-danger);
+}
+
+/* ==================== 信息卡片 ==================== */
+.fw-card {
+  border-radius: 14px;
+  background: var(--qvm-card-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--qvm-card-shadow);
+  border: 1px solid var(--qvm-stroke);
+  overflow: hidden;
+}
+.fw-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+  border-bottom: 1px solid var(--qvm-stroke);
+}
+.fw-card-header > svg {
+  color: var(--qvm-acc-ink);
+  font-size: 16px;
+}
+.fw-card-header-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.fw-card-body {
+  padding: 16px;
+}
+.fw-card-footer {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 16px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--qvm-text-2);
+  border-top: 1px solid var(--qvm-stroke);
+  background: var(--qvm-hover-bg);
+}
+.fw-card-footer > svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--qvm-acc3-ink);
+}
+
+/* ==================== 运行状态列表 ==================== */
+.fw-info-list {
+  padding: 8px 16px 12px;
+}
+.fw-info-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px dashed var(--qvm-stroke);
+  font-size: 13px;
+}
+.fw-info-item:last-child {
+  border-bottom: none;
+}
+.fw-info-label {
+  color: var(--qvm-text-2);
+  flex: none;
+}
+
+/* ==================== 筛选栏 ==================== */
+.fw-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  flex-wrap: wrap;
+}
+
+/* ==================== 行内操作（纯图标 + Tooltip） ==================== */
+.fw-act-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.fw-act-ic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  color: var(--qvm-text-2);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.16s;
+}
+.fw-act-ic.edit:hover {
+  color: var(--qvm-acc-ink);
+  background: var(--qvm-acc-bg);
+  border-color: var(--qvm-acc-stroke);
+}
+.fw-act-ic.delete:hover {
+  color: var(--qvm-danger);
+  background: rgba(251, 113, 133, 0.12);
+  border-color: rgba(251, 113, 133, 0.3);
+}
+.fw-act-ic.disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+.fw-act-ic.disabled:hover {
+  color: var(--qvm-text-2);
+  background: transparent;
+  border-color: transparent;
+}
+
+/* ==================== KVM 操作条 ==================== */
+.fw-kvm-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.fw-kvm-bar h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+}
+.fw-kvm-bar p {
+  margin: 5px 0 0;
+  font-size: 12.5px;
+  color: var(--qvm-text-2);
+  line-height: 1.5;
+}
+.fw-kvm-bar-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* 子分隔标题 */
+.fw-subdivider {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--qvm-text-2);
+}
+
+/* VM 名称单元格 */
+.fw-vm-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+.fw-vm-name > svg {
+  color: var(--qvm-acc-ink);
+  flex: none;
+}
+
+/* ==================== 连接管理 ==================== */
+.fw-conn-groups {
+  display: flex;
+  align-items: stretch;
+  gap: 24px;
+  padding: 18px 20px;
+  flex-wrap: wrap;
+}
+.fw-conn-group {
+  flex: 1;
+  min-width: 260px;
+}
+.fw-conn-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+}
+.fw-conn-desc {
+  font-size: 12.5px;
+  color: var(--qvm-text-2);
+  line-height: 1.6;
+  margin: 6px 0 12px;
+}
+.fw-conn-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.fw-conn-divider {
+  width: 1px;
+  background: var(--qvm-stroke);
+  flex: none;
+}
+.fw-conn-warning {
+  padding: 10px 16px;
+  font-size: 12.5px;
+  color: var(--qvm-warn);
+  border-bottom: 1px solid var(--qvm-stroke);
+  background: rgba(245, 158, 11, 0.06);
+  line-height: 1.6;
+}
+
+/* ==================== 文本省略 / 弱化 ==================== */
+.fw-ellipsis {
+  display: inline-block;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.fw-muted {
+  color: var(--qvm-text-2);
+  font-size: 12px;
+}
+
+/* ==================== 规则预览代码块 ==================== */
+.fw-preview-code {
+  margin: 0;
+  padding: 14px;
+  max-height: 480px;
+  overflow: auto;
+  font-family: var(--qvm-num-font);
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--qvm-text-1);
+  background: var(--qvm-hover-bg);
+  border: 1px solid var(--qvm-stroke);
+  border-radius: 10px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ==================== 弹窗表单（与 network/public-ip 页保持一致） ==================== */
+.qvm-form-item {
+  margin-bottom: 14px;
+}
+.qvm-form-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--qvm-text-1);
+  margin-bottom: 6px;
+}
+.qvm-form-label.required::before {
+  content: '*';
+  color: var(--qvm-danger);
+  margin-right: 4px;
+}
+.qvm-form-tip {
+  font-size: 12px;
+  color: var(--qvm-text-2);
+  line-height: 1.5;
+  margin-top: 5px;
+}
+.qvm-form-tip.warn {
+  color: var(--qvm-warn);
+}
+
+/* 带文字开关（与 vm-form 一致，避免依赖其样式加载时机） */
+.qvm-vf-text-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.qvm-vf-text-switch-label {
+  font-size: 13px;
+  color: var(--qvm-text-2);
+  white-space: nowrap;
+}
+.qvm-vf-text-switch-label.on {
+  color: var(--qvm-acc-ink);
+  font-weight: 500;
+}
+
+/* ==================== 无权限提示 ==================== */
+.fw-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--qvm-text-2);
+  font-size: 14px;
+}
+.fw-empty-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+/* ==================== 深色模式：大面积文字降对比 ==================== */
+body[theme-mode='dark'] .fw-page-header h2,
+body[theme-mode='dark'] .fw-kvm-bar h3,
+body[theme-mode='dark'] .fw-banner-title,
+body[theme-mode='dark'] .fw-card-header,
+body[theme-mode='dark'] .fw-conn-label {
+  color: #b8c1cf;
+}
+
+/* ==================== 响应式 ==================== */
+@media (max-width: 720px) {
+  .fw-page-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .fw-header-actions {
+    width: 100%;
+  }
+  .fw-conn-groups {
+    flex-direction: column;
+    gap: 18px;
+  }
+  .fw-conn-divider {
+    width: 100%;
+    height: 1px;
+  }
+  .fw-banner-actions {
+    width: 100%;
+  }
+}
