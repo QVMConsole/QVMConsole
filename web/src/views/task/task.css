@@ -1,0 +1,147 @@
+/**
+ * 任务中心页样式（深空极光，浅色优先 + 深色适配）
+ * 迁移自旧前端 views/task/index.vue，改用 --qvm- 设计令牌
+ */
+
+.tsk-page {
+  padding: 4px 2px 24px;
+  width: 100%;
+}
+
+/* ==================== 页头 ==================== */
+.tsk-page-header {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.tsk-page-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+}
+.tsk-page-sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--qvm-text-2);
+}
+.tsk-header-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* SSE 状态徽标 */
+.tsk-sse-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--qvm-text-2);
+  background: var(--qvm-hover-bg);
+  border: 1px solid var(--qvm-stroke);
+}
+.tsk-sse-tag.connected {
+  color: #0d9668;
+  background: rgba(45, 212, 191, 0.12);
+  border-color: rgba(45, 212, 191, 0.3);
+}
+.tsk-sse-tag.connecting {
+  color: #d97706;
+  background: rgba(251, 191, 36, 0.12);
+  border-color: rgba(251, 191, 36, 0.3);
+}
+
+/* ==================== 筛选栏 ==================== */
+.tsk-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+/* ==================== 表格 ==================== */
+.tsk-table-card {
+  border-radius: 14px;
+  background: var(--qvm-card-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--qvm-card-shadow);
+  border: 1px solid var(--qvm-stroke);
+  padding: 12px;
+  overflow-x: auto;
+}
+.tsk-pagination {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+/* 进度单元格：进度条 + 百分比数字 */
+.tsk-progress-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tsk-progress-cell .semi-progress {
+  flex: 1;
+  min-width: 0;
+}
+.tsk-progress-num {
+  font-size: 12px;
+  color: var(--qvm-text-2);
+  min-width: 34px;
+  text-align: right;
+}
+
+/* ==================== 行内操作（纯图标 + Tooltip） ==================== */
+.tsk-act-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tsk-act-ic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  color: var(--qvm-text-2);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.16s;
+}
+.tsk-act-ic.detail:hover {
+  color: var(--qvm-acc-ink);
+  background: var(--qvm-acc-bg);
+  border-color: var(--qvm-acc-stroke);
+}
+.tsk-act-ic.cancel:hover {
+  color: var(--qvm-danger);
+  background: rgba(251, 113, 133, 0.14);
+  border-color: rgba(251, 113, 133, 0.3);
+}
+
+/* ==================== 深色模式：大面积文字降对比 ==================== */
+body[theme-mode='dark'] .tsk-page-header h2 {
+  color: #b8c1cf;
+}
+
+/* ==================== 响应式 ==================== */
+@media (max-width: 720px) {
+  .tsk-page-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .tsk-header-actions {
+    width: 100%;
+  }
+}

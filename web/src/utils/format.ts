@@ -53,6 +53,22 @@ export function formatRuntime(seconds: number): string {
   return '刚刚'
 }
 
+/** 完整日期时间格式化（中文本地格式，无效值原样返回） */
+export function formatDateTime(value?: string | null): string {
+  if (!value) return '-'
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return value
+  return d.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  })
+}
+
 /** 问候语（按小时） */
 export function greetingByHour(date = new Date()): string {
   const h = date.getHours()

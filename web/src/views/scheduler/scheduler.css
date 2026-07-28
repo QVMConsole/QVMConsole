@@ -1,0 +1,177 @@
+/**
+ * 调度事件页样式（深空极光，浅色优先 + 深色适配）
+ * 迁移自旧前端 views/scheduler/index.vue，改用 --qvm- 设计令牌
+ */
+
+.sch-page {
+  padding: 4px 2px 24px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ==================== 页头 ==================== */
+.sch-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.sch-page-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+}
+.sch-page-sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--qvm-text-2);
+}
+.sch-header-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* SSE 状态徽标 */
+.sch-sse-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--qvm-text-2);
+  background: var(--qvm-hover-bg);
+  border: 1px solid var(--qvm-stroke);
+}
+.sch-sse-tag.connected {
+  color: #0d9668;
+  background: rgba(45, 212, 191, 0.12);
+  border-color: rgba(45, 212, 191, 0.3);
+}
+.sch-sse-tag.connecting {
+  color: #d97706;
+  background: rgba(251, 191, 36, 0.12);
+  border-color: rgba(251, 191, 36, 0.3);
+}
+
+/* ==================== 区块卡片 ==================== */
+.sch-section-card {
+  border-radius: 14px;
+  background: var(--qvm-card-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--qvm-card-shadow);
+  border: 1px solid var(--qvm-stroke);
+  padding: 16px;
+  overflow-x: auto;
+}
+.sch-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.sch-section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+}
+.sch-section-sub {
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--qvm-text-2);
+}
+
+/* ==================== 调度器概览卡片 ==================== */
+.sch-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+.sch-overview-item {
+  padding: 14px 16px;
+  border: 1px solid var(--qvm-stroke);
+  border-radius: 12px;
+  background: var(--qvm-hover-bg);
+}
+.sch-overview-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.sch-overview-title {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+}
+.sch-overview-key {
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--qvm-text-2);
+  word-break: break-all;
+}
+.sch-overview-line {
+  margin-top: 6px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--qvm-text-1);
+}
+.sch-overview-line.muted {
+  color: var(--qvm-text-2);
+}
+
+/* ==================== 筛选与分页 ==================== */
+.sch-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.sch-pagination {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+/* ==================== 无权限提示 ==================== */
+.sch-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--qvm-text-2);
+  font-size: 14px;
+}
+.sch-empty-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+/* ==================== 深色模式：大面积文字降对比 ==================== */
+body[theme-mode='dark'] .sch-page-header h2,
+body[theme-mode='dark'] .sch-section-title,
+body[theme-mode='dark'] .sch-overview-title {
+  color: #b8c1cf;
+}
+
+/* ==================== 响应式 ==================== */
+@media (max-width: 720px) {
+  .sch-page-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .sch-header-actions {
+    width: 100%;
+  }
+  .sch-overview-grid {
+    grid-template-columns: 1fr;
+  }
+}

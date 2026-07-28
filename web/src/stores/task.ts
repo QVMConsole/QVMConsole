@@ -124,35 +124,37 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
 
 // ==================== 展示辅助 ====================
 
+/** 任务类型中文文案映射（任务中心筛选项与展示共用） */
+export const TASK_TYPE_TEXT: Record<string, string> = {
+  clone: '链式克隆',
+  batch: '批量克隆',
+  reinstall: '重装系统',
+  prepare: '制作模板',
+  template_export: '导出模板',
+  template_import: '导入模板',
+  template_linux_prepare: 'Linux 模板预处理',
+  delete_template: '删除模板',
+  create: '普通创建',
+  lightweight_vm_provision: '轻量云开通',
+  lightweight_runtime_quota_shutdown: '轻量云时长关机',
+  delete: '删除虚拟机',
+  snapshot: '快照操作',
+  export: '导出虚拟机',
+  import: '导入虚拟机',
+  vm_migrate: '迁移虚拟机',
+  vm_disk_migrate: '迁移硬盘',
+  storage_format: '格式化存储',
+  storage_create_partition: '创建分区',
+  storage_delete_partitions: '删除分区',
+  ovs_repair: 'OVS 修复',
+  network_capture: '网络抓包',
+  vm_schedule_action: '虚拟机定时任务',
+  power: '电源操作',
+}
+
 /** 任务类型中文文案 */
 export function taskTypeText(type: string): string {
-  const map: Record<string, string> = {
-    clone: '链式克隆',
-    batch: '批量克隆',
-    reinstall: '重装系统',
-    prepare: '制作模板',
-    template_export: '导出模板',
-    template_import: '导入模板',
-    template_linux_prepare: 'Linux 模板预处理',
-    delete_template: '删除模板',
-    create: '普通创建',
-    lightweight_vm_provision: '轻量云开通',
-    lightweight_runtime_quota_shutdown: '轻量云时长关机',
-    delete: '删除虚拟机',
-    snapshot: '快照操作',
-    export: '导出虚拟机',
-    import: '导入虚拟机',
-    vm_migrate: '迁移虚拟机',
-    vm_disk_migrate: '迁移硬盘',
-    storage_format: '格式化存储',
-    storage_create_partition: '创建分区',
-    storage_delete_partitions: '删除分区',
-    ovs_repair: 'OVS 修复',
-    network_capture: '网络抓包',
-    vm_schedule_action: '虚拟机定时任务',
-    power: '电源操作',
-  }
-  return map[type] || type
+  return TASK_TYPE_TEXT[type] || type
 }
 
 /** 任务类型标签配色（对应设计稿 type-tag） */

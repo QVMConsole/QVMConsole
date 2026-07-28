@@ -23,6 +23,8 @@ const FirewallPage = lazy(() => import('@/views/firewall'))
 const StoragePoolPage = lazy(() => import('@/views/storage-pool'))
 const MyStoragePage = lazy(() => import('@/views/my-storage'))
 const UserPage = lazy(() => import('@/views/user'))
+const SchedulerPage = lazy(() => import('@/views/scheduler'))
+const TaskCenterPage = lazy(() => import('@/views/task'))
 
 /** 懒加载页面统一加载态 */
 function lazyPage(node: ReactNode) {
@@ -96,9 +98,18 @@ const mainChildren = [
     element: lazyPage(<UserPage />),
     handle: { title: '用户管理' },
   },
+  {
+    path: 'scheduler',
+    element: lazyPage(<SchedulerPage />),
+    handle: { title: '调度事件' },
+  },
+  {
+    path: 'task',
+    element: lazyPage(<TaskCenterPage />),
+    handle: { title: '任务中心' },
+  },
   // TODO(重构迭代): 以下路由随各模块迁移逐步补齐
-  // nodes、scheduler/events、
-  // settings、api-docs、task/recent、about
+  // nodes、settings、api-docs、about
   { path: '*', element: <NotFound />, handle: { title: '页面不存在' } },
 ] as const
 

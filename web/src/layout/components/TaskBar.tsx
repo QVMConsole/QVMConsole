@@ -5,10 +5,12 @@
  * - 支持任务详情抽屉与取消任务（二次确认）
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { SideSheet, Descriptions, Modal, Toast, Tag } from '@douyinfe/semi-ui'
+import { useNavigate } from 'react-router-dom'
+import { Modal, Toast } from '@douyinfe/semi-ui'
 import { IconCheckList, IconChevronUp, IconDesktop, IconPulse } from '@douyinfe/semi-icons'
 import { useTaskStore, taskTypeText, taskTypeColor, taskStatusText } from '@/stores/task'
 import { cancelTask, getTaskDetail, type TaskItem } from '@/api/task'
+import TaskDetailSheet from '@/components/business/TaskDetailSheet'
 
 const COLLAPSED_HEIGHT = 46
 const DEFAULT_HEIGHT = 320
@@ -54,6 +56,7 @@ function progressColor(status: string): string {
 }
 
 export default function TaskBar() {
+  const navigate = useNavigate()
   const tasks = useTaskStore((s) => s.tasks)
   const sseStatus = useTaskStore((s) => s.sseStatus)
   const fetchTasks = useTaskStore((s) => s.fetchTasks)
@@ -160,14 +163,6 @@ export default function TaskBar() {
     })
   }
 
-  const formatJSON = (jsonStr: string) => {
-    try {
-      return JSON.stringify(JSON.parse(jsonStr), null, 2)
-    } catch {
-      return jsonStr
-    }
-  }
-
   return (
     <>
       <div
@@ -209,7 +204,7 @@ export default function TaskBar() {
             className="qvm-tb-full"
             onClick={(e) => {
               e.stopPropagation()
-              Toast.info({ content: '完整任务中心将在后续迭代提供', duration: 2 })
+              navigate('/task')
             }}
           >
             <IconDesktop size="small" />
@@ -292,88 +287,12 @@ export default function TaskBar() {
         </div>
       </div>
 
-      {/* 任务详情抽屉 */}
-      <SideSheet
-        title="任务详情"
+      {/* 任务详情抽屉（与任务中心页共用组件） */}
+      <TaskDetailSheet
+        task={currentTask}
         visible={detailVisible}
-        onCancel={() => setDetailVisible(false)}
-        width={480}
-      >
-        {currentTask && (
-          <div>
-            <Descriptions align="left" size="medium">
-              <Descriptions.Item itemKey="任务 ID">{currentTask.id}</Descriptions.Item>
-              <Descriptions.Item itemKey="任务类型">
-                <Tag
-                  style={{
-                    color: taskTypeColor(currentTask.type).color,
-                    backgroundColor: taskTypeColor(currentTask.type).bg,
-                    border: `1px solid ${taskTypeColor(currentTask.type).border}`,
-                  }}
-                >
-                  {taskTypeText(currentTask.type)}
-                </Tag>
-              </Descriptions.Item>
-              <Descriptions.Item itemKey="状态">{taskStatusText(currentTask.status)}</Descriptions.Item>
-              <Descriptions.Item itemKey="进度">{currentTask.progress || 0}%</Descriptions.Item>
-              <Descriptions.Item itemKey="状态消息">{currentTask.message || '-'}</Descriptions.Item>
-              <Descriptions.Item itemKey="创建人">{currentTask.created_by || '-'}</Descriptions.Item>
-              <Descriptions.Item itemKey="创建时间">
-                {currentTask.created_at ? new Date(currentTask.created_at).toLocaleString('zh-CN') : '-'}
-              </Descriptions.Item>
-              <Descriptions.Item itemKey="更新时间">
-                {currentTask.updated_at ? new Date(currentTask.updated_at).toLocaleString('zh-CN') : '-'}
-              </Descriptions.Item>
-            </Descriptions>
-
-            {currentTask.params && (
-              <div style={{ marginTop: 16 }}>
-                <h4 style={{ margin: '0 0 8px', color: 'var(--qvm-text-0)' }}>任务参数</h4>
-                <pre
-                  className="qvm-num"
-                  style={{
-                    margin: 0,
-                    padding: 12,
-                    borderRadius: 10,
-                    fontSize: 11,
-                    lineHeight: 1.6,
-                    maxHeight: 220,
-                    overflow: 'auto',
-                    background: 'var(--qvm-hover-bg)',
-                    border: '1px solid var(--qvm-stroke)',
-                    color: 'var(--qvm-text-1)',
-                  }}
-                >
-                  {formatJSON(currentTask.params)}
-                </pre>
-              </div>
-            )}
-
-            {currentTask.result && (
-              <div style={{ marginTop: 16 }}>
-                <h4 style={{ margin: '0 0 8px', color: 'var(--qvm-text-0)' }}>执行结果</h4>
-                <pre
-                  className="qvm-num"
-                  style={{
-                    margin: 0,
-                    padding: 12,
-                    borderRadius: 10,
-                    fontSize: 11,
-                    lineHeight: 1.6,
-                    maxHeight: 220,
-                    overflow: 'auto',
-                    background: 'var(--qvm-hover-bg)',
-                    border: '1px solid var(--qvm-stroke)',
-                    color: 'var(--qvm-text-1)',
-                  }}
-                >
-                  {formatJSON(currentTask.result)}
-                </pre>
-              </div>
-            )}
-          </div>
-        )}
-      </SideSheet>
+        onClose={() => setDetailVisible(false)}
+      />
     </>
   )
 }
