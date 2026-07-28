@@ -1,12 +1,13 @@
 /**
- * 悬浮式侧边栏
+ * 贴边侧边栏
  * - 按角色渲染导航分组（管理员 / 普通用户）
+ * - 支持手动折叠（仅图标模式，折叠状态持久化）
  * - 小屏时转为抽屉模式
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Toast, Modal } from '@douyinfe/semi-ui'
-import { IconExit } from '@douyinfe/semi-icons'
+import { Toast, Modal, Tooltip } from '@douyinfe/semi-ui'
+import { IconExit, IconChevronLeft } from '@douyinfe/semi-icons'
 import { ADMIN_NAV, USER_NAV, type NavItem } from '@/config/nav'
 import { useUserStore } from '@/stores/user'
 import { useAppStore } from '@/stores/app'
@@ -28,6 +29,8 @@ export default function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
   const cloudType = useUserStore((s) => s.cloudType)
   const logout = useUserStore((s) => s.logout)
   const siteTitle = useAppStore((s) => s.siteTitle)
+  const collapsed = useAppStore((s) => s.sidebarCollapsed)
+  const toggleSidebar = useAppStore((s) => s.toggleSidebar)
   const tasks = useTaskStore((s) => s.tasks)
   const resetTabs = usePageTabsStore((s) => s.reset)
   const resetTasks = useTaskStore((s) => s.reset)
@@ -94,10 +97,17 @@ export default function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
   }
 
   return (
-    <aside className={`qvm-sidebar qvm-g-border ${mobileOpen ? 'mobile-open' : ''}`}>
+    <aside className={`qvm-sidebar ${mobileOpen ? 'mobile-open' : ''}`}>
+      {/* 折叠/展开开关（悬浮于侧边栏右缘，小屏抽屉模式隐藏） */}
+      <Tooltip content={collapsed ? '展开侧边栏' : '折叠侧边栏'} position="right">
+        <button type="button" className="qvm-side-fold" onClick={toggleSidebar}>
+          <IconChevronLeft size="small" />
+        </button>
+      </Tooltip>
+
       <div className="qvm-logo-zone">
-        <div className="qvm-logo-mark sm">Q</div>
-        <div>
+        <img className="qvm-logo-img" src="/favicon.png" alt="QVMC" />
+        <div className="qvm-logo-txt">
           <div className="qvm-logo-name">{siteTitle}</div>
           <div className="qvm-logo-sub">KVM 虚拟化管理平台</div>
         </div>
@@ -110,20 +120,31 @@ export default function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
             {group.items.map((item) => {
               const active = item.path === '/dashboard' && location.pathname === '/dashboard'
               const badge = badgeValue(item)
+              const navNode = (
+                <div
+                  className={`qvm-nav-item ${active ? 'on' : ''}`}
+                  style={{ '--nav-ic': item.color } as CSSProperties}
+                  onClick={() => handleNavClick(item)}
+                >
+                  {item.icon}
+                  <span className="qvm-nav-txt">{item.title}</span>
+                  {badge !== null && badge > 0 && (
+                    <span className={`qvm-nav-bdg ${item.badge === 'task' ? 'purple' : ''}`}>
+                      {badge}
+                    </span>
+                  )}
+                </div>
+              )
               return (
                 <div key={item.key}>
-                  <div
-                    className={`qvm-nav-item ${active ? 'on' : ''}`}
-                    onClick={() => handleNavClick(item)}
-                  >
-                    {item.icon}
-                    <span className="qvm-nav-txt">{item.title}</span>
-                    {badge !== null && badge > 0 && (
-                      <span className={`qvm-nav-bdg ${item.badge === 'task' ? 'purple' : ''}`}>
-                        {badge}
-                      </span>
-                    )}
-                  </div>
+                  {/* 折叠状态下仅剩图标，用 Tooltip 提示菜单名 */}
+                  {collapsed && !mobileOpen ? (
+                    <Tooltip content={item.title} position="right">
+                      {navNode}
+                    </Tooltip>
+                  ) : (
+                    navNode
+                  )}
                 </div>
               )
             })}

@@ -23,10 +23,6 @@ interface PageTabsState {
   openTab: (tab: PageTab) => void
   /** 关闭标签，返回关闭后应跳转的 path（若关闭的是当前页） */
   closeTab: (key: string, currentPath: string) => string | null
-  /** 关闭除 key 外的所有可关闭标签 */
-  closeOthers: (key: string) => void
-  /** 关闭所有可关闭标签，返回应跳转的 path */
-  closeAll: () => string
   /** 清空（退出登录时调用） */
   reset: () => void
 }
@@ -63,17 +59,6 @@ export const usePageTabsStore = create<PageTabsState>()((set, get) => ({
       return fallback.key
     }
     return null
-  },
-
-  closeOthers: (key) => {
-    set((state) => ({
-      tabs: state.tabs.filter((t) => t.pinned || t.key === key),
-    }))
-  },
-
-  closeAll: () => {
-    set({ tabs: [PINNED_TAB] })
-    return PINNED_TAB.key
   },
 
   reset: () => set({ tabs: [PINNED_TAB] }),

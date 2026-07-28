@@ -1,18 +1,18 @@
 /**
  * 主布局（深空极光版）
- * - 悬浮式侧边栏 + 顶部标签页栏 + 底部任务栏
+ * - 贴边侧边栏（可折叠） + 固定顶部导航栏（历史标签页） + 底部任务栏
  * - 登录后启动任务 SSE；路由变化时同步页面标签与浏览器标题
  */
 import { useEffect, useState } from 'react'
 import { Outlet, useLocation, useMatches } from 'react-router-dom'
 import { applyDocumentTitle } from '@/config/site'
 import { useUserStore } from '@/stores/user'
+import { useAppStore } from '@/stores/app'
 import { useTaskStore } from '@/stores/task'
 import { usePageTabsStore } from '@/stores/pageTabs'
 import Sidebar from './components/Sidebar'
-import PageTabsBar from './components/PageTabsBar'
+import TopBar from './components/TopBar'
 import TaskBar from './components/TaskBar'
-import { IconMenu } from '@douyinfe/semi-icons'
 import './layout.css'
 
 export default function MainLayout() {
@@ -22,6 +22,7 @@ export default function MainLayout() {
   const startSSE = useTaskStore((s) => s.startSSE)
   const stopSSE = useTaskStore((s) => s.stopSSE)
   const openTab = usePageTabsStore((s) => s.openTab)
+  const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed)
   const [mobileOpen, setMobileOpen] = useState(false)
 
   const currentTitle =
@@ -49,7 +50,7 @@ export default function MainLayout() {
   }, [location.pathname])
 
   return (
-    <div className="qvm-layout">
+    <div className={`qvm-layout ${sidebarCollapsed ? 'side-fold' : ''}`}>
       {/* 极光氛围背景 */}
       <div className="qvm-aurora" />
       <div className="qvm-grid-tex" />
@@ -57,14 +58,10 @@ export default function MainLayout() {
       <Sidebar mobileOpen={mobileOpen} onCloseMobile={() => setMobileOpen(false)} />
       {mobileOpen && <div className="qvm-sidebar-mask" onClick={() => setMobileOpen(false)} />}
 
+      {/* 顶部导航栏：与侧边栏贴边衔接，固定承载历史标签页 */}
+      <TopBar onOpenMobile={() => setMobileOpen(true)} />
+
       <main className="qvm-main">
-        {/* 移动端顶栏：菜单按钮（≤820px 显示） */}
-        <div className="qvm-mobile-bar">
-          <div className="qvm-tool-ic qvm-side-toggle" onClick={() => setMobileOpen(true)}>
-            <IconMenu />
-          </div>
-        </div>
-        <PageTabsBar />
         <Outlet />
       </main>
 

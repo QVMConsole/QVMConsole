@@ -1,11 +1,10 @@
 /**
- * 顶部页面标签页栏（多对象快速切换）
+ * 页面标签页栏（多对象快速切换，置于顶部导航栏内）
  * - 工作台为固定标签，其余标签随路由访问注册
- * - 支持关闭单个 / 关闭其他 / 关闭全部
+ * - 支持关闭单个标签
  */
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Dropdown } from '@douyinfe/semi-ui'
-import { IconGridRectangle, IconClose, IconChevronDown } from '@douyinfe/semi-icons'
+import { IconGridRectangle, IconClose } from '@douyinfe/semi-icons'
 import { usePageTabsStore } from '@/stores/pageTabs'
 
 export default function PageTabsBar() {
@@ -13,8 +12,6 @@ export default function PageTabsBar() {
   const location = useLocation()
   const tabs = usePageTabsStore((s) => s.tabs)
   const closeTab = usePageTabsStore((s) => s.closeTab)
-  const closeOthers = usePageTabsStore((s) => s.closeOthers)
-  const closeAll = usePageTabsStore((s) => s.closeAll)
 
   const handleTabClick = (key: string) => {
     if (key !== location.pathname) {
@@ -50,32 +47,6 @@ export default function PageTabsBar() {
           </div>
         )
       })}
-
-      {tabs.some((t) => !t.pinned) && (
-        <div className="qvm-tabs-ops">
-          <Dropdown
-            trigger="click"
-            position="bottomRight"
-            menu={[
-              {
-                node: 'item',
-                name: '关闭其他标签',
-                onClick: () => closeOthers(location.pathname),
-              },
-              {
-                node: 'item',
-                name: '关闭全部标签',
-                onClick: () => navigate(closeAll()),
-              },
-            ]}
-          >
-            <div className="qvm-tabs-ops-btn">
-              <IconChevronDown size="small" />
-              标签操作
-            </div>
-          </Dropdown>
-        </div>
-      )}
     </div>
   )
 }

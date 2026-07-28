@@ -15,6 +15,7 @@ export const STORAGE_KEYS = {
   security: 'security',
   theme: 'theme_mode',
   siteTitle: 'site_title',
+  sidebarCollapsed: 'sidebar_collapsed',
 } as const
 
 /** 云类型 */

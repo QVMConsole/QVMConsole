@@ -39,6 +39,13 @@ function normalizeSiteTitle(value: string | null | undefined): string {
   return normalized || DEFAULT_SITE_TITLE
 }
 
+/** 读取侧边栏折叠偏好：未记录时窄屏默认折叠 */
+function normalizeSidebarCollapsed(value: string | null): boolean {
+  if (value === '1') return true
+  if (value === '0') return false
+  return typeof window !== 'undefined' && window.innerWidth <= 1180
+}
+
 /** 将主题应用到 DOM（Semi Design 官方方案：body[theme-mode="dark"]） */
 export function applyThemeToDOM(mode: ThemeMode) {
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -53,7 +60,7 @@ export function applyThemeToDOM(mode: ThemeMode) {
 
 export const useAppStore = create<AppState>()((set) => ({
   themeMode: normalizeTheme(localStorage.getItem(STORAGE_KEYS.theme)),
-  sidebarCollapsed: false,
+  sidebarCollapsed: normalizeSidebarCollapsed(localStorage.getItem(STORAGE_KEYS.sidebarCollapsed)),
   siteTitle: normalizeSiteTitle(localStorage.getItem(STORAGE_KEYS.siteTitle)),
   passwordBreachCheckEnabled: true,
   spiceEnabledByDefault: false,
@@ -64,9 +71,17 @@ export const useAppStore = create<AppState>()((set) => ({
     set({ themeMode: mode })
   },
 
-  toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+  toggleSidebar: () =>
+    set((state) => {
+      const next = !state.sidebarCollapsed
+      localStorage.setItem(STORAGE_KEYS.sidebarCollapsed, next ? '1' : '0')
+      return { sidebarCollapsed: next }
+    }),
 
-  setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
+  setSidebarCollapsed: (collapsed) => {
+    localStorage.setItem(STORAGE_KEYS.sidebarCollapsed, collapsed ? '1' : '0')
+    set({ sidebarCollapsed: collapsed })
+  },
 
   setSiteTitle: (title) => {
     const normalized = normalizeSiteTitle(title)
