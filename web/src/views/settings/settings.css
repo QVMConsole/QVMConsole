@@ -1,0 +1,393 @@
+/**
+ * 系统设置页样式（深空极光，浅色优先 + 深色适配）
+ * 迁移自旧前端 views/settings/index.vue，改用 --qvm- 设计令牌
+ */
+
+.stg-page {
+  padding: 4px 2px 24px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ==================== 页头 ==================== */
+.stg-page-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+}
+.stg-page-sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--qvm-text-2);
+  max-width: 860px;
+  line-height: 1.6;
+}
+
+/* ==================== 区块卡片 ==================== */
+.stg-section-card {
+  border-radius: 14px;
+  background: var(--qvm-card-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--qvm-card-shadow);
+  border: 1px solid var(--qvm-stroke);
+  padding: 8px 16px 16px;
+}
+
+/* ==================== Tab 内容区 ==================== */
+.stg-tab-pane {
+  max-width: 760px;
+  padding: 8px 2px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.stg-tab-pane-wide {
+  max-width: 980px;
+}
+
+/* ==================== 分区标题 ==================== */
+.stg-section-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+}
+.stg-section-head:first-child {
+  margin-top: 0;
+}
+.stg-section-icon {
+  display: inline-flex;
+  color: var(--qvm-acc-ink);
+}
+.stg-section-line {
+  flex: 1;
+  height: 1px;
+  background: var(--qvm-stroke);
+}
+
+/* ==================== 表单行 ==================== */
+.stg-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.stg-row-label {
+  flex: none;
+  width: 150px;
+  padding-top: 6px;
+  font-size: 13.5px;
+  color: var(--qvm-text-1);
+  text-align: right;
+  line-height: 1.45;
+  word-break: break-word;
+}
+.stg-row-main {
+  flex: 1;
+  min-width: 0;
+}
+.stg-row-control {
+  width: 100%;
+}
+.stg-row-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  margin-top: 5px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--qvm-text-2);
+}
+.stg-row-tip .semi-icon {
+  margin-top: 3px;
+  flex: none;
+}
+
+/* 不带图标的普通提示文字 */
+.stg-plain-tip {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--qvm-text-2);
+}
+
+/* ==================== 通用布局 ==================== */
+.stg-range-inputs {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+.stg-range-sep {
+  color: var(--qvm-text-2);
+  flex: none;
+}
+.stg-inline-group {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+/* 数字参数字段网格（配合 NumField 使用，多列排版整齐） */
+.stg-field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+.stg-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--qvm-stroke);
+  border-radius: 10px;
+  background: var(--qvm-hover-bg);
+}
+.stg-field-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--qvm-text-1);
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+.stg-field-unit {
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--qvm-text-2);
+}
+.stg-field-tip {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--qvm-text-2);
+}
+.stg-banner {
+  border-radius: 10px;
+}
+
+/* ==================== 宿主机设置 ==================== */
+.stg-host-field {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+}
+.stg-host-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.stg-help-link {
+  font-size: 12.5px;
+  color: var(--qvm-acc-ink);
+  cursor: pointer;
+  user-select: none;
+}
+.stg-help-link:hover {
+  text-decoration: underline;
+}
+
+/* 挡位说明卡片网格 */
+.stg-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+  width: 100%;
+  margin-top: 8px;
+}
+.stg-profile-item {
+  min-height: 76px;
+  border: 1px solid var(--qvm-stroke);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--qvm-hover-bg);
+  transition: border-color 0.2s, background 0.2s;
+}
+.stg-profile-item.active {
+  border-color: var(--qvm-acc-stroke);
+  background: var(--qvm-acc-bg);
+}
+.stg-profile-item strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+  color: var(--qvm-text-0);
+}
+.stg-profile-item span {
+  display: block;
+  color: var(--qvm-text-1);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* 可直通设备列表 */
+.stg-device-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+.stg-device-item {
+  padding: 8px 10px;
+  border: 1px solid var(--qvm-stroke);
+  border-radius: 10px;
+  background: var(--qvm-hover-bg);
+}
+
+/* 帮助弹窗正文 */
+.stg-help-content {
+  color: var(--qvm-text-1);
+  font-size: 13.5px;
+  line-height: 1.7;
+}
+.stg-help-content p {
+  margin: 0 0 10px;
+}
+
+/* ==================== CPU 亲和性预设 ==================== */
+.stg-preset-manager {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.stg-preset-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.stg-preset-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+/* ==================== 日志管理 ==================== */
+.stg-log-table {
+  border: 1px solid var(--qvm-stroke);
+  border-radius: 10px;
+  padding: 4px 8px;
+  max-height: 380px;
+  overflow-y: auto;
+}
+.stg-log-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  word-break: break-all;
+}
+.stg-log-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.stg-export-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.stg-export-footer-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ==================== 诊断导出 ==================== */
+.stg-diag-toolbar {
+  margin-bottom: 8px;
+}
+.stg-diag-label {
+  font-weight: 500;
+  color: var(--qvm-text-0);
+}
+.stg-diag-desc {
+  margin-left: 8px;
+  font-size: 12px;
+  color: var(--qvm-text-2);
+}
+.stg-diag-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.stg-diag-exporting {
+  font-size: 12.5px;
+  color: var(--qvm-acc-ink);
+}
+
+/* ==================== 存储管理 ==================== */
+.stg-mono-text {
+  font-family: var(--qvm-num-font);
+  font-size: 13px;
+  color: var(--qvm-text-1);
+  line-height: 30px;
+}
+
+/* ==================== 底部操作区 ==================== */
+.stg-footer {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--qvm-stroke);
+}
+
+/* ==================== 无权限提示 ==================== */
+.stg-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--qvm-text-2);
+  font-size: 14px;
+}
+.stg-empty-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+/* ==================== TextSwitch（与 vm-form 保持一致） ==================== */
+.qvm-vf-text-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.qvm-vf-text-switch-label {
+  font-size: 12.5px;
+  color: var(--qvm-text-2);
+}
+.qvm-vf-text-switch-label.on {
+  color: var(--qvm-acc-ink);
+}
+
+/* ==================== 深色模式：大面积文字降对比 ==================== */
+body[theme-mode='dark'] .stg-page-header h2,
+body[theme-mode='dark'] .stg-section-head,
+body[theme-mode='dark'] .stg-profile-item strong,
+body[theme-mode='dark'] .stg-diag-label {
+  color: #b8c1cf;
+}
+
+/* ==================== 响应式 ==================== */
+@media (max-width: 720px) {
+  .stg-row {
+    flex-direction: column;
+    gap: 4px;
+  }
+  .stg-row-label {
+    width: auto;
+    text-align: left;
+    padding-top: 0;
+  }
+  .stg-field-grid {
+    grid-template-columns: 1fr;
+  }
+  .stg-section-card {
+    padding: 6px 10px 12px;
+  }
+}

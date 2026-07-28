@@ -28,6 +28,14 @@ export function formatMB(mb: number, digits = 1): string {
   return `${mb.toFixed(0)} MB`
 }
 
+/** 文件字节数格式化（B / KB / MB / GB / TB，适用于日志等小文件展示） */
+export function formatFileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
+  return `${parseFloat((bytes / 1024 ** i).toFixed(1))} ${units[i]}`
+}
+
 /** 解析 "20 GB" / "1.5 TB" 之类的容量文本为 GB 数值 */
 export function parseSizeToGB(text: string): number {
   if (!text) return 0
