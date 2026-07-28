@@ -64,7 +64,7 @@
 | P4 | **用户管理** | `/user/*` | 4 天 | [待分配] | ⬜ | 配额表单/轻量云注册状态机 |
 | P4 | **系统设置** | `/settings/*` | 5 天 | [待分配] | ✅ 已完成 | 8 个 Tab 深度配置，详见 docs/settings-page.md |
 | P5 | **防火墙/OVS** | `/firewall/*` / `/ovs/*` | 4 天 | [待分配] | 🟡 防火墙已完成 | 防火墙页已迁移（宿主机 UFW/KVM nftables/连接管理），详见 docs/firewall-page.md；OVS 诊断待迁移 |
-| P5 | **API 文档页** | 静态展示 | 1 天 | [待分配] | ⬜ | 从旧前端 docs.js 转换 |
+| P5 | **API 文档页** | 构建时自动生成 | 1 天 | [待分配] | ✅ 已完成 | 接口清单由 scripts/generate-api-endpoints.mjs 从后端源码自动解析（predev/prebuild 钩子），后端新增接口重新构建即同步；中文文案在 endpointDescriptions.ts 补充；含关于项目页；详见 docs/api-docs-page.md |
 
 > **里程碑建议**：
 > - Day 3：P0 认证 + Dashboard 完成并自测

@@ -79,8 +79,8 @@ export const ADMIN_NAV: NavGroup[] = [
   {
     group: '支持',
     items: [
-      { key: 'api-docs', title: 'API 文档', icon: <IconCodeStroked />, path: '/api-docs', coming: true },
-      { key: 'about', title: '关于项目', icon: <IconInfoCircle />, path: '/about', coming: true },
+      { key: 'api-docs', title: 'API 文档', icon: <IconCodeStroked />, path: '/api-docs' },
+      { key: 'about', title: '关于项目', icon: <IconInfoCircle />, path: '/about' },
     ],
   },
 ]
@@ -118,8 +118,8 @@ export const USER_NAV: NavGroup[] = [
   {
     group: '支持',
     items: [
-      { key: 'api-docs', title: 'API 文档', icon: <IconCodeStroked />, path: '/api-docs', coming: true },
-      { key: 'about', title: '关于项目', icon: <IconInfoCircle />, path: '/about', coming: true },
+      { key: 'api-docs', title: 'API 文档', icon: <IconCodeStroked />, path: '/api-docs' },
+      { key: 'about', title: '关于项目', icon: <IconInfoCircle />, path: '/about' },
     ],
   },
 ]

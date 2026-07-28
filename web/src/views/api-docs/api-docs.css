@@ -1,0 +1,182 @@
+/* API 文档页样式（浅色优先，深色通过 body[theme-mode='dark'] 覆盖降低对比度） */
+
+.api-docs-page {
+  padding: 4px 2px 24px;
+}
+
+.api-docs-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.api-docs-header h2 {
+  margin: 0 0 6px;
+  font-size: 18px;
+  color: var(--semi-color-text-0);
+}
+
+.api-docs-sub {
+  margin: 0;
+  font-size: 13px;
+  color: var(--semi-color-text-2);
+}
+
+.api-docs-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.api-doc-section {
+  margin-bottom: 16px;
+}
+
+.api-intro-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.api-intro-grid p,
+.api-group-desc {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--semi-color-text-1);
+}
+
+.api-filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.api-filter-input {
+  max-width: 420px;
+  flex: 1;
+  min-width: 220px;
+}
+
+.api-filter-select {
+  width: 220px;
+}
+
+.api-group-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.api-endpoint-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.api-method-tag {
+  min-width: 52px;
+  justify-content: center;
+}
+
+.api-endpoint-title code {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--semi-color-text-0);
+  word-break: break-all;
+}
+
+.api-endpoint-summary {
+  font-size: 13px;
+  color: var(--semi-color-text-2);
+}
+
+.api-endpoint-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 0 8px;
+}
+
+.api-header-list,
+.api-note-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.api-header-list code {
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  background: var(--semi-color-fill-0);
+  color: var(--semi-color-text-1);
+}
+
+.api-field-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.api-field-section h4 {
+  margin: 0;
+  font-size: 14px;
+  color: var(--semi-color-text-0);
+}
+
+.api-code-block {
+  margin: 0;
+  padding: 12px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  border-radius: 6px;
+  background: var(--semi-color-fill-0);
+  color: var(--semi-color-text-1);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.api-example-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+/* 深色模式：大面积文字降为柔和灰，避免高对比刺眼 */
+body[theme-mode='dark'] .api-docs-header h2,
+body[theme-mode='dark'] .api-endpoint-title code,
+body[theme-mode='dark'] .api-field-section h4 {
+  color: #b8c1cf;
+}
+
+body[theme-mode='dark'] .api-code-block {
+  color: #9aa4b2;
+}
+
+@media (max-width: 768px) {
+  .api-docs-header,
+  .api-docs-actions,
+  .api-example-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .api-intro-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .api-filter-input,
+  .api-filter-select {
+    max-width: none;
+    width: 100%;
+  }
+}

@@ -4,7 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "gen:api": "node scripts/generate-api-endpoints.mjs",
+    "predev": "npm run gen:api",
     "dev": "vite",
+    "prebuild": "npm run gen:api",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview"

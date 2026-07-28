@@ -19,6 +19,18 @@ export function getPublicSettings() {
   return service.get<unknown, ApiResponse<PublicSettings>>('/public/settings', { silent: true })
 }
 
+/** 面板版本信息（无需登录） */
+export interface PublicVersion {
+  version?: string
+  build_time?: string
+  site_title?: string
+}
+
+/** 获取面板版本信息 */
+export function getPublicVersion() {
+  return service.get<unknown, ApiResponse<PublicVersion>>('/public/version', { silent: true })
+}
+
 /** 系统设置（完整字段见设置页 types.ts，此处保持开放结构供各业务按需取用） */
 export interface SystemSettings {
   iso_dir?: string

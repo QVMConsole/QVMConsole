@@ -28,6 +28,8 @@ const UserPage = lazy(() => import('@/views/user'))
 const SchedulerPage = lazy(() => import('@/views/scheduler'))
 const TaskCenterPage = lazy(() => import('@/views/task'))
 const SettingsPage = lazy(() => import('@/views/settings'))
+const ApiDocsPage = lazy(() => import('@/views/api-docs'))
+const AboutPage = lazy(() => import('@/views/about'))
 
 /** 懒加载页面统一加载态 */
 function lazyPage(node: ReactNode) {
@@ -116,8 +118,18 @@ const mainChildren = [
     element: lazyPage(<SettingsPage />),
     handle: { title: '系统设置' },
   },
+  {
+    path: 'api-docs',
+    element: lazyPage(<ApiDocsPage />),
+    handle: { title: 'API 文档' },
+  },
+  {
+    path: 'about',
+    element: lazyPage(<AboutPage />),
+    handle: { title: '关于项目' },
+  },
   // TODO(重构迭代): 以下路由随各模块迁移逐步补齐
-  // nodes、api-docs、about
+  // nodes
   { path: '*', element: <NotFound />, handle: { title: '页面不存在' } },
 ] as const
 
