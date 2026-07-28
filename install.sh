@@ -21,8 +21,9 @@ INSTALL_DIR="/opt/kvm-console"
 SERVICE_NAME="kvm-console"
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 ENV_FILE="${INSTALL_DIR}/.env"
-GITHUB_REPO="yxsj245/kvm_console"
-GITHUB_API="https://api.github.com/repos/${GITHUB_REPO}/releases/latest"
+# 开源版官方下载源（按架构区分）
+DOWNLOAD_URL_AMD64="https://download.xiaozhuhouses.asia/download/v1/links/YsxWkWgFPiZFrc8I0r2F8SpdLbhBA_O7PMnD0TDS0wM"
+DOWNLOAD_URL_ARM64="https://download.xiaozhuhouses.asia/download/v1/links/SSr8OGj6KLbxHHKK746R_-CvpoFj1Skh9XIkjkNNzZ0"
 
 STORAGE_IMG="/var/lib/kvm-user-storage.img"
 STORAGE_MOUNT="/var/lib/kvm-user-storage"
@@ -1533,12 +1534,17 @@ get_release() {
         return
     fi
 
-    local local_tarball_name
+    # 按架构确定安装包名称与下载链接
+    local local_tarball_name download_url
     if [ "$ARCH" = "x86_64" ]; then
         local_tarball_name="kvm-console-linux-amd64.tar.gz"
+        download_url="$DOWNLOAD_URL_AMD64"
     elif [ "$ARCH" = "aarch64" ]; then
         local_tarball_name="kvm-console-linux-arm64.tar.gz"
+        download_url="$DOWNLOAD_URL_ARM64"
     fi
+
+    # 优先使用当前目录已有的本地发行包
     local local_tarball=""
     if [ -f "$(pwd)/${local_tarball_name}" ]; then
         local_tarball="$(pwd)/${local_tarball_name}"
@@ -1550,57 +1556,31 @@ get_release() {
         fi
     fi
 
-    echo ""
-    echo -e "  ${CYAN}1.${NC} 输入本地 tar.gz 文件路径"
-    echo -e "  ${CYAN}2.${NC} 从 GitHub Releases 下载最新版本"
-    echo ""
-    local install_choice
-    read -rp "请选择安装包来源 [1/2，默认 2]: " install_choice
-    install_choice=${install_choice:-2}
-
-    if [ "$install_choice" = "1" ]; then
-        local user_tarball
-        read -rp "请输入 tar.gz 文件完整路径: " user_tarball
-        user_tarball="${user_tarball/#\~/$HOME}"
-        if [ ! -f "$user_tarball" ]; then
-            error "文件不存在: $user_tarball"
+    # 未检测到本地安装包，从官方下载源自动下载
+    info "未检测到本地安装包，从官方下载源获取 ${local_tarball_name} (${ARCH})..."
+    TMP_RELEASE_DIR=$(mktemp -d)
+    local tarball_path="${TMP_RELEASE_DIR}/${local_tarball_name}"
+    if command -v wget >/dev/null 2>&1; then
+        if ! wget -O "$tarball_path" "$download_url"; then
+            error "下载安装包失败，请检查网络或手动下载后放置于当前目录: ${local_tarball_name}"
             exit 1
         fi
-        extract_tarball "$user_tarball"
-        return
+    else
+        if ! curl -fL --progress-bar -o "$tarball_path" "$download_url"; then
+            error "下载安装包失败，请检查网络或手动下载后放置于当前目录: ${local_tarball_name}"
+            exit 1
+        fi
     fi
-
-    info "从 GitHub 获取最新版本信息..."
-    local release_info
-    release_info=$(curl -fsSL "$GITHUB_API") || {
-        error "无法连接 GitHub API，请检查网络或使用离线发行包"
-        exit 1
-    }
-    local arch_suffix
-    if [ "$ARCH" = "x86_64" ]; then
-        arch_suffix="amd64"
-    elif [ "$ARCH" = "aarch64" ]; then
-        arch_suffix="arm64"
-    fi
-    local download_url
-    local tag_name
-    download_url=$(printf '%s' "$release_info" | awk -F'"' -v s="linux-${arch_suffix}.tar.gz" '/browser_download_url/ && $0 ~ s {print $4; exit}')
-    tag_name=$(printf '%s' "$release_info" | awk -F'"' '/tag_name/ {print $4; exit}')
-    if [ -z "$download_url" ]; then
-        error "未找到 linux-${arch_suffix}.tar.gz 发行包"
-        exit 1
-    fi
-
-    info "最新版本: ${tag_name:-unknown}"
-    TMP_RELEASE_DIR=$(mktemp -d)
-    curl -L --progress-bar -o "${TMP_RELEASE_DIR}/kvm-console-linux-amd64.tar.gz" "$download_url"
-    extract_tarball "${TMP_RELEASE_DIR}/kvm-console-linux-amd64.tar.gz"
+    extract_tarball "$tarball_path"
 }
 
 install_files() {
     if [ "$MODE" = "update" ]; then
         info "停止 ${APP_NAME} 服务..."
         systemctl stop "$SERVICE_NAME" 2>/dev/null || true
+        # 更新前先删除旧版前端所有资源，避免残留旧版静态文件
+        info "清理旧版前端资源..."
+        rm -rf "${INSTALL_DIR}/web-dist"
     fi
 
     mkdir -p "$INSTALL_DIR/data"
@@ -1898,6 +1878,7 @@ main() {
     echo ""
     echo -e "${CYAN}╔══════════════════════════════════════════════════╗${NC}"
     echo -e "${CYAN}║         ${APP_NAME} 安装 / 更新 / 卸载脚本        ║${NC}"
+    echo -e "${CYAN}║                     （开源版）                    ║${NC}"
     echo -e "${CYAN}╚══════════════════════════════════════════════════╝${NC}"
     echo ""
 
