@@ -7,9 +7,10 @@
  */
 import { Dropdown, Tooltip } from '@douyinfe/semi-ui'
 import { IconChevronRight, IconEditStroked, IconMore, IconStarStroked, IconWrenchStroked } from '@douyinfe/semi-icons'
-import type { HostStoragePoolInfo, VMDiskUsageInfo } from '@/api/storagePool'
+import type { HostStoragePoolInfo } from '@/api/storagePool'
 import { formatBytes } from '@/utils/format'
 import { usageColor, type FlatNode } from '../utils'
+import VMUsageSection from './VMUsageSection'
 
 /** 分区行操作回调 */
 export interface PartitionRowHandlers {
@@ -74,61 +75,6 @@ function getCapTextColor(usePercent = 0): string {
   if (usePercent >= 90) return 'var(--qvm-danger-ink)'
   if (usePercent >= 70) return 'var(--qvm-warn-ink)'
   return 'var(--qvm-acc-ink)'
-}
-
-/** VM 占用展示组件 */
-function VMUsageSection({ node }: { node: FlatNode }) {
-  const vmList = node.vm_usage_list || []
-  if (vmList.length === 0) return null
-
-  const totalVirtual = node.vm_total_virtual || 0
-  const totalActual = node.vm_total_actual || 0
-  const nodeSize = node.size || 1
-  const virtualPercent = totalVirtual > 0 ? Math.round((totalActual / totalVirtual) * 100) : 0
-
-  return (
-    <div className="sp-vm-usage">
-      <div className="sp-vm-header">
-        <span className="sp-vm-title">虚拟机占用</span>
-        <span className="sp-vm-summary">
-          共 {vmList.length} 台 · 实际占用 {formatBytes(totalActual)} / 虚拟总配 {formatBytes(totalVirtual)}
-        </span>
-      </div>
-
-      {/* 总占用进度条：实际占用 vs 虚拟配置 */}
-      <div className="sp-vm-progress">
-        <div className="sp-vm-bar-bg">
-          <div
-            className="sp-vm-bar-fill"
-            style={{
-              width: `${virtualPercent}%`,
-              background: virtualPercent >= 90 ? '#fb7185' : virtualPercent >= 70 ? '#f59e0b' : '#2dd4bf',
-            }}
-          />
-        </div>
-        <div className="sp-vm-bar-text">
-          <span>实际占用率 {virtualPercent}%</span>
-          <span className="sp-mono">
-            {formatBytes(totalActual)} / {formatBytes(totalVirtual)}
-          </span>
-        </div>
-      </div>
-
-      {/* VM 列表 */}
-      <div className="sp-vm-list">
-        {vmList.map((vm) => (
-          <div key={vm.name} className="sp-vm-item">
-            <span className="sp-vm-name">{vm.name}</span>
-            <span className="sp-vm-size">
-              <span className="sp-mono">{formatBytes(vm.actual_size)}</span>
-              <span className="sp-vm-sep">/</span>
-              <span className="sp-vm-virtual sp-mono">{formatBytes(vm.virtual_size)}</span>
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
 }
 
 export default function PartitionRow({ node, handlers }: PartitionRowProps) {
@@ -196,8 +142,8 @@ export default function PartitionRow({ node, handlers }: PartitionRowProps) {
         </div>
       )}
 
-      {/* VM 占用展示（仅存储池分区显示） */}
-      {isStoragePool && <VMUsageSection node={node} />}
+      {/* VM 占用展示：存储池分区，或存在 VM 磁盘的已挂载分区均显示 */}
+      {(isStoragePool || (node.vm_usage_list?.length ?? 0) > 0) && <VMUsageSection node={node} />}
 
       {/* 行内操作：PV 无操作 */}
       {!isPV && (

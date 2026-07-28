@@ -351,7 +351,7 @@ func defaultVMCacheBuildRecordFromHost(name string, syncedAt time.Time) (model.V
 	}
 
 	diskInfo := GetVMDiskInfo(name)
-	record.DiskSizeText = diskInfo.Size
+	record.DiskSizeText = diskInfo.TotalSizeText()
 	record.Template = diskInfo.Template
 
 	netInfo := GetVMNetworkInfo(name)

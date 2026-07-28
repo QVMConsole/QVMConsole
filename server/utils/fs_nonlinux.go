@@ -14,6 +14,11 @@ func GetDiskSpace(path string) (total, used, available int64, err error) {
 	return 0, 0, 0, fmt.Errorf("GetDiskSpace is only supported on Linux")
 }
 
+// GetAllMountedDiskSpace stub for non-linux platforms.
+func GetAllMountedDiskSpace() (total, used, available int64, err error) {
+	return 0, 0, 0, fmt.Errorf("GetAllMountedDiskSpace is only supported on Linux")
+}
+
 // GetFileCreateTime stub for non-linux platforms.
 func GetFileCreateTime(path string) int64 {
 	return 0

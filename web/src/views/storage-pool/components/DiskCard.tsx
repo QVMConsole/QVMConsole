@@ -29,6 +29,7 @@ import {
   poolTypeLabel,
 } from '../utils'
 import PartitionRow, { type PartitionRowHandlers } from './PartitionRow'
+import VMUsageSection from './VMUsageSection'
 
 /** 磁盘卡操作回调（分区级操作复用 PartitionRowHandlers） */
 export interface DiskCardHandlers extends PartitionRowHandlers {
@@ -287,13 +288,14 @@ export default function DiskCard({ disk, collapsed, onToggle, handlers }: DiskCa
   const unallocatedSize = Math.max(disk.size - (disk.children || []).reduce((sum, c) => sum + (c.size || 0), 0), 0)
 
   // 收集所有子分区的 VM 统计（用于 SpaceBar 显示虚拟总量进度条）
+  // 初始值含磁盘节点自身：整盘挂载（无子分区）时 VM 占用数据挂在磁盘节点上
   const allVMStats = flatNodes.reduce(
     (acc, node) => {
       if (node.vm_total_virtual) acc.vmTotalVirtual += node.vm_total_virtual
       if (node.vm_total_actual) acc.vmTotalActual += node.vm_total_actual
       return acc
     },
-    { vmTotalVirtual: 0, vmTotalActual: 0 }
+    { vmTotalVirtual: disk.vm_total_virtual || 0, vmTotalActual: disk.vm_total_actual || 0 }
   )
 
   // 判断是否为待初始化盘（全新盘或历史数据盘）
@@ -438,6 +440,12 @@ export default function DiskCard({ disk, collapsed, onToggle, handlers }: DiskCa
         vmTotalVirtual={allVMStats.vmTotalVirtual}
         vmTotalActual={allVMStats.vmTotalActual}
       />
+
+      {/* ==================== 磁盘级 VM 占用 ==================== */}
+      {/* 整盘挂载（无子分区）时数据在磁盘节点本身；常驻显示（无子分区的盘默认折叠且无展开入口），点击标题行展开明细 */}
+      <div className="sp-dc-vm">
+        <VMUsageSection node={disk} />
+      </div>
 
       {/* ==================== 初始化引导区（待初始化盘）==================== */}
       {isPending && (

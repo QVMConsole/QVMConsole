@@ -707,6 +707,7 @@ func GetInterfaceParametersRPC(name string, device string, flags uint32) ([]libv
 type DiskBlockInfo struct {
 	Target string // 设备名（如 vda, vdb）
 	Source string // 磁盘文件路径
+	Device string // 设备类型（disk/cdrom/floppy/lun），空表示未声明
 }
 
 // ParseDisksFromDomainXML 从域 XML 中解析所有磁盘块设备（替代 virsh domblklist）
@@ -723,6 +724,13 @@ func ParseDisksFromDomainXML(xmlStr string) []DiskBlockInfo {
 			inDisk = true
 			inBackingStore = 0
 			current = DiskBlockInfo{}
+			// 提取 device 属性（如 device='cdrom'），便于调用方过滤非磁盘设备
+			if strings.Contains(trimmed, "device='") {
+				parts := strings.Split(trimmed, "device='")
+				if len(parts) > 1 {
+					current.Device = strings.Split(parts[1], "'")[0]
+				}
+			}
 		}
 		if inDisk {
 			// 跟踪 backingStore 嵌套，防止 backing file 路径覆盖主磁盘路径

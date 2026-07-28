@@ -296,6 +296,10 @@ body[theme-mode='dark'] { --seg-gap: rgba(7, 11, 20, 0.9); }
 .sp-cap-text b.danger { color: var(--qvm-danger-ink); }
 
 /* ===== VM 占用展示 ===== */
+/* 磁盘卡片内的磁盘级 VM 占用容器（常驻显示，与卡片内容左右对齐） */
+.sp-dc-vm { padding: 0 18px 12px; }
+.sp-dc-vm:empty { display: none; }
+
 .sp-vm-usage {
   margin-top: 12px;
   padding: 10px 12px;
@@ -305,11 +309,21 @@ body[theme-mode='dark'] { --seg-gap: rgba(7, 11, 20, 0.9); }
 }
 .sp-vm-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 6px;
+  width: 100%;
   margin-bottom: 8px;
   font-size: 12px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
 }
+.sp-vm-header:last-child { margin-bottom: 0; }
+.sp-vm-header .sp-vm-summary { margin-left: auto; }
+.sp-vm-chevron { color: var(--qvm-text-2); flex: none; transition: transform 0.16s; }
+.sp-vm-header.open .sp-vm-chevron { transform: rotate(90deg); }
 .sp-vm-title {
   font-weight: 600;
   color: var(--qvm-text-1);

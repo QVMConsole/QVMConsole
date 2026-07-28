@@ -63,7 +63,7 @@ func GetVM(name string) (*VmDetail, error) {
 	// 磁盘
 	diskInfo := GetVMDiskInfo(name)
 	vm.DiskPath = diskInfo.Path
-	vm.DiskSize = diskInfo.Size
+	vm.DiskSize = diskInfo.TotalSizeText()
 	vm.Template = diskInfo.Template
 
 	// 检查系统盘完整性（仅检查第一块非 cdrom 磁盘）
@@ -223,32 +223,49 @@ func GetVMDiskInfo(name string) DiskInfoResult {
 
 	disks := libvirt_rpc.ParseDisksFromDomainXML(xmlStr)
 	for _, disk := range disks {
-		if disk.Source != "" && disk.Source != "-" {
+		// 跳过光驱/软盘等非磁盘设备（ISO 不计入容量统计）
+		if disk.Device != "" && disk.Device != "disk" {
+			continue
+		}
+		if disk.Source == "" || disk.Source == "-" {
+			continue
+		}
+
+		isFirstDisk := info.Path == ""
+		if isFirstDisk {
 			info.Device = disk.Target
 			info.Path = disk.Source
-			break
+		}
+
+		// 获取磁盘配置容量（默认展示虚拟机设置大小，而非实际占用）
+		qemuInfoResult := utils.ExecShell(fmt.Sprintf("qemu-img info --output=json -U %s 2>/dev/null", utils.ShellSingleQuote(disk.Source)))
+		if qemuInfoResult.Error != nil {
+			continue
+		}
+
+		// 累计所有磁盘的虚拟配置/实际占用总大小（含存放在其他存储池盘上的额外磁盘）
+		info.TotalVirtualSize += parseQemuVirtualSizeBytes(qemuInfoResult.Stdout)
+		info.TotalActualSize += parseQemuActualSizeBytes(qemuInfoResult.Stdout)
+
+		// 第一块盘：填充展示字段（容量文本/模板来源）
+		if isFirstDisk {
+			info.Size = D.ParseQemuInfoGB(qemuInfoResult.Stdout, "virtual-size")
+			if info.Size != "-" && info.Size != "" {
+				info.Size += " GB"
+			}
+			info.ActualSize = parseQemuActualSizeBytes(qemuInfoResult.Stdout)
+			backing := strings.TrimSpace(D.ParseQemuInfoStr(qemuInfoResult.Stdout, "backing-filename"))
+			if backing != "" {
+				parts := strings.Split(backing, "/")
+				templateFile := parts[len(parts)-1]
+				info.Template = strings.TrimSuffix(templateFile, ".qcow2")
+				info.HasBackingFile = true
+			}
 		}
 	}
 
 	if info.Path == "" {
 		return info
-	}
-
-	// 获取磁盘配置容量（默认展示虚拟机设置大小，而非实际占用）
-	qemuInfoResult := utils.ExecShell(fmt.Sprintf("qemu-img info --output=json -U %s 2>/dev/null", utils.ShellSingleQuote(info.Path)))
-	if qemuInfoResult.Error == nil {
-		info.Size = D.ParseQemuInfoGB(qemuInfoResult.Stdout, "virtual-size")
-		if info.Size != "-" && info.Size != "" {
-			info.Size += " GB"
-		}
-		info.ActualSize = parseQemuActualSizeBytes(qemuInfoResult.Stdout)
-		backing := strings.TrimSpace(D.ParseQemuInfoStr(qemuInfoResult.Stdout, "backing-filename"))
-		if backing != "" {
-			parts := strings.Split(backing, "/")
-			templateFile := parts[len(parts)-1]
-			info.Template = strings.TrimSuffix(templateFile, ".qcow2")
-			info.HasBackingFile = true
-		}
 	}
 
 	// 获取 backing file（模板来源）
@@ -266,6 +283,15 @@ func GetVMDiskInfo(name string) DiskInfoResult {
 	}
 
 	return info
+}
+
+// TotalSizeText 返回所有磁盘虚拟配置总大小的展示文本（无数据时回退第一块盘文本）。
+// 输出格式与 ParseQemuInfoGB 一致（"%.2f GB"），前端 parseSizeToGB 可直接解析。
+func (info DiskInfoResult) TotalSizeText() string {
+	if info.TotalVirtualSize > 0 {
+		return fmt.Sprintf("%.2f GB", float64(info.TotalVirtualSize)/1024/1024/1024)
+	}
+	return info.Size
 }
 
 // GetVMNetworkInfo 获取虚拟机网络信息

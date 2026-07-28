@@ -2,6 +2,7 @@ package vm
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -16,7 +17,7 @@ import (
 // 由于遍历所有虚拟机并执行 qemu-img info 较为耗时，
 // 采用内存缓存 + 异步刷新策略，避免阻塞宿主机状态采集（SSE 每 5 秒推送一次）。
 var (
-	vmDiskActualCache      int64     // 所有虚拟机第一块磁盘的实际占用总和（字节）
+	vmDiskActualCache      int64     // 所有虚拟机全部磁盘的实际占用总和（字节）
 	vmDiskActualCacheTime  time.Time // 上次刷新时间
 	vmDiskActualCacheMu    sync.RWMutex
 	vmDiskActualRefreshing bool
@@ -72,8 +73,9 @@ func refreshVMActualDiskUsageAsync() {
 	}()
 }
 
-// calculateTotalVMActualDiskUsage 遍历所有虚拟机，累加每台虚拟机第一块磁盘的实际占用（字节）。
-// 通过 GetVMDiskInfo 获取磁盘路径和 ActualSize（由 qemu-img info 解析）。
+// calculateTotalVMActualDiskUsage 遍历所有虚拟机，累加每台虚拟机全部磁盘的实际占用（字节）。
+// 复用 libvirt_rpc.ParseDisksFromDomainXML 解析所有磁盘（跳过光驱/软盘），
+// 每块盘通过 qemu-img info 解析 actual-size，涵盖存放在其他存储池盘上的额外磁盘。
 func calculateTotalVMActualDiskUsage() int64 {
 	domains, err := libvirt_rpc.ListAllDomainsRPC()
 	if err != nil {
@@ -87,23 +89,35 @@ func calculateTotalVMActualDiskUsage() int64 {
 		if name == "" {
 			continue
 		}
-		diskInfo := GetVMDiskInfo(name)
-		if diskInfo.Path == "" {
+		xmlStr, err := libvirt_rpc.GetDomainXMLRPC(name, 0)
+		if err != nil {
 			continue
 		}
-		total += diskInfo.ActualSize
+		for _, disk := range libvirt_rpc.ParseDisksFromDomainXML(xmlStr) {
+			// 跳过光驱/软盘等非磁盘设备（ISO 不计入占用）
+			if disk.Device != "" && disk.Device != "disk" {
+				continue
+			}
+			if disk.Source == "" || disk.Source == "-" {
+				continue
+			}
+			qemuInfoResult := utils.ExecShell(fmt.Sprintf("qemu-img info --output=json -U %s 2>/dev/null", utils.ShellSingleQuote(disk.Source)))
+			if qemuInfoResult.Error != nil {
+				continue
+			}
+			total += parseQemuActualSizeBytes(qemuInfoResult.Stdout)
+		}
 	}
 	return total
 }
 
-// parseQemuActualSizeBytes 从 qemu-img info --output=json 的输出中解析 actual-size 字段（字节）。
-// actual-size 表示 qcow2 文件在宿主机上实际分配的数据量（稀疏文件场景下通常小于 virtual-size）。
-func parseQemuActualSizeBytes(output string) int64 {
+// parseQemuSizeBytes 从 qemu-img info --output=json 的输出中解析指定大小字段（字节）。
+func parseQemuSizeBytes(output, key string) int64 {
 	var data map[string]json.RawMessage
 	if err := json.Unmarshal([]byte(output), &data); err != nil {
 		return 0
 	}
-	raw, ok := data["actual-size"]
+	raw, ok := data[key]
 	if !ok {
 		return 0
 	}
@@ -112,4 +126,16 @@ func parseQemuActualSizeBytes(output string) int64 {
 		return 0
 	}
 	return val
+}
+
+// parseQemuActualSizeBytes 从 qemu-img info --output=json 的输出中解析 actual-size 字段（字节）。
+// actual-size 表示 qcow2 文件在宿主机上实际分配的数据量（稀疏文件场景下通常小于 virtual-size）。
+func parseQemuActualSizeBytes(output string) int64 {
+	return parseQemuSizeBytes(output, "actual-size")
+}
+
+// parseQemuVirtualSizeBytes 从 qemu-img info --output=json 的输出中解析 virtual-size 字段（字节）。
+// virtual-size 表示磁盘的虚拟配置容量（虚拟机内看到的盘大小）。
+func parseQemuVirtualSizeBytes(output string) int64 {
+	return parseQemuSizeBytes(output, "virtual-size")
 }

@@ -226,12 +226,14 @@ type domainGraphics struct {
 
 // DiskInfoResult holds VM disk info for cross-package use
 type DiskInfoResult struct {
-	Device         string
-	Path           string
-	Size           string
-	ActualSize     int64 // 实际磁盘占用（字节）
-	Template       string
-	HasBackingFile bool
+	Device           string
+	Path             string
+	Size             string
+	ActualSize       int64 // 实际磁盘占用（字节，第一块盘）
+	TotalVirtualSize int64 // 所有磁盘虚拟配置总大小（字节）
+	TotalActualSize  int64 // 所有磁盘实际占用总大小（字节）
+	Template         string
+	HasBackingFile   bool
 }
 
 // NetInfoResult holds VM network info for cross-package use

@@ -244,8 +244,13 @@ func GetHostStats() (*HostStats, error) {
 		stats.DiskIOLatencyMs, _ = strconv.ParseFloat(strings.TrimSpace(ioLatencyResult.Stdout), 64)
 	}
 
-	// 磁盘信息（根分区）
-	if total, used, available, err := utils.GetDiskSpace("/"); err == nil {
+	// 磁盘信息（全部已挂载的本地文件系统，按源设备去重累加，涵盖存储池盘）
+	if total, used, available, err := utils.GetAllMountedDiskSpace(); err == nil {
+		stats.DiskTotal = total
+		stats.DiskUsed = used
+		stats.DiskFree = available
+	} else if total, used, available, err := utils.GetDiskSpace("/"); err == nil {
+		// 兜底：全量统计失败时退回根分区口径
 		stats.DiskTotal = total
 		stats.DiskUsed = used
 		stats.DiskFree = available

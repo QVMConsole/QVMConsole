@@ -67,6 +67,46 @@ func GetDiskSpace(path string) (total, used, available int64, err error) {
 	return total, used, available, nil
 }
 
+// GetAllMountedDiskSpace 统计所有已挂载本地文件系统的空间总和（kB）。
+// 口径：df 中源设备以 /dev/ 开头（排除 tmpfs/overlay/网络存储等虚拟文件系统），
+// 排除 loop 设备（snap 镜像 / ISO 挂载等），同一源设备多处挂载（bind mount、
+// btrfs 子卷）只统计一次，避免重复计算。
+func GetAllMountedDiskSpace() (total, used, available int64, err error) {
+	result := ExecCommand("df", "-B1", "--output=source,size,used,avail,target")
+	if result.Error != nil {
+		return 0, 0, 0, fmt.Errorf("读取磁盘空间失败: %s", result.Stderr)
+	}
+
+	seen := make(map[string]bool)
+	for i, line := range strings.Split(result.Stdout, "\n") {
+		line = strings.TrimSpace(line)
+		if i == 0 || line == "" {
+			continue // 跳过表头与空行
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 5 {
+			continue
+		}
+		source := fields[0]
+		if !strings.HasPrefix(source, "/dev/") || strings.HasPrefix(source, "/dev/loop") {
+			continue
+		}
+		if seen[source] {
+			continue
+		}
+		seen[source] = true
+
+		size, _ := strconv.ParseInt(fields[1], 10, 64)
+		usedBytes, _ := strconv.ParseInt(fields[2], 10, 64)
+		avail, _ := strconv.ParseInt(fields[3], 10, 64)
+		total += size / 1024
+		used += usedBytes / 1024
+		available += avail / 1024
+	}
+
+	return total, used, available, nil
+}
+
 // GetFileCreateTime 获取文件的创建时间（从 stat 的 Ctim 字段获取，若为 0 则回退到 Mtim）
 // 返回 Unix 秒数，如果获取失败返回 0
 func GetFileCreateTime(path string) int64 {
