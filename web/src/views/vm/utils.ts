@@ -27,6 +27,12 @@ export function isVmMigrating(vm?: VmListItem | null): boolean {
   return vm?.status === 'migrating'
 }
 
+/** 判断点击目标是否属于列表中的选择或行内操作控件。 */
+export function shouldOpenVmDetail(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return true
+  return !target.closest('.semi-checkbox, .qvm-act-cell')
+}
+
 /** 内存 MB → 可读文本 */
 export function formatMemoryMB(memory: number): string {
   if (!Number.isFinite(memory) || memory <= 0) return '-'

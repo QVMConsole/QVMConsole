@@ -174,3 +174,7 @@ web/src/features/vm-form/
 - 右侧常驻配置预览面板未迁移，改为向导最后一步「确认信息」整页摘要
 - 轻量云登记模式（registrationMode）仅预留接口（`registration` / `onDraft`），待用户管理页迁移时启用
 - 高级选项提醒遮罩的 localStorage key 简化为按站点记忆（`vm-advanced-settings-intro-seen`）
+
+## 8. 存储位置过滤
+
+`GET /storage-pool/vm-targets` 会统一过滤块设备只读、实际挂载目录以 `ro` 方式挂载，以及独立挂载到 `/boot` 或 `/boot/efi` 的存储位置。创建向导的「虚拟机硬盘」及复用该选项列表的磁盘目标下拉框均不会展示这类目录，避免创建时写入失败或误选启动分区。

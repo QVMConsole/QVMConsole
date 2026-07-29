@@ -241,6 +241,9 @@
 .qvm-vm-table .semi-table-tbody > .semi-table-row {
   background: transparent;
 }
+.qvm-vm-table .semi-table-tbody > .qvm-vm-table-row-clickable {
+  cursor: pointer;
+}
 .qvm-vm-table .semi-table-tbody > .semi-table-row > .semi-table-row-cell {
   border-bottom: 1px solid var(--qvm-stroke);
   color: var(--qvm-text-1);
@@ -288,16 +291,6 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-/* 名称可点击跳转详情页 */
-.qvm-vm-name-link {
-  cursor: pointer;
-  transition: color 0.15s;
-}
-.qvm-vm-name-link:hover {
-  color: var(--qvm-acc-ink);
-  text-decoration: underline;
-  text-underline-offset: 3px;
 }
 .qvm-vm-badge.lock {
   color: var(--qvm-warn);
@@ -510,6 +503,9 @@
 .qvm-vcard.selected {
   border-color: var(--qvm-acc-stroke);
   background: var(--qvm-acc-bg);
+}
+.qvm-vcard-clickable {
+  cursor: pointer;
 }
 .qvm-vcard-head {
   display: flex;

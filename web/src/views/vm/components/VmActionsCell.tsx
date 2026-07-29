@@ -78,7 +78,7 @@ export default function VmActionsCell({
         : { icon: <IconPlayCircle />, tip: '开机', action: 'start' as VmPowerAction }
 
   return (
-    <div className="qvm-act-cell">
+    <div className="qvm-act-cell" onClick={(event) => event.stopPropagation()}>
       <Tooltip content="控制台" position="top">
         <span
           className={`qvm-act-ic vnc ${running ? '' : 'disabled'}`}

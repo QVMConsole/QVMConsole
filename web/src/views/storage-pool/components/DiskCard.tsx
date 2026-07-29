@@ -302,6 +302,7 @@ export default function DiskCard({ disk, collapsed, onToggle, handlers }: DiskCa
   const isPending = category === 'pending'
   const isNewDisk = isPending && !disk.has_existing_data
   const hasUnallocatedSpace = unallocatedSize > 0
+  const hasPartitionDetails = isVG || flatNodes.length > 0
 
   // 卡片样式类
   const cardClasses = ['sp-disk-card']
@@ -489,9 +490,14 @@ export default function DiskCard({ disk, collapsed, onToggle, handlers }: DiskCa
       )}
 
       {/* ==================== 分区区块 ==================== */}
-      {!collapsed && (
+      {hasPartitionDetails && (
         <div className="sp-dc-parts">
-          <button className={`sp-parts-toggle ${!collapsed ? 'open' : ''}`} onClick={() => onToggle(disk.id)}>
+          <button
+            className={`sp-parts-toggle ${!collapsed ? 'open' : ''}`}
+            type="button"
+            aria-expanded={!collapsed}
+            onClick={() => onToggle(disk.id)}
+          >
             <IconChevronRight />
             分区 <span className="cnt">{(flatNodes.filter((n) => n.type === 'part').length || 0)}</span>
             {isPending && hasUnallocatedSpace && (
@@ -500,41 +506,37 @@ export default function DiskCard({ disk, collapsed, onToggle, handlers }: DiskCa
               </span>
             )}
           </button>
-          <div className="sp-parts-body">
-            {isVG ? (
-              <>
-                {hasPVChildren(disk) && (
-                  <div className="sp-vg-sec-title">
-                    <IconBox size="small" />
-                    物理卷 (PV)
-                  </div>
-                )}
-                {pvNodes.map((node) => (
-                  <PartitionRow key={node.id} node={node} handlers={handlers} />
-                ))}
-                {hasLVChildren(disk) && (
-                  <div className="sp-vg-sec-title">
-                    <IconLayers size="small" />
-                    逻辑卷 (LV)
-                  </div>
-                )}
-                {lvNodes.map((node) => (
-                  <PartitionRow key={node.id} node={node} handlers={handlers} />
-                ))}
-                {!hasPVChildren(disk) && !hasLVChildren(disk) && (
-                  <div className="sp-empty-sm">无卷信息</div>
-                )}
-              </>
-            ) : (
-              <>
-                {flatNodes.length > 0 ? (
-                  flatNodes.map((node) => <PartitionRow key={node.id} node={node} handlers={handlers} />)
-                ) : (
-                  <div className="sp-empty-sm">无分区信息</div>
-                )}
-              </>
-            )}
-          </div>
+          {!collapsed && (
+            <div className="sp-parts-body">
+              {isVG ? (
+                <>
+                  {hasPVChildren(disk) && (
+                    <div className="sp-vg-sec-title">
+                      <IconBox size="small" />
+                      物理卷 (PV)
+                    </div>
+                  )}
+                  {pvNodes.map((node) => (
+                    <PartitionRow key={node.id} node={node} handlers={handlers} />
+                  ))}
+                  {hasLVChildren(disk) && (
+                    <div className="sp-vg-sec-title">
+                      <IconLayers size="small" />
+                      逻辑卷 (LV)
+                    </div>
+                  )}
+                  {lvNodes.map((node) => (
+                    <PartitionRow key={node.id} node={node} handlers={handlers} />
+                  ))}
+                  {!hasPVChildren(disk) && !hasLVChildren(disk) && (
+                    <div className="sp-empty-sm">无卷信息</div>
+                  )}
+                </>
+              ) : (
+                flatNodes.map((node) => <PartitionRow key={node.id} node={node} handlers={handlers} />)
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

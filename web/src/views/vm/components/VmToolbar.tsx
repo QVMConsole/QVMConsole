@@ -83,7 +83,7 @@ export default function VmToolbar({
             disabled={disabled}
             loading={batchOperating}
           >
-            批量电源
+            批量操作
             <IconChevronDown size="small" style={{ marginLeft: 2 }} />
           </Button>
         </Dropdown>

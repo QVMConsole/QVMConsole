@@ -12,6 +12,7 @@ import VmStatusIcon from './VmStatusIcon'
 import VmResourceBars from './VmResourceBars'
 import VmIpCell from './VmIpCell'
 import VmActionsCell, { type VmMenuCommand } from './VmActionsCell'
+import { shouldOpenVmDetail } from '../utils'
 
 interface VmCardViewProps {
   vms: VmListItem[]
@@ -23,7 +24,7 @@ interface VmCardViewProps {
   onPower: (vm: VmListItem, action: VmPowerAction) => void
   onMenu: (cmd: VmMenuCommand, vm: VmListItem) => void
   onConsole: (vm: VmListItem) => void
-  /** 点击虚拟机名称跳转详情页 */
+  /** 点击虚拟机卡片跳转详情页 */
   onOpenDetail: (vm: VmListItem) => void
 }
 
@@ -57,8 +58,11 @@ export default function VmCardView({
       {vms.map((vm, index) => (
         <div
           key={vm.name}
-          className={`qvm-vcard qvm-fade-up ${selectedKeys.includes(vm.name) ? 'selected' : ''}`}
+          className={`qvm-vcard qvm-vcard-clickable qvm-fade-up ${selectedKeys.includes(vm.name) ? 'selected' : ''}`}
           style={{ '--qvm-delay': `${Math.min(index, 12) * 40}ms` } as React.CSSProperties}
+          onClick={(event) => {
+            if (shouldOpenVmDetail(event.target)) onOpenDetail(vm)
+          }}
         >
           <div className="qvm-vcard-head">
             <Checkbox
@@ -70,11 +74,7 @@ export default function VmCardView({
               <IconDesktop size="small" />
             </div>
             <div className="qvm-vcard-title">
-              <span
-                className="qvm-vm-name-text qvm-vm-name-link"
-                title={vm.name}
-                onClick={() => onOpenDetail(vm)}
-              >
+              <span className="qvm-vm-name-text" title={vm.name}>
                 {vm.name}
               </span>
               <span className="qvm-vcard-badges">

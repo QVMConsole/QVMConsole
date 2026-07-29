@@ -72,6 +72,11 @@ func buildStoragePoolNode(dev lsblkDevice, mounts map[string]findmntInfo, dfUsag
 			node.VMDir = cloneDir
 		}
 	}
+	// lsblk 的 RO 仅反映块设备状态；挂载目录也可能通过 mount 选项以只读方式提供。
+	// 虚拟机磁盘会写入 VMDir，因此需以实际落盘目录所在挂载点的选项为准。
+	if isMountReadonly(node.VMDir, mounts) {
+		node.Readonly = true
+	}
 	applyUsage(&node, mounts, dfUsage)
 
 	for _, child := range dev.Children {
@@ -183,7 +188,43 @@ func canUseStorageNode(node HostStoragePoolInfo) bool {
 	if node.Readonly || node.Type == "rom" || node.Type == "loop" {
 		return false
 	}
+	if isBootStorageNode(node) {
+		return false
+	}
 	return node.MountPath != "" && len(node.Mountpoints) > 0
+}
+
+// isBootStorageNode 判断节点是否为独立挂载的系统启动分区。
+// 启动分区容量通常很小，不应作为虚拟机磁盘的落盘位置。
+func isBootStorageNode(node HostStoragePoolInfo) bool {
+	for _, mountPath := range node.Mountpoints {
+		switch filepath.Clean(mountPath) {
+		case "/boot", "/boot/efi":
+			return true
+		}
+	}
+	return false
+}
+
+// isMountReadonly 判断路径所在最深挂载点是否以只读模式挂载。
+func isMountReadonly(pathValue string, mounts map[string]findmntInfo) bool {
+	var matched findmntInfo
+	matchedPath := ""
+	for mountPath, info := range mounts {
+		if isPathUnderMount(pathValue, mountPath) && len(mountPath) > len(matchedPath) {
+			matchedPath = mountPath
+			matched = info
+		}
+	}
+	if matchedPath == "" {
+		return false
+	}
+	for _, option := range strings.Split(matched.Options, ",") {
+		if strings.TrimSpace(option) == "ro" {
+			return true
+		}
+	}
+	return false
 }
 
 func validateFormatTarget(pool HostStoragePoolInfo) error {
