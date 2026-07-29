@@ -14,6 +14,9 @@ dist-ssr
 *.local
 .vscode
 scripts/
+# 保留前端脚本目录及其内容，不纳入全局 scripts/ 忽略规则
+!web/scripts/
+!web/scripts/**
 .trae/
 
 # Editor directories and files
