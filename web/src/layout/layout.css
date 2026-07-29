@@ -344,6 +344,174 @@
   border-radius: 10px;
 }
 
+/* 公测提示 */
+.qvm-beta-notice {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--qvm-warn);
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+  flex: none;
+  transition: background 0.15s;
+}
+.qvm-beta-notice:hover {
+  background: rgba(245, 158, 11, 0.1);
+}
+.qvm-beta-notice .semi-icon {
+  font-size: 14px;
+}
+
+/* 公测须知弹窗内容 */
+.qvm-beta-content {}
+.qvm-beta-body {
+  margin-top: 20px;
+  color: var(--qvm-text-1);
+  font-size: 14px;
+  line-height: 1.7;
+}
+.qvm-beta-body p {
+  margin: 0 0 10px;
+}
+.qvm-beta-divider {
+  height: 1px;
+  background: var(--qvm-stroke);
+  margin: 18px 0;
+}
+.qvm-beta-join p {
+  margin: 0 0 8px;
+}
+.qvm-beta-qq-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.qvm-beta-qq-number {
+  font-family: var(--qvm-num-font, 'JetBrains Mono', monospace);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--qvm-text-0);
+  letter-spacing: 2px;
+}
+.qvm-beta-tip {
+  font-size: 12.5px;
+  color: var(--qvm-text-2);
+}
+
+/* 开源版链接 */
+.qvm-oss-link {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--qvm-text-1);
+  text-decoration: none;
+  padding: 6px 10px;
+  border-radius: 10px;
+  white-space: nowrap;
+  flex: none;
+  transition: all 0.18s;
+}
+.qvm-oss-link:hover {
+  color: var(--qvm-acc-ink);
+  background: var(--qvm-card-bg);
+}
+.qvm-oss-link .semi-icon {
+  font-size: 15px;
+}
+
+/* 赞助入口按钮 */
+.qvm-sponsor-entry {
+  display: inline-flex;
+  flex: none;
+}
+.qvm-sponsor-btn:hover {
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+/* 赞助支持弹窗内容 */
+.qvm-sponsor-content {
+  text-align: center;
+  padding: 4px 4px 0;
+}
+.qvm-sponsor-icon {
+  font-size: 44px;
+  color: #f59e0b;
+  margin-bottom: 10px;
+}
+.qvm-sponsor-title {
+  margin: 0 0 12px;
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--qvm-text-0);
+}
+.qvm-sponsor-desc {
+  margin: 0 0 18px;
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--qvm-text-1);
+  text-align: left;
+  padding: 0 6px;
+}
+.qvm-sponsor-benefits {
+  background: var(--qvm-card-bg);
+  border: 1px solid var(--qvm-stroke);
+  border-radius: 10px;
+  padding: 14px 20px;
+  margin-bottom: 18px;
+  text-align: left;
+}
+.qvm-sponsor-benefits-title {
+  margin: 0 0 8px;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--qvm-text-0);
+}
+.qvm-sponsor-benefits-list {
+  margin: 0;
+  padding-left: 20px;
+}
+.qvm-sponsor-benefits-list li {
+  font-size: 13px;
+  line-height: 2;
+  color: var(--qvm-text-1);
+}
+.qvm-sponsor-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+.qvm-sponsor-actions .semi-button {
+  flex: 1;
+  max-width: 200px;
+}
+.qvm-sponsor-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+.qvm-sponsor-countdown-tip {
+  font-size: 12px;
+  color: var(--qvm-text-2);
+}
+.qvm-sponsor-close-btn {
+  min-width: 100px;
+}
+
+/* 深色模式：弹窗内大面积标题/正文避免近白色高对比刺眼 */
+body[theme-mode='dark'] .qvm-sponsor-title,
+body[theme-mode='dark'] .qvm-sponsor-benefits-title {
+  color: #b8c1cf;
+}
+
 /* 顶部问候行 */
 .qvm-topline {
   display: flex;
@@ -926,6 +1094,10 @@
   .qvm-tb-current .msg,
   .qvm-sse-st,
   .qvm-tb-full {
+    display: none;
+  }
+  /* 小屏隐藏开源版文字，仅保留图标 */
+  .qvm-oss-link span {
     display: none;
   }
 }

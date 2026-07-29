@@ -47,7 +47,8 @@
   - 未迁移模块点击时 Toast 提示「将在后续迭代提供」，不产生死链。
 - **顶部导航栏**（`components/TopBar.tsx`）
   - 固定贴顶（54px），左起于侧边栏右缘并随折叠联动平移，与侧边栏无缝衔接。
-  - 承载历史页面标签栏（`components/PageTabsBar.tsx`）；左侧为小屏菜单按钮（≤820px 显示）；右侧为深色/浅色主题切换按钮（全站可用，`useTheme`），并保留 `extra` 扩展插槽（后续可放搜索、通知等）。
+  - 承载历史页面标签栏（`components/PageTabsBar.tsx`）；左侧为小屏菜单按钮（≤820px 显示）；右侧依次为「开源版」GitHub 链接（小屏仅留图标）、赞助支持入口、深色/浅色主题切换按钮（全站可用，`useTheme`），并保留 `extra` 扩展插槽（后续可放搜索、通知等）。
+  - **赞助支持入口**（`components/SponsorWidget.tsx`）：纯图标 + Tooltip 按钮，点击弹出下拉菜单（前往赞助 / 查看权益内容，外链集中维护在 `config/constants.ts` 的 `EXTERNAL_LINKS`）；赞助支持弹窗首次访问当天不弹、次日起自动弹出，关闭后 7 天冷却（localStorage：`sponsor_first_visit` / `sponsor_last_closed`，与旧版前端键位一致），弹出后 5 秒倒计时结束才可关闭；弹窗内含项目介绍、赞助者权益列表与两个跳转按钮，深色模式下标题文字柔化为 #b8c1cf。
   - 工作台为固定标签（不可关闭）；其余页面标签随路由自动注册（`stores/pageTabs.ts`）；支持关闭单个标签，关闭当前页自动回退（「标签操作」批量关闭下拉已移除）。
 - **底部任务栏**（`components/TaskBar.tsx`）
   - 点击头部展开/收起、顶部拖拽调高（46px ~ 70% 视高，状态持久化到 localStorage）。

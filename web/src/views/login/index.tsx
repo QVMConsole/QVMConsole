@@ -60,7 +60,11 @@ export default function LoginPage() {
   const { isDark } = useTheme()
   const [loading, setLoading] = useState(false)
   const [stageTip, setStageTip] = useState('')
-  const [agreed, setAgreed] = useState(false)
+  const [agreed, setAgreed] = useState(() => {
+    const stored = localStorage.getItem('qvm_agreed')
+    // 首次访问默认勾选，已有记录则取存储值
+    return stored === null ? true : stored === 'true'
+  })
   const [pwdVisible, setPwdVisible] = useState(false)
   const [forgotVisible, setForgotVisible] = useState(false)
   // 强制修改默认密码弹窗（暂存账号与登录密码，改密成功后自动重新登录）
@@ -102,6 +106,8 @@ export default function LoginPage() {
       Toast.warning({ content: '请先阅读并同意用户协议与公测协议', duration: 3 })
       return
     }
+    // 用户已勾选同意，持久化记录
+    localStorage.setItem('qvm_agreed', 'true')
     setLoading(true)
     setStageTip('')
     try {
@@ -202,7 +208,9 @@ export default function LoginPage() {
       {/* ============ 左侧品牌区 ============ */}
       <section className="qvm-login-brand">
         <div className="qvm-brand-logo qvm-fade-up">
-          <div className="qvm-logo-mark">Q</div>
+          <div className="qvm-logo-mark">
+            <img src="/favicon.png" alt="QVMConsole" style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: 13 }} />
+          </div>
           <div>
             <div className="qvm-brand-logo-name">{siteTitle}</div>
             <div className="qvm-brand-logo-sub">OPENSOURCE KVM PANEL</div>
@@ -233,10 +241,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className="qvm-brand-foot qvm-fade-up" style={{ '--qvm-delay': '240ms' } as CSSProperties}>
-          <span className="dot-ok" />
-          服务运行正常 · 开源社区驱动
-        </div>
+
 
         {/* 浮动 VM 装饰卡片 */}
         {FLOAT_VMS.map((vm) => (
@@ -284,7 +289,9 @@ export default function LoginPage() {
         ) : (
         <div className="qvm-login-card qvm-g-border qvm-fade-up" style={{ '--qvm-delay': '100ms' } as CSSProperties}>
           <div className="qvm-lc-head">
-            <div className="qvm-lc-logo">Q</div>
+            <div className="qvm-lc-logo">
+              <img src="/favicon.png" alt="QVMConsole" style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: 15 }} />
+            </div>
             <div className="qvm-lc-title">欢迎回来</div>
             <div className="qvm-lc-sub">登录 {siteTitle} 开源虚拟机管理控制台</div>
           </div>
