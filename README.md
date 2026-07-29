@@ -27,15 +27,6 @@ QVMConsole 是一个面向小型企业和个人私有云服务场景的开源虚
 | **标准仓库** | <https://github.com/QVMConsole/QVMConsole> | 官方主仓库，包含后端和原始前端 |
 | **本仓库** | <https://github.com/QVMConsole/new-web> | 前端重构仓库，后端从标准仓库合并 |
 
-### 当前状态
-
-> **⚠️ 前端正在进行重大重构**
->
-> - 原前端代码已备份至 `web-backup/` 目录供参考
-> - `web/` 目录已清空等待重建
-> - 后端从标准仓库 [QVMConsole/QVMConsole](https://github.com/QVMConsole/QVMConsole) 合并
-> - 合并后端修改时请参考 [`docs/merge-from-upstream.md`](docs/merge-from-upstream.md)
-
 ### 核心价值
 
 - **降低运维门槛**：提供"即开即用"的虚拟化管理平台，减少重复造轮子的成本
@@ -94,17 +85,25 @@ QVMConsole 是一个面向小型企业和个人私有云服务场景的开源虚
 ## 技术栈
 
 ### 后端
-- **语言**: Go 1.25.4
+- **语言**: Go 1.26.0
 - **Web 框架**: Gin v1.12.0
 - **数据库**: SQLite + GORM v1.31.1
 - **虚拟化**: go-libvirt RPC
-- **认证**: JWT v5.3.1
+- **认证**: JWT v5.3.1 + TOTP v1.5.0 + crypto
+- **WebSocket**: gorilla/websocket v1.5.3
 - **日志**: lumberjack v2.2.1
 
-### 前端（重构中）
-- **状态**: 正在进行重大重构，`web/` 目录已清空
-- **原技术栈**: Vue 3.5.30 + Element Plus v2.13.5 + Vite v8.0.0
-- **备份**: 原代码位于 `web-backup/` 目录
+### 前端
+- **UI 框架**: React v19.2.7 + TypeScript v6.0.2
+- **组件库**: Semi Design v2.101.1（@douyinfe/semi-ui）
+- **构建工具**: Vite v8.1.1
+- **路由**: react-router-dom v7.18.1
+- **状态管理**: Zustand v5.0.14
+- **HTTP 客户端**: Axios v1.18.1
+- **图表**: ECharts v6.1.0
+- **终端**: @xterm/xterm v6.0.0
+- **VNC**: @novnc/novnc v1.7.0
+- **旧版 (备份)**: Vue 3.5.30 + Element Plus（位于 `web-backup/`）
 
 ### 虚拟化基础设施
 - **虚拟化平台**: KVM/QEMU
