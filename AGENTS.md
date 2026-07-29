@@ -34,3 +34,4 @@
 同理，Semi Switch 也不要用 checkedText/uncheckedText 内嵌中文（过窄会竖排），统一使用共享组件 features/vm-form/sections/TextSwitch.tsx（Switch + 右侧外部状态文字）。
 29.项目中所有Switch组件禁止使用checkedText/uncheckedText内嵌中文文字（因宽度不足会导致文字竖排），必须统一使用共享组件features/vm-form/sections/TextSwitch.tsx（Switch + 右侧外部状态文字）。
 30. 前端开发前端开发前请务必阅读 semi-ui-skills 技能文档，确保对 Semi 组件库的使用规范有充分了解。
+31. 所有 Semi Modal 弹窗关闭时必须保留缩小离场动画。父组件按条件挂载弹窗时，必须使用 `web/src/hooks/useMountModalLifecycle.ts`：关闭时先调用 `requestClose` 将 `visible` 切换为 `false`，通过 `afterClose={afterModalClose}` 等待动画结束后再清理父组件状态或跳转页面；禁止在 `onCancel`、提交成功回调或刷新回调中直接卸载弹窗。父组件始终挂载的受控弹窗可继续直接切换 `visible`，但不得在关闭时同步卸载组件。
