@@ -53,6 +53,76 @@
   margin: 0 4px;
 }
 
+/* ============ 搜索框 ============ */
+.qvm-vm-toolbar-search {
+  flex: 1 1 200px;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+.qvm-vm-search.semi-input-wrapper {
+  width: 100%;
+  max-width: 320px;
+  border-radius: 10px;
+}
+
+/* ============ 分组视图 ============ */
+.qvm-group-toggle {
+  flex-shrink: 0;
+}
+.qvm-grouped-view {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 16px;
+}
+.qvm-group-section {
+  border: 1px solid var(--qvm-stroke);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--qvm-card-bg);
+}
+.qvm-group-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  user-select: none;
+  background: rgba(139, 92, 246, 0.04);
+  transition: background 0.15s ease;
+}
+.qvm-group-header:hover {
+  background: var(--qvm-hover-bg);
+}
+.qvm-group-section:not(.collapsed) .qvm-group-header {
+  border-bottom: 1px solid var(--qvm-stroke);
+}
+.qvm-group-arrow {
+  display: inline-flex;
+  align-items: center;
+  color: var(--qvm-text-2);
+  transform: rotate(-90deg);
+  transition: transform 0.2s ease;
+}
+.qvm-group-arrow.open {
+  transform: rotate(0deg);
+}
+.qvm-group-count {
+  font-size: 12px;
+  color: var(--qvm-text-2);
+}
+.qvm-group-flex {
+  flex: 1;
+}
+.qvm-group-check .semi-checkbox-addon {
+  font-size: 12.5px;
+  color: var(--qvm-text-2);
+}
+.qvm-group-body .qvm-vm-cards {
+  padding: 14px;
+}
+
 /* ============ 列表面板与头部 ============ */
 .qvm-vm-list-section {
   border-radius: 16px;
@@ -698,9 +768,18 @@
 @media (max-width: 960px) {
   .qvm-vm-toolbar {
     padding: 12px 14px;
+    flex-wrap: wrap;
   }
   .qvm-vm-toolbar-left {
     flex-wrap: wrap;
+  }
+  /* 小屏搜索框独占一行 */
+  .qvm-vm-toolbar-search {
+    order: 3;
+    flex-basis: 100%;
+  }
+  .qvm-vm-search.semi-input-wrapper {
+    max-width: none;
   }
   .qvm-vm-table .col-hide-sm {
     display: none;

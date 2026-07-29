@@ -2,12 +2,13 @@
  * 虚拟机列表页（深空极光版）
  * - SSE 常驻实时刷新（缓存优先，静默更新）
  * - 表格 / 卡片双视图，列头点击排序，客户端分页
+ * - 搜索过滤（名称/备注/模板）与分组视图（按状态/按模板/自定义，组可折叠、组内全选）
  * - 状态与操作纯图标展示（悬停 Tooltip）
  * - 单机/批量电源操作、锁定/救援/导出/转独立、删除/备注/分组/制作模板/重装/迁移
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Checkbox, Pagination, Toast, Tooltip } from '@douyinfe/semi-ui'
+import { Button, Checkbox, Pagination, RadioGroup, Toast, Tooltip } from '@douyinfe/semi-ui'
 import { IconGridView, IconList, IconRefresh, IconAlertTriangle } from '@douyinfe/semi-icons'
 import type { VmListItem, VmPowerAction } from '@/api/vm'
 import { lockVm, makeVMIndependent, operateVm, rescueVm, unlockVm } from '@/api/vm'
@@ -18,11 +19,18 @@ import { useVmListSSE } from '@/hooks/useVmListSSE'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { confirmModal } from '@/utils/confirm'
 import { CLOUD_TYPES, ROLES } from '@/config/constants'
-import { isVmMigrating, POWER_ACTION_TEXT } from './utils'
+import {
+  buildVmGroups,
+  isVmMigrating,
+  POWER_ACTION_TEXT,
+  type VmGroupBucket,
+  type VmGroupBy,
+} from './utils'
 import { openVncWindow } from './detail/utils'
 import VmToolbar, { type BatchAction } from './components/VmToolbar'
 import VmTableView, { type VmSortField, type VmSortOrder } from './components/VmTableView'
 import VmCardView from './components/VmCardView'
+import VmGroupedView from './components/VmGroupedView'
 import PendingRegistrations from './components/PendingRegistrations'
 import type { VmMenuCommand } from './components/VmActionsCell'
 import VmDeleteDialog from './dialogs/VmDeleteDialog'
@@ -46,6 +54,15 @@ type DialogState =
 
 const PAGE_SIZE = 20
 const VIEW_MODE_KEY = 'vmListViewMode'
+const GROUP_BY_KEY = 'vmListGroupBy'
+
+/** 分组维度选项 */
+const GROUP_BY_OPTIONS: Array<{ label: string; value: VmGroupBy }> = [
+  { label: '全部', value: '' },
+  { label: '按状态', value: 'status' },
+  { label: '按模板', value: 'template' },
+  { label: '自定义', value: 'custom' },
+]
 
 /** 排序字段文案 */
 const SORT_FIELD_LABEL: Record<VmSortField, string> = {
@@ -71,6 +88,13 @@ export default function VmListPage() {
   )
   const [sortField, setSortField] = useState<VmSortField>('name')
   const [sortOrder, setSortOrder] = useState<VmSortOrder>('ascend')
+  const [searchText, setSearchText] = useState('')
+  const [groupBy, setGroupBy] = useState<VmGroupBy>(() => {
+    const saved = localStorage.getItem(GROUP_BY_KEY)
+    return saved === 'status' || saved === 'template' || saved === 'custom' ? saved : ''
+  })
+  // 分组折叠状态（key 含分组维度前缀，默认展开）
+  const [groupCollapsedMap, setGroupCollapsedMap] = useState<Record<string, boolean>>({})
   const [page, setPage] = useState(1)
   const [operatingMap, setOperatingMap] = useState<Record<string, boolean>>({})
   const [batchOperating, setBatchOperating] = useState(false)
@@ -97,15 +121,53 @@ export default function VmListPage() {
     prevListRef.current = list
   }, [list])
 
-  // ==================== 排序与分页 ====================
+  // ==================== 搜索 / 排序 / 分组 / 分页 ====================
+  const filteredList = useMemo(() => {
+    const q = searchText.trim().toLowerCase()
+    if (!q) return list
+    return list.filter(
+      (vm) =>
+        vm.name.toLowerCase().includes(q) ||
+        (vm.remark || '').toLowerCase().includes(q) ||
+        (vm.template || '').toLowerCase().includes(q),
+    )
+  }, [list, searchText])
+
   const sortedList = useMemo(() => {
     const dir = sortOrder === 'ascend' ? 1 : -1
-    return [...list].sort((a, b) => {
+    return [...filteredList].sort((a, b) => {
       if (sortField === 'name') return a.name.localeCompare(b.name) * dir
       if (sortField === 'ip') return (a.ip || '').localeCompare(b.ip || '') * dir
       return ((a.cpu_percent ?? -1) - (b.cpu_percent ?? -1)) * dir
     })
-  }, [list, sortField, sortOrder])
+  }, [filteredList, sortField, sortOrder])
+
+  // 分组视图数据（组内顺序沿用当前排序）
+  const groups = useMemo(() => buildVmGroups(groupBy, sortedList), [groupBy, sortedList])
+
+  const handleSearchChange = useCallback((text: string) => {
+    setSearchText(text)
+    setPage(1)
+  }, [])
+
+  const handleGroupByChange = useCallback((value: VmGroupBy) => {
+    setGroupBy(value)
+    localStorage.setItem(GROUP_BY_KEY, value)
+    setPage(1)
+  }, [])
+
+  const isGroupExpanded = useCallback(
+    (key: string) => !groupCollapsedMap[`${groupBy}:${key}`],
+    [groupBy, groupCollapsedMap],
+  )
+
+  const toggleGroupExpand = useCallback(
+    (key: string) => {
+      const mapKey = `${groupBy}:${key}`
+      setGroupCollapsedMap((m) => ({ ...m, [mapKey]: !m[mapKey] }))
+    },
+    [groupBy],
+  )
 
   const maxPage = Math.max(1, Math.ceil(sortedList.length / PAGE_SIZE))
   useEffect(() => {
@@ -142,6 +204,14 @@ export default function VmListPage() {
 
   const toggleSelectOne = useCallback((name: string, checked: boolean) => {
     setSelectedKeys((keys) => (checked ? [...new Set([...keys, name])] : keys.filter((k) => k !== name)))
+  }, [])
+
+  /** 分组视图：组内全选 / 取消全选（保留其他组已选项） */
+  const handleSelectGroup = useCallback((group: VmGroupBucket, checked: boolean) => {
+    const names = new Set(group.vms.map((v) => v.name))
+    setSelectedKeys((keys) =>
+      checked ? [...new Set([...keys, ...names])] : keys.filter((k) => !names.has(k)),
+    )
   }, [])
 
   const selectedVms = useMemo(
@@ -408,6 +478,8 @@ export default function VmListPage() {
         onBatch={(action) => void handleBatch(action)}
         onCreate={handleCreate}
         sortLabel={sortLabel}
+        searchText={searchText}
+        onSearchChange={handleSearchChange}
       />
 
       {isLightweight && <PendingRegistrations onProvisioned={() => void reload()} />}
@@ -425,7 +497,10 @@ export default function VmListPage() {
                 onChange={(e) => toggleSelectAll(!!e.target.checked)}
               />
             )}
-            <span className="qvm-grid-total">共 {list.length} 台虚拟机</span>
+            <span className="qvm-grid-total">
+              共 {list.length} 台虚拟机
+              {searchText.trim() && ` · 匹配 ${sortedList.length} 台`}
+            </span>
             <span className="qvm-selected-count qvm-num">
               {selectedKeys.length} 台已选 · {runningCount} 台运行中
             </span>
@@ -437,6 +512,14 @@ export default function VmListPage() {
             </Tooltip>
           </div>
           <div className="qvm-grid-ops">
+            <RadioGroup
+              type="button"
+              buttonSize="small"
+              className="qvm-group-toggle"
+              value={groupBy}
+              onChange={(e) => handleGroupByChange(e.target.value as VmGroupBy)}
+              options={GROUP_BY_OPTIONS}
+            />
             <Tooltip content="手动刷新" position="top">
               <span
                 className={`qvm-grid-refresh ${refreshing ? 'spinning' : ''}`}
@@ -464,7 +547,35 @@ export default function VmListPage() {
           </div>
         </div>
 
-        {viewMode === 'table' ? (
+        {groupBy && !loaded ? (
+          <div className="qvm-vm-skel-list">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div className="qvm-skel qvm-vm-skel-card" key={i} />
+            ))}
+          </div>
+        ) : groupBy ? (
+          <VmGroupedView
+            groups={groups}
+            viewMode={viewMode}
+            isExpanded={isGroupExpanded}
+            onToggleExpand={toggleGroupExpand}
+            selectedKeys={selectedKeys}
+            onSelectionChange={setSelectedKeys}
+            onToggleSelect={toggleSelectOne}
+            onSelectGroup={handleSelectGroup}
+            sortField={sortField}
+            sortOrder={sortOrder}
+            onSortChange={handleSortChange}
+            operatingMap={operatingMap}
+            isAdmin={isAdmin}
+            isLightweight={isLightweight}
+            onPower={(vm, action) => void handlePower(vm, action)}
+            onMenu={(cmd, vm) => void handleMenu(cmd, vm)}
+            onConsole={handleConsole}
+            onOpenDetail={handleOpenDetail}
+            compact={compact}
+          />
+        ) : viewMode === 'table' ? (
           <VmTableView
             vms={pagedList}
             loading={!loaded}
@@ -503,7 +614,7 @@ export default function VmListPage() {
           </div>
         )}
 
-        {sortedList.length > PAGE_SIZE && (
+        {!groupBy && sortedList.length > PAGE_SIZE && (
           <div className="qvm-vm-pagination">
             <Pagination
               total={sortedList.length}

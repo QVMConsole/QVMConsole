@@ -72,6 +72,77 @@ export function resolveTemplateMinDiskSize(template?: { virtual_size?: string } 
   return 0
 }
 
+/** 分组维度：'' 为不分组（全部平铺） */
+export type VmGroupBy = '' | 'status' | 'template' | 'custom'
+
+/** 分组桶（分组视图渲染单元） */
+export interface VmGroupBucket {
+  key: string
+  label: string
+  /** Semi Tag 颜色 */
+  color: 'green' | 'orange' | 'grey' | 'red' | 'blue' | 'violet'
+  vms: VmListItem[]
+}
+
+/** 按状态分组的固定定义（排序权重与标签颜色） */
+const STATUS_GROUP_DEFS: Array<Omit<VmGroupBucket, 'vms'> & { order: number }> = [
+  { key: 'running', label: '运行中', order: 1, color: 'green' },
+  { key: 'paused', label: '已暂停', order: 2, color: 'orange' },
+  { key: 'shut off', label: '已关机', order: 3, color: 'grey' },
+  { key: 'migrating', label: '迁移中', order: 4, color: 'red' },
+]
+
+/** 构建分组列表（按状态 / 按模板 / 自定义分组），空组自动过滤 */
+export function buildVmGroups(groupBy: VmGroupBy, vms: VmListItem[]): VmGroupBucket[] {
+  if (!groupBy) return []
+
+  if (groupBy === 'status') {
+    const grouped = new Map<string, VmGroupBucket & { order: number }>()
+    STATUS_GROUP_DEFS.forEach((d) => grouped.set(d.key, { ...d, vms: [] }))
+    vms.forEach((vm) => {
+      const key = vm.status || 'shut off'
+      let bucket = grouped.get(key)
+      if (!bucket) {
+        bucket = { key, label: vmStatusText(key), order: 99, color: 'grey', vms: [] }
+        grouped.set(key, bucket)
+      }
+      bucket.vms.push(vm)
+    })
+    return [...grouped.values()].filter((g) => g.vms.length > 0).sort((a, b) => a.order - b.order)
+  }
+
+  if (groupBy === 'template') {
+    const grouped = new Map<string, VmGroupBucket>()
+    vms.forEach((vm) => {
+      const key = vm.template || '__none__'
+      let bucket = grouped.get(key)
+      if (!bucket) {
+        bucket = { key, label: vm.template || '无模板', color: 'blue', vms: [] }
+        grouped.set(key, bucket)
+      }
+      bucket.vms.push(vm)
+    })
+    return [...grouped.values()].sort((a, b) => a.label.localeCompare(b.label))
+  }
+
+  // 自定义分组：未分组排在最后
+  const grouped = new Map<string, VmGroupBucket>()
+  vms.forEach((vm) => {
+    const key = vm.group || '__ungrouped__'
+    let bucket = grouped.get(key)
+    if (!bucket) {
+      bucket = { key, label: vm.group || '未分组', color: vm.group ? 'violet' : 'grey', vms: [] }
+      grouped.set(key, bucket)
+    }
+    bucket.vms.push(vm)
+  })
+  return [...grouped.values()].sort((a, b) => {
+    if (a.key === '__ungrouped__') return 1
+    if (b.key === '__ungrouped__') return -1
+    return a.label.localeCompare(b.label)
+  })
+}
+
 /** 电源操作文案 */
 export const POWER_ACTION_TEXT: Record<string, string> = {
   start: '开机',

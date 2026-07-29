@@ -1,10 +1,18 @@
 /**
  * 虚拟机列表顶部工具栏
  * - 左：批量电源下拉 + 新建虚拟机
+ * - 中：搜索框（名称 / 备注 / 模板）
  * - 右：当前排序依据指示
  */
-import { Button, Dropdown } from '@douyinfe/semi-ui'
-import { IconPlayCircle, IconRestart, IconDelete, IconPlus, IconChevronDown } from '@douyinfe/semi-icons'
+import { Button, Dropdown, Input } from '@douyinfe/semi-ui'
+import {
+  IconPlayCircle,
+  IconRestart,
+  IconDelete,
+  IconPlus,
+  IconChevronDown,
+  IconSearch,
+} from '@douyinfe/semi-icons'
 import { PowerIcon } from './VmIcons'
 
 export type BatchAction = 'start' | 'reboot' | 'shutdown' | 'destroy' | 'delete'
@@ -16,6 +24,8 @@ interface VmToolbarProps {
   onBatch: (action: BatchAction) => void
   onCreate: () => void
   sortLabel: string
+  searchText: string
+  onSearchChange: (text: string) => void
 }
 
 export default function VmToolbar({
@@ -25,6 +35,8 @@ export default function VmToolbar({
   onBatch,
   onCreate,
   sortLabel,
+  searchText,
+  onSearchChange,
 }: VmToolbarProps) {
   const disabled = selectedCount === 0 || batchOperating
 
@@ -81,6 +93,16 @@ export default function VmToolbar({
             新建虚拟机
           </Button>
         )}
+      </div>
+      <div className="qvm-vm-toolbar-search">
+        <Input
+          className="qvm-vm-search"
+          prefix={<IconSearch />}
+          placeholder="搜索名称 / 备注 / 模板"
+          showClear
+          value={searchText}
+          onChange={(value) => onSearchChange(value)}
+        />
       </div>
       <div className="qvm-vm-toolbar-right">
         <span className="qvm-current-sort">
