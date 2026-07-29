@@ -5,6 +5,7 @@
  */
 import { useEffect, useState } from 'react'
 import { useHostStatsSSE } from '@/hooks/useHostStatsSSE'
+import { getHostDisks, type HostDisk } from '@/api/host'
 import { getVmList, type VmListItem } from '@/api/vm'
 import { getUserInfo } from '@/api/auth'
 import { getPasswordBreachStatus, type PasswordBreachStatus } from '@/api/passwordBreach'
@@ -18,6 +19,7 @@ import AdminBottom from './components/AdminBottom'
 export default function AdminDashboard() {
   const { stats } = useHostStatsSSE()
   const [vms, setVms] = useState<VmListItem[]>([])
+  const [disks, setDisks] = useState<HostDisk[]>([])
   const [passwordBreachStatus, setPasswordBreachStatus] = useState<PasswordBreachStatus | null>(null)
   const security = useUserStore((s) => s.security)
   const setSecurity = useUserStore((s) => s.setSecurity)
@@ -40,6 +42,23 @@ export default function AdminDashboard() {
     }
     // setSecurity 为 store 稳定引用，仅挂载时刷新一次
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    let mounted = true
+    const refresh = () => {
+      void getHostDisks()
+        .then((res) => {
+          if (mounted) setDisks(res.data || [])
+        })
+        .catch(() => undefined)
+    }
+    refresh()
+    const timer = window.setInterval(refresh, 5_000)
+    return () => {
+      mounted = false
+      window.clearInterval(timer)
+    }
   }, [])
 
   useEffect(() => {
@@ -77,6 +96,7 @@ export default function AdminDashboard() {
       />
       <HostStatusBanner
         stats={stats}
+        disks={disks}
         smtpConfigured={security ? security.smtp_configured : undefined}
         passwordBreachStatus={passwordBreachStatus}
       />

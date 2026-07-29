@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
 // ReadMemInfo 解析 /proc/meminfo，返回以 kB 为单位的 map
@@ -65,6 +67,15 @@ func GetDiskSpace(path string) (total, used, available int64, err error) {
 	used = total - available
 
 	return total, used, available, nil
+}
+
+// IsFilesystemReadOnly 检查指定路径所属文件系统是否以只读方式挂载。
+func IsFilesystemReadOnly(path string) bool {
+	var stat syscall.Statfs_t
+	if err := syscall.Statfs(path, &stat); err != nil {
+		return false
+	}
+	return stat.Flags&unix.ST_RDONLY != 0
 }
 
 // GetAllMountedDiskSpace 统计所有已挂载本地文件系统的空间总和（kB）。

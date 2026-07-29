@@ -174,6 +174,7 @@ func GetHostDiskInfos() ([]HostDiskInfo, error) {
 			UsedKB:     usedKB,
 			FreeKB:     freeKB,
 			UsePercent: usePercent,
+			ReadOnly:   utils.IsFilesystemReadOnly(mountPoint),
 		})
 	}
 	return disks, nil

@@ -133,6 +133,7 @@ type HostDiskInfo struct {
 	UsedKB     int64  `json:"used_kb"`
 	FreeKB     int64  `json:"free_kb"`
 	UsePercent string `json:"use_percent"`
+	ReadOnly   bool   `json:"read_only"`
 }
 
 // --- hardware.go types ---

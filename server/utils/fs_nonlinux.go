@@ -14,6 +14,11 @@ func GetDiskSpace(path string) (total, used, available int64, err error) {
 	return 0, 0, 0, fmt.Errorf("GetDiskSpace is only supported on Linux")
 }
 
+// IsFilesystemReadOnly stub for non-linux platforms.
+func IsFilesystemReadOnly(path string) bool {
+	return false
+}
+
 // GetAllMountedDiskSpace stub for non-linux platforms.
 func GetAllMountedDiskSpace() (total, used, available int64, err error) {
 	return 0, 0, 0, fmt.Errorf("GetAllMountedDiskSpace is only supported on Linux")

@@ -51,9 +51,12 @@ export interface HostStatsRecord {
 export interface HostDisk {
   mount_point: string
   device: string
-  fstype: string
+  fs_type: string
   total_kb: number
   used_kb: number
+  free_kb: number
+  use_percent: string
+  read_only: boolean
 }
 
 /** 宿主机 CPU 硬件信息与每核实时使用率 */
