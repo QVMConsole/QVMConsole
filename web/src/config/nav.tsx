@@ -13,6 +13,7 @@ import {
   IconGlobeStroke,
   IconShield,
   IconServer,
+  IconServerStroked,
   IconFolder,
   IconUserGroup,
   IconClockStroked,
@@ -54,6 +55,7 @@ export const NAV_COLORS: Record<string, string> = {
   'storage-pool': '#f59e0b',
   'my-storage': '#fbbf24',
   user: '#34d399',
+  nodes: '#fb923c',
   scheduler: '#22d3ee',
   task: '#a78bfa',
   settings: '#818cf8',
@@ -94,6 +96,7 @@ export const ADMIN_NAV: NavGroup[] = [
     group: '系统',
     items: [
       { key: 'user', title: '用户管理', icon: <IconUserGroup />, path: '/user', color: NAV_COLORS.user },
+      { key: 'nodes', title: '节点管理', icon: <IconServerStroked />, path: '/nodes', color: NAV_COLORS.nodes },
       { key: 'scheduler', title: '调度事件', icon: <IconClockStroked />, path: '/scheduler', color: NAV_COLORS.scheduler },
       { key: 'task', title: '任务中心', icon: <IconCheckList />, path: '/task', badge: 'task', color: NAV_COLORS.task },
       { key: 'settings', title: '系统设置', icon: <IconSetting />, path: '/settings', color: NAV_COLORS.settings },

@@ -1,0 +1,254 @@
+/**
+ * 节点管理页样式（深空极光，浅色优先 + 深色适配）
+ * 迁移自旧前端 views/node/index.vue，改用 --qvm- 设计令牌
+ */
+
+.node-page {
+  padding: 4px 2px 24px;
+  width: 100%;
+}
+
+/* ==================== 页头 ==================== */
+.node-page-header {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.node-page-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--qvm-text-0);
+}
+.node-page-sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--qvm-text-2);
+}
+.node-header-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* ==================== 筛选栏 ==================== */
+.node-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+/* ==================== 表格 ==================== */
+.node-table-card {
+  border-radius: 14px;
+  background: var(--qvm-card-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--qvm-card-shadow);
+  border: 1px solid var(--qvm-stroke);
+  padding: 12px;
+  overflow-x: auto;
+}
+.node-name-text {
+  font-weight: 600;
+  color: var(--qvm-acc-ink);
+}
+.node-probe-msg {
+  font-size: 12.5px;
+  color: var(--qvm-text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.node-muted {
+  color: var(--qvm-text-2);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.node-pagination {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+/* ==================== 行内操作（纯图标 + Tooltip + 下拉） ==================== */
+.node-act-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.node-act-ic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  color: var(--qvm-text-2);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.16s;
+}
+.node-act-ic.probe:hover {
+  color: var(--qvm-acc-ink);
+  background: var(--qvm-acc-bg);
+  border-color: var(--qvm-acc-stroke);
+}
+.node-act-ic.probe.loading {
+  color: var(--qvm-acc-ink);
+  cursor: default;
+}
+.node-act-ic.more:hover {
+  color: var(--qvm-text-0);
+  background: var(--qvm-hover-bg);
+  border-color: var(--qvm-stroke);
+}
+
+/* ==================== 弹窗表单（与 public-ip/network 页保持一致） ==================== */
+.qvm-form-item {
+  margin-bottom: 14px;
+}
+.qvm-form-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--qvm-text-1);
+  margin-bottom: 6px;
+}
+.qvm-form-label.required::before {
+  content: '*';
+  color: var(--qvm-danger);
+  margin-right: 4px;
+}
+.qvm-form-tip {
+  font-size: 12px;
+  color: var(--qvm-text-2);
+  line-height: 1.5;
+  margin-top: 5px;
+}
+.node-form-row {
+  display: flex;
+  gap: 12px;
+}
+.node-form-row .qvm-form-item {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 带文字开关（与 vm-form 一致，避免依赖其样式加载时机） */
+.qvm-vf-text-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.qvm-vf-text-switch-label {
+  font-size: 13px;
+  color: var(--qvm-text-2);
+  white-space: nowrap;
+}
+.qvm-vf-text-switch-label.on {
+  color: var(--qvm-acc-ink);
+  font-weight: 500;
+}
+
+/* ==================== 移动端卡片视图（默认隐藏） ==================== */
+.node-mobile-list {
+  display: none;
+}
+.node-mobile-card {
+  border-radius: 12px;
+  background: var(--qvm-card-bg);
+  border: 1px solid var(--qvm-stroke);
+  box-shadow: var(--qvm-card-shadow);
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+.node-mobile-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 14px 8px;
+  border-bottom: 1px solid var(--qvm-stroke);
+}
+.node-mobile-tags {
+  display: flex;
+  gap: 6px;
+}
+.node-mobile-body {
+  padding: 6px 14px;
+}
+.node-mobile-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--qvm-stroke);
+}
+.node-mobile-row:last-child {
+  border-bottom: none;
+}
+.node-mobile-label {
+  font-size: 12px;
+  color: var(--qvm-text-2);
+  flex-shrink: 0;
+}
+.node-mobile-value {
+  font-size: 12.5px;
+  color: var(--qvm-text-1);
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.node-mobile-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 14px 10px;
+  border-top: 1px solid var(--qvm-stroke);
+  background: var(--qvm-hover-bg);
+}
+
+/* ==================== 无权限/空态提示 ==================== */
+.node-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--qvm-text-2);
+  font-size: 14px;
+}
+.node-empty-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+/* ==================== 深色模式：大面积文字降对比 ==================== */
+body[theme-mode='dark'] .node-page-header h2 {
+  color: #b8c1cf;
+}
+body[theme-mode='dark'] .node-name-text {
+  color: #9db4d0;
+}
+
+/* ==================== 响应式 ==================== */
+@media (max-width: 768px) {
+  .node-page-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .node-header-actions {
+    width: 100%;
+  }
+  /* 隐藏表格，切换卡片视图 */
+  .node-table-card {
+    display: none;
+  }
+  .node-mobile-list {
+    display: block;
+  }
+}

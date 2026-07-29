@@ -24,6 +24,7 @@ import {
   StoragePoolPage,
   MyStoragePage,
   UserPage,
+  NodePage,
   SchedulerPage,
   TaskCenterPage,
   SettingsPage,
@@ -105,6 +106,11 @@ const mainChildren = [
     handle: { title: '用户管理' },
   },
   {
+    path: 'nodes',
+    element: lazyPage(<NodePage />),
+    handle: { title: '节点管理' },
+  },
+  {
     path: 'scheduler',
     element: lazyPage(<SchedulerPage />),
     handle: { title: '调度事件' },
@@ -134,8 +140,6 @@ const mainChildren = [
     element: lazyPage(<AboutPage />),
     handle: { title: '关于项目' },
   },
-  // TODO(重构迭代): 以下路由随各模块迁移逐步补齐
-  // nodes
   { path: '*', element: <NotFound />, handle: { title: '页面不存在' } },
 ] as const
 
