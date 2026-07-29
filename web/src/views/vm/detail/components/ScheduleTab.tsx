@@ -375,6 +375,8 @@ export default function ScheduleTab({ vm }: ScheduleTabProps) {
           loading={!!switchLoading[row.id]}
           onChange={(checked) => void handleToggle(row, checked)}
           size="small"
+          checkedText="开"
+          uncheckedText="关"
         />
       ),
     },
@@ -522,8 +524,8 @@ export default function ScheduleTab({ vm }: ScheduleTabProps) {
           <TextSwitch
             checked={form.enabled}
             onChange={(checked) => setField('enabled', checked)}
-            checkedText="启用"
-            uncheckedText="停用"
+            checkedText="开"
+            uncheckedText="停"
           />
         </div>
 

@@ -79,8 +79,8 @@ export default function CpuMemorySection() {
             <TextSwitch
               checked={f.cpu_limit_enabled}
               onChange={(v) => setField('cpu_limit_enabled', v)}
-              checkedText="启用限制"
-              uncheckedText="无限制"
+              checkedText="限"
+              uncheckedText="无"
             />
             {f.cpu_limit_enabled && (
               <>

@@ -355,6 +355,8 @@ export default function UserPage() {
             checked={!!row.ssh_enabled}
             disabled={row.status !== 'active'}
             onChange={(v) => void handleToggleSSH(row, v)}
+            checkedText="开"
+            uncheckedText="关"
           />
         ) : (
           <span className="usr-muted">-</span>

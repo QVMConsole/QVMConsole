@@ -207,6 +207,8 @@ export default function SpiceTab({ vm }: SpiceTabProps) {
                 loading={loading}
                 onChange={(checked) => void handleExpose(checked)}
                 size="small"
+                checkedText="开"
+                uncheckedText="关"
               />
               <span className="qvm-sub-label">对外暴露（自动放行防火墙端口）</span>
             </span>

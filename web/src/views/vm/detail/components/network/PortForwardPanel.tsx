@@ -361,6 +361,8 @@ export default function PortForwardPanel({ vmName, shared }: PortForwardPanelPro
                 checked={!!row.region_filter_enabled}
                 size="small"
                 onChange={(checked) => void handleFirewallToggle(row, checked)}
+                checkedText="开"
+                uncheckedText="关"
               />
             ),
           } as ColumnProps<PortForwardRule>,

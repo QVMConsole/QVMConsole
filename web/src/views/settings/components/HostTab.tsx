@@ -334,8 +334,8 @@ export default function HostTab({ form, patch }: SettingsTabProps) {
           <TextSwitch
             checked={kvmEnabled}
             onChange={(v) => void handleKvmChange(v)}
-            checkedText="启用"
-            uncheckedText="禁用"
+            checkedText="开"
+            uncheckedText="关"
             disabled={kvmLoading || kvmSaving || !kvmStatus?.supported}
           />
           {kvmStatus?.runtime_available && (
@@ -383,8 +383,8 @@ export default function HostTab({ form, patch }: SettingsTabProps) {
         <TextSwitch
           checked={form.network_wait_online_disabled}
           onChange={(v) => patch({ network_wait_online_disabled: v })}
-          checkedText="已禁用"
-          uncheckedText="已启用"
+          checkedText="禁"
+          uncheckedText="开"
         />
       </SettingRow>
     </div>

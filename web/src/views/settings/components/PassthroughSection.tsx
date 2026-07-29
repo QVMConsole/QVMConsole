@@ -129,8 +129,8 @@ export default function PassthroughSection({
               <TextSwitch
                 checked={enabled}
                 onChange={onEnabledChange}
-                checkedText="已启用"
-                uncheckedText="已关闭"
+                checkedText="开"
+                uncheckedText="关"
               />
             </SettingRow>
           )}

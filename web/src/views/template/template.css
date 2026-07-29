@@ -462,17 +462,10 @@ body[theme-mode='dark'] .tpl-chain-summary .chain-leaf {
 .tpl-switch-row .qvm-form-tip {
   margin-top: 2px;
 }
-/* 开关状态文字（写在开关外，避免开关内文本竖排） */
 .tpl-switch-control {
   display: flex;
   align-items: center;
-  gap: 8px;
   flex: none;
-}
-.tpl-switch-state {
-  font-size: 12px;
-  color: var(--qvm-text-1);
-  white-space: nowrap;
 }
 
 /* 导入弹窗：已选文件 */

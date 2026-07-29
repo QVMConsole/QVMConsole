@@ -131,8 +131,8 @@ export default function MountDialog({ defaultCategory, onClose, onMounted }: Mou
           <TextSwitch
             checked={readonly}
             onChange={setReadonly}
-            checkedText="只读"
-            uncheckedText="读写"
+            checkedText="只"
+            uncheckedText="写"
           />
         </div>
 

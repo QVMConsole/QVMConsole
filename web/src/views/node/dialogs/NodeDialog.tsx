@@ -206,8 +206,8 @@ export default function NodeDialog({ row, onClose, onSaved }: NodeDialogProps) {
         <TextSwitch
           checked={form.enabled}
           onChange={(v) => patch({ enabled: v })}
-          checkedText="启用"
-          uncheckedText="禁用"
+          checkedText="开"
+          uncheckedText="关"
         />
       </div>
     </Modal>

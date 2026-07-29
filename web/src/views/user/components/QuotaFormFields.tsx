@@ -175,8 +175,8 @@ export default function QuotaFormFields({ value, onChange, usage }: QuotaFormFie
             <TextSwitch
               checked={value.enable_port_forward}
               onChange={(v) => onChange({ enable_port_forward: v })}
-              checkedText="已开通"
-              uncheckedText="未开通"
+              checkedText="开"
+              uncheckedText="关"
             />
             {showUsage && value.enable_port_forward && (
               <span className="usr-quota-used">

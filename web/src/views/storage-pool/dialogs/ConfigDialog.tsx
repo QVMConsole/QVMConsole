@@ -68,8 +68,8 @@ export default function ConfigDialog({ row, onClose, onSaved }: ConfigDialogProp
         <TextSwitch
           checked={enabled}
           onChange={setEnabled}
-          checkedText="允许用户创建到此硬盘"
-          uncheckedText="不允许用户创建到此硬盘"
+          checkedText="允"
+          uncheckedText="禁"
           disabled={!row.can_use_for_vm}
         />
         {!row.can_use_for_vm && (

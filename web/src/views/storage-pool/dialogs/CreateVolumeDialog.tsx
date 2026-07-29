@@ -326,8 +326,8 @@ export default function CreateVolumeDialog({ onClose, onSubmitted }: CreateVolum
               <TextSwitch
                 checked={form.add_fstab}
                 onChange={(checked) => patchForm({ add_fstab: checked })}
-                checkedText="写入 fstab"
-                uncheckedText="不写入 fstab"
+                checkedText="写"
+                uncheckedText="否"
               />
             </div>
           </div>

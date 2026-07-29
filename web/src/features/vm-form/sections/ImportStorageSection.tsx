@@ -143,8 +143,8 @@ export default function ImportStorageSection() {
         <TextSwitch
           checked={f.start_after_import}
           onChange={(v) => setField('start_after_import', v)}
-          checkedText="导入完成后开启虚拟机"
-          uncheckedText="仅创建不开启"
+          checkedText="开"
+          uncheckedText="建"
         />
       </FormField>
 

@@ -26,7 +26,7 @@
 
 - **密码泄露检测（规范 22）**：保存时对 root 密码执行本地弱密码检测（`validatePassword`）+ 后端 HIBP k-匿名检测（`checkPasswordBreachAsync`）。由于 root 密码属于既有服务器凭据，检测到泄露时**不强制阻断**，弹出危险确认（建议尽快更换）后仍可继续保存。
 - **行内操作图标化（规范 28）**：高频「探测」图标外露 + Tooltip，编辑/删除收进 ⋯ 下拉菜单（Dropdown trigger="click" position="bottomRight"，删除为 danger 项）。
-- **Switch 文字外置（规范 29）**：启用开关使用共享组件 `features/vm-form/sections/TextSwitch.tsx`。
+- **Switch 内嵌单字符状态（规范 29）**：启用开关使用共享组件 `features/vm-form/sections/TextSwitch.tsx`。
 - **深色模式（规范 18/27）**：页头标题与节点名称在 `body[theme-mode='dark']` 下降对比为柔和灰。
 
 ## 代码位置

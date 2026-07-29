@@ -43,7 +43,7 @@ web/src/features/vm-form/
 ├── sections/
 │   ├── SectionCard.tsx       # 分区卡片容器
 │   ├── FormField.tsx         # 字段行（label + 控件 + 提示/错误 + 帮助 Tooltip）
-│   ├── TextSwitch.tsx        # 带文字开关（Semi 官方推荐文字外置，避免内嵌文字竖排）
+│   ├── TextSwitch.tsx        # 带内部单字符状态文字的开关
 │   ├── storageTargetUtils.ts # 存储位置选项标签工具
 │   ├── CreateModeSection.tsx # 【创建】创建方式三卡（ISO/模板/导入）
 │   ├── BasicInfoSection.tsx  # 【创建】名称/批量/备注/系统类型/系统版本/导入初始化

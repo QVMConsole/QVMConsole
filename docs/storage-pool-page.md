@@ -48,7 +48,7 @@ web/src/views/storage-pool/
 
 - `web/src/api/storagePool.ts`：存储池管理接口与完整树形类型 `HostStoragePoolInfo`
 - `web/src/api/storage.ts`：原简化版 `StoragePoolInfo`/`getStoragePoolList` 改为从 `storagePool.ts` re-export
-- `web/src/features/vm-form/sections/TextSwitch.tsx`：Switch + 外部状态文字（本页已移除）
+- `web/src/features/vm-form/sections/TextSwitch.tsx`：带内部单字符状态文字的共享开关（本页已移除）
 - `web/src/views/dashboard/components/AdminBottom.tsx`：存储池「管理 →」跳转 `/storage-pool`
 
 ## 后端实现（VM 磁盘占用统计）

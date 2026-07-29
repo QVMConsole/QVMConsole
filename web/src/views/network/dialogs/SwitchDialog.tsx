@@ -52,7 +52,7 @@ function quotaRange(quota: VpcQuota | null, maxField: keyof VpcQuota, remainingF
   }
 }
 
-/** 桥接安全开关行（状态文字外置） */
+/** 桥接安全开关行（状态文字内嵌） */
 function SecuritySwitchRow({
   label,
   tip,
@@ -72,8 +72,7 @@ function SecuritySwitchRow({
           <div className="qvm-form-tip">{tip}</div>
         </div>
         <div className="net-switch-control">
-          <span className="net-switch-state">{checked ? '允许' : '拒绝'}</span>
-          <Switch checked={checked} onChange={onChange} size="small" />
+          <Switch checked={checked} onChange={onChange} size="small" checkedText="允" uncheckedText="拒" />
         </div>
       </div>
     </div>

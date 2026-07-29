@@ -189,8 +189,13 @@ export default function PublishSettingsDialog({ node, onClose, onSaved }: Publis
           <div className="qvm-form-tip">用户可见时普通用户可从此模板克隆</div>
         </div>
         <div className="tpl-switch-control">
-          <Switch checked={cloneVisible} onChange={(v) => setCloneVisible(v)} disabled={disabled} />
-          <span className="tpl-switch-state">{cloneVisible ? '用户可见' : '仅管理员'}</span>
+          <Switch
+            checked={cloneVisible}
+            onChange={(v) => setCloneVisible(v)}
+            disabled={disabled}
+            checkedText="公"
+            uncheckedText="私"
+          />
         </div>
       </div>
       <div className="qvm-form-item tpl-switch-row">
@@ -199,8 +204,7 @@ export default function PublishSettingsDialog({ node, onClose, onSaved }: Publis
           <div className="qvm-form-tip">禁用后管理员新建虚拟机下拉框也不会显示该模板</div>
         </div>
         <div className="tpl-switch-control">
-          <Switch checked={disabled} onChange={(v) => setDisabled(v)} />
-          <span className="tpl-switch-state">{disabled ? '禁用' : '可用'}</span>
+          <Switch checked={disabled} onChange={(v) => setDisabled(v)} checkedText="禁" uncheckedText="用" />
         </div>
       </div>
 

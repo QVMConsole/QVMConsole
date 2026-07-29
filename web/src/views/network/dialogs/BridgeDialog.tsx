@@ -111,11 +111,12 @@ export default function BridgeDialog({ hostInterfaces, onClose, onSaved }: Bridg
             </div>
           </div>
           <div className="net-switch-control">
-            <span className="net-switch-state">{form.migrate_host_ip ? '开启' : '关闭'}</span>
             <Switch
               checked={form.migrate_host_ip}
               onChange={(v) => setForm((f) => ({ ...f, migrate_host_ip: v }))}
               size="small"
+              checkedText="开"
+              uncheckedText="关"
             />
           </div>
         </div>

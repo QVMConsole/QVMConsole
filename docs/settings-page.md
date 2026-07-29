@@ -98,7 +98,7 @@ web/src/views/settings/
 
 ## 设计规范落实
 
-- 所有开关使用共享组件 `TextSwitch`（Switch + 外部状态文字），无内嵌文字
+- 所有开关使用共享组件 `TextSwitch`，并在 Switch 内嵌单字符状态文字
 - 行内小按钮（预设行删除）为纯图标 + Tooltip；弹窗底部与表单级主按钮保留文字
 - Banner 替代旧 el-alert，提示区不使用 emoji，统一 Semi 图标
 - 深色模式下页头 h2 / 分区标题 / 挡位卡片标题降对比为 `#b8c1cf`

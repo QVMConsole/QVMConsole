@@ -375,22 +375,6 @@
   color: var(--qvm-warn);
 }
 
-/* 带文字开关（与 vm-form 一致，避免依赖其样式加载时机） */
-.qvm-vf-text-switch {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-.qvm-vf-text-switch-label {
-  font-size: 13px;
-  color: var(--qvm-text-2);
-  white-space: nowrap;
-}
-.qvm-vf-text-switch-label.on {
-  color: var(--qvm-acc-ink);
-  font-weight: 500;
-}
-
 /* ==================== 无权限提示 ==================== */
 .fw-empty {
   text-align: center;

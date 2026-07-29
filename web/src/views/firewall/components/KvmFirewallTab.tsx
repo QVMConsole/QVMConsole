@@ -264,8 +264,8 @@ export default function KvmFirewallTab({
                 <TextSwitch
                   checked={policy.outbound_enabled}
                   onChange={(v) => onPolicyChange({ outbound_enabled: v })}
-                  checkedText="启用"
-                  uncheckedText="关闭"
+                  checkedText="开"
+                  uncheckedText="关"
                 />
               </div>
               {policy.outbound_enabled && (
@@ -287,8 +287,8 @@ export default function KvmFirewallTab({
                 <TextSwitch
                   checked={policy.inbound_enabled}
                   onChange={(v) => onPolicyChange({ inbound_enabled: v })}
-                  checkedText="启用"
-                  uncheckedText="关闭"
+                  checkedText="开"
+                  uncheckedText="关"
                 />
               </div>
               {policy.inbound_enabled && (
@@ -314,8 +314,8 @@ export default function KvmFirewallTab({
                 <TextSwitch
                   checked={policy.disable_vm_ipv6}
                   onChange={(v) => onPolicyChange({ disable_vm_ipv6: v })}
-                  checkedText="启用"
-                  uncheckedText="关闭"
+                  checkedText="开"
+                  uncheckedText="关"
                 />
               </div>
               <div className="qvm-form-item">

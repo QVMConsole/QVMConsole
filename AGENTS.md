@@ -31,7 +31,7 @@
 
 行内操作超过 2~3 个时容易误触，只保留 1 个高频操作图标在外，其余收进 ⋯ 下拉菜单（Dropdown trigger="click" position="bottomRight" clickToHide，危险项 type="danger"，与 VmActionsCell 一致），行级任务进行中时 ⋯ 图标显示 IconRefresh spin。
 
-同理，Semi Switch 也不要用 checkedText/uncheckedText 内嵌中文（过窄会竖排），统一使用共享组件 features/vm-form/sections/TextSwitch.tsx（Switch + 右侧外部状态文字）。
-29.项目中所有Switch组件禁止使用checkedText/uncheckedText内嵌中文文字（因宽度不足会导致文字竖排），必须统一使用共享组件features/vm-form/sections/TextSwitch.tsx（Switch + 右侧外部状态文字）。
+同理，Semi Switch 统一在组件内部使用 checkedText/uncheckedText 展示状态；每个状态文字仅允许一个显示字符，例如“开/关”或“｜/〇”，禁止在开关右侧追加状态文字。
+29.项目中所有 Switch 组件允许且应使用 checkedText/uncheckedText 内嵌状态文字；checkedText 与 uncheckedText 必须各为一个显示字符。通用状态使用“开/关”，语义特殊时可使用对应的单字符，禁止使用开关外部状态文字。
 30. 前端开发前端开发前请务必阅读 semi-ui-skills 技能文档，确保对 Semi 组件库的使用规范有充分了解。
 31. 所有 Semi Modal 弹窗关闭时必须保留缩小离场动画。父组件按条件挂载弹窗时，必须使用 `web/src/hooks/useMountModalLifecycle.ts`：关闭时先调用 `requestClose` 将 `visible` 切换为 `false`，通过 `afterClose={afterModalClose}` 等待动画结束后再清理父组件状态或跳转页面；禁止在 `onCancel`、提交成功回调或刷新回调中直接卸载弹窗。父组件始终挂载的受控弹窗可继续直接切换 `visible`，但不得在关闭时同步卸载组件。
