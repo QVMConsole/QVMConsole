@@ -84,6 +84,15 @@
   flex: 1;
   min-width: 0;
 }
+.sec-input-action {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px;
+}
+.sec-input-action .sec-row-tip {
+  grid-column: 1 / -1;
+}
 .sec-row-tip {
   margin-top: 5px;
   font-size: 12px;
@@ -125,6 +134,9 @@
   color: var(--qvm-text-0);
   word-break: break-all;
   user-select: all;
+}
+.sec-api-key-tip {
+  color: var(--qvm-warning-text, var(--qvm-text-2));
 }
 
 /* 恢复码弹窗样式已抽出到 components/recovery-codes.css（随组件按需加载，登录页安全初始化复用） */

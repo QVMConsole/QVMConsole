@@ -1,9 +1,8 @@
 /**
  * 个人安全中心页
  * - 迁移自旧前端 layout/index.vue 的"安全设置"对话框（用户头像下拉入口）
- * - 4 个 Tab：邮箱绑定 / 两步验证（2FA + 恢复码）/ 修改密码 / 修改用户名
- * - API Key 管理已独立到侧边栏「API 文档」页，本页不再包含
- * - 支持 ?tab=xxx 直接定位（email / totp / password / username）
+ * - 5 个 Tab：邮箱绑定 / 两步验证（2FA + 恢复码）/ API 凭证 / 修改密码 / 修改用户名
+ * - 支持 ?tab=xxx 直接定位（email / totp / api / password / username）
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
@@ -14,11 +13,12 @@ import { useUserStore } from '@/stores/user'
 import { CLOUD_TYPES, type CloudType } from '@/config/constants'
 import EmailSection from './components/EmailSection'
 import TotpSection from './components/TotpSection'
+import ApiKeySection from './components/ApiKeySection'
 import PasswordSection from './components/PasswordSection'
 import UsernameSection from './components/UsernameSection'
 import './security.css'
 
-const VALID_TABS = ['email', 'totp', 'password', 'username'] as const
+const VALID_TABS = ['email', 'totp', 'api', 'password', 'username'] as const
 type SecurityTabKey = (typeof VALID_TABS)[number]
 
 export default function SecurityPage() {
@@ -76,6 +76,9 @@ export default function SecurityPage() {
           </Tabs.TabPane>
           <Tabs.TabPane tab="两步验证" itemKey="totp" icon={<IconKeyStroked />}>
             <TotpSection refreshSecurity={refreshSecurity} />
+          </Tabs.TabPane>
+          <Tabs.TabPane tab="API 凭证" itemKey="api" icon={<IconKeyStroked />}>
+            <ApiKeySection />
           </Tabs.TabPane>
           <Tabs.TabPane tab="修改密码" itemKey="password" icon={<IconLockStroked />}>
             <PasswordSection />
