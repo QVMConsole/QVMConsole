@@ -4,6 +4,7 @@
  * - 任务列表首屏走 /task/list，后续通过 SSE 增量更新
  */
 import { create } from 'zustand'
+import { Notification } from '@douyinfe/semi-ui'
 import {
   getTaskList,
   createTaskSSE,
@@ -34,6 +35,33 @@ interface TaskState {
 
 let eventSource: EventSource | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+const notifiedTerminalTasks = new Set<string>()
+
+/** 在当前登录会话内提示任务的成功或失败结果，避免 SSE 重连时重复弹出。 */
+function notifyTaskResult(event: TaskProgressEvent) {
+  if (event.status !== 'success' && event.status !== 'failed') return
+
+  const notificationKey = `${event.task_id}:${event.status}`
+  if (notifiedTerminalTasks.has(notificationKey)) return
+  notifiedTerminalTasks.add(notificationKey)
+
+  const taskName = taskTypeText(event.type)
+  const taskLabel = `${taskName}（任务 #${event.task_id}）`
+  if (event.status === 'success') {
+    Notification.success({
+      title: '任务执行成功',
+      content: `${taskLabel}已执行成功`,
+      duration: 5,
+    })
+    return
+  }
+
+  Notification.error({
+    title: '任务执行失败',
+    content: event.message ? `${taskLabel}执行失败：${event.message}` : `${taskLabel}执行失败，请前往任务中心查看详情`,
+    duration: 8,
+  })
+}
 
 export const useTaskStore = create<TaskState>()((set, get) => ({
   tasks: [],
@@ -74,6 +102,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       try {
         const event = JSON.parse((e as MessageEvent).data) as TaskProgressEvent
         const { tasks, fetchTasks } = get()
+        notifyTaskResult(event)
         const idx = tasks.findIndex((t) => t.id === event.task_id)
         if (idx === -1) {
           // 新任务：刷新列表
@@ -118,6 +147,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
 
   reset: () => {
     get().stopSSE()
+    notifiedTerminalTasks.clear()
     set({ tasks: [], total: 0, loading: false })
   },
 }))
