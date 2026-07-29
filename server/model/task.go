@@ -59,6 +59,8 @@ const (
 	TaskTypeImportDisk                      = "import_disk"                        // 管理员通过绝对路径导入磁盘创建虚拟机
 	TaskTypeImportDiskAttach                = "import_disk_attach"                 // 管理员通过绝对路径导入磁盘挂载到已有虚拟机
 	TaskTypeMakeVMIndependent               = "make_vm_independent"                // 链式克隆虚拟机转为独立虚拟机
+	TaskTypePasswordBreachScan              = "password_breach_scan"               // 泄露密码扫描
+	TaskTypePasswordBreachNotify            = "password_breach_notify"             // 泄露密码通知
 )
 
 // Task 异步任务模型（纯内存存储，不持久化）

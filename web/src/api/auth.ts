@@ -24,6 +24,7 @@ export interface LoginStageResponse {
   security: SecurityState
   allowed_methods?: string[]
   force_password_change?: boolean
+  force_password_change_reason?: string
 }
 
 /** 泄露密码检测响应 */

@@ -59,7 +59,8 @@ web/src/views/settings/
   - KVM Unrestricted Guest 开关（`PUT /host/kvm-intel-unrestricted-guest`）
   - CPU 亲和性预设（`PUT /settings/cpu-affinity-presets`，独立"保存预设"按钮）
   - IOMMU 一键开启 / vfio-pci 一键加载
-- **高风险二次验证**：维护模式切换保存、JWT 密钥手动轮换会触发后端 428，由请求层（`api/client.ts`）自动弹出验证弹窗后重试。
+- **高风险二次验证**：维护模式切换保存、JWT 密钥手动轮换和立即执行密码泄露扫描会触发后端 428，由请求层（`api/client.ts`）自动弹出验证弹窗后重试。
+- **定时泄露检测**：独立 `TextSwitch` 控制每天本地时间 `00:00` 的扫描，默认开启；旁边“立即执行”按钮不受实时检测或定时检测开关限制。运行期间按钮显示旋转图标并禁用，状态区展示管理员与普通用户泄露数量。
 - **测试发信**：先静默保存当前配置再调用 `POST /settings/smtp/test`（按钮在 SMTP 表单区内，不在页脚）。
 - **站点标题同步**：保存成功后调用 `useAppStore.setSiteTitle`，同时用 `setPublicFlags` 同步泄露密码检测 / SPICE 默认开关的公开标志。
 - **?tab= 定位**：`VALID_SETTINGS_TABS` 白名单校验，切换 Tab 时 `replace` 方式回写 URL，供其他页面（如虚拟机表单空状态）跳转到指定标签页。
@@ -73,7 +74,9 @@ web/src/views/settings/
 
 | 接口 | 方法 | 说明 |
 |------|------|------|
-| `/settings` | GET / PUT | 获取 / 更新系统设置 |
+| `/settings` | GET / PUT | 获取 / 更新系统设置（含定时泄露检测开关） |
+| `/security/password-breach/status` | GET | 获取泄露扫描状态与受影响账户 |
+| `/security/password-breach/scan` | POST | 立即提交完整扫描任务（高风险） |
 | `/settings/smtp/test` | POST | 测试发信 |
 | `/settings/jwt-secret/rotate` | POST | 手动轮换 JWT 密钥（高风险） |
 | `/settings/user-storage-iso-path` | GET | 当前用户存储 ISO 目录 |

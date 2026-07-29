@@ -64,6 +64,16 @@
   border-color: rgba(251, 191, 36, 0.3);
   color: var(--qvm-warn);
 }
+
+.qvm-status-banner.error {
+  background: rgba(244, 63, 94, 0.1);
+  border-color: rgba(244, 63, 94, 0.34);
+  color: var(--qvm-danger);
+}
+
+body[theme-mode='dark'] .qvm-status-banner.error {
+  color: #fda4af;
+}
 .qvm-status-banner b {
   font-weight: 700;
 }

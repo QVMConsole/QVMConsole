@@ -118,6 +118,40 @@ except ImportError:
     return 1
 }
 
+# 生成定时泄露检测使用的 HIBP 前缀与 HMAC 指纹，并执行在线检查。
+password_security_info() {
+    local password="$1"
+    local secret="${KVM_SECURITY_SECRET:-}"
+    python3 -c '
+import hashlib
+import hmac
+import sys
+import urllib.request
+
+password = sys.argv[1]
+secret = sys.argv[2]
+full_hash = hashlib.sha1(password.encode()).hexdigest().upper()
+prefix, suffix = full_hash[:5], full_hash[5:]
+digest = hmac.new(secret.encode(), full_hash.encode(), hashlib.sha256).hexdigest().upper() if secret else ""
+status, count = "ok", 0
+try:
+    req = urllib.request.Request(
+        "https://api.pwnedpasswords.com/range/" + prefix,
+        headers={"User-Agent": "QVMConsole-Manage-PasswordCheck"},
+    )
+    with urllib.request.urlopen(req, timeout=5) as response:
+        for raw_line in response.read().decode("utf-8", "replace").splitlines():
+            parts = raw_line.strip().split(":", 1)
+            if len(parts) == 2 and parts[0].upper() == suffix:
+                status = "breached"
+                count = int(parts[1])
+                break
+except Exception:
+    status = "unavailable"
+print(f"{prefix}|{digest}|{status}|{count}")
+' "$password" "$secret"
+}
+
 # 检查 sqlite3 是否可用
 check_deps() {
     local missing=()
@@ -418,6 +452,110 @@ reset_admin_password() {
     press_enter
 }
 
+# ---- 功能 5: 修改管理员密码（保留邮箱与 TOTP） ----
+change_admin_password() {
+    echo ""
+    echo -e "${BOLD}========================================${NC}"
+    echo -e "${BOLD}   修改管理员密码${NC}"
+    echo -e "${BOLD}========================================${NC}"
+    echo ""
+
+    local admins
+    admins=$(sqlite3 "$DB_PATH" -separator '|' "SELECT id, username, totp_enabled, email FROM users WHERE role='admin' AND deleted_at IS NULL ORDER BY id;")
+    if [ -z "$admins" ]; then
+        echo -e "${YELLOW}数据库中没有可修改的管理员账户${NC}"
+        press_enter
+        return
+    fi
+
+    local -a admins_array=()
+    local index=1
+    while IFS='|' read -r id username totp email; do
+        local display="${username}"
+        [ "$totp" = "1" ] && display="${display} [2FA 已绑定]"
+        [ -n "$email" ] && display="${display} [${email}]"
+        admins_array+=("$id|$username")
+        echo -e "  ${BOLD}${index}${NC}. ${display}"
+        ((index++))
+    done <<< "$admins"
+
+    echo ""
+    echo -e "  ${BOLD}0${NC}. 返回主菜单"
+    echo -ne "${CYAN}请选择要修改密码的管理员 (1-$((index-1))): ${NC}"
+    read -r choice
+    if [ "$choice" = "0" ] || [ -z "$choice" ]; then
+        return
+    fi
+    if ! [[ "$choice" =~ ^[0-9]+$ ]] || [ "$choice" -lt 1 ] || [ "$choice" -ge "$index" ]; then
+        echo -e "${RED}无效选择${NC}"
+        press_enter
+        return
+    fi
+
+    local selected sel_id sel_username
+    selected="${admins_array[$((choice-1))]}"
+    sel_id=$(echo "$selected" | cut -d'|' -f1)
+    sel_username=$(echo "$selected" | cut -d'|' -f2)
+
+    local new_password confirm_password security_info prefix fingerprint breach_status breach_count
+    while true; do
+        echo ""
+        echo -ne "${CYAN}请输入新密码（至少 12 位）: ${NC}"
+        read -rs new_password
+        echo ""
+        echo -ne "${CYAN}请再次输入新密码: ${NC}"
+        read -rs confirm_password
+        echo ""
+        if [ "$new_password" != "$confirm_password" ]; then
+            echo -e "${RED}两次输入的密码不一致${NC}"
+            continue
+        fi
+        if [ "${#new_password}" -lt 12 ]; then
+            echo -e "${RED}密码长度不能少于 12 位${NC}"
+            continue
+        fi
+
+        echo -ne "正在进行泄露密码检测..."
+        security_info=$(password_security_info "$new_password")
+        IFS='|' read -r prefix fingerprint breach_status breach_count <<< "$security_info"
+        if [ "$breach_status" = "breached" ]; then
+            echo -e " ${RED}失败${NC}"
+            echo -e "${RED}该密码已在公开泄露数据库中出现 ${breach_count} 次，请更换密码${NC}"
+            continue
+        fi
+        if [ "$breach_status" = "unavailable" ]; then
+            echo -e " ${YELLOW}服务暂时不可用${NC}"
+            if ! confirm_action "在线检测失败，确认仍使用此密码?"; then
+                continue
+            fi
+        else
+            echo -e " ${GREEN}通过${NC}"
+        fi
+        break
+    done
+
+    echo ""
+    echo -e "目标管理员: ${CYAN}${sel_username}${NC}"
+    echo -e "邮箱和 TOTP 绑定将保持不变。"
+    if ! confirm_action "确认修改管理员密码?"; then
+        return
+    fi
+
+    local hashed_password safe_pass safe_prefix safe_fingerprint
+    if ! hashed_password=$(hash_password "$new_password"); then
+        return 1
+    fi
+    safe_pass=$(sqlite_escape "$hashed_password")
+    safe_prefix=$(sqlite_escape "$prefix")
+    safe_fingerprint=$(sqlite_escape "$fingerprint")
+
+    sqlite3 "$DB_PATH" "UPDATE users SET password_hash='$safe_pass', password_breach_prefix='$safe_prefix', password_breach_hmac='$safe_fingerprint', password_breached=0, password_breach_count=0, password_breach_checked_at=NULL, password_breach_detected_at=NULL, password_breach_user_notified_at=NULL, password_breach_admin_notified_at=NULL, force_password_change=0, force_password_change_reason='', login_verified_until=NULL, high_risk_verified_until=NULL, security_updated_at=datetime('now'), updated_at=datetime('now') WHERE id=$sel_id AND role='admin' AND deleted_at IS NULL;"
+    unset new_password confirm_password hashed_password
+
+    echo -e "${GREEN}✓ 管理员 '${sel_username}' 的密码已修改，泄露锁定状态已清除${NC}"
+    press_enter
+}
+
 # ---- 功能 2: 清除 TOTP 令牌认证 ----
 clear_totp() {
     echo ""
@@ -535,10 +673,11 @@ show_menu() {
     echo -e "  ${BOLD}${GREEN}2${NC}. 清除 TOTP 令牌认证 (选择账户)"
     echo -e "  ${BOLD}${GREEN}3${NC}. 查看所有用户"
     echo -e "  ${BOLD}${GREEN}4${NC}. 修改服务端口 (自动更新 UFW 防火墙规则)"
+    echo -e "  ${BOLD}${GREEN}5${NC}. 修改管理员密码 (保留 TOTP/邮箱绑定)"
     echo ""
     echo -e "  ${BOLD}${RED}0${NC}. 退出"
     echo ""
-    echo -ne "${CYAN}请输入选项 [0-4]: ${NC}"
+    echo -ne "${CYAN}请输入选项 [0-5]: ${NC}"
 }
 
 # ---- 主流程 ----
@@ -555,6 +694,7 @@ main() {
             2) clear_totp ;;
             3) list_users ;;
             4) change_port ;;
+            5) change_admin_password ;;
             0)
                 echo ""
                 echo -e "${GREEN}再见!${NC}"

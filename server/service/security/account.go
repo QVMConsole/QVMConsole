@@ -194,13 +194,17 @@ func CompleteInviteRegistration(rawToken, password string) (*model.User, error) 
 
 	now := time.Now()
 	loginVerifiedUntil := now.Add(LoginVerificationWindow)
-	if err := model.DB.Model(user).Updates(map[string]interface{}{
+	updates := map[string]interface{}{
 		"password_hash":        string(hashedPassword),
 		"status":               UserStatusActive,
 		"email_verified_at":    &now,
 		"login_verified_until": &loginVerifiedUntil,
 		"security_updated_at":  &now,
-	}).Error; err != nil {
+	}
+	for key, value := range PasswordFingerprintUpdateFields(password) {
+		updates[key] = value
+	}
+	if err := model.DB.Model(user).Updates(updates).Error; err != nil {
 		return nil, fmt.Errorf("激活用户失败: %w", err)
 	}
 	if err := D.ProvisionSystemUserResources(user, password); err != nil {
@@ -364,13 +368,17 @@ func resetUserPassword(user *model.User, newPassword string) error {
 	}
 
 	now := time.Now()
-	if err := model.DB.Model(user).Updates(map[string]interface{}{
+	updates := map[string]interface{}{
 		"password_hash":            string(hashedPassword),
 		"force_password_change":    false,
 		"login_verified_until":     nil,
 		"high_risk_verified_until": nil,
 		"security_updated_at":      &now,
-	}).Error; err != nil {
+	}
+	for key, value := range PasswordFingerprintUpdateFields(newPassword) {
+		updates[key] = value
+	}
+	if err := model.DB.Model(user).Updates(updates).Error; err != nil {
 		return fmt.Errorf("更新密码失败: %w", err)
 	}
 	if user.Role == "user" {
@@ -605,29 +613,32 @@ func CreateActiveUserDirectly(username, email, password, role, cloudType string,
 
 	now := time.Now()
 	loginVerifiedUntil := now.Add(LoginVerificationWindow)
+	fingerprint := BuildPasswordFingerprint(password)
 	user := &model.User{
-		Username:           username,
-		PasswordHash:       string(hashedPassword),
-		Email:              email,
-		Role:               role,
-		CloudType:          cloudType,
-		Status:             UserStatusActive,
-		EmailVerifiedAt:    &now,
-		LoginVerifiedUntil: &loginVerifiedUntil,
-		MaxCPU:             maxCPU,
-		MaxMemory:          maxMemory,
-		MaxDisk:            maxDisk,
-		MaxVM:              maxVM,
-		MaxStorage:         maxStorage,
-		MaxRuntimeHours:    maxRuntimeHours,
-		EnablePortForward:  enablePortForward,
-		MaxPortForwards:    maxPortForwards,
-		MaxSnapshots:       maxSnapshots,
-		MaxBandwidthUp:     maxBandwidthUp,
-		MaxBandwidthDown:   maxBandwidthDown,
-		MaxTrafficDown:     maxTrafficDown,
-		MaxTrafficUp:       maxTrafficUp,
-		MaxPublicIPs:       maxPublicIPs,
+		Username:             username,
+		PasswordHash:         string(hashedPassword),
+		PasswordBreachPrefix: fingerprint.Prefix,
+		PasswordBreachHMAC:   fingerprint.HMAC,
+		Email:                email,
+		Role:                 role,
+		CloudType:            cloudType,
+		Status:               UserStatusActive,
+		EmailVerifiedAt:      &now,
+		LoginVerifiedUntil:   &loginVerifiedUntil,
+		MaxCPU:               maxCPU,
+		MaxMemory:            maxMemory,
+		MaxDisk:              maxDisk,
+		MaxVM:                maxVM,
+		MaxStorage:           maxStorage,
+		MaxRuntimeHours:      maxRuntimeHours,
+		EnablePortForward:    enablePortForward,
+		MaxPortForwards:      maxPortForwards,
+		MaxSnapshots:         maxSnapshots,
+		MaxBandwidthUp:       maxBandwidthUp,
+		MaxBandwidthDown:     maxBandwidthDown,
+		MaxTrafficDown:       maxTrafficDown,
+		MaxTrafficUp:         maxTrafficUp,
+		MaxPublicIPs:         maxPublicIPs,
 	}
 
 	if err := model.DB.Create(user).Error; err != nil {

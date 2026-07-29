@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-28T15:16:21.048Z",
-  "count": 302,
+  "generated_at": "2026-07-29T02:27:18.479Z",
+  "count": 304,
   "endpoints": [
     {
       "method": "POST",
@@ -1244,6 +1244,28 @@
       "vmAccess": false,
       "highRisk": "",
       "comment": ""
+    },
+    {
+      "method": "POST",
+      "path": "/security/password-breach/scan",
+      "handler": "StartPasswordBreachScan",
+      "auth": "api",
+      "admin": true,
+      "elasticOnly": false,
+      "vmAccess": false,
+      "highRisk": "run_password_breach_scan",
+      "comment": "立即执行泄露密码检测"
+    },
+    {
+      "method": "GET",
+      "path": "/security/password-breach/status",
+      "handler": "GetPasswordBreachStatus",
+      "auth": "api",
+      "admin": true,
+      "elasticOnly": false,
+      "vmAccess": false,
+      "highRisk": "",
+      "comment": "获取泄露密码状态"
     },
     {
       "method": "GET",

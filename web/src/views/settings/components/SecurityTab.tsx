@@ -1,11 +1,17 @@
 /**
  * 安全与维护 Tab：邮件与安全验证（SMTP）/ 安全防护 / JWT 密钥管理 / 维护模式
  */
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Banner, Button, Input, InputNumber, Select, Tag, TextArea, Toast } from '@douyinfe/semi-ui'
-import { IconAlertTriangle, IconLock, IconMail } from '@douyinfe/semi-icons'
+import { IconAlertTriangle, IconLock, IconMail, IconRefresh } from '@douyinfe/semi-icons'
 import TextSwitch from '@/features/vm-form/sections/TextSwitch'
 import { rotateJWTSecret, testSMTP } from '@/api/settings'
+import { getTaskDetail } from '@/api/task'
+import {
+  getPasswordBreachStatus,
+  startPasswordBreachScan,
+  type PasswordBreachStatus,
+} from '@/api/passwordBreach'
 import { confirmModal } from '@/utils/confirm'
 import { SectionHead, SettingRow } from './SettingRow'
 import type { SettingsTabProps } from '../types'
@@ -20,6 +26,85 @@ interface SecurityTabProps extends SettingsTabProps {
 export default function SecurityTab({ form, patch, saveBeforeAction, refresh }: SecurityTabProps) {
   const [testing, setTesting] = useState(false)
   const [rotating, setRotating] = useState(false)
+  const [breachStatus, setBreachStatus] = useState<PasswordBreachStatus | null>(null)
+  const [breachTaskRunning, setBreachTaskRunning] = useState(false)
+  const [breachTaskId, setBreachTaskId] = useState<number | null>(null)
+  const reportedBreachTasks = useRef(new Set<number>())
+
+  const refreshBreachStatus = useCallback(async () => {
+    try {
+      const res = await getPasswordBreachStatus()
+      setBreachStatus(res.data.status)
+      if (res.data.active_task?.status === 'pending' || res.data.active_task?.status === 'running') {
+        setBreachTaskRunning(true)
+        setBreachTaskId(res.data.active_task.id)
+      }
+    } catch {
+      // 静默刷新，错误由手动操作反馈
+    }
+  }, [])
+
+  useEffect(() => {
+    void refreshBreachStatus()
+  }, [refreshBreachStatus])
+
+  useEffect(() => {
+    if (!breachTaskRunning || !breachTaskId) return
+    const pollTask = async () => {
+      try {
+        const res = await getTaskDetail(breachTaskId)
+        const task = res.data
+        if (task.status === 'pending' || task.status === 'running') {
+          await refreshBreachStatus()
+          return
+        }
+        setBreachTaskRunning(false)
+        setBreachTaskId(null)
+        await refreshBreachStatus()
+        if (reportedBreachTasks.current.has(task.id)) return
+        reportedBreachTasks.current.add(task.id)
+        if (task.status === 'success') {
+          let summary = ''
+          try {
+            const result = JSON.parse(task.result || '{}') as {
+              breached_admins?: number
+              breached_users?: number
+            }
+            summary = `：管理员 ${result.breached_admins || 0}，普通用户 ${result.breached_users || 0}`
+          } catch {
+            // 结果解析失败时仍展示通用完成提示
+          }
+          Toast.success(`密码泄露检测已完成${summary}`)
+        } else {
+          Toast.error(`${task.message || '密码泄露检测任务执行失败'}，可前往任务中心查看详情`)
+        }
+      } catch {
+        // 临时轮询失败时保留运行状态，下次继续获取
+      }
+    }
+    void pollTask()
+    const timer = window.setInterval(() => void pollTask(), 2000)
+    return () => window.clearInterval(timer)
+  }, [breachTaskId, breachTaskRunning, refreshBreachStatus])
+
+  const handleRunBreachScan = async () => {
+    const ok = await confirmModal({
+      title: '立即执行密码泄露检测',
+      content: '检测任务可能撤销管理员现有会话、限制泄露账户登录并发送安全通知，确定继续吗？',
+      okText: '立即执行',
+      danger: true,
+    })
+    if (!ok) return
+    setBreachTaskRunning(true)
+    try {
+      const res = await startPasswordBreachScan()
+      Toast.success(res.message || '密码泄露检测任务已提交')
+      setBreachTaskId(res.data.task.id)
+      await refreshBreachStatus()
+    } catch {
+      setBreachTaskRunning(false)
+    }
+  }
 
   // 保存当前配置后发送测试邮件
   const handleTestSMTP = async () => {
@@ -215,6 +300,42 @@ export default function SecurityTab({ form, patch, saveBeforeAction, refresh }: 
           onChange={(v) => patch({ password_breach_check_enabled: v })}
         />
       </SettingRow>
+
+      <SettingRow
+        label="定时泄露检测"
+        tip="开启后每天按宿主机本地时间 00:00 检测已登记的账户密码；立即执行按钮不受任一泄露检测开关限制 | 环境变量: KVM_SCHEDULED_PASSWORD_BREACH_CHECK_ENABLED"
+      >
+        <div className="stg-inline-group">
+          <TextSwitch
+            checked={form.scheduled_password_breach_check_enabled}
+            onChange={(v) => patch({ scheduled_password_breach_check_enabled: v })}
+          />
+          <Button
+            icon={<IconRefresh spin={breachTaskRunning} />}
+            disabled={breachTaskRunning}
+            onClick={() => void handleRunBreachScan()}
+          >
+            {breachTaskRunning ? '检测中' : '立即执行'}
+          </Button>
+        </div>
+      </SettingRow>
+
+      {breachStatus && (
+        <Banner
+          type={breachStatus.breached_total > 0 ? 'danger' : 'info'}
+          closeIcon={null}
+          className="stg-banner"
+          description={
+            breachTaskRunning
+              ? '密码泄露检测任务正在执行，可在任务中心查看进度。'
+              : breachStatus.breached_total > 0
+                ? `当前有 ${breachStatus.breached_total} 个泄露账户（管理员 ${breachStatus.breached_admins}，普通用户 ${breachStatus.breached_users}）。`
+                : breachStatus.last_checked_at
+                  ? `最近一次检测未发现泄露账户：${new Date(breachStatus.last_checked_at).toLocaleString()}`
+                  : '尚未执行过定时泄露检测。'
+          }
+        />
+      )}
 
       <SectionHead icon={<IconAlertTriangle />} title="JWT 密钥管理" />
 

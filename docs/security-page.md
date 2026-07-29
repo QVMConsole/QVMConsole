@@ -43,12 +43,13 @@ web/src/views/security/
 
 ## 交互与机制
 
-- **安全状态刷新**：进入页面及各操作成功后调用 `GET /auth/info` 刷新全局 `security` 状态（`useUserStore.setUserInfo`），邮箱验证状态 / 2FA 开关 / 恢复码有无即时同步。
+- **安全状态刷新**：进入页面及各操作成功后调用 `GET /auth/info` 刷新全局 `security` 状态（`useUserStore.setUserInfo`），邮箱验证状态、2FA、恢复码及当前密码泄露状态即时同步。
 - **邮箱绑定**：`must_bind_email=true` 时显示警示 Banner；SMTP 未配置时显示提示 Banner。流程为「发送验证码（`challenge_id` 10 分钟有效）→ 输入验证码 → 保存」，绑定成功后清空表单。
 - **2FA 启用**：`POST /auth/2fa/setup` 返回 `secret` + `otpauth_url`，前端用 `qrcode` 包本地渲染二维码（深色模式下二维码保持白底确保可扫描）；输入 6 位动态验证码启用，响应顶层 `recovery.recovery_codes` 仅展示一次，弹出恢复码弹窗。
 - **2FA 关闭**：危险操作，需密码 + 动态验证码，提交前 `confirmModal` 二次确认。
 - **恢复码重新生成**：需密码 + 动态验证码；旧码立即失效，新码同样仅展示一次。恢复码弹窗支持一键复制全部与下载为 `qvmconsole-recovery-codes.txt`。
 - **修改密码**：新密码依次经过「长度 ≥ 12 → 本地弱密码快检 → 两次输入一致性 → HIBP 泄露检测（后端 k-匿名）」，全部通过后提交；该接口为高风险操作，428 二次验证由请求层（`api/client.ts`）自动弹窗处理；成功后清空登录态并跳转登录页。
+- **泄露登录处置**：普通用户登录后收到可关闭警告并可直接进入密码标签页；已绑定 2FA 的管理员完成登录验证后进入现有强制改密窗口；未绑定 2FA 的管理员须通过 `sudo bash qvmc-manage.sh` 修改密码。
 - **修改用户名**：后端校验唯一性后重新签发访问 Token，前端同步 `setToken` + `setUserInfo`，无需重新登录。
 - **?tab= 定位**：`VALID_TABS` 白名单校验（email / totp / password / username），切换 Tab 时 `replace` 回写 URL。
 

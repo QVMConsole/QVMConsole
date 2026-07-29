@@ -14,6 +14,7 @@
 | 行内操作 | 「纯图标 + Tooltip」模式：详情（全部任务）、取消（仅 pending/running，confirmModal 确认，运行中任务提示资源自动清理） |
 | 任务详情 | 共享组件 `TaskDetailSheet` 抽屉：基础信息、任务参数/执行结果 JSON 美化、结果下载按钮（`download_path` / `extra_downloads`，经 `getTemplateExportDownloadUrl` 附带 token 打开） |
 | 实时进度 | **不重复建 SSE**：复用全局任务 Store（`stores/task.ts`，主布局登录后启动）的 SSE；订阅 Store 任务变化后按 id 合并进本页列表；第一页且无筛选时发现新任务自动刷新；详情抽屉打开时同步进度，任务到达终态自动补拉完整详情 |
+| 密码泄露任务 | `password_breach_scan` 展示完整扫描，`password_breach_notify` 展示登录后首次通知重试；扫描失败可在详情中查看中文错误 |
 
 ## 目录结构
 

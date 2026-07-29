@@ -100,6 +100,7 @@ func main() {
 	service.StartVMScheduleRunner()
 	service.StartJWTSecretRotator()
 	service.StartExpiredUploadSessionCleanup() // 清理过期分片上传会话
+	service.StartPasswordBreachScheduler()
 
 	// 同步 SSH 拒绝配置（确保与数据库状态一致）
 	service.SyncSSHDenyConfig()
@@ -898,6 +899,24 @@ func registerTaskHandlers() {
 		}
 		resultJSON, _ := json.Marshal(result)
 		return string(resultJSON), nil
+	})
+	taskqueue.RegisterHandler(model.TaskTypePasswordBreachScan, func(ctx context.Context, task *model.Task, progress func(int, string)) (string, error) {
+		var params service.PasswordBreachScanParams
+		if err := json.Unmarshal([]byte(task.Params), &params); err != nil {
+			return "", fmt.Errorf("解析参数失败: %w", err)
+		}
+		result, err := service.ExecutePasswordBreachScan(ctx, params, progress)
+		if err != nil {
+			return "", err
+		}
+		return service.EncodePasswordBreachTaskResult(result), nil
+	})
+	taskqueue.RegisterHandler(model.TaskTypePasswordBreachNotify, func(ctx context.Context, task *model.Task, progress func(int, string)) (string, error) {
+		var params service.PasswordBreachNotifyParams
+		if err := json.Unmarshal([]byte(task.Params), &params); err != nil {
+			return "", fmt.Errorf("解析参数失败: %w", err)
+		}
+		return service.ExecutePasswordBreachNotification(ctx, params, progress)
 	})
 	logger.App.Info("任务处理器注册完成")
 }

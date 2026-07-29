@@ -40,6 +40,9 @@ export interface SecurityState {
   login_verified_until: string | null
   high_risk_method: string
   has_recovery_codes: boolean
+  password_breached: boolean
+  password_breach_count: number
+  password_breach_detected_at: string | null
 }
 
 /** 当前登录用户信息（GET /auth/info 响应 data） */

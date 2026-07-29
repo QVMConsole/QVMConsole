@@ -149,6 +149,8 @@ export const TASK_TYPE_TEXT: Record<string, string> = {
   ovs_repair: 'OVS 修复',
   network_capture: '网络抓包',
   vm_schedule_action: '虚拟机定时任务',
+  password_breach_scan: '泄露密码扫描',
+  password_breach_notify: '泄露密码通知',
   power: '电源操作',
 }
 

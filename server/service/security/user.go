@@ -11,21 +11,24 @@ import (
 
 // SecurityState 前端展示用安全状态
 type SecurityState struct {
-	Email               string  `json:"email"`
-	MaskedEmail         string  `json:"masked_email"`
-	EmailVerified       bool    `json:"email_verified"`
-	TOTPEnabled         bool    `json:"totp_enabled"`
-	MustBindEmail       bool    `json:"must_bind_email"`
-	MustBind2FA         bool    `json:"must_bind_2fa"`
-	RequiresLoginVerify bool    `json:"requires_login_verify"`
-	SMTPConfigured      bool    `json:"smtp_configured"`
-	DevelopmentMode     bool    `json:"development_mode"`
-	MaintenanceMode     bool    `json:"maintenance_mode"`
-	BootstrapSkipped    bool    `json:"bootstrap_skipped"`   // 管理员是否跳过了安全初始化
-	Status              string  `json:"status"`
-	LoginVerifiedUntil  *string `json:"login_verified_until"`
-	HighRiskMethod      string  `json:"high_risk_method"`
-	HasRecoveryCodes    bool    `json:"has_recovery_codes"` // 是否有可用恢复码
+	Email                    string  `json:"email"`
+	MaskedEmail              string  `json:"masked_email"`
+	EmailVerified            bool    `json:"email_verified"`
+	TOTPEnabled              bool    `json:"totp_enabled"`
+	MustBindEmail            bool    `json:"must_bind_email"`
+	MustBind2FA              bool    `json:"must_bind_2fa"`
+	RequiresLoginVerify      bool    `json:"requires_login_verify"`
+	SMTPConfigured           bool    `json:"smtp_configured"`
+	DevelopmentMode          bool    `json:"development_mode"`
+	MaintenanceMode          bool    `json:"maintenance_mode"`
+	BootstrapSkipped         bool    `json:"bootstrap_skipped"` // 管理员是否跳过了安全初始化
+	Status                   string  `json:"status"`
+	LoginVerifiedUntil       *string `json:"login_verified_until"`
+	HighRiskMethod           string  `json:"high_risk_method"`
+	HasRecoveryCodes         bool    `json:"has_recovery_codes"` // 是否有可用恢复码
+	PasswordBreached         bool    `json:"password_breached"`
+	PasswordBreachCount      int64   `json:"password_breach_count"`
+	PasswordBreachDetectedAt *string `json:"password_breach_detected_at"`
 }
 
 // IsSecurityVerificationDisabled 是否禁用安全验证
@@ -36,18 +39,24 @@ func IsSecurityVerificationDisabled() bool {
 // BuildSecurityState 构建安全状态
 func BuildSecurityState(user *model.User) SecurityState {
 	state := SecurityState{
-		Email:             strings.TrimSpace(user.Email),
-		MaskedEmail:       MaskEmail(user.Email),
-		EmailVerified:     user.EmailVerifiedAt != nil,
-		TOTPEnabled:       user.TOTPEnabled,
-		MustBindEmail:     user.EmailVerifiedAt == nil,
-		MustBind2FA:       user.Role == "admin" && !user.TOTPEnabled,
-		SMTPConfigured:    IsSMTPConfigured(),
-		DevelopmentMode:   IsSecurityVerificationDisabled(),
-		MaintenanceMode:   D.IsMaintenanceModeEnabled(),
-		BootstrapSkipped:  user.BootstrapSkipped,
-		Status:            user.Status,
-		HasRecoveryCodes:  HasRecoveryCodes(user),
+		Email:               strings.TrimSpace(user.Email),
+		MaskedEmail:         MaskEmail(user.Email),
+		EmailVerified:       user.EmailVerifiedAt != nil,
+		TOTPEnabled:         user.TOTPEnabled,
+		MustBindEmail:       user.EmailVerifiedAt == nil,
+		MustBind2FA:         user.Role == "admin" && !user.TOTPEnabled,
+		SMTPConfigured:      IsSMTPConfigured(),
+		DevelopmentMode:     IsSecurityVerificationDisabled(),
+		MaintenanceMode:     D.IsMaintenanceModeEnabled(),
+		BootstrapSkipped:    user.BootstrapSkipped,
+		Status:              user.Status,
+		HasRecoveryCodes:    HasRecoveryCodes(user),
+		PasswordBreached:    user.PasswordBreached,
+		PasswordBreachCount: user.PasswordBreachCount,
+	}
+	if user.PasswordBreachDetectedAt != nil {
+		formatted := user.PasswordBreachDetectedAt.Format(time.RFC3339)
+		state.PasswordBreachDetectedAt = &formatted
 	}
 	if state.DevelopmentMode {
 		state.MustBindEmail = false

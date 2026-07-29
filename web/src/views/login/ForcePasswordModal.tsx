@@ -22,6 +22,7 @@ interface ForcePasswordModalProps {
   onExit: () => void
   /** 修改成功：父组件用新密码自动重新登录 */
   onSuccess: (newPassword: string) => void
+  reason?: string
 }
 
 export default function ForcePasswordModal({
@@ -29,6 +30,7 @@ export default function ForcePasswordModal({
   initialPassword,
   onExit,
   onSuccess,
+  reason,
 }: ForcePasswordModalProps) {
   const [form, setForm] = useState({ oldPassword: '', newPassword: '', confirmPassword: '' })
   const [loading, setLoading] = useState(false)
@@ -91,7 +93,7 @@ export default function ForcePasswordModal({
 
   return (
     <Modal
-      title="首次登录请修改默认密码"
+      title={reason === 'password_breach' ? '当前密码已泄露，请立即修改' : '首次登录请修改默认密码'}
       visible={visible}
       width={440}
       maskClosable={false}
@@ -108,7 +110,11 @@ export default function ForcePasswordModal({
     >
       <Banner
         type="warning"
-        description="检测到您正在使用默认密码，为保障账户安全，请立即修改密码。"
+        description={
+          reason === 'password_breach'
+            ? '安全检测确认当前管理员密码已出现在公开泄露数据库中。完成修改前，其他面板功能将保持锁定。'
+            : '检测到您正在使用默认密码，为保障账户安全，请立即修改密码。'
+        }
         closeIcon={null}
         style={{ marginBottom: 14, borderRadius: 10 }}
       />

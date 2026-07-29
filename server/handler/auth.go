@@ -9,6 +9,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"kvm_console/config"
+	"kvm_console/logger"
 	"kvm_console/middleware"
 	"kvm_console/model"
 	"kvm_console/service"
@@ -21,14 +22,15 @@ type LoginRequest struct {
 }
 
 type LoginStageResponse struct {
-	Stage               string                `json:"stage"`
-	Token               string                `json:"token,omitempty"`
-	Username            string                `json:"username"`
-	Role                string                `json:"role"`
-	CloudType           string                `json:"cloud_type"`
-	Security            service.SecurityState `json:"security"`
-	AllowedMethods      []string              `json:"allowed_methods,omitempty"`
-	ForcePasswordChange bool                  `json:"force_password_change,omitempty"`
+	Stage                     string                `json:"stage"`
+	Token                     string                `json:"token,omitempty"`
+	Username                  string                `json:"username"`
+	Role                      string                `json:"role"`
+	CloudType                 string                `json:"cloud_type"`
+	Security                  service.SecurityState `json:"security"`
+	AllowedMethods            []string              `json:"allowed_methods,omitempty"`
+	ForcePasswordChange       bool                  `json:"force_password_change,omitempty"`
+	ForcePasswordChangeReason string                `json:"force_password_change_reason,omitempty"`
 }
 
 type ChangePasswordRequest struct {
@@ -187,11 +189,36 @@ func Login(c *gin.Context) {
 	}
 	service.ClearLoginFailures(clientIP, user.Username)
 
+	// 旧账户首次成功校验密码时登记安全指纹；定时检测开启时同步执行一次在线检查。
+	checkPasswordNow := config.GlobalConfig.ScheduledPasswordBreachCheckEnabled && !user.ForcePasswordChange
+	enrollment, enrollErr := service.EnrollAndCheckPassword(&user, req.Password, checkPasswordNow)
+	if enrollErr != nil {
+		logger.App.Warn("登录时登记或检查密码安全指纹失败", "user", user.Username, "error", enrollErr)
+	}
+	if enrollment.NewlyDetected {
+		service.SubmitPasswordBreachNotification(user.ID)
+	}
+	if err := model.DB.First(&user, user.ID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "刷新账户安全状态失败"})
+		return
+	}
+	if user.Role == "admin" && user.PasswordBreached && !user.TOTPEnabled {
+		c.JSON(http.StatusForbidden, gin.H{
+			"code":    403,
+			"message": "检测到管理员密码已泄露且未绑定 2FA，请在服务器运行 sudo bash qvmc-manage.sh 并选择修改管理员密码",
+			"data": gin.H{
+				"reason":           "admin_password_breached_no_2fa",
+				"recovery_command": "sudo bash qvmc-manage.sh",
+			},
+		})
+		return
+	}
+
 	security := service.BuildSecurityState(&user)
 
 	// 检查是否需要强制修改密码（默认管理员账号首次登录）
 	// 优先级最高：使用默认密码是最高安全风险，必须先修改密码再进行其他操作
-	if user.ForcePasswordChange {
+	if user.ForcePasswordChange && user.ForcePasswordChangeReason != securitypkg.ForcePasswordChangeReasonBreach {
 		accessToken, err := middleware.GenerateAccessTokenWithContext(c, user.ID, user.Username, user.Role)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "生成 Token 失败"})
@@ -201,13 +228,37 @@ func Login(c *gin.Context) {
 			"code":    200,
 			"message": "登录成功，请先修改默认密码",
 			"data": LoginStageResponse{
-				Stage:               "success",
-				Token:               accessToken,
-				Username:            user.Username,
-				Role:                user.Role,
-				CloudType:           service.NormalizeCloudType(user.CloudType),
-				Security:            security,
-				ForcePasswordChange: true,
+				Stage:                     "success",
+				Token:                     accessToken,
+				Username:                  user.Username,
+				Role:                      user.Role,
+				CloudType:                 service.NormalizeCloudType(user.CloudType),
+				Security:                  security,
+				ForcePasswordChange:       true,
+				ForcePasswordChangeReason: user.ForcePasswordChangeReason,
+			},
+		})
+		return
+	}
+
+	// 泄露管理员密码必须先完成 2FA，再进入受限的强制改密会话。
+	if user.Role == "admin" && user.PasswordBreached && user.TOTPEnabled {
+		token, err := middleware.GenerateTokenWithContext(c, user.ID, user.Username, user.Role, service.TokenTypeLogin, 15*time.Minute)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "生成登录验证令牌失败"})
+			return
+		}
+		allowedMethods := []string{service.ChallengeMethodTOTP}
+		if service.HasRecoveryCodes(&user) {
+			allowedMethods = append(allowedMethods, service.ChallengeMethodRecovery)
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"code": 200, "message": "密码已泄露，请先完成 2FA 验证",
+			"data": LoginStageResponse{
+				Stage: "login_verify", Token: token, Username: user.Username, Role: user.Role,
+				CloudType: service.NormalizeCloudType(user.CloudType), Security: security,
+				AllowedMethods: allowedMethods, ForcePasswordChange: true,
+				ForcePasswordChangeReason: securitypkg.ForcePasswordChangeReasonBreach,
 			},
 		})
 		return
@@ -282,13 +333,14 @@ func Login(c *gin.Context) {
 		"code":    200,
 		"message": "登录成功",
 		"data": LoginStageResponse{
-			Stage:               "success",
-			Token:               accessToken,
-			Username:            user.Username,
-			Role:                user.Role,
-			CloudType:           service.NormalizeCloudType(user.CloudType),
-			Security:            security,
-			ForcePasswordChange: forcePasswordChange,
+			Stage:                     "success",
+			Token:                     accessToken,
+			Username:                  user.Username,
+			Role:                      user.Role,
+			CloudType:                 service.NormalizeCloudType(user.CloudType),
+			Security:                  security,
+			ForcePasswordChange:       forcePasswordChange,
+			ForcePasswordChangeReason: user.ForcePasswordChangeReason,
 		},
 	})
 }
@@ -344,13 +396,17 @@ func ChangePassword(c *gin.Context) {
 	}
 
 	now := time.Now()
-	if err := model.DB.Model(user).Updates(map[string]interface{}{
+	updates := map[string]interface{}{
 		"password_hash":            string(newHash),
 		"force_password_change":    false,
 		"high_risk_verified_until": nil,
 		"login_verified_until":     nil,
 		"security_updated_at":      &now,
-	}).Error; err != nil {
+	}
+	for key, value := range securitypkg.PasswordFingerprintUpdateFields(req.NewPassword) {
+		updates[key] = value
+	}
+	if err := model.DB.Model(user).Updates(updates).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "密码更新失败"})
 		return
 	}
@@ -516,12 +572,14 @@ func VerifyLoginStage(c *gin.Context) {
 		"code":    200,
 		"message": "登录验证成功",
 		"data": LoginStageResponse{
-			Stage:     "success",
-			Token:     accessToken,
-			Username:  user.Username,
-			Role:      user.Role,
-			CloudType: service.NormalizeCloudType(user.CloudType),
-			Security:  *state,
+			Stage:                     "success",
+			Token:                     accessToken,
+			Username:                  user.Username,
+			Role:                      user.Role,
+			CloudType:                 service.NormalizeCloudType(user.CloudType),
+			Security:                  *state,
+			ForcePasswordChange:       user.ForcePasswordChange,
+			ForcePasswordChangeReason: user.ForcePasswordChangeReason,
 		},
 	})
 }

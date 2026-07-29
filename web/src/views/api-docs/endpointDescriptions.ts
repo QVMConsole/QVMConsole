@@ -27,7 +27,7 @@ export interface EndpointDescription {
 export const moduleGroups: { name: string; description: string; prefixes: string[] }[] = [
   { name: '公开接口', description: '无需登录，通常用于登录页初始化展示。', prefixes: ['/public'] },
   { name: '认证与账户安全', description: '登录、邀请、找回密码、安全验证和 API Key 管理。', prefixes: ['/auth'] },
-  { name: '系统设置', description: '系统级配置，管理员使用；SMTP 设置在安全初始化阶段可使用 bootstrap token。', prefixes: ['/settings'] },
+  { name: '系统设置', description: '系统级配置、密码泄露扫描与处置，管理员使用；SMTP 设置在安全初始化阶段可使用 bootstrap token。', prefixes: ['/settings', '/security'] },
   { name: '虚拟机', description: 'VM 生命周期、详情、监控、网络绑定、调度、磁盘、VNC/SPICE、快照和救援。', prefixes: ['/vm'] },
   { name: '模板', description: '模板制作、导入导出、发布和删除。', prefixes: ['/template'] },
   { name: '网络', description: '静态 IP、端口转发、宿主机网桥、公网 IP 和抓包。', prefixes: ['/network'] },
@@ -129,6 +129,17 @@ export const endpointDescriptions: Record<string, EndpointDescription> = {
     body: 'JSON: password',
     response:
       'data: enabled(泄露检测是否开启), breached(是否泄露), warning(可选,检测服务不可用时的提示)。采用 HIBP k-匿名性模型，密码哈希不离开本机。',
+  },
+  'GET /security/password-breach/status': {
+    summary: '读取密码泄露扫描状态',
+    response:
+      'data.status: scheduled_enabled, last_checked_at, running, breached_total, breached_admins, breached_users, affected[]；运行中时另含 active_task。',
+  },
+  'POST /security/password-breach/scan': {
+    summary: '立即提交完整密码泄露扫描',
+    response: 'data: task, reused；已有扫描运行时复用现有任务，不重复创建。',
+    notes: ['不受实时泄露检测开关与定时泄露检测开关限制，会执行正式账户处置和首次邮件通知。'],
+    highRiskNote: '扫描可能撤销管理员会话并触发邮件通知，必须完成高风险二次验证。',
   },
   'POST /auth/login/email/send': {
     summary: '登录阶段发送邮箱验证码',

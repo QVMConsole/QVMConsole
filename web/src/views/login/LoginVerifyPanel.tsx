@@ -21,6 +21,7 @@ export interface LoginVerifyStageInfo {
   role: string
   security: SecurityState
   allowedMethods: string[]
+  password: string
 }
 
 interface LoginVerifyPanelProps {

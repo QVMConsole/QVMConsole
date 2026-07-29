@@ -120,26 +120,29 @@ func CreateSystemUser(username, password, role string, maxCPU, maxMemory, maxDis
 	}
 
 	// 创建数据库记录
+	fingerprint := security.BuildPasswordFingerprint(password)
 	user := model.User{
-		Username:          username,
-		PasswordHash:      string(hashedPassword),
-		Email:             "",
-		Role:              role,
-		CloudType:         "elastic",
-		Status:            security.UserStatusActive,
-		MaxCPU:            maxCPU,
-		MaxMemory:         maxMemory,
-		MaxDisk:           maxDisk,
-		MaxVM:             maxVM,
-		MaxStorage:        maxStorage,
-		MaxRuntimeHours:   maxRuntimeHours,
-		EnablePortForward: enablePortForward,
-		MaxPortForwards:   maxPortForwards,
-		MaxSnapshots:      maxSnapshots,
-		MaxBandwidthUp:    maxBandwidthUp,
-		MaxBandwidthDown:  maxBandwidthDown,
-		MaxTrafficDown:    maxTrafficDown,
-		MaxTrafficUp:      maxTrafficUp,
+		Username:             username,
+		PasswordHash:         string(hashedPassword),
+		PasswordBreachPrefix: fingerprint.Prefix,
+		PasswordBreachHMAC:   fingerprint.HMAC,
+		Email:                "",
+		Role:                 role,
+		CloudType:            "elastic",
+		Status:               security.UserStatusActive,
+		MaxCPU:               maxCPU,
+		MaxMemory:            maxMemory,
+		MaxDisk:              maxDisk,
+		MaxVM:                maxVM,
+		MaxStorage:           maxStorage,
+		MaxRuntimeHours:      maxRuntimeHours,
+		EnablePortForward:    enablePortForward,
+		MaxPortForwards:      maxPortForwards,
+		MaxSnapshots:         maxSnapshots,
+		MaxBandwidthUp:       maxBandwidthUp,
+		MaxBandwidthDown:     maxBandwidthDown,
+		MaxTrafficDown:       maxTrafficDown,
+		MaxTrafficUp:         maxTrafficUp,
 	}
 	if err := model.DB.Create(&user).Error; err != nil {
 		return fmt.Errorf("创建用户失败: %w", err)

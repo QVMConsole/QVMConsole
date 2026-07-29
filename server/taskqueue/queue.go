@@ -85,6 +85,23 @@ func HasActiveTask(taskType string, match func(params string) bool) bool {
 	return false
 }
 
+// GetActiveTask 返回指定类型最新的等待中或运行中任务副本。
+func GetActiveTask(taskType string) (*model.Task, bool) {
+	taskStoreMu.RLock()
+	defer taskStoreMu.RUnlock()
+	var found *model.Task
+	for _, task := range taskStore {
+		if task.Type != taskType || (task.Status != model.TaskStatusPending && task.Status != model.TaskStatusRunning) {
+			continue
+		}
+		if found == nil || task.ID > found.ID {
+			copyValue := *task
+			found = &copyValue
+		}
+	}
+	return found, found != nil
+}
+
 // updateTask 更新任务字段
 func updateTask(id uint, updater func(task *model.Task)) {
 	taskStoreMu.Lock()

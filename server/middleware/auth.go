@@ -17,10 +17,10 @@ import (
 
 // Claims JWT 自定义声明
 type Claims struct {
-	UserID    uint   `json:"user_id"`
-	Username  string `json:"username"`
-	Role      string `json:"role"`
-	TokenType string `json:"token_type"`
+	UserID      uint   `json:"user_id"`
+	Username    string `json:"username"`
+	Role        string `json:"role"`
+	TokenType   string `json:"token_type"`
 	Operation   string `json:"operation,omitempty"`
 	Fingerprint string `json:"fp,omitempty"` // 会话指纹
 	jwt.RegisteredClaims
@@ -322,11 +322,11 @@ func AdminMiddleware() gin.HandlerFunc {
 func ForcePasswordChangeMiddleware() gin.HandlerFunc {
 	// 白名单：这些路径在强制修改密码期间仍可访问
 	whitelist := map[string]bool{
-		"/api/auth/password":      true, // PUT 修改密码
-		"/api/auth/info":          true, // GET 获取用户信息（含 force_password_change 标志）
-		"/api/auth/logout":        true, // POST 退出登录
-		"/api/public/settings":    true, // GET 公共设置
-		"/api/public/version":     true, // GET 版本
+		"/api/auth/password":   true, // PUT 修改密码
+		"/api/auth/info":       true, // GET 获取用户信息（含 force_password_change 标志）
+		"/api/auth/logout":     true, // POST 退出登录
+		"/api/public/settings": true, // GET 公共设置
+		"/api/public/version":  true, // GET 版本
 	}
 	return func(c *gin.Context) {
 		current, exists := c.Get("current_user")
@@ -339,14 +339,22 @@ func ForcePasswordChangeMiddleware() gin.HandlerFunc {
 			c.Next()
 			return
 		}
+		if authType, _ := c.Get("auth_type"); authType == "api_key" && user.ForcePasswordChangeReason == "password_breach" {
+			c.Next()
+			return
+		}
 		path := c.Request.URL.Path
 		if whitelist[path] {
 			c.Next()
 			return
 		}
+		message := "请先修改默认密码后再使用其他功能"
+		if user.ForcePasswordChangeReason == "password_breach" {
+			message = "检测到当前管理员密码已泄露，请先修改密码后再使用其他功能"
+		}
 		c.JSON(http.StatusForbidden, gin.H{
 			"code":    403,
-			"message": "请先修改默认密码后再使用其他功能",
+			"message": message,
 			"data": gin.H{
 				"force_password_change": true,
 			},

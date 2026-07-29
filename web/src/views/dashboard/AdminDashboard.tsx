@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react'
 import { useHostStatsSSE } from '@/hooks/useHostStatsSSE'
 import { getVmList, type VmListItem } from '@/api/vm'
 import { getUserInfo } from '@/api/auth'
+import { getPasswordBreachStatus, type PasswordBreachStatus } from '@/api/passwordBreach'
 import { useUserStore } from '@/stores/user'
 import TopLine from './components/TopLine'
 import HostStatusBanner from './components/HostStatusBanner'
@@ -17,6 +18,7 @@ import AdminBottom from './components/AdminBottom'
 export default function AdminDashboard() {
   const { stats } = useHostStatsSSE()
   const [vms, setVms] = useState<VmListItem[]>([])
+  const [passwordBreachStatus, setPasswordBreachStatus] = useState<PasswordBreachStatus | null>(null)
   const security = useUserStore((s) => s.security)
   const setSecurity = useUserStore((s) => s.setSecurity)
 
@@ -40,6 +42,25 @@ export default function AdminDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  useEffect(() => {
+    let mounted = true
+    const refresh = () => {
+      void getPasswordBreachStatus()
+        .then((res) => {
+          if (mounted) setPasswordBreachStatus(res.data.status)
+        })
+        .catch(() => undefined)
+    }
+    refresh()
+    const timer = window.setInterval(refresh, 60_000)
+    window.addEventListener('focus', refresh)
+    return () => {
+      mounted = false
+      window.clearInterval(timer)
+      window.removeEventListener('focus', refresh)
+    }
+  }, [])
+
   const runningCount = stats?.vm_running ?? vms.filter((v) => v.status === 'running').length
   const totalCount = stats?.vm_total ?? vms.length
 
@@ -54,7 +75,11 @@ export default function AdminDashboard() {
           </>
         }
       />
-      <HostStatusBanner stats={stats} smtpConfigured={security ? security.smtp_configured : undefined} />
+      <HostStatusBanner
+        stats={stats}
+        smtpConfigured={security ? security.smtp_configured : undefined}
+        passwordBreachStatus={passwordBreachStatus}
+      />
       <AdminStats stats={stats} vms={vms} />
       <HostMonitorCharts externalStats={stats} />
       <AdminBottom vms={vms} />

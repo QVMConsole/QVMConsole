@@ -121,6 +121,13 @@ func Setup() *gin.Engine {
 		authorized.Use(middleware.AuthMiddleware())
 		authorized.Use(middleware.ForcePasswordChangeMiddleware())
 		{
+			security := authorized.Group("/security")
+			security.Use(middleware.AdminMiddleware())
+			{
+				security.GET("/password-breach/status", handler.GetPasswordBreachStatus) // 获取泄露密码状态
+				security.POST("/password-breach/scan", handler.StartPasswordBreachScan)  // 立即执行泄露密码检测
+			}
+
 			// ==================== 虚拟机管理 ====================
 			vm := authorized.Group("/vm")
 			vm.Use(middleware.VMAccessMiddleware()) // 非admin用户操作VM时校验归属权限

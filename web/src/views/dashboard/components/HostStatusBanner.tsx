@@ -7,6 +7,7 @@
  */
 import { IconTickCircle, IconAlertTriangle } from '@douyinfe/semi-icons'
 import type { HostStats } from '@/api/host'
+import type { PasswordBreachStatus } from '@/api/passwordBreach'
 import { formatKB } from '@/utils/format'
 
 /** CPU 使用率警告阈值（%） */
@@ -20,9 +21,10 @@ interface HostStatusBannerProps {
   stats: HostStats | null
   /** 系统是否已配置 SMTP（undefined 表示未知，不触发警告） */
   smtpConfigured?: boolean
+  passwordBreachStatus?: PasswordBreachStatus | null
 }
 
-export default function HostStatusBanner({ stats, smtpConfigured }: HostStatusBannerProps) {
+export default function HostStatusBanner({ stats, smtpConfigured, passwordBreachStatus }: HostStatusBannerProps) {
   // 首屏数据未到达时不渲染，避免状态闪烁
   if (!stats) return null
 
@@ -51,12 +53,27 @@ export default function HostStatusBanner({ stats, smtpConfigured }: HostStatusBa
     messages.push('您当前没有设置 SMTP，请尽快前往系统设置进行设置')
   }
 
-  const isWarn = messages.length > 0
+  const breachReasons: string[] = []
+  if ((passwordBreachStatus?.breached_total || 0) > 0) {
+    const accounts = (passwordBreachStatus?.affected_accounts || []).slice(0, 3).map((item) => item.username)
+    const more = (passwordBreachStatus?.breached_total || 0) - accounts.length
+    breachReasons.push(
+      `检测到 ${passwordBreachStatus?.breached_total} 个账户密码泄露（管理员 ${passwordBreachStatus?.breached_admins}，普通用户 ${passwordBreachStatus?.breached_users}）：${accounts.join('、')}${more > 0 ? ` 等 ${more + accounts.length} 个账户` : ''}`,
+    )
+  }
+
+  const isError = breachReasons.length > 0
+  const isWarn = !isError && messages.length > 0
 
   return (
-    <div className={`qvm-status-banner qvm-fade-up ${isWarn ? 'warn' : ''}`}>
-      {isWarn ? <IconAlertTriangle /> : <IconTickCircle />}
-      {isWarn ? (
+    <div className={`qvm-status-banner qvm-fade-up ${isError ? 'error' : isWarn ? 'warn' : ''}`}>
+      {isError || isWarn ? <IconAlertTriangle /> : <IconTickCircle />}
+      {isError ? (
+        <span>
+          <b>异常：</b>
+          {[...breachReasons, ...messages].join('；')}
+        </span>
+      ) : isWarn ? (
         <span>
           <b>警告：</b>
           {messages.join('；')}

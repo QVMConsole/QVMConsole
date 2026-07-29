@@ -8,7 +8,7 @@
  * 待后续迭代：邀请注册
  */
 import { useEffect, useState, type CSSProperties } from 'react'
-import { Button, Checkbox, Form, Banner, Toast } from '@douyinfe/semi-ui'
+import { Button, Checkbox, Form, Banner, Modal, Toast } from '@douyinfe/semi-ui'
 import {
   IconUser,
   IconLock,
@@ -64,7 +64,7 @@ export default function LoginPage() {
   const [pwdVisible, setPwdVisible] = useState(false)
   const [forgotVisible, setForgotVisible] = useState(false)
   // 强制修改默认密码弹窗（暂存账号与登录密码，改密成功后自动重新登录）
-  const [forcePwd, setForcePwd] = useState({ visible: false, username: '', password: '' })
+  const [forcePwd, setForcePwd] = useState({ visible: false, username: '', password: '', reason: '' })
   // 安全初始化阶段（bootstrap_security：SMTP / 绑定邮箱 / 绑定 2FA）
   const [bootstrap, setBootstrap] = useState<BootstrapStageInfo | null>(null)
   // 登录二次验证阶段（login_verify：2FA / 恢复码 / 邮箱验证码）
@@ -85,6 +85,16 @@ export default function LoginPage() {
     )
     const redirect = searchParams.get('redirect')
     navigate(redirect ? decodeURIComponent(redirect) : '/', { replace: true })
+    if (data.role === 'user' && data.security?.password_breached) {
+      Modal.warning({
+        title: '当前密码已泄露',
+        content: `安全检测发现当前密码已出现在公开泄露数据库中${data.security.password_breach_count > 0 ? `（记录 ${data.security.password_breach_count} 次）` : ''}，请尽快修改。`,
+        okText: '立即修改',
+        cancelText: '稍后处理',
+        hasCancel: true,
+        onOk: () => navigate('/security?tab=password'),
+      })
+    }
   }
 
   const handleSubmit = async (values: { username: string; password: string }) => {
@@ -101,7 +111,12 @@ export default function LoginPage() {
         if (data.force_password_change) {
           // 首次登录需修改默认密码：先写入临时 token（后端仅放行改密/登出接口），弹出改密弹窗
           setToken(data.token)
-          setForcePwd({ visible: true, username: values.username.trim(), password: values.password })
+          setForcePwd({
+            visible: true,
+            username: values.username.trim(),
+            password: values.password,
+            reason: data.force_password_change_reason || '',
+          })
           return
         }
         applySession(data)
@@ -115,6 +130,7 @@ export default function LoginPage() {
           role: data.role,
           security: data.security,
           allowedMethods: data.allowed_methods || [],
+          password: values.password,
         })
         return
       }
@@ -139,7 +155,13 @@ export default function LoginPage() {
   /** 强制改密成功：旧 token 已失效（后端更新安全时间戳），用新密码自动重新登录 */
   const handleForcePwdSuccess = async (newPassword: string) => {
     const username = forcePwd.username
-    setForcePwd({ visible: false, username: '', password: '' })
+    const reason = forcePwd.reason
+    setForcePwd({ visible: false, username: '', password: '', reason: '' })
+    if (reason === 'password_breach') {
+      logout()
+      setStageTip('密码已修改成功，请使用新密码重新登录')
+      return
+    }
     setLoading(true)
     try {
       const res = await login({ username, password: newPassword })
@@ -162,7 +184,7 @@ export default function LoginPage() {
   /** 放弃强制改密：清除临时会话，回到登录表单 */
   const handleForcePwdExit = () => {
     logout()
-    setForcePwd({ visible: false, username: '', password: '' })
+    setForcePwd({ visible: false, username: '', password: '', reason: '' })
   }
 
   return (
@@ -235,7 +257,18 @@ export default function LoginPage() {
             stage={loginVerify}
             onExit={() => setLoginVerify(null)}
             onComplete={(data) => {
+              const password = loginVerify.password
               setLoginVerify(null)
+              if (data.force_password_change && data.token) {
+                setToken(data.token)
+                setForcePwd({
+                  visible: true,
+                  username: data.username,
+                  password,
+                  reason: data.force_password_change_reason || '',
+                })
+                return
+              }
               applySession(data)
             }}
           />
@@ -355,6 +388,7 @@ export default function LoginPage() {
           initialPassword={forcePwd.password}
           onExit={handleForcePwdExit}
           onSuccess={(newPassword) => void handleForcePwdSuccess(newPassword)}
+          reason={forcePwd.reason}
         />
 
         <div className="qvm-login-foot">
