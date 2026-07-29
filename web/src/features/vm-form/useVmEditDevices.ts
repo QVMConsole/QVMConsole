@@ -18,7 +18,10 @@ import {
   removeDisk,
   removeFloppy,
   resizeDisk,
+  mountGuestDisk,
+  retryGuestDiskGrow,
   type VmDiskItem,
+  type GuestMountPayload,
 } from '@/api/vm'
 import type { EditBootDevice } from './types'
 
@@ -69,9 +72,9 @@ export function useVmEditDevices(vmName: string) {
 
   /** 磁盘扩容（仅扩大），新容量校验由调用方完成 */
   const resizeDiskAction = useCallback(
-    async (dev: string, sizeGB: number) => {
-      await resizeDisk(vmName, dev, sizeGB)
-      Toast.success(`磁盘 ${dev} 扩容成功`)
+    async (dev: string, sizeGB: number, autoGrowPartition = false) => {
+      await resizeDisk(vmName, dev, sizeGB, autoGrowPartition)
+      Toast.success(autoGrowPartition ? `磁盘 ${dev} 扩容任务已提交` : `磁盘 ${dev} 扩容成功`)
       await refreshEditDisks()
     },
     [vmName, refreshEditDisks],
@@ -107,9 +110,9 @@ export function useVmEditDevices(vmName: string) {
 
   /** 挂载我的存储中的磁盘文件 */
   const attachDiskAction = useCallback(
-    async (path: string, bus: string) => {
-      await attachDisk(vmName, path, bus)
-      Toast.success('磁盘挂载成功')
+    async (path: string, bus: string, guestMount?: GuestMountPayload) => {
+      await attachDisk(vmName, path, bus, guestMount)
+      Toast.success(guestMount?.enabled ? '磁盘关联与自动挂载任务已提交' : '磁盘挂载成功')
       await refreshEditDisks()
     },
     [vmName, refreshEditDisks],
@@ -123,12 +126,29 @@ export function useVmEditDevices(vmName: string) {
       storage_pool_id?: string
       copy_disk?: boolean
       bus?: string
+      guest_mount?: GuestMountPayload
     }) => {
       await adminImportDiskForVM(vmName, data)
       Toast.success('导入磁盘任务已提交，请在任务中心查看进度')
       await refreshEditDisks()
     },
     [vmName, refreshEditDisks],
+  )
+
+  const guestMountDiskAction = useCallback(
+    async (dev: string, guestMount: GuestMountPayload, existingDisk = true) => {
+      await mountGuestDisk(vmName, dev, { guest_mount: guestMount, existing_disk: existingDisk })
+      Toast.success(`磁盘 ${dev} 来宾挂载任务已提交`)
+    },
+    [vmName],
+  )
+
+  const guestGrowDiskAction = useCallback(
+    async (dev: string) => {
+      await retryGuestDiskGrow(vmName, dev)
+      Toast.success(`磁盘 ${dev} 来宾扩容重试任务已提交`)
+    },
+    [vmName],
   )
 
   // ==================== 光驱操作 ====================
@@ -203,6 +223,8 @@ export function useVmEditDevices(vmName: string) {
     changeDiskBusAction,
     attachDiskAction,
     adminImportDiskAction,
+    guestMountDiskAction,
+    guestGrowDiskAction,
     insertCDROMAction,
     ejectCDROMAction,
     removeCDROMAction,

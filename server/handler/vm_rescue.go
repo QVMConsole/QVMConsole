@@ -142,6 +142,7 @@ func ResetLinuxPassword(c *gin.Context) {
 		VMName:   name,
 		Username: req.Username,
 		Password: req.Password,
+		Mode:     req.Mode,
 	}, operator.(string))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{

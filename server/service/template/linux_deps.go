@@ -9,10 +9,10 @@ import (
 	"kvm_console/utils"
 )
 
-// PreinstallLinuxCloudInitDeps 在制作 Linux 模板时预装 cloud-init 和 growpart 依赖
+// PreinstallLinuxCloudInitDeps 在制作 Linux 模板时预装 cloud-init、QGA 和磁盘自动化依赖。
 // 使用国内镜像源加速，安装失败仅告警不阻断模板制作
 func PreinstallLinuxCloudInitDeps(templatePath string) error {
-	logger.App.Info("预装 Linux 克隆依赖包（cloud-init, growpart）", "template", templatePath)
+	logger.App.Info("预装 Linux 克隆与来宾磁盘自动化依赖", "template", templatePath)
 
 	// 构建 virt-customize 命令，使用国内镜像源并安装依赖
 	args := []string{
@@ -23,7 +23,7 @@ func PreinstallLinuxCloudInitDeps(templatePath string) error {
 			set -e
 			# === DNF 系（Fedora/RHEL/CentOS/openEuler 等）===
 			if command -v dnf >/dev/null 2>&1; then
-				if ! rpm -q cloud-init cloud-utils-growpart &>/dev/null; then
+				if ! rpm -q cloud-init cloud-utils-growpart qemu-guest-agent e2fsprogs xfsprogs btrfs-progs lvm2 gdisk parted &>/dev/null; then
 					echo "[QVM] 检测到 DNF 包管理器，配置国内镜像源..."
 					# 配置国内镜像源（阿里云）
 					for repo in /etc/yum.repos.d/*.repo; do
@@ -33,7 +33,7 @@ func PreinstallLinuxCloudInitDeps(templatePath string) error {
 						sed -i 's|^#baseurl=|baseurl=|g' "$repo"
 					done
 					echo "[QVM] 安装 cloud-init 和 cloud-utils-growpart..."
-					if dnf install -y cloud-init cloud-utils-growpart 2>&1; then
+					if dnf install -y cloud-init cloud-utils-growpart qemu-guest-agent e2fsprogs xfsprogs btrfs-progs lvm2 gdisk parted 2>&1; then
 						echo "[QVM] 依赖安装成功"
 					else
 						echo "[QVM-WARN] DNF 安装失败，磁盘自动扩容功能可能不可用" >&2
@@ -43,7 +43,7 @@ func PreinstallLinuxCloudInitDeps(templatePath string) error {
 				fi
 			# === APT 系（Debian/Ubuntu 等）===
 			elif command -v apt-get >/dev/null 2>&1; then
-				if ! dpkg -s cloud-init cloud-guest-utils &>/dev/null; then
+				if ! dpkg -s cloud-init cloud-guest-utils qemu-guest-agent e2fsprogs xfsprogs btrfs-progs lvm2 gdisk parted &>/dev/null; then
 					echo "[QVM] 检测到 APT 包管理器，配置国内镜像源..."
 					# 配置国内镜像源（阿里云）
 					for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.list; do
@@ -53,7 +53,7 @@ func PreinstallLinuxCloudInitDeps(templatePath string) error {
 					echo "[QVM] 更新软件包索引..."
 					if apt-get update -qq 2>&1; then
 						echo "[QVM] 安装 cloud-init 和 cloud-guest-utils..."
-						if DEBIAN_FRONTEND=noninteractive apt-get install -y cloud-init cloud-guest-utils 2>&1; then
+						if DEBIAN_FRONTEND=noninteractive apt-get install -y cloud-init cloud-guest-utils qemu-guest-agent e2fsprogs xfsprogs btrfs-progs lvm2 gdisk parted 2>&1; then
 							echo "[QVM] 依赖安装成功"
 						else
 							echo "[QVM-WARN] APT 安装失败，磁盘自动扩容功能可能不可用" >&2
@@ -66,7 +66,7 @@ func PreinstallLinuxCloudInitDeps(templatePath string) error {
 				fi
 			# === YUM 系（旧版 CentOS 等）===
 			elif command -v yum >/dev/null 2>&1; then
-				if ! rpm -q cloud-init cloud-utils-growpart &>/dev/null; then
+				if ! rpm -q cloud-init cloud-utils-growpart qemu-guest-agent e2fsprogs xfsprogs btrfs-progs lvm2 gdisk parted &>/dev/null; then
 					echo "[QVM] 检测到 YUM 包管理器，配置国内镜像源..."
 					# 配置国内镜像源（阿里云）
 					for repo in /etc/yum.repos.d/*.repo; do
@@ -76,7 +76,7 @@ func PreinstallLinuxCloudInitDeps(templatePath string) error {
 						sed -i 's|^#baseurl=|baseurl=|g' "$repo"
 					done
 					echo "[QVM] 安装 cloud-init 和 cloud-utils-growpart..."
-					if yum install -y cloud-init cloud-utils-growpart 2>&1; then
+					if yum install -y cloud-init cloud-utils-growpart qemu-guest-agent e2fsprogs xfsprogs btrfs-progs lvm2 gdisk parted 2>&1; then
 						echo "[QVM] 依赖安装成功"
 					else
 						echo "[QVM-WARN] YUM 安装失败，磁盘自动扩容功能可能不可用" >&2
@@ -90,9 +90,9 @@ func PreinstallLinuxCloudInitDeps(templatePath string) error {
 			fi
 
 			if command -v rpm >/dev/null 2>&1; then
-				rpm -q cloud-init cloud-utils-growpart >/dev/null 2>&1 || exit 21
+				rpm -q cloud-init cloud-utils-growpart qemu-guest-agent e2fsprogs xfsprogs btrfs-progs lvm2 gdisk parted >/dev/null 2>&1 || exit 21
 			elif command -v dpkg >/dev/null 2>&1; then
-				dpkg -s cloud-init cloud-guest-utils >/dev/null 2>&1 || exit 21
+				dpkg -s cloud-init cloud-guest-utils qemu-guest-agent e2fsprogs xfsprogs btrfs-progs lvm2 gdisk parted >/dev/null 2>&1 || exit 21
 			else
 				exit 20
 			fi
@@ -130,9 +130,9 @@ func HasLinuxCloudInitDeps(templatePath string) (bool, error) {
 		"--no-network",
 		"--run-command", `
 			if command -v rpm >/dev/null 2>&1; then
-				rpm -q cloud-init cloud-utils-growpart >/dev/null 2>&1 || exit 80
+				rpm -q cloud-init cloud-utils-growpart qemu-guest-agent e2fsprogs xfsprogs btrfs-progs lvm2 gdisk parted >/dev/null 2>&1 || exit 80
 			elif command -v dpkg >/dev/null 2>&1; then
-				dpkg -s cloud-init cloud-guest-utils >/dev/null 2>&1 || exit 80
+				dpkg -s cloud-init cloud-guest-utils qemu-guest-agent e2fsprogs xfsprogs btrfs-progs lvm2 gdisk parted >/dev/null 2>&1 || exit 80
 			else
 				exit 81
 			fi
@@ -165,7 +165,13 @@ func EnsureLinuxCloudInitDeps(templatePath string) error {
 }
 
 func debianCloneDepsInstalled(status string) bool {
-	return debianPackageInstalled(status, "cloud-init") && debianPackageInstalled(status, "cloud-guest-utils")
+	packages := []string{"cloud-init", "cloud-guest-utils", "qemu-guest-agent", "e2fsprogs", "xfsprogs", "btrfs-progs", "lvm2", "gdisk", "parted"}
+	for _, packageName := range packages {
+		if !debianPackageInstalled(status, packageName) {
+			return false
+		}
+	}
+	return true
 }
 
 func debianPackageInstalled(status, packageName string) bool {

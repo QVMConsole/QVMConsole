@@ -111,6 +111,7 @@ func BatchCloneVM(ctx context.Context, params *BatchCloneParams, progressFn func
 				FirstBootRebootMode: params.FirstBootRebootMode,
 				SwitchID:            params.SwitchID,
 				SecurityGroupID:     params.SecurityGroupID,
+				ExtraDisks:          params.ExtraDisks,
 				HostDevices:         params.HostDevices,
 				IsAdmin:             params.IsAdmin,
 				DisableSystemInit:   params.DisableSystemInit,

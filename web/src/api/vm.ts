@@ -102,6 +102,17 @@ export interface VmDiskItem {
   iops_total?: DiskIopsState
   iops_read?: DiskIopsState
   iops_write?: DiskIopsState
+  is_system?: boolean
+  serial?: string
+  guest_device?: string
+  guest_mapping_status?: 'mapped' | 'unmapped' | 'unavailable'
+}
+
+export interface GuestMountPayload {
+  enabled: boolean
+  filesystem?: 'ext4' | 'xfs' | 'btrfs'
+  mount_point?: string
+  drive_letter?: string
 }
 
 /** 删除确认用 qcow2 磁盘（/vm/:name/qcow2-disks） */
@@ -286,6 +297,7 @@ export interface AddDiskPayload {
   format: string
   bus: string
   storage_pool_id?: string
+  guest_mount?: GuestMountPayload
 }
 
 /** 编辑虚拟机（备注 / 分组 / 硬件配置等，仅发送变化字段） */
@@ -510,8 +522,11 @@ export function getVmStats(name: string) {
   })
 }
 
-/** 重置系统登录密码（关机离线注入） */
-export function resetVmLinuxPassword(name: string, data: { username: string; password: string }) {
+/** 重置系统登录密码（运行态 QGA 在线处理，关机态离线处理） */
+export function resetVmLinuxPassword(
+  name: string,
+  data: { username: string; password: string; mode?: 'auto' | 'online' | 'offline' },
+) {
   return service.post<unknown, ApiResponse<{ task_id?: string }>>(
     `/vm/${encodeURIComponent(name)}/password/reset`,
     data,
@@ -881,6 +896,7 @@ export interface ExtraDiskPayload {
   iops_total?: number
   iops_read?: number
   iops_write?: number
+  guest_mount?: GuestMountPayload
 }
 
 /** 额外网口 */
@@ -1038,6 +1054,7 @@ export interface BatchCloneVmPayload {
   switch_id?: number | null
   security_group_id?: number | null
   extra_nics?: ExtraNicPayload[]
+  extra_disks?: ExtraDiskPayload[]
   static_ip?: string
   gateway?: string
   dns?: string
@@ -1148,10 +1165,10 @@ export function updateVmXML(name: string, data: { xml: string }) {
 // ==================== 磁盘管理（编辑模式） ====================
 
 /** 磁盘扩容（仅扩大） */
-export function resizeDisk(name: string, dev: string, sizeGB: number) {
-  return service.post<unknown, ApiResponse<null>>(
+export function resizeDisk(name: string, dev: string, sizeGB: number, autoGrowPartition = false) {
+  return service.post<unknown, ApiResponse<{ task_id?: number }>>(
     `/vm/${encodeURIComponent(name)}/disk/${encodeURIComponent(dev)}/resize`,
-    { size_gb: sizeGB },
+    { size_gb: sizeGB, auto_grow_partition: autoGrowPartition },
   )
 }
 
@@ -1172,10 +1189,11 @@ export function changeDiskBus(name: string, dev: string, bus: string) {
 }
 
 /** 挂载已有磁盘文件（我的存储中的磁盘） */
-export function attachDisk(name: string, path: string, bus = 'virtio') {
-  return service.post<unknown, ApiResponse<null>>(`/vm/${encodeURIComponent(name)}/disk/attach`, {
+export function attachDisk(name: string, path: string, bus = 'virtio', guestMount?: GuestMountPayload) {
+  return service.post<unknown, ApiResponse<{ task_id?: number }>>(`/vm/${encodeURIComponent(name)}/disk/attach`, {
     path,
     bus,
+    guest_mount: guestMount,
   })
 }
 
@@ -1188,11 +1206,29 @@ export function adminImportDiskForVM(
     storage_pool_id?: string
     copy_disk?: boolean
     bus?: string
+    guest_mount?: GuestMountPayload
   },
 ) {
   return service.post<unknown, ApiResponse<{ task_id?: string }>>(
     `/vm/${encodeURIComponent(name)}/disk/import`,
     data,
+  )
+}
+
+export function mountGuestDisk(
+  name: string,
+  dev: string,
+  data: { guest_mount: GuestMountPayload; existing_disk?: boolean },
+) {
+  return service.post<unknown, ApiResponse<{ task_id?: number }>>(
+    `/vm/${encodeURIComponent(name)}/disk/${encodeURIComponent(dev)}/guest-mount`,
+    data,
+  )
+}
+
+export function retryGuestDiskGrow(name: string, dev: string) {
+  return service.post<unknown, ApiResponse<{ task_id?: number }>>(
+    `/vm/${encodeURIComponent(name)}/disk/${encodeURIComponent(dev)}/guest-grow`,
   )
 }
 

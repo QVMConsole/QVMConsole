@@ -29,6 +29,16 @@ export function detailToListItem(vm: VmDetailInfo): VmListItem {
   }
 }
 
+/** 判断当前详情数据是否允许进入密码重置流程。 */
+export function canResetVmPassword(vm: VmDetailInfo | null): boolean {
+  if (!vm || !['linux', 'windows', 'fnos'].includes((vm.os_type || '').toLowerCase())) {
+    return false
+  }
+  const status = (vm.status || '').trim().toLowerCase()
+  if (status === 'shut off' || status === 'shutoff') return true
+  return status === 'running' && !!vm.guest_agent_status?.connected
+}
+
 /** 状态文案映射 */
 export function vmStatusText(status: string): string {
   const map: Record<string, string> = {

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"kvm_console/service"
+	guestautomation "kvm_console/service/guest_automation"
 	vm_memory "kvm_console/service/vm/memory"
 	"kvm_console/service/vm_xml"
 )
@@ -120,14 +121,16 @@ type ExtraImportDiskEntry struct {
 
 // ImportDiskForExistingVMParams 为已有虚拟机导入磁盘参数
 type ImportDiskForExistingVMParams struct {
-	VMName         string `json:"vm_name"`
-	DiskPath       string `json:"disk_path,omitempty"`
-	DiskFile       string `json:"disk_file,omitempty"`
-	DiskSourceType string `json:"disk_source_type,omitempty"`
-	StoragePoolID  string `json:"storage_pool_id,omitempty"`
-	CopyDisk       bool   `json:"copy_disk,omitempty"`
-	Bus            string `json:"bus,omitempty"`
-	Username       string `json:"username,omitempty"`
+	VMName         string                           `json:"vm_name"`
+	DiskPath       string                           `json:"disk_path,omitempty"`
+	DiskFile       string                           `json:"disk_file,omitempty"`
+	DiskSourceType string                           `json:"disk_source_type,omitempty"`
+	StoragePoolID  string                           `json:"storage_pool_id,omitempty"`
+	CopyDisk       bool                             `json:"copy_disk,omitempty"`
+	Bus            string                           `json:"bus,omitempty"`
+	Username       string                           `json:"username,omitempty"`
+	GuestType      string                           `json:"guest_type,omitempty"`
+	GuestMount     guestautomation.GuestMountConfig `json:"guest_mount,omitempty"`
 }
 
 // ---------- parse helpers ----------

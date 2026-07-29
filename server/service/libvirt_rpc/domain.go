@@ -34,7 +34,9 @@ const (
 // go-libvirt 未定义 qemu monitor command flags 常量，此处按 libvirt C 头文件补充
 
 const (
-	DomainQemuMonitorCommandHmp uint32 = 1 // VIR_DOMAIN_QEMU_MONITOR_COMMAND_HMP
+	DomainQemuMonitorCommandHmp   uint32 = 1  // VIR_DOMAIN_QEMU_MONITOR_COMMAND_HMP
+	DomainQemuAgentCommandBlock   int32  = -2 // 使用 libvirt 的阻塞等待语义
+	DomainQemuAgentCommandDefault int32  = -1 // 使用 libvirt 默认超时
 )
 
 // ==================== 状态映射 ====================
@@ -557,6 +559,27 @@ func QemuMonitorCommandRPC(name string, cmd string, flags uint32) (string, error
 	}
 	logger.Libvirt.Info("RPC: 执行 QEMU Monitor 命令成功", "domain", name, "cmd", cmd, "flags", flags)
 	return result, nil
+}
+
+// QemuAgentCommandRPC 通过 libvirt QEMU Agent RPC 执行来宾命令。
+// 调用方只传递已经序列化的 QGA JSON；这里刻意不记录命令正文，避免密码和脚本进入日志。
+func QemuAgentCommandRPC(name, cmd string, timeoutSeconds int32) (string, error) {
+	dom, err := lookupDomainByName(name)
+	if err != nil {
+		return "", err
+	}
+	l, err := GetLibvirt()
+	if err != nil {
+		return "", fmt.Errorf("连接虚拟机 %s 的 QEMU Guest Agent 失败: %w", name, err)
+	}
+	result, err := l.QEMUDomainAgentCommand(dom, cmd, timeoutSeconds, 0)
+	if err != nil {
+		return "", fmt.Errorf("虚拟机 %s 的 QEMU Guest Agent 命令执行失败: %w", name, err)
+	}
+	if len(result) == 0 {
+		return "", fmt.Errorf("虚拟机 %s 的 QEMU Guest Agent 未返回结果", name)
+	}
+	return result[0], nil
 }
 
 // GetDomainMetadataRPC 获取域元数据（替代 virsh metadata）

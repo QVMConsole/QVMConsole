@@ -26,7 +26,7 @@ import { useUserStore } from '@/stores/user'
 import { usePageTabsStore } from '@/stores/pageTabs'
 import { useVmStore } from '@/stores/vm'
 import { useVmDetailSSE } from '@/hooks/useVmDetailSSE'
-import { openVncWindow, vmStatusDot, detailToListItem } from './utils'
+import { canResetVmPassword, openVncWindow, vmStatusDot, detailToListItem } from './utils'
 import HeroStatusCard from './components/HeroStatusCard'
 import HeroResourceCard from './components/HeroResourceCard'
 import VncPreviewCard from './components/VncPreviewCard'
@@ -175,12 +175,17 @@ export default function VmDetailPage() {
 
   const handleResetPassword = useCallback(() => {
     if (!vmData) return
-    if (!['linux', 'windows', 'fnos'].includes(vmData.os_type || '')) {
+    if (!['linux', 'windows', 'fnos'].includes((vmData.os_type || '').toLowerCase())) {
       Toast.warning('当前仅支持 Linux、Windows 或 fnOS 虚拟机重置密码')
       return
     }
-    if (vmData.status !== 'shut off') {
-      Toast.warning('请先将虚拟机关机后再重置密码')
+    if (!canResetVmPassword(vmData)) {
+      const status = (vmData.status || '').trim().toLowerCase()
+      if (status === 'running') {
+        Toast.warning('QEMU Guest Agent 未连接，在线密码重置暂未就绪')
+      } else {
+        Toast.warning('当前状态不适合执行密码重置')
+      }
       return
     }
     setDialog('resetPassword')

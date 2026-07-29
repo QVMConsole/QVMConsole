@@ -88,6 +88,8 @@ export default function EditVmForm({ vmName, vmStatus, onSaved }: EditVmFormProp
   const origMemoryRef = useRef(1)
   const [origSpiceEnabled, setOrigSpiceEnabled] = useState(false)
   const [loadedStatus, setLoadedStatus] = useState(vmStatus)
+  const [loadedGuestType, setLoadedGuestType] = useState('')
+  const [guestAgentConnected, setGuestAgentConnected] = useState(false)
 
   // ==================== 详情加载 ====================
   const loadDetail = useCallback(async () => {
@@ -142,6 +144,8 @@ export default function EditVmForm({ vmName, vmStatus, onSaved }: EditVmFormProp
       setOrigSpiceEnabled(spiceEnabled)
       setCurrentVmUUID(detail.uuid || '')
       setLoadedStatus(detail.status || vmStatus)
+      setLoadedGuestType(detail.os_type || '')
+      setGuestAgentConnected(!!detail.guest_agent_status?.connected)
       origNicModelRef.current = detail.nic_model || 'virtio'
       origBootTypeRef.current = detail.boot_type || 'bios'
       origPcieRootPortsRef.current = detail.pcie_root_ports || 4
@@ -222,6 +226,8 @@ export default function EditVmForm({ vmName, vmStatus, onSaved }: EditVmFormProp
           mode: 'edit',
           isAdmin,
           vmStatus: loadedStatus,
+          guestType: loadedGuestType,
+          guestAgentConnected,
           hostArch: options.hostArch,
           hostCores: options.hostCores,
           spiceSupported: options.spiceSupported,

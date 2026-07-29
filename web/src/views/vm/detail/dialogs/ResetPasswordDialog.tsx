@@ -1,10 +1,10 @@
 /**
- * 重置系统登录密码对话框（关机离线注入）
+ * 重置系统登录密码对话框（运行态在线处理，关机态离线处理）
  * - Linux / Windows / fnOS 差异化文案与用户名规则
  * - 密码强度校验 + HIBP 泄露检测 + 一键生成强密码
  */
 import { useMemo, useState } from 'react'
-import { Banner, Button, Input, Modal, Toast } from '@douyinfe/semi-ui'
+import { Banner, Button, Input, Modal, Select, Toast } from '@douyinfe/semi-ui'
 import type { VmDetailInfo } from '@/api/vm'
 import { resetVmLinuxPassword } from '@/api/vm'
 import {
@@ -31,7 +31,8 @@ export default function ResetPasswordDialog({ vm, onClose }: ResetPasswordDialog
   const [username, setUsername] = useState(
     vm.credential?.username || (isWindows ? 'administrator' : ''),
   )
-  const [password, setPassword] = useState(vm.credential?.password || generatePassword())
+  const [password, setPassword] = useState(generatePassword())
+  const [mode, setMode] = useState<'auto' | 'online' | 'offline'>('auto')
   const [submitting, setSubmitting] = useState(false)
 
   const title = useMemo(() => {
@@ -41,11 +42,14 @@ export default function ResetPasswordDialog({ vm, onClose }: ResetPasswordDialog
   }, [osType, isWindows])
 
   const alertText = useMemo(() => {
+    if (vm.status === 'running') {
+      return '虚拟机运行中，将通过 QEMU Guest Agent 在线更新密码，无需关机。提交后请在任务中心查看进度。'
+    }
     if (isWindows) {
-      return '该操作会在虚拟机关机状态下注入 Windows 一次性重置脚本，不需要旧密码。任务完成后请手动开机一次，系统会自动处理并自动关机。'
+      return '虚拟机已关机，将注入 Windows 一次性重置脚本。任务完成后请手动开机一次，系统会自动处理并关机。'
     }
     return '该操作会在虚拟机关机状态下离线修改登录密码，不需要旧密码。提交后请在任务中心查看进度。'
-  }, [isWindows])
+  }, [isWindows, vm.status])
 
   const validate = (): boolean => {
     const trimmed = username.trim()
@@ -92,11 +96,12 @@ export default function ResetPasswordDialog({ vm, onClose }: ResetPasswordDialog
     }
     setSubmitting(true)
     try {
-      const res = await resetVmLinuxPassword(vm.name, { username: username.trim(), password })
-      const defaultMessage = isWindows
-        ? 'Windows 重置任务已提交，任务完成后请手动开机一次等待系统自动处理并关机'
-        : '重置密码任务已提交'
-      Toast.success(isWindows ? defaultMessage : res.message || defaultMessage)
+      const res = await resetVmLinuxPassword(vm.name, { username: username.trim(), password, mode })
+      const defaultMessage =
+        isWindows && vm.status === 'shut off'
+          ? 'Windows 重置任务已提交，任务完成后请手动开机一次等待系统自动处理并关机'
+          : '重置密码任务已提交'
+      Toast.success(res.message || defaultMessage)
       requestClose()
     } catch {
       // 请求层已提示
@@ -119,6 +124,20 @@ export default function ResetPasswordDialog({ vm, onClose }: ResetPasswordDialog
       closeOnEsc
     >
       <Banner type="warning" closeIcon={null} description={alertText} style={{ marginBottom: 16 }} />
+
+      <div className="qvm-form-item">
+        <div className="qvm-form-label">执行模式</div>
+        <Select
+          style={{ width: '100%' }}
+          value={mode}
+          onChange={(value) => setMode(value as 'auto' | 'online' | 'offline')}
+          optionList={[
+            { value: 'auto', label: '自动选择（推荐）' },
+            { value: 'online', label: '在线重置', disabled: vm.status !== 'running' },
+            { value: 'offline', label: '离线重置', disabled: vm.status !== 'shut off' },
+          ]}
+        />
+      </div>
 
       <div className="qvm-form-item">
         <div className="qvm-form-label">用户名</div>

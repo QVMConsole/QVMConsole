@@ -1,6 +1,7 @@
 package clone
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -13,6 +14,7 @@ import (
 
 	"kvm_console/logger"
 	"kvm_console/service/arch"
+	"kvm_console/service/guest_agent"
 	"kvm_console/utils"
 )
 
@@ -235,44 +237,13 @@ func CleanupWindowsConfigDriveISO(vmName string) {
 // CloudbaseInit 在执行完所有插件后一定会写入 "Plugins execution done"，这是确定性的完成信号。
 // 避免依赖服务状态（服务未启动时也是 STOPPED，会导致误判）。
 func isCloudbaseInitCompleted(vmName string) bool {
-	// 使用 PowerShell Select-String 检测日志完成标记
-	// 注意：virsh JSON 解析器要求 4 个反斜杠表示路径中的 1 个反斜杠，内部引号用 \" 转义
-	execCmd := `{"execute":"guest-exec","arguments":{"path":"powershell.exe","arg":["-Command","if(Select-String -Path \"C:\\\\Program Files\\\\Cloudbase Solutions\\\\Cloudbase-Init\\\\log\\\\cloudbase-init.log\" -Pattern \"Plugins execution done\" -Quiet){exit 0}else{exit 1}"],"capture-output":true}}`
-	r := utils.ExecCommand("virsh", "qemu-agent-command", "--timeout", "10", vmName, execCmd)
-	if r.Error != nil {
-		return false
-	}
-
-	// 解析返回的 PID
-	var execResp struct {
-		Return struct {
-			PID int `json:"pid"`
-		} `json:"return"`
-	}
-	if err := json.Unmarshal([]byte(r.Stdout), &execResp); err != nil || execResp.Return.PID == 0 {
-		return false
-	}
-
-	// PowerShell 启动较慢，等待充足时间
-	time.Sleep(8 * time.Second)
-	statusCmd := fmt.Sprintf(`{"execute":"guest-exec-status","arguments":{"pid":%d}}`, execResp.Return.PID)
-	r2 := utils.ExecCommand("virsh", "qemu-agent-command", "--timeout", "10", vmName, statusCmd)
-	if r2.Error != nil {
-		return false
-	}
-
-	// exit 0 表示找到完成标记
-	var statusResp struct {
-		Return struct {
-			Exited   bool `json:"exited"`
-			ExitCode int  `json:"exitcode"`
-		} `json:"return"`
-	}
-	if err := json.Unmarshal([]byte(r2.Stdout), &statusResp); err != nil {
-		return false
-	}
-
-	return statusResp.Return.Exited && statusResp.Return.ExitCode == 0
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	result, err := guest_agent.NewClient(vmName).Execute(ctx, "powershell.exe", []string{
+		"-NoProfile", "-NonInteractive", "-Command",
+		`if(Select-String -Path "C:\Program Files\Cloudbase Solutions\Cloudbase-Init\log\cloudbase-init.log" -Pattern "Plugins execution done" -Quiet){exit 0}else{exit 1}`,
+	}, 25*time.Second)
+	return err == nil && result.ExitCode == 0
 }
 
 // scheduleWindowsConfigDriveEject 在后台轮询 QEMU Guest Agent，
@@ -293,9 +264,10 @@ func scheduleWindowsConfigDriveEject(vmName, diskBus string) {
 
 		for time.Now().Before(agentDeadline) {
 			time.Sleep(configDriveGuestAgentPollInterval)
-			r := utils.ExecCommand("virsh", "qemu-agent-command",
-				"--timeout", "5", vmName, `{"execute":"guest-ping"}`)
-			if r.Error == nil {
+			ctx, cancel := context.WithTimeout(context.Background(), guest_agent.ConnectTimeout)
+			err := guest_agent.NewClient(vmName).Ping(ctx)
+			cancel()
+			if err == nil {
 				agentDetected = true
 				break
 			}

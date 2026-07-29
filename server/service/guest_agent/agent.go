@@ -1,12 +1,10 @@
 package guest_agent
 
 import (
-	"encoding/base64"
-	"encoding/json"
+	"context"
 	"fmt"
 	"net"
 	"strings"
-	"time"
 
 	"kvm_console/logger"
 	"kvm_console/service/libvirt_rpc"
@@ -105,22 +103,17 @@ func CheckVMGuestAgentStatus(vmName string) *GuestAgentStatus {
 		return status
 	}
 
-	// 检查 agent 是否连通
-	pingResult := utils.ExecCommandQuiet("virsh", "qemu-agent-command", vmName,
-		`{"execute":"guest-ping"}`)
-	if pingResult.Error == nil && strings.Contains(pingResult.Stdout, "return") {
+	client := NewClient(vmName)
+	ctx, cancel := context.WithTimeout(context.Background(), ConnectTimeout)
+	defer cancel()
+	if client.Ping(ctx) == nil {
 		status.Connected = true
 	}
 
 	// 获取版本号
 	if status.Connected {
-		infoResult := utils.ExecCommandQuiet("virsh", "qemu-agent-command", vmName,
-			`{"execute":"guest-info"}`)
-		if infoResult.Error == nil {
-			var info guestInfoResponse
-			if err := json.Unmarshal([]byte(infoResult.Stdout), &info); err == nil {
-				status.Version = info.Return.Version
-			}
+		if info, err := client.Info(ctx); err == nil {
+			status.Version = info.Version
 		}
 	}
 
@@ -130,19 +123,15 @@ func CheckVMGuestAgentStatus(vmName string) *GuestAgentStatus {
 // GetVMGuestAgentIPs 从 QEMU Guest Agent 获取虚拟机所有网口的 IP 地址
 // 返回按 MAC 分组的 IPv4 地址列表，自动过滤 loopback 和 link-local 地址
 func GetVMGuestAgentIPs(vmName string) ([]GuestAgentIPResult, error) {
-	result := utils.ExecCommandQuiet("virsh", "qemu-agent-command", vmName,
-		`{"execute":"guest-network-get-interfaces"}`)
-	if result.Error != nil {
-		return nil, fmt.Errorf("guest agent 命令执行失败: %w", result.Error)
-	}
-
-	var resp guestNetworkResponse
-	if err := json.Unmarshal([]byte(result.Stdout), &resp); err != nil {
-		return nil, fmt.Errorf("解析 guest agent 返回失败: %w", err)
+	ctx, cancel := context.WithTimeout(context.Background(), ConnectTimeout)
+	defer cancel()
+	var interfaces []guestNetworkInterface
+	if err := NewClient(vmName).Command(ctx, "guest-network-get-interfaces", nil, &interfaces, ConnectTimeout); err != nil {
+		return nil, err
 	}
 
 	var results []GuestAgentIPResult
-	for _, iface := range resp.Return {
+	for _, iface := range interfaces {
 		mac := strings.ToLower(strings.TrimSpace(iface.HardwareAddress))
 		if mac == "" || mac == "00:00:00:00:00:00" {
 			continue
@@ -232,16 +221,14 @@ func GetVMAllAgentIPs(vmName string) []string {
 // ConfigureLinuxDHCPHotplugNetwork 为运行中的 Linux 来宾补齐附加网口的 DHCP 兜底规则。
 // 主网口仍由优先级更高的 Netplan 规则管理；该规则只命中未被主规则匹配的 en* 网口。
 func ConfigureLinuxDHCPHotplugNetwork(vmName string) error {
-	osInfo := utils.ExecCommandQuiet("virsh", "qemu-agent-command", vmName,
-		`{"execute":"guest-get-osinfo"}`)
-	if osInfo.Error != nil {
-		return fmt.Errorf("读取来宾系统信息失败: %w", osInfo.Error)
+	ctx, cancel := context.WithTimeout(context.Background(), ExecuteTimeout)
+	defer cancel()
+	client := NewClient(vmName)
+	osInfo, err := client.OSInfo(ctx)
+	if err != nil {
+		return fmt.Errorf("读取来宾系统信息失败: %w", err)
 	}
-	var osResult guestOSInfoResponse
-	if err := json.Unmarshal([]byte(osInfo.Stdout), &osResult); err != nil {
-		return fmt.Errorf("解析来宾系统信息失败: %w", err)
-	}
-	if strings.EqualFold(strings.TrimSpace(osResult.Return.ID), "mswindows") {
+	if strings.EqualFold(strings.TrimSpace(osInfo.ID), "mswindows") {
 		return nil
 	}
 
@@ -267,55 +254,15 @@ for qvm_iface in /sys/class/net/en*; do
   networkctl reconfigure "$qvm_name" || true
 done`
 
-	request, err := json.Marshal(map[string]any{
-		"execute": "guest-exec",
-		"arguments": map[string]any{
-			"path":           "/bin/sh",
-			"arg":            []string{"-c", script},
-			"capture-output": true,
-		},
-	})
+	result, err := client.Execute(ctx, "/bin/sh", []string{"-c", script}, ExecuteTimeout)
 	if err != nil {
-		return fmt.Errorf("构造来宾网络配置命令失败: %w", err)
+		return fmt.Errorf("来宾网络配置命令执行失败: %w", err)
 	}
-
-	start := utils.ExecCommandQuiet("virsh", "qemu-agent-command", vmName, string(request))
-	if start.Error != nil {
-		return fmt.Errorf("启动来宾网络配置命令失败: %w", start.Error)
+	if result.ExitCode != 0 {
+		if output := strings.TrimSpace(result.Stderr); output != "" {
+			return fmt.Errorf("来宾网络配置命令失败: %s", output)
+		}
+		return fmt.Errorf("来宾网络配置命令失败，退出码 %d", result.ExitCode)
 	}
-
-	var started guestExecStartResponse
-	if err := json.Unmarshal([]byte(start.Stdout), &started); err != nil || started.Return.PID <= 0 {
-		if err != nil {
-			return fmt.Errorf("解析来宾网络配置任务失败: %w", err)
-		}
-		return fmt.Errorf("来宾网络配置任务未返回进程号")
-	}
-
-	for i := 0; i < 20; i++ {
-		statusRequest := fmt.Sprintf(`{"execute":"guest-exec-status","arguments":{"pid":%d}}`, started.Return.PID)
-		status := utils.ExecCommandQuiet("virsh", "qemu-agent-command", vmName, statusRequest)
-		if status.Error != nil {
-			return fmt.Errorf("查询来宾网络配置任务失败: %w", status.Error)
-		}
-
-		var result guestExecStatusResponse
-		if err := json.Unmarshal([]byte(status.Stdout), &result); err != nil {
-			return fmt.Errorf("解析来宾网络配置任务状态失败: %w", err)
-		}
-		if !result.Return.Exited {
-			time.Sleep(500 * time.Millisecond)
-			continue
-		}
-		if result.Return.ExitCode != 0 {
-			errOutput, decodeErr := base64.StdEncoding.DecodeString(result.Return.ErrData)
-			if decodeErr == nil && strings.TrimSpace(string(errOutput)) != "" {
-				return fmt.Errorf("来宾网络配置命令失败: %s", strings.TrimSpace(string(errOutput)))
-			}
-			return fmt.Errorf("来宾网络配置命令失败，退出码 %d", result.Return.ExitCode)
-		}
-		return nil
-	}
-
-	return fmt.Errorf("来宾网络配置任务超时")
+	return nil
 }

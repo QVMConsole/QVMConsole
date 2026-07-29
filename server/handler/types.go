@@ -15,6 +15,7 @@ type VmOperateRequest struct {
 type ResetLinuxPasswordRequest struct {
 	Username string `json:"username" binding:"required"`
 	Password string `json:"password" binding:"required"`
+	Mode     string `json:"mode"` // auto/online/offline，默认 auto
 }
 
 // VmEditRequest 虚拟机编辑请求

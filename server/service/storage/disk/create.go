@@ -1,10 +1,14 @@
 package disk
 
 import (
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"kvm_console/config"
@@ -66,6 +70,7 @@ func AddDiskWithBusInDir(vmName string, sizeGB int, format, bus, diskDir string)
 		return "", fmt.Errorf("创建磁盘目录失败: %w", err)
 	}
 	diskPath := fmt.Sprintf("%s/%s-%s.%s", diskDir, vmName, nextDev, format)
+	serial := newDiskSerial()
 
 	// create disk image
 	result := utils.ExecCommand("qemu-img", "create", "-f", format, diskPath, fmt.Sprintf("%dG", sizeGB))
@@ -79,8 +84,9 @@ func AddDiskWithBusInDir(vmName string, sizeGB int, format, bus, diskDir string)
 			"  <driver name='qemu' type='%s' discard='unmap' detect_zeroes='unmap'/>\n"+
 			"  <source file='%s'/>\n"+
 			"  <target dev='%s' bus='%s'/>\n"+
+			"  <serial>%s</serial>\n"+
 			"</disk>",
-		format, diskPath, nextDev, bus)
+		format, diskPath, nextDev, bus, serial)
 
 	// for running VMs on q35/PCIe, fill PCI address to use a free pcie-root-port
 	if vmState == "running" {
@@ -88,7 +94,7 @@ func AddDiskWithBusInDir(vmName string, sizeGB int, format, bus, diskDir string)
 		if err != nil {
 			// PCIe slots exhausted, try fallback to scsi (needs existing virtio-scsi controller)
 			if bus == "virtio" && strings.Contains(err.Error(), ErrNoPCIESlots.Error()) {
-				scsiDev, scsiErr := tryFallbackDiskToSCSI(vmName, diskPath, format, existingDisks, vmState)
+				scsiDev, scsiErr := tryFallbackDiskToSCSI(vmName, diskPath, format, serial, existingDisks, vmState)
 				if scsiErr == nil {
 					return scsiDev, nil
 				}
@@ -190,7 +196,7 @@ func AttachExistingDisk(vmName, diskPath, bus string) (string, error) {
 		}
 
 		// move file
-		if err := os.Rename(diskPath, destPath); err != nil {
+		if err := moveDiskFile(diskPath, destPath); err != nil {
 			return "", fmt.Errorf("移动磁盘文件到默认目录失败: %v", err)
 		}
 		// set permissions
@@ -231,6 +237,7 @@ func AttachExistingDisk(vmName, diskPath, bus string) (string, error) {
 	if nextDev == "" {
 		return "", fmt.Errorf("没有可用的设备名")
 	}
+	serial := newDiskSerial()
 
 	// use attach-device + XML to support discard and detect_zeroes
 	diskXML := fmt.Sprintf(
@@ -238,8 +245,9 @@ func AttachExistingDisk(vmName, diskPath, bus string) (string, error) {
 			"  <driver name='qemu' type='%s' discard='unmap' detect_zeroes='unmap'/>\n"+
 			"  <source file='%s'/>\n"+
 			"  <target dev='%s' bus='%s'/>\n"+
+			"  <serial>%s</serial>\n"+
 			"</disk>",
-		format, diskPath, nextDev, bus)
+		format, diskPath, nextDev, bus, serial)
 
 	// for running VMs on q35/PCIe, fill PCI address to use a free pcie-root-port
 	if vmState == "running" {
@@ -247,7 +255,7 @@ func AttachExistingDisk(vmName, diskPath, bus string) (string, error) {
 		if err != nil {
 			// PCIe slots exhausted, try fallback to scsi (needs existing virtio-scsi controller)
 			if bus == "virtio" && strings.Contains(err.Error(), ErrNoPCIESlots.Error()) {
-				scsiDev, scsiErr := tryFallbackDiskToSCSI(vmName, diskPath, format, existingDisks, vmState)
+				scsiDev, scsiErr := tryFallbackDiskToSCSI(vmName, diskPath, format, serial, existingDisks, vmState)
 				if scsiErr == nil {
 					return scsiDev, nil
 				}
@@ -267,6 +275,24 @@ func AttachExistingDisk(vmName, diskPath, bus string) (string, error) {
 	}
 
 	return nextDev, nil
+}
+
+func moveDiskFile(source, destination string) error {
+	if err := os.Rename(source, destination); err == nil {
+		return nil
+	} else if !errors.Is(err, syscall.EXDEV) {
+		return err
+	}
+	copyResult := utils.ExecCommandLongRunning("cp", "--sparse=always", "--preserve=mode,timestamps", "--", source, destination)
+	if copyResult.Error != nil {
+		_ = os.Remove(destination)
+		return fmt.Errorf("跨文件系统复制磁盘失败: %s", strings.TrimSpace(copyResult.Stderr))
+	}
+	if err := os.Remove(source); err != nil {
+		_ = os.Remove(destination)
+		return err
+	}
+	return nil
 }
 
 // buildDiskHotplugXML fills PCI address for hot-adding disks on q35/PCIe machines.
@@ -298,7 +324,7 @@ func buildDiskHotplugXML(vmName string, diskXML string) (string, error) {
 // tryFallbackDiskToSCSI falls back to scsi bus when virtio disk hot-add fails
 // due to exhausted PCIe slots. It uses the existing virtio-scsi controller.
 // Returns the new device name, or an error.
-func tryFallbackDiskToSCSI(vmName, diskPath, format string, existingDisks []DiskInfo, vmState string) (string, error) {
+func tryFallbackDiskToSCSI(vmName, diskPath, format, serial string, existingDisks []DiskInfo, vmState string) (string, error) {
 	// 1. confirm VM has virtio-scsi controller
 	xmlStr, err := libvirt_rpc.GetDomainXMLRPC(vmName, 0)
 	if err != nil || !hasSCSIController(xmlStr) {
@@ -331,8 +357,9 @@ func tryFallbackDiskToSCSI(vmName, diskPath, format string, existingDisks []Disk
 			"  <driver name='qemu' type='%s' discard='unmap' detect_zeroes='unmap'/>\n"+
 			"  <source file='%s'/>\n"+
 			"  <target dev='%s' bus='scsi'/>\n"+
+			"  <serial>%s</serial>\n"+
 			"</disk>",
-		format, diskPath, nextDev)
+		format, diskPath, nextDev, serial)
 
 	// attach-device: running=live+config(3), stopped=config(2)
 	var attachFlags uint32 = 2 // VIR_DOMAIN_DEVICE_MODIFY_CONFIG
@@ -344,6 +371,14 @@ func tryFallbackDiskToSCSI(vmName, diskPath, format string, existingDisks []Disk
 	}
 
 	return nextDev, nil
+}
+
+func newDiskSerial() string {
+	data := make([]byte, 10)
+	if _, err := rand.Read(data); err == nil {
+		return "qvm-" + hex.EncodeToString(data)
+	}
+	return fmt.Sprintf("qvm-%d", time.Now().UnixNano())
 }
 
 // GetDevPrefix returns the device name prefix based on bus type.

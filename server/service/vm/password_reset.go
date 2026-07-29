@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"kvm_console/model"
+	"kvm_console/service/guest_agent"
 	"kvm_console/taskqueue"
 	"kvm_console/utils"
 )
@@ -21,10 +22,12 @@ const (
 
 // ResetLinuxPasswordParams 来宾虚拟机重置密码参数
 type ResetLinuxPasswordParams struct {
-	VMName   string `json:"vm_name"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-	Operator string `json:"operator,omitempty"`
+	VMName      string `json:"vm_name"`
+	Username    string `json:"username"`
+	Password    string `json:"password,omitempty"`
+	PasswordEnc string `json:"password_enc,omitempty"`
+	Mode        string `json:"mode,omitempty"`
+	Operator    string `json:"operator,omitempty"`
 }
 
 // ParseResetLinuxPasswordParams 从 JSON 解析重置密码参数
@@ -32,6 +35,13 @@ func ParseResetLinuxPasswordParams(jsonStr string) (*ResetLinuxPasswordParams, e
 	var params ResetLinuxPasswordParams
 	if err := json.Unmarshal([]byte(jsonStr), &params); err != nil {
 		return nil, err
+	}
+	if params.Password == "" && params.PasswordEnc != "" {
+		password, err := decryptVMSecret(params.PasswordEnc)
+		if err != nil {
+			return nil, fmt.Errorf("解密任务密码失败: %w", err)
+		}
+		params.Password = password
 	}
 	return &params, nil
 }
@@ -62,7 +72,7 @@ func ValidateResetLinuxPasswordParams(username, password string) error {
 	return ValidateResetGuestPasswordParams(username, password, "linux")
 }
 
-// ResetLinuxPassword 离线重置虚拟机密码
+// ResetLinuxPassword 根据虚拟机状态自动选择在线或离线重置。
 func ResetLinuxPassword(ctx context.Context, params *ResetLinuxPasswordParams, progressFn func(int, string)) error {
 	vmName := strings.TrimSpace(params.VMName)
 	if err := D.HookEnsureVMNotMigrating(vmName, "重置密码"); err != nil {
@@ -74,8 +84,12 @@ func ResetLinuxPassword(ctx context.Context, params *ResetLinuxPasswordParams, p
 	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(vm.Status) != "shut off" {
-		return fmt.Errorf("请先将虚拟机关机后再重置密码")
+	mode := strings.ToLower(strings.TrimSpace(params.Mode))
+	if mode == "" {
+		mode = "auto"
+	}
+	if mode != "auto" && mode != "online" && mode != "offline" {
+		return fmt.Errorf("密码重置模式仅支持 auto、online 或 offline")
 	}
 	guestType := strings.ToLower(strings.TrimSpace(vm.OSType))
 	if err := ValidateResetGuestPasswordParams(params.Username, params.Password, guestType); err != nil {
@@ -84,8 +98,16 @@ func ResetLinuxPassword(ctx context.Context, params *ResetLinuxPasswordParams, p
 	if guestType != "linux" && guestType != "fnos" && guestType != "windows" {
 		return fmt.Errorf("当前仅支持 Linux、Windows 或 fnOS 虚拟机重置密码")
 	}
-	if vm.DiskPath == "" {
-		return fmt.Errorf("未找到虚拟机磁盘，无法重置密码")
+	status := strings.TrimSpace(vm.Status)
+	useOnline := mode == "online" || (mode == "auto" && status != "shut off")
+	if mode == "offline" && status != "shut off" {
+		return fmt.Errorf("离线重置模式要求虚拟机处于关机状态")
+	}
+	if useOnline && status == "shut off" {
+		return fmt.Errorf("在线重置模式要求虚拟机处于运行状态")
+	}
+	if !useOnline && vm.DiskPath == "" {
+		return fmt.Errorf("未找到虚拟机系统磁盘")
 	}
 
 	select {
@@ -94,32 +116,47 @@ func ResetLinuxPassword(ctx context.Context, params *ResetLinuxPasswordParams, p
 	default:
 	}
 
-	if guestType == "windows" {
-		progressFn(25, "正在写入 Windows 重置脚本...")
-		if err := stageWindowsPasswordReset(vm.DiskPath, params.Username, params.Password); err != nil {
-			return err
+	err = guest_agent.WithVMOperationLock(vmName, func() error {
+		if useOnline {
+			progressFn(25, "正在通过 QEMU Guest Agent 在线重置密码...")
+			client := guest_agent.NewClient(vmName)
+			if err := client.Ping(ctx); err != nil {
+				return fmt.Errorf("QEMU Guest Agent 未连接: %w", err)
+			}
+			if !client.Supports(ctx, "guest-set-user-password") {
+				return fmt.Errorf("当前 QEMU Guest Agent 未启用在线密码重置命令")
+			}
+			if err := client.SetUserPassword(ctx, params.Username, params.Password); err != nil {
+				return err
+			}
+		} else if guestType == "windows" {
+			progressFn(25, "正在写入 Windows 重置脚本...")
+			if err := stageWindowsPasswordReset(vm.DiskPath, params.Username, params.Password); err != nil {
+				return err
+			}
+		} else {
+			progressFn(25, "正在离线修改虚拟机密码...")
+			passwordArg := fmt.Sprintf("%s:password:%s", strings.TrimSpace(params.Username), params.Password)
+			result := utils.ExecCommandSensitiveLongRunning("virt-customize", "-a", vm.DiskPath, "--password", passwordArg, "--selinux-relabel")
+			if result.Error != nil {
+				return fmt.Errorf("离线重置密码失败: %s", strings.TrimSpace(result.Stderr))
+			}
 		}
-	} else {
-		progressFn(25, "正在离线修改虚拟机密码...")
-		passwordArg := fmt.Sprintf("%s:password:%s", strings.TrimSpace(params.Username), params.Password)
-		result := utils.ExecCommandLongRunning("virt-customize", "-a", vm.DiskPath, "--password", passwordArg, "--selinux-relabel")
-		if result.Error != nil {
-			return fmt.Errorf("离线重置密码失败: %s", strings.TrimSpace(result.Stderr))
+
+		select {
+		case <-ctx.Done():
+			return taskqueue.ErrTaskCanceled
+		default:
 		}
-	}
 
-	select {
-	case <-ctx.Done():
-		return taskqueue.ErrTaskCanceled
-	default:
-	}
-
-	progressFn(80, "正在保存最新凭据...")
-	if err := SaveVMCredential(vmName, params.Username, params.Password, "password_reset", params.Operator, true); err != nil {
+		progressFn(80, "正在保存最新凭据...")
+		return SaveVMCredential(vmName, params.Username, params.Password, "password_reset", params.Operator, true)
+	})
+	if err != nil {
 		return err
 	}
 
-	if guestType == "windows" {
+	if !useOnline && guestType == "windows" {
 		progressFn(100, "Windows 密码重置任务已准备完成，请手动开机一次等待系统自动处理并关机")
 		return nil
 	}
@@ -131,12 +168,18 @@ func ResetLinuxPassword(ctx context.Context, params *ResetLinuxPasswordParams, p
 // SubmitResetLinuxPasswordTask 提交 Linux/FnOS 重置密码任务
 func SubmitResetLinuxPasswordTask(params *ResetLinuxPasswordParams, operator string) (*model.Task, error) {
 	params.Operator = operator
+	encrypted, err := encryptVMSecret(params.Password)
+	if err != nil {
+		return nil, fmt.Errorf("加密任务密码失败: %w", err)
+	}
+	params.PasswordEnc = encrypted
+	params.Password = ""
 	return taskqueue.SubmitWithStruct(model.TaskTypeResetVMPassword, params, operator)
 }
 
 func stageWindowsPasswordReset(diskPath, username, password string) error {
 	scriptContent := buildWindowsPasswordResetScript(username, password)
-	writeResult := utils.ExecCommandLongRunning(
+	writeResult := utils.ExecCommandSensitiveLongRunning(
 		"virt-customize",
 		"-a", diskPath,
 		"--mkdir", "/ProgramData/kvm-console",

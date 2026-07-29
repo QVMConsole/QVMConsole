@@ -5,11 +5,12 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button, Spin, Tag, Toast, Tooltip } from '@douyinfe/semi-ui'
-import { IconCopy, IconRefresh } from '@douyinfe/semi-icons'
+import { IconCopy, IconEyeClosedSolid, IconEyeOpened, IconRefresh } from '@douyinfe/semi-icons'
 import type { VmDetailInfo, VmDiskItem, VmNetworkInterface, VmPCIEInfo } from '@/api/vm'
 import { getDiskList, getVmPCIEInfo, getVMNetworkStatus } from '@/api/vm'
 import { copyTextWithFallback } from '@/utils/clipboard'
 import {
+  canResetVmPassword,
   formatMemoryMB,
   formatContinuousRuntime,
   ipSourceLabel,
@@ -40,10 +41,15 @@ export default function InfoTab({ vm, isLightweight, onResetPassword, onReinstal
   const [disksLoading, setDisksLoading] = useState(false)
   const [interfaceIPs, setInterfaceIPs] = useState<{ ip: string; source: string }[]>([])
   const [showAllIPs, setShowAllIPs] = useState(false)
+  const [credentialPasswordVisible, setCredentialPasswordVisible] = useState(false)
 
   const vmName = vm?.name || ''
-  const canResetPassword =
-    !!vm && ['linux', 'windows', 'fnos'].includes(vm.os_type || '') && vm.status === 'shut off'
+  const canResetPassword = canResetVmPassword(vm)
+
+  // 切换虚拟机或凭据更新后，密码恢复为隐藏状态。
+  useEffect(() => {
+    setCredentialPasswordVisible(false)
+  }, [vmName, vm?.credential?.password])
 
   // 加载 PCIe 热插槽信息
   useEffect(() => {
@@ -237,13 +243,27 @@ export default function InfoTab({ vm, isLightweight, onResetPassword, onReinstal
         <Row label="密码">
           {vm.credential?.password ? (
             <span className="qvm-credential-wrap">
-              <code className="qvm-code qvm-code-pwd">{vm.credential.password}</code>
-              <Button
-                size="small"
-                theme="borderless"
-                icon={<IconCopy size="small" />}
-                onClick={() => void copyField(vm.credential?.password || '', '密码')}
-              />
+              <code className="qvm-code qvm-code-pwd">
+                {credentialPasswordVisible ? vm.credential.password : '••••••••'}
+              </code>
+              <Tooltip content={credentialPasswordVisible ? '隐藏密码' : '显示密码'} position="top">
+                <Button
+                  size="small"
+                  theme="borderless"
+                  icon={credentialPasswordVisible ? <IconEyeOpened size="small" /> : <IconEyeClosedSolid size="small" />}
+                  aria-label={credentialPasswordVisible ? '隐藏密码' : '显示密码'}
+                  onClick={() => setCredentialPasswordVisible((visible) => !visible)}
+                />
+              </Tooltip>
+              <Tooltip content="复制密码" position="top">
+                <Button
+                  size="small"
+                  theme="borderless"
+                  icon={<IconCopy size="small" />}
+                  aria-label="复制密码"
+                  onClick={() => void copyField(vm.credential?.password || '', '密码')}
+                />
+              </Tooltip>
             </span>
           ) : (
             '-'
@@ -251,7 +271,7 @@ export default function InfoTab({ vm, isLightweight, onResetPassword, onReinstal
         </Row>
         <div className="qvm-info-actions">
           <div className="qvm-info-action-row">
-            <span className="qvm-info-action-label">离线重置密码</span>
+            <span className="qvm-info-action-label">在线/离线密码重置</span>
             <Button
               size="small"
               type="warning"

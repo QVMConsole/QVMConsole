@@ -115,6 +115,7 @@ type BatchCloneRequest struct {
 	SwitchID            uint                            `json:"switch_id"`         // VPC 交换机 ID
 	SecurityGroupID     uint                            `json:"security_group_id"` // 安全组 ID
 	ExtraNics           []service.AddVMInterfaceRequest `json:"extra_nics"`
+	ExtraDisks          []service.ExtraDiskParam        `json:"extra_disks"`
 	HostDevices         []service.HostDeviceParam       `json:"host_devices"`              // count > 1 时不允许
 	DisableSystemInit   bool                            `json:"disable_system_init"`       // 禁用系统初始化
 	StaticIP            string                          `json:"static_ip"`                 // OpenWrt 静态 IP（CIDR 格式）
@@ -442,6 +443,7 @@ func BatchCloneVm(c *gin.Context) {
 		SwitchID:            req.SwitchID,
 		SecurityGroupID:     req.SecurityGroupID,
 		ExtraNics:           req.ExtraNics,
+		ExtraDisks:          req.ExtraDisks,
 		HostDevices:         req.HostDevices,
 		IsAdmin:             isAdmin,
 		DisableSystemInit:   req.DisableSystemInit,
@@ -462,6 +464,11 @@ func BatchCloneVm(c *gin.Context) {
 		totalVCPU := req.VCPU * req.Count
 		totalRAM := req.RAM * req.Count
 		totalDiskGB := diskSize * req.Count
+		for _, extraDisk := range req.ExtraDisks {
+			if extraDisk.Size > 0 {
+				totalDiskGB += extraDisk.Size * req.Count
+			}
+		}
 		if err := service.CheckQuota(usernameStr, totalVCPU, totalRAM, totalDiskGB); err != nil {
 			c.JSON(http.StatusForbidden, gin.H{
 				"code":    403,

@@ -149,6 +149,7 @@ const buildExtraDisksPayload = (form: VmFormModel) =>
       iops_total: d.iops_total || 0,
       iops_read: d.iops_read || 0,
       iops_write: d.iops_write || 0,
+      guest_mount: d.guest_mount,
     }))
 
 // ==================== 创建链路（ISO 安装） ====================
@@ -315,6 +316,7 @@ export const buildBatchClonePayload = (
     count: form.batch_count,
     hostname: '', // 批量模式每台由后端自动生成独立主机名
     template_user: initUser,
+    extra_disks: buildExtraDisksPayload(form),
   }
   const cpuLimitPercent = buildCPULimitPercentPayload(form, ctx.isAdmin)
   if (cpuLimitPercent !== undefined) payload.cpu_limit_percent = cpuLimitPercent

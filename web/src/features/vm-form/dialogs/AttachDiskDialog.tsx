@@ -3,13 +3,12 @@
  * 普通用户从我的存储选择磁盘文件；管理员可用绝对路径导入（异步任务）。
  */
 import { useEffect, useState } from 'react'
-import { Modal, Radio, Select } from '@douyinfe/semi-ui'
+import { Banner, Input, Modal, Radio, Select, Switch } from '@douyinfe/semi-ui'
 import { useVmFormScope } from '../scopeContext'
 import type { VmEditDevices } from '../useVmEditDevices'
 import FormField from '../sections/FormField'
 import { storageTargetLabel } from '../sections/storageTargetUtils'
 import { DISK_BUS_OPTIONS } from '../constants'
-import { Input } from '@douyinfe/semi-ui'
 
 interface AttachDiskDialogProps {
   visible: boolean
@@ -27,6 +26,9 @@ export default function AttachDiskDialog({ visible, devices, onClose }: AttachDi
   const [storagePoolId, setStoragePoolId] = useState('')
   const [copyDisk, setCopyDisk] = useState(false)
   const [bus, setBus] = useState('virtio')
+  const [autoMount, setAutoMount] = useState(false)
+  const [mountPoint, setMountPoint] = useState('/data')
+  const [driveLetter, setDriveLetter] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
@@ -37,12 +39,28 @@ export default function AttachDiskDialog({ visible, devices, onClose }: AttachDi
     setStoragePoolId('')
     setCopyDisk(false)
     setBus('virtio')
+    setAutoMount(false)
+    setMountPoint('/data')
+    setDriveLetter('')
     void options.loadDiskFiles()
     void options.loadStorageTargets()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible])
 
   const submitDisabled = isAdmin && sourceType === 'path' ? !absolutePath : !diskPath
+  const guestType = ctx.guestType
+  const canAutoMount =
+    ctx.vmStatus === 'running' &&
+    !!ctx.guestAgentConnected &&
+    (guestType === 'linux' || guestType === 'windows')
+  const guestMount = autoMount
+    ? {
+        enabled: true,
+        filesystem: 'ext4' as const,
+        mount_point: guestType === 'linux' ? mountPoint : undefined,
+        drive_letter: guestType === 'windows' ? driveLetter : undefined,
+      }
+    : undefined
 
   const handleOk = async () => {
     setSubmitting(true)
@@ -54,9 +72,10 @@ export default function AttachDiskDialog({ visible, devices, onClose }: AttachDi
           storage_pool_id: storagePoolId,
           copy_disk: copyDisk,
           bus,
+          guest_mount: guestMount,
         })
       } else {
-        await devices.attachDiskAction(diskPath, bus)
+        await devices.attachDiskAction(diskPath, bus, guestMount)
       }
       onClose()
     } catch {
@@ -163,6 +182,25 @@ export default function AttachDiskDialog({ visible, devices, onClose }: AttachDi
           }))}
         />
       </FormField>
+
+      {canAutoMount && (
+        <FormField label="自动挂载到系统" tip="只识别已有数据卷，不会重新格式化已有磁盘">
+          <Switch checked={autoMount} checkedText="开" uncheckedText="关" onChange={setAutoMount} />
+        </FormField>
+      )}
+      {autoMount && guestType === 'linux' && (
+        <FormField label="基础挂载目录" tip="多卷磁盘将依次使用该目录及数字后缀">
+          <Input value={mountPoint} onChange={setMountPoint} placeholder="/data" />
+        </FormField>
+      )}
+      {autoMount && guestType === 'windows' && (
+        <FormField label="首选盘符" tip="留空时自动选择 D 到 Z 的空闲盘符，多卷将继续分配后续空闲盘符">
+          <Input value={driveLetter} onChange={setDriveLetter} maxLength={1} placeholder="自动分配" />
+        </FormField>
+      )}
+      {autoMount && (
+        <Banner type="warning" closeIcon={null} description="自动挂载通过 QEMU Guest Agent 异步执行，请在任务中心查看每个卷的处理结果。" />
+      )}
     </Modal>
   )
 }

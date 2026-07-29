@@ -175,6 +175,8 @@ export interface VmFormContext {
   isAdmin: boolean
   /** 编辑模式的虚拟机运行状态（running / shut off / paused） */
   vmStatus: string
+  guestType: string
+  guestAgentConnected?: boolean
   hostArch: string
   hostCores: number
   spiceSupported: boolean

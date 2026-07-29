@@ -481,6 +481,8 @@ export default function CreateVmWizard({
             mode: 'create',
             isAdmin,
             vmStatus: 'shut off',
+            guestType: form.form.os_type,
+            guestAgentConnected: false,
             hostArch: options.hostArch,
             hostCores: options.hostCores,
             spiceSupported: options.spiceSupported,

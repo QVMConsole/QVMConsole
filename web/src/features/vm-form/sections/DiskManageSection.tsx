@@ -3,8 +3,8 @@
  * 现有磁盘表 / 新增磁盘 / CD-DVD 光驱 / 软盘驱动器。
  */
 import { useEffect, useState } from 'react'
-import { Button, InputNumber, Modal, Select, Table, Tag, Toast } from '@douyinfe/semi-ui'
-import { IconDelete, IconDisc, IconLink, IconPlus } from '@douyinfe/semi-icons'
+import { Button, Dropdown, Input, InputNumber, Modal, Select, Switch, Table, Tag, Toast, Tooltip } from '@douyinfe/semi-ui'
+import { IconDelete, IconDisc, IconEditStroked, IconLink, IconMore, IconPlus, IconSetting } from '@douyinfe/semi-icons'
 import { DiskIcon } from '../icons'
 import type { VmDiskItem } from '@/api/vm'
 import SectionCard from './SectionCard'
@@ -17,6 +17,7 @@ import DiskIopsDialog from '../dialogs/DiskIopsDialog'
 import AttachDiskDialog from '../dialogs/AttachDiskDialog'
 import ResizeDiskDialog from '../dialogs/ResizeDiskDialog'
 import RemoveDiskDialog from '../dialogs/RemoveDiskDialog'
+import GuestMountDiskDialog from '../dialogs/GuestMountDiskDialog'
 
 interface DiskManageSectionProps {
   devices: VmEditDevices
@@ -33,6 +34,7 @@ export default function DiskManageSection({ devices }: DiskManageSectionProps) {
   const [attachVisible, setAttachVisible] = useState(false)
   const [resizeDisk, setResizeDisk] = useState<VmDiskItem | null>(null)
   const [removeDiskTarget, setRemoveDiskTarget] = useState<VmDiskItem | null>(null)
+  const [guestMountDisk, setGuestMountDisk] = useState<VmDiskItem | null>(null)
   const [iopsDisk, setIopsDisk] = useState<VmDiskItem | null>(null)
   const [lastIopsDisk, setLastIopsDisk] = useState<VmDiskItem | null>(null)
   useEffect(() => {
@@ -59,6 +61,7 @@ export default function DiskManageSection({ devices }: DiskManageSectionProps) {
         format: 'qcow2',
         bus: 'virtio',
         storage_pool_id: f.storage_pool_id || defaultTarget?.id || '',
+        guest_mount: { enabled: false, filesystem: 'ext4', mount_point: '/data' },
       },
     ])
   }
@@ -114,18 +117,32 @@ export default function DiskManageSection({ devices }: DiskManageSectionProps) {
       width: 200,
       align: 'center' as const,
       render: (_: unknown, row: VmDiskItem) => (
-        <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
-          <Button size="small" type="primary" theme="light" onClick={() => setResizeDisk(row)}>
-            扩容
-          </Button>
-          {ctx.isAdmin && (
-            <Button size="small" type="warning" theme="light" onClick={() => setIopsDisk(row)}>
-              IOPS
-            </Button>
-          )}
-          <Button size="small" type="danger" theme="light" onClick={() => setRemoveDiskTarget(row)}>
-            删除
-          </Button>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'center', alignItems: 'center' }}>
+          <Tooltip content="扩容" position="top">
+            <span className="qvm-act-ic" onClick={() => setResizeDisk(row)}><IconEditStroked /></span>
+          </Tooltip>
+          <Dropdown
+            trigger="click"
+            position="bottomRight"
+            clickToHide
+            render={
+              <Dropdown.Menu>
+                {ctx.isAdmin && (
+                  <Dropdown.Item icon={<IconSetting />} onClick={() => setIopsDisk(row)}>设置 IOPS</Dropdown.Item>
+                )}
+                {running && ctx.guestAgentConnected && !row.is_system && (ctx.guestType === 'linux' || ctx.guestType === 'windows') && (
+                  <Dropdown.Item icon={<IconLink />} onClick={() => setGuestMountDisk(row)}>配置来宾挂载</Dropdown.Item>
+                )}
+                {running && ctx.guestAgentConnected && row.is_system && ctx.guestType === 'linux' && (
+                  <Dropdown.Item icon={<IconEditStroked />} onClick={() => void devices.guestGrowDiskAction(row.device)}>重试系统分区扩容</Dropdown.Item>
+                )}
+                <Dropdown.Divider />
+                <Dropdown.Item icon={<IconDelete />} type="danger" onClick={() => setRemoveDiskTarget(row)}>删除磁盘</Dropdown.Item>
+              </Dropdown.Menu>
+            }
+          >
+            <span className="qvm-act-ic more"><IconMore /></span>
+          </Dropdown>
         </div>
       ),
     },
@@ -208,6 +225,50 @@ export default function DiskManageSection({ devices }: DiskManageSectionProps) {
                   ...(ctx.isAdmin ? [{ value: 'raw', label: 'raw' }] : []),
                 ]}
               />
+              {running && ctx.guestAgentConnected && (ctx.guestType === 'linux' || ctx.guestType === 'windows') && (
+                <Tooltip content="自动挂载到系统" position="top">
+                  <Switch
+                    checked={!!disk.guest_mount?.enabled}
+                    checkedText="开"
+                    uncheckedText="关"
+                    onChange={(enabled) => updateNewDisk(index, 'guest_mount', {
+                      enabled,
+                      filesystem: disk.guest_mount?.filesystem || 'ext4',
+                      mount_point: disk.guest_mount?.mount_point || '/data',
+                      drive_letter: disk.guest_mount?.drive_letter || '',
+                    })}
+                  />
+                </Tooltip>
+              )}
+              {!!disk.guest_mount?.enabled && ctx.guestType === 'linux' && (
+                <>
+                  <Select
+                    style={{ width: 92 }}
+                    value={disk.guest_mount.filesystem || 'ext4'}
+                    onChange={(value) => updateNewDisk(index, 'guest_mount', { ...disk.guest_mount, filesystem: value })}
+                    optionList={[
+                      { value: 'ext4', label: 'ext4' },
+                      { value: 'xfs', label: 'XFS' },
+                      { value: 'btrfs', label: 'Btrfs' },
+                    ]}
+                  />
+                  <Input
+                    style={{ width: 130 }}
+                    value={disk.guest_mount.mount_point || '/data'}
+                    onChange={(value) => updateNewDisk(index, 'guest_mount', { ...disk.guest_mount, mount_point: value })}
+                    placeholder="/data"
+                  />
+                </>
+              )}
+              {!!disk.guest_mount?.enabled && ctx.guestType === 'windows' && (
+                <Input
+                  style={{ width: 92 }}
+                  value={disk.guest_mount.drive_letter || ''}
+                  onChange={(value) => updateNewDisk(index, 'guest_mount', { ...disk.guest_mount, drive_letter: value })}
+                  maxLength={1}
+                  placeholder="盘符"
+                />
+              )}
               <Select
                 style={{ width: 104 }}
                 value={disk.bus}
@@ -366,6 +427,7 @@ export default function DiskManageSection({ devices }: DiskManageSectionProps) {
       <AttachDiskDialog visible={attachVisible} devices={devices} onClose={() => setAttachVisible(false)} />
       <ResizeDiskDialog visible={!!resizeDisk} disk={resizeDisk} devices={devices} onClose={() => setResizeDisk(null)} />
       <RemoveDiskDialog visible={!!removeDiskTarget} disk={removeDiskTarget} devices={devices} onClose={() => setRemoveDiskTarget(null)} />
+      <GuestMountDiskDialog visible={!!guestMountDisk} disk={guestMountDisk} devices={devices} onClose={() => setGuestMountDisk(null)} />
       {activeIopsDisk && (
         <DiskIopsDialog
           visible={!!iopsDisk}

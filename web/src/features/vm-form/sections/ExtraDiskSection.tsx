@@ -2,7 +2,7 @@
  * 额外数据盘分区（创建向导 · ISO / 模板模式共用）
  */
 import { useEffect, useState } from 'react'
-import { Button, InputNumber, Select } from '@douyinfe/semi-ui'
+import { Button, Input, InputNumber, Select, Switch, Tooltip } from '@douyinfe/semi-ui'
 import { IconDelete, IconPlus } from '@douyinfe/semi-icons'
 import { DiskIcon } from '../icons'
 import SectionCard from './SectionCard'
@@ -25,6 +25,9 @@ export default function ExtraDiskSection({ title = '额外数据盘', tip }: Ext
   const [iopsDialogIndex, setIopsDialogIndex] = useState(-1)
   // 旧版规则：ISO 模式额外磁盘 raw 格式对所有角色开放；模板模式仅管理员
   const rawAllowed = ctx.isAdmin || f.create_mode === 'iso'
+	const guestType = f.template_type || f.os_type
+  const canAutoMount =
+    f.create_mode === 'template' && (guestType === 'linux' || guestType === 'windows')
 
   const addExtraDisk = () => {
     const defaultTarget = options.storageTargets.find((t) => t.is_default)
@@ -38,6 +41,7 @@ export default function ExtraDiskSection({ title = '额外数据盘', tip }: Ext
         iops_total: 0,
         iops_read: 0,
         iops_write: 0,
+        guest_mount: { enabled: false, filesystem: 'ext4', mount_point: '/data' },
       },
     ])
   }
@@ -87,6 +91,53 @@ export default function ExtraDiskSection({ title = '额外数据盘', tip }: Ext
                 ...(rawAllowed ? [{ value: 'raw', label: 'raw' }] : []),
               ]}
             />
+            {canAutoMount && (
+              <Tooltip content="克隆完成后自动挂载到系统" position="top">
+                <Switch
+                  checked={!!disk.guest_mount?.enabled}
+                  checkedText="开"
+                  uncheckedText="关"
+                  onChange={(enabled) => {
+                    updateExtraDisk(index, 'guest_mount', {
+                      enabled,
+                      filesystem: disk.guest_mount?.filesystem || 'ext4',
+                      mount_point: disk.guest_mount?.mount_point || '/data',
+                      drive_letter: disk.guest_mount?.drive_letter || '',
+                    })
+                    if (enabled) setField('guest_agent', { enabled: true })
+                  }}
+                />
+              </Tooltip>
+            )}
+            {!!disk.guest_mount?.enabled && guestType === 'linux' && (
+              <>
+                <Select
+                  style={{ width: 92 }}
+                  value={disk.guest_mount.filesystem || 'ext4'}
+                  onChange={(value) => updateExtraDisk(index, 'guest_mount', { ...disk.guest_mount, filesystem: value })}
+                  optionList={[
+                    { value: 'ext4', label: 'ext4' },
+                    { value: 'xfs', label: 'XFS' },
+                    { value: 'btrfs', label: 'Btrfs' },
+                  ]}
+                />
+                <Input
+                  style={{ width: 125 }}
+                  value={disk.guest_mount.mount_point || '/data'}
+                  onChange={(value) => updateExtraDisk(index, 'guest_mount', { ...disk.guest_mount, mount_point: value })}
+                  placeholder="/data"
+                />
+              </>
+            )}
+            {!!disk.guest_mount?.enabled && guestType === 'windows' && (
+              <Input
+                style={{ width: 90 }}
+                value={disk.guest_mount.drive_letter || ''}
+                onChange={(value) => updateExtraDisk(index, 'guest_mount', { ...disk.guest_mount, drive_letter: value })}
+                maxLength={1}
+                placeholder="盘符"
+              />
+            )}
             <Select
               style={{ width: 104 }}
               value={disk.bus}

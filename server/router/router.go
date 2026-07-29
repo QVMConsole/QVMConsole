@@ -216,6 +216,9 @@ func Setup() *gin.Engine {
 				vm.GET("/:name/disk-migration/options", middleware.AdminMiddleware(), handler.GetDiskMigrationOptions)
 				vm.POST("/:name/disk", middleware.ElasticCloudOnlyMiddleware(), handler.AddDisk)
 				vm.POST("/:name/disk/:dev/resize", middleware.ElasticCloudOnlyMiddleware(), handler.ResizeDisk)
+				vm.GET("/:name/disk/:dev/guest-status", handler.GetDiskGuestStatus) // 获取磁盘来宾映射与文件系统状态
+				vm.POST("/:name/disk/:dev/guest-mount", middleware.ElasticCloudOnlyMiddleware(), handler.GuestMountDisk) // 配置或重试来宾磁盘挂载
+				vm.POST("/:name/disk/:dev/guest-grow", middleware.ElasticCloudOnlyMiddleware(), handler.GuestGrowDisk) // 重试 Linux 系统分区扩容
 				vm.PUT("/:name/disk/:dev/bus", middleware.ElasticCloudOnlyMiddleware(), handler.ChangeDiskBus)
 				vm.POST("/:name/disk/attach", middleware.ElasticCloudOnlyMiddleware(), handler.AttachDisk)
 				vm.POST("/:name/disk/import", middleware.ElasticCloudOnlyMiddleware(), middleware.AdminMiddleware(), handler.ImportDiskForVM)

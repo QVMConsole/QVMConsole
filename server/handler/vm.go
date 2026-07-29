@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -10,9 +11,12 @@ import (
 
 	"kvm_console/config"
 	"kvm_console/logger"
+	"kvm_console/model"
 	"kvm_console/service"
 	bw "kvm_console/service/bandwidth"
+	guestautomation "kvm_console/service/guest_automation"
 	vm_memory "kvm_console/service/vm/memory"
+	"kvm_console/taskqueue"
 	"kvm_console/utils"
 )
 
@@ -72,10 +76,11 @@ func getVirtioMemSpecMemoryGB(vm *service.VmDetail) int {
 
 // VmAddDiskItem 编辑时新增磁盘的单项
 type VmAddDiskItem struct {
-	Size          int    `json:"size"`            // GB
-	Format        string `json:"format"`          // qcow2/raw
-	Bus           string `json:"bus"`             // 磁盘总线: virtio/scsi/sata/ide
-	StoragePoolID string `json:"storage_pool_id"` // 新增磁盘落盘存储位置
+	Size          int                              `json:"size"`            // GB
+	Format        string                           `json:"format"`          // qcow2/raw
+	Bus           string                           `json:"bus"`             // 磁盘总线: virtio/scsi/sata/ide
+	StoragePoolID string                           `json:"storage_pool_id"` // 新增磁盘落盘存储位置
+	GuestMount    guestautomation.GuestMountConfig `json:"guest_mount"`
 }
 
 // GetVmList 获取虚拟机列表
@@ -774,6 +779,7 @@ func EditVm(c *gin.Context) {
 	}
 
 	// 新增磁盘
+	var diskTaskIDs []uint
 	for _, disk := range req.AddDisks {
 		if disk.Size <= 0 {
 			continue
@@ -794,6 +800,28 @@ func EditVm(c *gin.Context) {
 				"message": "解析新增磁盘存储位置失败: " + err.Error(),
 			})
 			return
+		}
+		if disk.GuestMount.Enabled {
+			vm, vmErr := service.GetVM(name)
+			if vmErr != nil {
+				c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": vmErr.Error()})
+				return
+			}
+			ctx, cancel := context.WithTimeout(c.Request.Context(), guestautomationTimeout())
+			preflightErr := guestautomation.Preflight(ctx, name, vm.OSType, &disk.GuestMount, false)
+			cancel()
+			if preflightErr != nil {
+				c.JSON(http.StatusConflict, gin.H{"code": 409, "message": preflightErr.Error()})
+				return
+			}
+			params := guestautomation.DiskOperationParams{Action: "add", VMName: name, SizeGB: disk.Size, Format: format, Bus: bus, StorageDir: diskDir, GuestType: vm.OSType, GuestMount: disk.GuestMount}
+			task, submitErr := taskqueue.SubmitWithStruct(model.TaskTypeVMDiskProvision, params, username.(string))
+			if submitErr != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "提交新增磁盘任务失败: " + submitErr.Error()})
+				return
+			}
+			diskTaskIDs = append(diskTaskIDs, task.ID)
+			continue
 		}
 		_, err = service.AddDiskWithBusInDir(name, disk.Size, format, bus, diskDir)
 		if err != nil {
@@ -972,6 +1000,7 @@ func EditVm(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"code":    200,
 		"message": "配置修改成功",
+		"data":    gin.H{"task_ids": diskTaskIDs},
 	})
 	service.RefreshVMCacheByNameAsync(name)
 }

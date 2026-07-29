@@ -1,28 +1,34 @@
 package handler
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
 	"kvm_console/model"
 	"kvm_console/service"
+	guestautomation "kvm_console/service/guest_automation"
 	"kvm_console/service/vm/vmimport"
 	"kvm_console/taskqueue"
 )
 
 // AddDiskRequest 添加磁盘请求
 type AddDiskRequest struct {
-	SizeGB int    `json:"size_gb" binding:"required"`
-	Format string `json:"format"` // qcow2/raw
-	Bus    string `json:"bus"`    // 磁盘总线: virtio/scsi/sata/ide
+	SizeGB        int                              `json:"size_gb" binding:"required"`
+	Format        string                           `json:"format"` // qcow2/raw
+	Bus           string                           `json:"bus"`    // 磁盘总线: virtio/scsi/sata/ide
+	StoragePoolID string                           `json:"storage_pool_id"`
+	GuestMount    guestautomation.GuestMountConfig `json:"guest_mount"`
 }
 
 // ResizeDiskRequest 扩容请求
 type ResizeDiskRequest struct {
-	SizeGB int `json:"size_gb" binding:"required"`
+	SizeGB            int  `json:"size_gb" binding:"required"`
+	AutoGrowPartition bool `json:"auto_grow_partition"`
 }
 
 // DeleteDiskRequest 删除磁盘请求
@@ -162,6 +168,87 @@ func GetDiskList(c *gin.Context) {
 	})
 }
 
+func guestautomationTimeout() time.Duration {
+	return 15 * time.Second
+}
+
+type GuestMountDiskRequest struct {
+	GuestMount   guestautomation.GuestMountConfig `json:"guest_mount"`
+	ExistingDisk *bool                            `json:"existing_disk,omitempty"`
+}
+
+// GetDiskGuestStatus 获取宿主机磁盘与来宾设备的映射状态。
+func GetDiskGuestStatus(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), guestautomationTimeout())
+	defer cancel()
+	status, err := guestautomation.GuestDiskStatus(ctx, c.Param("name"), c.Param("dev"))
+	if err != nil {
+		c.JSON(http.StatusConflict, gin.H{"code": 409, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "ok", "data": status})
+}
+
+// GuestMountDisk 在已连接磁盘上执行来宾识别、初始化或持久挂载。
+func GuestMountDisk(c *gin.Context) {
+	name, dev := c.Param("name"), c.Param("dev")
+	var req GuestMountDiskRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请提供来宾挂载配置"})
+		return
+	}
+	req.GuestMount.Enabled = true
+	vm, err := service.GetVM(name)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": err.Error()})
+		return
+	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), guestautomationTimeout())
+	err = guestautomation.Preflight(ctx, name, vm.OSType, &req.GuestMount, false)
+	cancel()
+	if err != nil {
+		c.JSON(http.StatusConflict, gin.H{"code": 409, "message": err.Error()})
+		return
+	}
+	existing := true
+	if req.ExistingDisk != nil {
+		existing = *req.ExistingDisk
+	}
+	username, _ := c.Get("username")
+	params := guestautomation.DiskOperationParams{Action: "guest_mount", VMName: name, Device: dev, GuestType: vm.OSType, ExistingDisk: existing, GuestMount: req.GuestMount}
+	task, err := taskqueue.SubmitWithStruct(model.TaskTypeVMDiskGuestMount, params, username.(string))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "提交来宾挂载任务失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "来宾挂载任务已提交", "data": gin.H{"task_id": task.ID}})
+}
+
+// GuestGrowDisk 重试系统分区扩容，不再次调整宿主机磁盘容量。
+func GuestGrowDisk(c *gin.Context) {
+	name, dev := c.Param("name"), c.Param("dev")
+	vm, err := service.GetVM(name)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": err.Error()})
+		return
+	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), guestautomationTimeout())
+	err = guestautomation.Preflight(ctx, name, vm.OSType, nil, true)
+	cancel()
+	if err != nil {
+		c.JSON(http.StatusConflict, gin.H{"code": 409, "message": err.Error()})
+		return
+	}
+	username, _ := c.Get("username")
+	params := guestautomation.DiskOperationParams{Action: "guest_grow", VMName: name, Device: dev, GuestType: vm.OSType, GuestMount: guestautomation.GuestMountConfig{Enabled: true}}
+	task, err := taskqueue.SubmitWithStruct(model.TaskTypeVMDiskGuestMount, params, username.(string))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "提交来宾扩容重试任务失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "来宾扩容重试任务已提交", "data": gin.H{"task_id": task.ID}})
+}
+
 // GetDiskMigrationOptions 获取本机硬盘迁移表单选项
 func GetDiskMigrationOptions(c *gin.Context) {
 	name := c.Param("name")
@@ -257,7 +344,35 @@ func AddDisk(c *gin.Context) {
 	if bus == "" {
 		bus = "virtio"
 	}
-	dev, err := service.AddDiskWithBus(name, req.SizeGB, req.Format, bus)
+	diskDir, _, err := service.ResolveVMStorageDir(req.StoragePoolID, role == "admin")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "解析磁盘存储位置失败: " + err.Error()})
+		return
+	}
+	if req.GuestMount.Enabled {
+		vm, err := service.GetVM(name)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": err.Error()})
+			return
+		}
+		ctx, cancel := context.WithTimeout(c.Request.Context(), guestautomationTimeout())
+		err = guestautomation.Preflight(ctx, name, vm.OSType, &req.GuestMount, false)
+		cancel()
+		if err != nil {
+			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": err.Error()})
+			return
+		}
+		username, _ := c.Get("username")
+		params := guestautomation.DiskOperationParams{Action: "add", VMName: name, SizeGB: req.SizeGB, Format: req.Format, Bus: bus, StorageDir: diskDir, GuestType: vm.OSType, GuestMount: req.GuestMount}
+		task, err := taskqueue.SubmitWithStruct(model.TaskTypeVMDiskProvision, params, username.(string))
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "提交磁盘配置任务失败: " + err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"code": 200, "message": "磁盘创建与自动挂载任务已提交", "data": gin.H{"task_id": task.ID}})
+		return
+	}
+	dev, err := service.AddDiskWithBusInDir(name, req.SizeGB, req.Format, bus, diskDir)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"code":    500,
@@ -277,8 +392,9 @@ func AddDisk(c *gin.Context) {
 
 // AttachDiskRequest 挂载已有磁盘请求
 type AttachDiskRequest struct {
-	Path string `json:"path" binding:"required"` // 磁盘文件路径
-	Bus  string `json:"bus"`                     // 总线类型: virtio/scsi/sata/ide
+	Path       string                           `json:"path" binding:"required"` // 磁盘文件路径
+	Bus        string                           `json:"bus"`                     // 总线类型: virtio/scsi/sata/ide
+	GuestMount guestautomation.GuestMountConfig `json:"guest_mount"`
 }
 
 // AttachDisk 挂载已有磁盘文件
@@ -297,6 +413,29 @@ func AttachDisk(c *gin.Context) {
 		return
 	}
 
+	if req.GuestMount.Enabled {
+		vm, err := service.GetVM(name)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": err.Error()})
+			return
+		}
+		ctx, cancel := context.WithTimeout(c.Request.Context(), guestautomationTimeout())
+		err = guestautomation.Preflight(ctx, name, vm.OSType, &req.GuestMount, false)
+		cancel()
+		if err != nil {
+			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": err.Error()})
+			return
+		}
+		username, _ := c.Get("username")
+		params := guestautomation.DiskOperationParams{Action: "attach", VMName: name, DiskPath: req.Path, Bus: req.Bus, GuestType: vm.OSType, ExistingDisk: true, GuestMount: req.GuestMount}
+		task, err := taskqueue.SubmitWithStruct(model.TaskTypeVMDiskProvision, params, username.(string))
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "提交磁盘挂载任务失败: " + err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"code": 200, "message": "磁盘关联与自动挂载任务已提交", "data": gin.H{"task_id": task.ID}})
+		return
+	}
 	dev, err := service.AttachExistingDisk(name, req.Path, req.Bus)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -352,6 +491,30 @@ func ResizeDisk(c *gin.Context) {
 				return
 			}
 		}
+	}
+
+	if req.AutoGrowPartition {
+		vm, err := service.GetVM(name)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": err.Error()})
+			return
+		}
+		ctx, cancel := context.WithTimeout(c.Request.Context(), guestautomationTimeout())
+		err = guestautomation.Preflight(ctx, name, vm.OSType, nil, true)
+		cancel()
+		if err != nil {
+			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": err.Error()})
+			return
+		}
+		username, _ := c.Get("username")
+		params := guestautomation.DiskOperationParams{Action: "resize", VMName: name, Device: dev, SizeGB: req.SizeGB, GuestType: vm.OSType, GuestMount: guestautomation.GuestMountConfig{Enabled: true}}
+		task, err := taskqueue.SubmitWithStruct(model.TaskTypeVMDiskResize, params, username.(string))
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "提交磁盘扩容任务失败: " + err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"code": 200, "message": "磁盘与系统分区扩容任务已提交", "data": gin.H{"task_id": task.ID}})
+		return
 	}
 
 	if err := service.ResizeDisk(name, dev, req.SizeGB); err != nil {
@@ -591,12 +754,13 @@ func RemoveFloppyHandler(c *gin.Context) {
 
 // ImportDiskForVMRequest 为已有虚拟机导入磁盘请求
 type ImportDiskForVMRequest struct {
-	DiskPath       string `json:"disk_path"`
-	DiskFile       string `json:"disk_file"`
-	DiskSourceType string `json:"disk_source_type"`
-	StoragePoolID  string `json:"storage_pool_id"`
-	CopyDisk       bool   `json:"copy_disk"`
-	Bus            string `json:"bus"`
+	DiskPath       string                           `json:"disk_path"`
+	DiskFile       string                           `json:"disk_file"`
+	DiskSourceType string                           `json:"disk_source_type"`
+	StoragePoolID  string                           `json:"storage_pool_id"`
+	CopyDisk       bool                             `json:"copy_disk"`
+	Bus            string                           `json:"bus"`
+	GuestMount     guestautomation.GuestMountConfig `json:"guest_mount"`
 }
 
 // ImportDiskForVM 为已有虚拟机通过绝对路径导入磁盘（异步任务）
@@ -621,6 +785,20 @@ func ImportDiskForVM(c *gin.Context) {
 	if req.Bus == "" {
 		req.Bus = "virtio"
 	}
+	vm, vmErr := service.GetVM(name)
+	if vmErr != nil {
+		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": vmErr.Error()})
+		return
+	}
+	if req.GuestMount.Enabled {
+		ctx, cancel := context.WithTimeout(c.Request.Context(), guestautomationTimeout())
+		preflightErr := guestautomation.Preflight(ctx, name, vm.OSType, &req.GuestMount, false)
+		cancel()
+		if preflightErr != nil {
+			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": preflightErr.Error()})
+			return
+		}
+	}
 
 	params := &vmimport.ImportDiskForExistingVMParams{
 		VMName:         name,
@@ -631,6 +809,8 @@ func ImportDiskForVM(c *gin.Context) {
 		CopyDisk:       req.CopyDisk,
 		Bus:            req.Bus,
 		Username:       usernameStr,
+		GuestType:      vm.OSType,
+		GuestMount:     req.GuestMount,
 	}
 
 	task, err := taskqueue.SubmitWithStruct(model.TaskTypeImportDiskAttach, params, usernameStr)

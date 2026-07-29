@@ -115,6 +115,7 @@ type BatchCloneParams struct {
 	SwitchID            uint                       `json:"switch_id,omitempty"`              // VPC 交换机 ID
 	SecurityGroupID     uint                       `json:"security_group_id,omitempty"`      // 安全组 ID
 	ExtraNics           []AddVMInterfaceRequest    `json:"extra_nics,omitempty"`
+	ExtraDisks          []ExtraDiskParam           `json:"extra_disks,omitempty"`
 	HostDevices         []HostDeviceParam          `json:"host_devices,omitempty"`        // 仅 count=1 时允许
 	IsAdmin             bool                       `json:"is_admin,omitempty"`            // 是否管理员
 	DisableSystemInit   bool                       `json:"disable_system_init,omitempty"` // 禁用系统初始化

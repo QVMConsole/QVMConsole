@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"kvm_console/config"
 	"kvm_console/logger"
@@ -15,6 +16,8 @@ import (
 	"kvm_console/router"
 	"kvm_console/service"
 	clonepkg "kvm_console/service/clone"
+	"kvm_console/service/guest_agent"
+	guestautomation "kvm_console/service/guest_automation"
 	"kvm_console/service/libvirt_rpc"
 	netpkg "kvm_console/service/network"
 	"kvm_console/service/snapshot"
@@ -151,6 +154,13 @@ func registerTaskHandlers() {
 		attachTaskExtraNICs(params.Name, task.Params)
 		// 应用 IOPS 限制
 		applyCloneIOPS(params)
+		if err := configureClonedGuestDisks(ctx, params.Name, params.TemplateType, params.ExtraDisks, progress); err != nil {
+			partial := &guestautomation.OperationResult{
+				HostStage:  guestautomation.StageResult{Status: "success", Message: "虚拟机与额外磁盘已创建"},
+				GuestStage: guestautomation.StageResult{Status: "failed", Message: err.Error()}, Retryable: true,
+			}
+			return guestautomation.BuildResultJSON(partial), fmt.Errorf("克隆已完成，但来宾磁盘自动挂载失败: %w", err)
+		}
 		if saveErr := service.SaveVMCredential(params.Name, params.User, params.Password, "clone", task.CreatedBy, false); saveErr != nil {
 			logger.App.Error("保存虚拟机克隆凭据失败", "vm", params.Name, "error", saveErr)
 		}
@@ -184,6 +194,13 @@ func registerTaskHandlers() {
 		attachTaskExtraNICs(params.Name, task.Params)
 		// 应用 IOPS 限制
 		applyLinkedCloneIOPS(params)
+		if err := configureClonedGuestDisks(ctx, params.Name, params.TemplateType, params.ExtraDisks, progress); err != nil {
+			partial := &guestautomation.OperationResult{
+				HostStage:  guestautomation.StageResult{Status: "success", Message: "虚拟机与额外磁盘已创建"},
+				GuestStage: guestautomation.StageResult{Status: "failed", Message: err.Error()}, Retryable: true,
+			}
+			return guestautomation.BuildResultJSON(partial), fmt.Errorf("链式克隆已完成，但来宾磁盘自动挂载失败: %w", err)
+		}
 		refreshVMCacheAfterTask(params.Name)
 		resultJSON, _ := json.Marshal(result)
 		return string(resultJSON), nil
@@ -212,7 +229,8 @@ func registerTaskHandlers() {
 		if err != nil {
 			return "", err
 		}
-		for _, result := range results {
+		for resultIndex := range results {
+			result := &results[resultIndex]
 			if result.Error != "" {
 				continue
 			}
@@ -220,6 +238,11 @@ func registerTaskHandlers() {
 				logger.App.Warn("批量克隆绑定 VPC 失败", "vm", result.VMName, "error", err)
 			}
 			attachTaskExtraNICs(result.VMName, task.Params)
+			if guestErr := configureClonedGuestDisks(ctx, result.VMName, params.TemplateType, params.ExtraDisks, func(_ int, message string) {
+				logger.App.Info("批量克隆来宾磁盘配置", "vm", result.VMName, "message", message)
+			}); guestErr != nil {
+				result.Error = "虚拟机已创建，来宾磁盘自动挂载失败: " + guestErr.Error()
+			}
 			// 每台 VM 可能使用独立随机密码，优先用 result.Password
 			credPassword := result.Password
 			if credPassword == "" {
@@ -746,6 +769,14 @@ func registerTaskHandlers() {
 		if err != nil {
 			return "", err
 		}
+		if params.GuestMount.Enabled {
+			guestResult, guestErr := guestautomation.RunDiskOperation(ctx, &guestautomation.DiskOperationParams{
+				Action: "guest_mount", VMName: params.VMName, Device: dev, GuestType: params.GuestType,
+				ExistingDisk: true, GuestMount: params.GuestMount,
+			}, progress)
+			guestResult.HostStage = guestautomation.StageResult{Status: "success", Message: "磁盘已导入并连接到虚拟机"}
+			return guestautomation.BuildResultJSON(guestResult), guestErr
+		}
 		resultJSON, _ := json.Marshal(map[string]string{"device": dev})
 		return string(resultJSON), nil
 	})
@@ -811,6 +842,19 @@ func registerTaskHandlers() {
 		})
 		return string(resultJSON), nil
 	})
+	registerGuestDiskHandler := func(taskType string) {
+		taskqueue.RegisterHandler(taskType, func(ctx context.Context, task *model.Task, progress func(int, string)) (string, error) {
+			params, err := guestautomation.ParseDiskOperationParams(task.Params)
+			if err != nil {
+				return "", fmt.Errorf("解析磁盘任务参数失败: %w", err)
+			}
+			result, runErr := guestautomation.RunDiskOperation(ctx, params, progress)
+			return guestautomation.BuildResultJSON(result), runErr
+		})
+	}
+	registerGuestDiskHandler(model.TaskTypeVMDiskResize)
+	registerGuestDiskHandler(model.TaskTypeVMDiskProvision)
+	registerGuestDiskHandler(model.TaskTypeVMDiskGuestMount)
 	taskqueue.RegisterHandler(model.TaskTypeApplyFirewall, func(ctx context.Context, task *model.Task, progress func(int, string)) (string, error) {
 		var policy service.FirewallPolicy
 		if err := json.Unmarshal([]byte(task.Params), &policy); err != nil {
@@ -919,6 +963,90 @@ func registerTaskHandlers() {
 		return service.ExecutePasswordBreachNotification(ctx, params, progress)
 	})
 	logger.App.Info("任务处理器注册完成")
+}
+
+// configureClonedGuestDisks 在模板克隆父任务中等待 QGA，并依次初始化启用了自动挂载的额外磁盘。
+func configureClonedGuestDisks(ctx context.Context, vmName, guestType string, extraDisks []service.ExtraDiskParam, progress func(int, string)) error {
+	configured := false
+	for _, item := range extraDisks {
+		if item.GuestMount.Enabled {
+			configured = true
+			break
+		}
+	}
+	if !configured {
+		return nil
+	}
+	guestType = strings.ToLower(strings.TrimSpace(guestType))
+	if guestType == "" {
+		if vmInfo, err := service.GetVM(vmName); err == nil {
+			guestType = strings.ToLower(strings.TrimSpace(vmInfo.OSType))
+		}
+	}
+	deadline := time.Now().Add(guest_agent.DiskTimeout)
+	for {
+		preflightCtx, cancel := context.WithTimeout(ctx, guestautomationTimeoutForMain())
+		err := guestautomation.Preflight(preflightCtx, vmName, guestType, nil, false)
+		cancel()
+		if err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("等待 QEMU Guest Agent 就绪超时: %w", err)
+		}
+		select {
+		case <-ctx.Done():
+			return taskqueue.ErrTaskCanceled
+		case <-time.After(2 * time.Second):
+		}
+	}
+	if guestType == "" {
+		osCtx, cancel := context.WithTimeout(ctx, guestautomationTimeoutForMain())
+		osInfo, osErr := guest_agent.NewClient(vmName).OSInfo(osCtx)
+		cancel()
+		if osErr != nil {
+			return fmt.Errorf("识别来宾系统类型失败: %w", osErr)
+		}
+		if strings.EqualFold(osInfo.ID, "mswindows") {
+			guestType = "windows"
+		} else {
+			guestType = "linux"
+		}
+	}
+	disks, err := service.ListDisks(vmName)
+	if err != nil {
+		return err
+	}
+	dataDisks := make([]service.DiskInfo, 0)
+	for _, item := range disks {
+		if item.DeviceType == "disk" && !item.IsSystem {
+			dataDisks = append(dataDisks, item)
+		}
+	}
+	if len(dataDisks) < len(extraDisks) {
+		return fmt.Errorf("额外磁盘数量与来宾映射不一致")
+	}
+	for index, item := range extraDisks {
+		if !item.GuestMount.Enabled {
+			continue
+		}
+		config := guestautomation.GuestMountConfig(item.GuestMount)
+		if err := guestautomation.ValidateGuestMount(&config, guestType); err != nil {
+			return fmt.Errorf("额外磁盘 %d 配置无效: %w", index+1, err)
+		}
+		result, err := guestautomation.RunDiskOperation(ctx, &guestautomation.DiskOperationParams{
+			Action: "guest_mount", VMName: vmName, Device: dataDisks[index].Device,
+			GuestType: guestType, ExistingDisk: false, GuestMount: config,
+		}, progress)
+		if err != nil {
+			return fmt.Errorf("额外磁盘 %d（%s）配置失败: %s", index+1, dataDisks[index].Device, result.GuestStage.Message)
+		}
+	}
+	return nil
+}
+
+func guestautomationTimeoutForMain() time.Duration {
+	return 15 * time.Second
 }
 
 func bindTaskVMToVPC(owner, vmName string, switchID, securityGroupID uint) error {

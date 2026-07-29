@@ -36,6 +36,9 @@ const (
 	TaskTypeDiskTransfer                    = "disk_transfer"                      // 磁盘转移到用户存储
 	TaskTypeRescue                          = "rescue"                             // 救援系统
 	TaskTypeResetVMPassword                 = "reset_vm_password"                  // 重置来宾虚拟机密码
+	TaskTypeVMDiskResize                    = "vm_disk_resize"                     // 虚拟机磁盘扩容与来宾文件系统扩容
+	TaskTypeVMDiskProvision                 = "vm_disk_provision"                  // 创建或关联磁盘并配置来宾挂载
+	TaskTypeVMDiskGuestMount                = "vm_disk_guest_mount"                // 重试来宾磁盘挂载或扩容
 	TaskTypeApplyFirewall                   = "apply_firewall"                     // 应用 KVM 网络防火墙
 	TaskTypeDisableFirewall                 = "disable_firewall"                   // 禁用 KVM 网络防火墙
 	TaskTypeRollbackFirewall                = "rollback_firewall"                  // 回滚 KVM 网络防火墙
