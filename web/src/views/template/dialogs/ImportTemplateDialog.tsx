@@ -308,7 +308,7 @@ export default function ImportTemplateDialog({ onClose, onImported }: ImportTemp
           <div className="qvm-form-tip" style={{ marginBottom: 4 }}>
             {phase === 'hash' ? '正在计算文件哈希…' : '正在上传模板包…'}
           </div>
-          <Progress percent={progress} showInfo strokeWidth={16} />
+          <Progress percent={progress} showInfo strokeWidth={16} motion={false} />
         </div>
       )}
 

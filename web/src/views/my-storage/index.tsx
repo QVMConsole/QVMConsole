@@ -248,10 +248,15 @@ export default function MyStoragePage() {
 
       try {
         await uploader.upload(file, { category }, {
-          onHashProgress: () => setUploadStatus('hashing'),
+          // 哈希阶段占 0–8%，上传阶段占 8–100%：进度条始终单调爬升，
+          // 既不在「校验中」卡 0%，也不在进入上传时从 100% 回跳到 0%
+          onHashProgress: (ratio) => {
+            setUploadStatus('hashing')
+            setUploadProgress(Math.round(ratio * 8))
+          },
           onUploadProgress: (ratio) => {
             setUploadStatus('uploading')
-            setUploadProgress(Math.round(ratio * 100))
+            setUploadProgress(8 + Math.round(ratio * 92))
           },
         })
         setUploadProgress(100)
