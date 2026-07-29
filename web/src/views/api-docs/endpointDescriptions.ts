@@ -534,7 +534,7 @@ export const endpointDescriptions: Record<string, EndpointDescription> = {
   },
   'POST /template/upload/init': {
     summary: '模板包分片上传-初始化/秒传',
-    body: 'JSON: file_name, total_size, file_hash(MD5)',
+    body: 'JSON: file_name, total_size, file_hash(抽样哈希)',
     response: 'data: session_key, total_chunks, chunk_size, received[], instant, completed。',
   },
   'POST /template/upload/chunk': {
@@ -543,7 +543,7 @@ export const endpointDescriptions: Record<string, EndpointDescription> = {
   },
   'POST /template/upload/complete': {
     summary: '模板包分片上传-完成校验',
-    body: 'JSON: session_key, file_hash(MD5)',
+    body: 'JSON: session_key, file_hash(抽样哈希)',
     response: 'data: session_key(导入临时路径，作为 preview 的 source_path)。',
   },
   'DELETE /template/upload': { summary: '清理已上传的模板临时包', query: ['path(session_key)'] },
@@ -777,12 +777,12 @@ export const endpointDescriptions: Record<string, EndpointDescription> = {
   'GET /self/storage/files/:category': { summary: '列出我的存储文件' },
   'POST /self/storage/upload/init': {
     summary: '分片上传-初始化/秒传',
-    body: 'JSON: category(iso/share/disk), file_name, total_size, file_hash(MD5)',
+    body: 'JSON: category(iso/share/disk), file_name, total_size, file_hash(抽样哈希)',
     response:
       'data: session_key, total_chunks, chunk_size, received[], uploaded_bytes, instant, completed。completed/instant=true 表示秒传成功。',
   },
   'POST /self/storage/upload/chunk': { summary: '分片上传-单片(1MB)', body: 'FormData: file, session_key, index' },
-  'POST /self/storage/upload/complete': { summary: '分片上传-完成校验', body: 'JSON: session_key, file_hash(MD5)' },
+  'POST /self/storage/upload/complete': { summary: '分片上传-完成校验', body: 'JSON: session_key, file_hash(抽样哈希)' },
   'GET /self/storage/upload/status': {
     summary: '查询上传进度(断点续传)',
     query: ['path(session_key)'],

@@ -7,10 +7,10 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
 	"math/big"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -29,6 +29,11 @@ const (
 	SessionTTL = 24 * time.Hour
 	// cleanupInterval 过期会话清理间隔
 	cleanupInterval = 30 * time.Minute
+
+	// 抽样哈希参数（与前端 chunkUploader.ts 的 SAMPLE_WINDOW/STRIDE/MIN_SAMPLES 逐位一致）
+	sampleWindow = 2 << 20 // 2MB
+	sampleStride = 1 << 30 // 1GB
+	minSamples   = 3
 )
 
 // 引擎层错误
@@ -38,7 +43,7 @@ var (
 	ErrForbidden        = errors.New("无权操作该上传会话")
 	ErrNotUploading     = errors.New("上传会话不在上传中状态")
 	ErrChunksIncomplete = errors.New("分片未全部上传完成")
-	ErrHashMismatch     = errors.New("文件校验失败：MD5 不匹配，请重新上传")
+	ErrHashMismatch     = errors.New("文件校验失败：哈希不匹配，请重新上传")
 	ErrMissingHash      = errors.New("缺少文件哈希")
 )
 
@@ -165,16 +170,55 @@ func ensureFile(filePath string, totalSize int64) error {
 	return nil
 }
 
-func fileMD5(filePath string) (string, error) {
+// sampleOffsets 计算抽样偏移量集合（升序、去重），与前端 sampleOffsets 逐位一致：
+// 恒含头部 0 与尾部 size-2MB，每 1GB 加一窗口，不足 3 则补中点；不足 3 窗口的小文件回退为单窗口。
+func sampleOffsets(size int64) []int64 {
+	if size <= 0 {
+		return nil
+	}
+	if size <= int64(sampleWindow)*int64(minSamples) {
+		return []int64{0}
+	}
+	set := make(map[int64]struct{})
+	set[0] = struct{}{}
+	for o := int64(sampleStride); o+int64(sampleWindow) <= size; o += int64(sampleStride) {
+		set[o] = struct{}{}
+	}
+	set[size-int64(sampleWindow)] = struct{}{}
+	if len(set) < minSamples {
+		set[size/2-int64(sampleWindow)/2] = struct{}{}
+	}
+	out := make([]int64, 0, len(set))
+	for o := range set {
+		out = append(out, o)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+// sampleFileHash 按抽样窗口读取文件并计算 MD5，末尾追加 "<size>|<fileName>"。
+// 与前端 calcFileSampleHash 逐字节一致，供 complete 校验与 init 既有文件秒传复算。
+func sampleFileHash(filePath string, totalSize int64, fileName string) (string, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
 		return "", err
 	}
 	defer f.Close()
 	h := md5.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return "", err
+	buf := make([]byte, sampleWindow)
+	for _, o := range sampleOffsets(totalSize) {
+		end := o + int64(sampleWindow)
+		if end > totalSize {
+			end = totalSize
+		}
+		want := end - o
+		n, err := f.ReadAt(buf[:want], o)
+		if err != nil || int64(n) != want {
+			return "", fmt.Errorf("读取抽样窗口失败 offset=%d want=%d got=%d: %w", o, want, n, err)
+		}
+		h.Write(buf[:want])
 	}
+	h.Write([]byte(fmt.Sprintf("%d|%s", totalSize, fileName)))
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
@@ -254,9 +298,9 @@ func InitUpload(p InitParams) (*InitResult, error) {
 		}, nil
 	}
 
-	// 3) 文件完整存在但无有效会话：校验 MD5 判定是否可秒传（避免覆盖已存在文件）
+	// 3) 文件完整存在但无有效会话：复算抽样哈希判定是否可秒传（避免覆盖已存在文件）
 	if fileSizeMatch {
-		if h, err := fileMD5(p.FilePath); err == nil && h == p.FileHash {
+		if h, err := sampleFileHash(p.FilePath, p.TotalSize, p.FileName); err == nil && h == p.FileHash {
 			saveSession(p, chunkSize, totalChunks, new(big.Int), p.TotalSize, model.UploadStatusCompleted, expiresAt)
 			return &InitResult{
 				SessionKey: p.FilePath, TotalChunks: totalChunks, ChunkSize: chunkSize,
@@ -394,7 +438,7 @@ func CompleteUpload(filePath, username, expectedHash string) (*CompleteResult, e
 	if fi.Size() != latest.TotalSize {
 		return nil, fmt.Errorf("文件大小不匹配: 期望 %d 实际 %d", latest.TotalSize, fi.Size())
 	}
-	actual, err := fileMD5(filePath)
+	actual, err := sampleFileHash(filePath, latest.TotalSize, latest.FileName)
 	if err != nil {
 		return nil, fmt.Errorf("计算文件校验值失败: %w", err)
 	}

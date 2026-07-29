@@ -9,42 +9,50 @@ const DEFAULT_CHUNK_SIZE = 1 * 1024 * 1024 // 1MB
 const DEFAULT_CONCURRENCY = 3
 const MAX_RETRY = 3
 const MAX_COMPLETE_HEAL = 2 // complete 返回缺片时的补传重试次数
-const HASH_READ_SIZE = 2 * 1024 * 1024 // 增量计算 MD5 时的读取块大小
+const SAMPLE_WINDOW = 2 * 1024 * 1024 // 抽样窗口 2MB
+const SAMPLE_STRIDE = 1 << 30 // 抽样步长 1GB
+const MIN_SAMPLES = 3 // 最少抽样窗口数
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 /**
- * 增量计算文件 MD5（分块读取，不一次性载入内存）。
+ * 计算抽样偏移量集合（升序、去重；不足 3 窗口的小文件回退为单窗口读取整文件）。
+ * 与后端 sampleOffsets 逐位一致：恒含头部 0 与尾部 size-2MB，每 1GB 加一窗口，不足 3 则补中点。
+ */
+function sampleOffsets(size: number): number[] {
+  if (size <= 0) return []
+  if (size <= SAMPLE_WINDOW * MIN_SAMPLES) return [0]
+  const set = new Set<number>([0])
+  for (let o = SAMPLE_STRIDE; o + SAMPLE_WINDOW <= size; o += SAMPLE_STRIDE) {
+    set.add(o)
+  }
+  set.add(size - SAMPLE_WINDOW)
+  if (set.size < MIN_SAMPLES) {
+    set.add(Math.max(0, Math.floor(size / 2) - Math.floor(SAMPLE_WINDOW / 2)))
+  }
+  return Array.from(set).sort((a, b) => a - b)
+}
+
+/**
+ * 抽样计算文件哈希：读取头/尾及每 1GB 处的 2MB 窗口，拼接后追加 "<size>|<fileName>" 求 MD5。
+ * 大文件仅读取数十 MB，秒级完成且不阻塞主线程。与后端 sampleFileHash 逐字节一致。
  * @param file 文件对象
- * @param onProgress 进度回调 0~1
+ * @param onProgress 进度回调 0~1（按窗口数计）
  * @returns hex md5
  */
-export function calcFileMD5(file: File, onProgress?: (ratio: number) => void): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const blobSlice = File.prototype.slice
-    const chunks = Math.max(1, Math.ceil(file.size / HASH_READ_SIZE))
-    const spark = new SparkMD5.ArrayBuffer()
-    const reader = new FileReader()
-    let current = 0
-
-    const loadNext = () => {
-      const start = current * HASH_READ_SIZE
-      const end = Math.min(start + HASH_READ_SIZE, file.size)
-      reader.readAsArrayBuffer(blobSlice.call(file, start, end))
-    }
-    reader.onload = (e) => {
-      spark.append(e.target?.result as ArrayBuffer)
-      current++
-      if (onProgress) onProgress(current / chunks)
-      if (current < chunks) {
-        loadNext()
-      } else {
-        resolve(spark.end())
-      }
-    }
-    reader.onerror = (err) => reject(err)
-    loadNext()
-  })
+export async function calcFileSampleHash(file: File, onProgress?: (ratio: number) => void): Promise<string> {
+  const offsets = sampleOffsets(file.size)
+  const spark = new SparkMD5.ArrayBuffer()
+  let done = 0
+  for (const o of offsets) {
+    const end = Math.min(o + SAMPLE_WINDOW, file.size)
+    spark.append(await file.slice(o, end).arrayBuffer())
+    done++
+    if (onProgress) onProgress(done / offsets.length)
+  }
+  // 追加 size|name，使不同大小或同名不同内容的文件可区分，且后端可复算
+  spark.append(new TextEncoder().encode(`${file.size}|${file.name}`).buffer)
+  return spark.end()
 }
 
 /** init 接口响应数据 */
@@ -192,7 +200,7 @@ export class ChunkUploader {
     const onUpload = hooks.onUploadProgress
 
     this.state = 'running'
-    const fileHash = await calcFileMD5(file, onHash)
+    const fileHash = await calcFileSampleHash(file, onHash)
 
     const initRes = await this.api.init({
       ...initPayload,

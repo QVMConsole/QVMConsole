@@ -87,6 +87,10 @@ export default function UploadDialog({
         <Progress
           percent={progress}
           showInfo
+          // 关闭数字动画：percent 每传一个分片变一次，间隔远小于动画时长 300ms，
+          // 动画会被频繁销毁重建而来不及触发帧回调，导致 showInfo 数字卡在初值 0%。
+          // 关闭后数字直接跟随 percent（与填充条同步）。
+          motion={false}
           stroke={progress >= 100 ? 'var(--semi-color-success)' : undefined}
           aria-label="上传进度"
         />
