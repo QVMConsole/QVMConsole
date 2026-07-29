@@ -1,7 +1,7 @@
 /**
  * 管理员仪表盘：统计卡片区（4 张）
  * - 虚拟机总数 / CPU 使用率 / 内存使用率 / 存储使用
- * - CPU / 内存 / 存储卡片带「理论最大量」双进度条（全部虚拟机满载口径）
+ * - CPU / 内存卡片的「理论最大量」仅统计运行中虚拟机；存储仍统计全部虚拟机配置容量
  * - 系统设置开启 KSM / zRAM 时，在内存使用率卡片统一体现节省与压缩情况
  * - CPU / 内存卡片带「硬件详情」折叠区（默认收起）：CPU 型号与每核使用率色块 / 内存条信息
  */
@@ -27,14 +27,17 @@ export default function AdminStats({ stats, vms }: AdminStatsProps) {
   const [cpuDetailOpen, setCpuDetailOpen] = useState(false)
   const [memDetailOpen, setMemDetailOpen] = useState(false)
 
-  // 理论最大量：全部虚拟机同时 100% 满载时的占用合计
+  // CPU / 内存理论最大量：仅运行中虚拟机同时 100% 满载时的占用合计。
+  // 磁盘容量与运行状态无关，仍统计全部虚拟机。
   const theory = useMemo(() => {
     let vcpuSum = 0
     let memSumMB = 0
     let diskSumGB = 0
     for (const vm of vms) {
-      vcpuSum += vm.vcpu || 0
-      memSumMB += vm.max_memory || vm.memory || 0
+      if (vm.status === 'running') {
+        vcpuSum += vm.vcpu || 0
+        memSumMB += vm.max_memory || vm.memory || 0
+      }
       diskSumGB += parseSizeToGB(vm.disk_size)
     }
     return { vcpuSum, memSumMB, diskSumGB }
@@ -43,16 +46,20 @@ export default function AdminStats({ stats, vms }: AdminStatsProps) {
   const runningCount = stats?.vm_running ?? vms.filter((v) => v.status === 'running').length
   const totalCount = stats?.vm_total ?? vms.length
 
-  // CPU：当前 = 宿主机实时使用率；理论 = ΣvCPU / 宿主机核数
+  // CPU：当前 = 宿主机实时使用率；理论 = Σ运行中虚拟机 vCPU / 宿主机核数
   const cpuCount = stats?.cpu_count || 0
   const cpuCurrent = (stats?.cpu_percent || 0) / 100
   const cpuTheory = cpuCount > 0 ? theory.vcpuSum / cpuCount : 0
 
-  // 内存：当前 = 已用 / 总量；理论 = Σ虚拟机内存 / 宿主机总量
+  // 内存：当前 = 已用 / 总量；理论 = 系统占用 + Σ运行中虚拟机最大内存。
+  // 采集器尚未就绪时，使用运行中虚拟机配置内存估算当前分配量，避免首次加载时重复计入虚拟机内存。
   const memTotalMB = (stats?.mem_total || 0) / 1024
   const memUsedMB = (stats?.mem_used || 0) / 1024
   const memCurrent = memTotalMB > 0 ? memUsedMB / memTotalMB : 0
-  const memTheory = memTotalMB > 0 ? theory.memSumMB / memTotalMB : 0
+  const vmMemoryActualMB = stats?.vm_memory_known ? (stats.vm_memory_actual || 0) / 1024 : theory.memSumMB
+  const systemMemUsedMB = Math.max(memUsedMB - vmMemoryActualMB, 0)
+  const memTheoryUsedMB = systemMemUsedMB + theory.memSumMB
+  const memTheory = memTotalMB > 0 ? memTheoryUsedMB / memTotalMB : 0
 
   // KSM 节省内存（KB）：被共享页 × 4KB（与旧前端口径一致），由 SSE 实时刷新
   const ksmSavedKB = (stats?.ksm_pages_sharing || 0) * 4
@@ -121,6 +128,7 @@ export default function AdminStats({ stats, vms }: AdminStatsProps) {
           theoryRatio={cpuTheory}
           currentText={`${(cpuCurrent * 100).toFixed(1)}%（约 ${(cpuCurrent * cpuCount).toFixed(1)} / ${cpuCount} 核）`}
           theoryText={`${(cpuTheory * 100).toFixed(1)}%（${theory.vcpuSum} / ${cpuCount} 核）`}
+          theoryNote="理论最大 = 运行中虚拟机同时满载时的占用"
           color="#38BDF8"
           colorEnd="#2DD4BF"
         />
@@ -148,7 +156,8 @@ export default function AdminStats({ stats, vms }: AdminStatsProps) {
           currentRatio={memCurrent}
           theoryRatio={memTheory}
           currentText={`${(memCurrent * 100).toFixed(1)}%（${formatKB(stats?.mem_used || 0)} / ${formatKB(stats?.mem_total || 0)}）`}
-          theoryText={`${(memTheory * 100).toFixed(1)}%（${formatKB(theory.memSumMB * 1024)} / ${formatKB(stats?.mem_total || 0)}）`}
+          theoryText={`${(memTheory * 100).toFixed(1)}%（${formatKB(memTheoryUsedMB * 1024)} / ${formatKB(stats?.mem_total || 0)}）`}
+          theoryNote={`理论最大 = 系统占用 ${formatKB(systemMemUsedMB * 1024)} + 运行中虚拟机满载 ${formatKB(theory.memSumMB * 1024)}`}
           extraTipLines={memExtraTips}
           zramRatio={zramRatio}
           color="#8B5CF6"

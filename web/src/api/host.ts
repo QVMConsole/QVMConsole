@@ -21,6 +21,8 @@ export interface HostStats {
   disk_used: number // KB
   disk_free: number // KB
   vm_disk_actual: number // 所有虚拟机实际磁盘占用总和（KB）
+  vm_memory_actual: number // 运行中虚拟机当前分配内存总和（KB）
+  vm_memory_known: boolean // 运行中虚拟机当前分配内存是否已全部采集
   net_rx_bytes: number
   net_tx_bytes: number
   disk_rd_bytes: number

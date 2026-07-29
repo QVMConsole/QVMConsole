@@ -237,7 +237,34 @@ func GetVMStats(name string) (*VmStats, error) {
 }
 
 func GetHostStats() (*HostStats, error) {
-	return vmpkg.GetHostStats()
+	stats, err := vmpkg.GetHostStats()
+	if err != nil || stats == nil {
+		return stats, err
+	}
+
+	// 复用资源采集器缓存，避免在宿主机 SSE 推送中为每台虚拟机重复执行 libvirt 查询。
+	// 仅在全部运行中虚拟机均已有有效统计时标记为可用，前端据此计算系统内存基线。
+	if stats.VMRunning == 0 {
+		stats.VMMemoryKnown = true
+		return stats, nil
+	}
+
+	cachedStats := GetAllCachedStats()
+	if len(cachedStats) < stats.VMRunning {
+		return stats, nil
+	}
+
+	var vmMemoryActual int64
+	for _, vmStats := range cachedStats {
+		if vmStats == nil || vmStats.MemTotal <= 0 {
+			return stats, nil
+		}
+		vmMemoryActual += vmStats.MemTotal
+	}
+
+	stats.VMMemoryActual = vmMemoryActual
+	stats.VMMemoryKnown = true
+	return stats, nil
 }
 
 // ── Interface ──
