@@ -236,70 +236,6 @@
   color: var(--qvm-text-2);
 }
 
-/* 底部用户卡 */
-.qvm-side-user {
-  margin: 10px 12px 14px;
-  padding: 12px;
-  border-radius: 14px;
-  background: var(--qvm-hover-bg);
-  border: 1px solid var(--qvm-stroke);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.qvm-su-avatar {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  background: var(--qvm-grad2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 13px;
-  color: #fff;
-  flex: none;
-}
-/* 用户卡片可点击区域：跳转个人安全中心 */
-.qvm-su-profile {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: 1;
-  min-width: 0;
-  padding: 4px;
-  margin: -4px;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.qvm-su-profile:hover {
-  background: var(--qvm-hover-bg);
-}
-.qvm-su-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--qvm-text-0);
-  white-space: nowrap;
-}
-.qvm-su-role {
-  font-size: 10.5px;
-  color: var(--qvm-acc3-ink);
-  margin-top: 1px;
-  white-space: nowrap;
-}
-.qvm-su-out {
-  margin-left: auto;
-  color: var(--qvm-text-2);
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  transition: color 0.15s;
-}
-.qvm-su-out:hover {
-  color: var(--qvm-danger);
-}
-
 /* ============ 主区域 ============ */
 .qvm-main {
   flex: 1;
@@ -342,6 +278,68 @@
   width: 34px;
   height: 34px;
   border-radius: 10px;
+}
+/* 顶栏用户入口：展示账号摘要，更多操作在下拉菜单中提供 */
+.qvm-top-user-wrap {
+  display: flex;
+}
+.qvm-top-user {
+  min-width: 0;
+  height: 38px;
+  padding: 3px 8px 3px 4px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.qvm-top-user:hover,
+.qvm-top-user:focus-visible {
+  background: var(--qvm-hover-bg);
+  border-color: var(--qvm-stroke);
+  outline: none;
+}
+.qvm-top-user-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  flex: none;
+  background: var(--qvm-grad2);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+.qvm-top-user-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.2;
+}
+.qvm-top-user-name {
+  max-width: 116px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--qvm-text-1);
+  font-size: 12px;
+  font-weight: 600;
+}
+.qvm-top-user-role {
+  max-width: 116px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 2px;
+  color: var(--qvm-acc3-ink);
+  font-size: 10px;
 }
 
 /* 公测提示 */
@@ -990,9 +988,7 @@ body[theme-mode='dark'] .qvm-sponsor-benefits-title {
 .qvm-layout.side-fold .qvm-nav-group,
 .qvm-layout.side-fold .qvm-nav-item .qvm-nav-txt,
 .qvm-layout.side-fold .qvm-nav-bdg,
-.qvm-layout.side-fold .qvm-nav-sub,
-.qvm-layout.side-fold .qvm-su-info,
-.qvm-layout.side-fold .qvm-su-out {
+.qvm-layout.side-fold .qvm-nav-sub {
   display: none;
 }
 .qvm-layout.side-fold .qvm-nav-item {
@@ -1006,11 +1002,6 @@ body[theme-mode='dark'] .qvm-sponsor-benefits-title {
   justify-content: center;
   padding: 14px 10px 12px;
 }
-.qvm-layout.side-fold .qvm-side-user {
-  justify-content: center;
-  padding: 10px 6px;
-}
-
 /* ============ 小屏：侧边栏抽屉 ============ */
 .qvm-side-toggle {
   display: none;
@@ -1041,8 +1032,7 @@ body[theme-mode='dark'] .qvm-sponsor-benefits-title {
   .qvm-layout.side-fold .qvm-nav-group,
   .qvm-layout.side-fold .qvm-nav-item .qvm-nav-txt,
   .qvm-layout.side-fold .qvm-nav-bdg,
-  .qvm-layout.side-fold .qvm-nav-sub,
-  .qvm-layout.side-fold .qvm-su-info {
+  .qvm-layout.side-fold .qvm-nav-sub {
     display: initial;
   }
   .qvm-layout .qvm-nav-item,
@@ -1054,15 +1044,6 @@ body[theme-mode='dark'] .qvm-sponsor-benefits-title {
   .qvm-layout.side-fold .qvm-logo-zone {
     justify-content: flex-start;
     padding: 14px 18px 12px;
-  }
-  .qvm-layout .qvm-side-user,
-  .qvm-layout.side-fold .qvm-side-user {
-    justify-content: flex-start;
-    padding: 12px;
-  }
-  .qvm-layout .qvm-su-out,
-  .qvm-layout.side-fold .qvm-su-out {
-    display: flex;
   }
   /* 抽屉模式无需折叠开关 */
   .qvm-side-fold {
@@ -1099,5 +1080,13 @@ body[theme-mode='dark'] .qvm-sponsor-benefits-title {
   /* 小屏隐藏开源版文字，仅保留图标 */
   .qvm-oss-link span {
     display: none;
+  }
+  .qvm-top-user-info {
+    display: none;
+  }
+  .qvm-top-user {
+    width: 34px;
+    padding: 2px;
+    justify-content: center;
   }
 }

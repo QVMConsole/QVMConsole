@@ -6,13 +6,12 @@
  */
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Toast, Modal, Tooltip } from '@douyinfe/semi-ui'
-import { IconExit, IconChevronLeft } from '@douyinfe/semi-icons'
+import { Toast, Tooltip } from '@douyinfe/semi-ui'
+import { IconChevronLeft } from '@douyinfe/semi-icons'
 import { ADMIN_NAV, USER_NAV, type NavItem } from '@/config/nav'
 import { useUserStore } from '@/stores/user'
 import { useAppStore } from '@/stores/app'
 import { useTaskStore } from '@/stores/task'
-import { usePageTabsStore } from '@/stores/pageTabs'
 import { getVmList, getSelfVMs, type VmListItem } from '@/api/vm'
 import { CLOUD_TYPES, ROLES } from '@/config/constants'
 
@@ -24,16 +23,12 @@ interface SidebarProps {
 export default function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
   const navigate = useNavigate()
   const location = useLocation()
-  const username = useUserStore((s) => s.username)
   const role = useUserStore((s) => s.role)
   const cloudType = useUserStore((s) => s.cloudType)
-  const logout = useUserStore((s) => s.logout)
   const siteTitle = useAppStore((s) => s.siteTitle)
   const collapsed = useAppStore((s) => s.sidebarCollapsed)
   const toggleSidebar = useAppStore((s) => s.toggleSidebar)
   const tasks = useTaskStore((s) => s.tasks)
-  const resetTabs = usePageTabsStore((s) => s.reset)
-  const resetTasks = useTaskStore((s) => s.reset)
   // 活动任务数（选择器不返回新引用，避免无限渲染）
   const taskActiveCount = tasks.filter((t) => t.status === 'pending' || t.status === 'running').length
 
@@ -73,21 +68,6 @@ export default function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
     }
     navigate(item.path)
     onCloseMobile()
-  }
-
-  const handleLogout = () => {
-    Modal.confirm({
-      title: '退出登录',
-      content: '确定要退出当前账号吗？',
-      okText: '退出',
-      cancelText: '取消',
-      onOk: () => {
-        logout()
-        resetTabs()
-        resetTasks()
-        navigate('/login', { replace: true })
-      },
-    })
   }
 
   const badgeValue = (item: NavItem): number | null => {
@@ -151,24 +131,6 @@ export default function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
           </div>
         ))}
       </nav>
-
-      <div className="qvm-side-user">
-        {/* 用户卡片：点击进入个人安全中心（对齐旧版头像菜单“安全设置”入口） */}
-        <div className="qvm-su-profile" onClick={() => navigate('/security')} title="安全中心">
-          <div className="qvm-su-avatar">
-            {username ? username.charAt(0).toUpperCase() + username.slice(1, 2) : 'U'}
-          </div>
-          <div className="qvm-su-info">
-            <div className="qvm-su-name">{username || '用户'}</div>
-            <div className="qvm-su-role">
-              {isAdmin ? '系统管理员' : cloudType === CLOUD_TYPES.lightweight ? '轻量云用户' : '弹性云用户'}
-            </div>
-          </div>
-        </div>
-        <span className="qvm-su-out" onClick={handleLogout} title="退出登录">
-          <IconExit />
-        </span>
-      </div>
     </aside>
   )
 }

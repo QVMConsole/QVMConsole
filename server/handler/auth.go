@@ -202,7 +202,8 @@ func Login(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "刷新账户安全状态失败"})
 		return
 	}
-	if user.Role == "admin" && user.PasswordBreached && !user.TOTPEnabled {
+	// 开发模式与其他安全验证保持一致，允许使用泄露标记账户继续调试。
+	if !service.IsSecurityVerificationDisabled() && user.Role == "admin" && user.PasswordBreached && !user.TOTPEnabled {
 		c.JSON(http.StatusForbidden, gin.H{
 			"code":    403,
 			"message": "检测到管理员密码已泄露且未绑定 2FA，请在服务器运行 sudo bash qvmc-manage.sh 并选择修改管理员密码",
