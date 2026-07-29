@@ -56,6 +56,34 @@ export interface HostDisk {
   used_kb: number
 }
 
+/** 宿主机 CPU 硬件信息与每核实时使用率 */
+export interface HostCpuHardware {
+  model: string
+  sockets: number
+  cores: number
+  threads: number
+  per_core_usage: number[]
+}
+
+/** 单根内存条（DIMM）信息 */
+export interface HostMemoryModule {
+  slot: string
+  size_mb: number
+  type: string
+  speed: string
+  configured_speed: string
+  manufacturer: string
+  part_number: string
+}
+
+/** 宿主机内存条汇总信息 */
+export interface HostMemoryModulesInfo {
+  total_slots: number
+  installed: number
+  modules: HostMemoryModule[]
+  message: string
+}
+
 /** 获取宿主机实时状态（单次） */
 export function getHostStats() {
   return service.get<unknown, ApiResponse<HostStats>>('/host/stats', { silent: true })
@@ -72,6 +100,16 @@ export function getHostStatsHistory(params: { start: string; end: string }) {
 /** 获取宿主机磁盘挂载列表 */
 export function getHostDisks() {
   return service.get<unknown, ApiResponse<HostDisk[]>>('/host/disks', { silent: true })
+}
+
+/** 获取宿主机 CPU 硬件信息与每核使用率（管理员，概览页展开区轮询） */
+export function getHostCpuHardware() {
+  return service.get<unknown, ApiResponse<HostCpuHardware>>('/host/cpu/hardware', { silent: true })
+}
+
+/** 获取宿主机内存条信息（管理员，静态硬件信息） */
+export function getHostMemoryModules() {
+  return service.get<unknown, ApiResponse<HostMemoryModulesInfo>>('/host/memory/modules', { silent: true })
 }
 
 /** 创建宿主机状态 SSE 连接（5s 推送一次） */

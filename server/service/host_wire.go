@@ -43,6 +43,9 @@ type HostZRAMStatus = hostpkg.HostZRAMStatus
 type HostZRAMRuntimeConfig = hostpkg.HostZRAMRuntimeConfig
 type HostZRAMPersistentConfig = hostpkg.HostZRAMPersistentConfig
 type HostDiskInfo = hostpkg.HostDiskInfo
+type HostCPUHardware = hostpkg.HostCPUHardware
+type HostMemoryModule = hostpkg.HostMemoryModule
+type HostMemoryModulesInfo = hostpkg.HostMemoryModulesInfo
 type IgpuPassthroughStatus = hostpkg.HardwarePassthroughStatus
 type HardwarePassthroughStatus = hostpkg.HardwarePassthroughStatus
 type IgpuDeviceInfo = hostpkg.PassthroughDeviceInfo
@@ -112,6 +115,14 @@ func SetHostZRAMProfile(profileKey string) (*hostpkg.HostZRAMStatus, error) {
 
 func GetHostDiskInfos() ([]hostpkg.HostDiskInfo, error) {
 	return hostpkg.GetHostDiskInfos()
+}
+
+func GetHostCPUHardware() *hostpkg.HostCPUHardware {
+	return hostpkg.GetHostCPUHardware()
+}
+
+func GetHostMemoryModules() *hostpkg.HostMemoryModulesInfo {
+	return hostpkg.GetHostMemoryModules()
 }
 
 func IsMaintenanceModeEnabled() bool {

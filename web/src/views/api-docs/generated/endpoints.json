@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-29T03:37:05.768Z",
-  "count": 304,
+  "generated_at": "2026-07-29T03:56:40.969Z",
+  "count": 306,
   "endpoints": [
     {
       "method": "POST",
@@ -521,6 +521,17 @@
     },
     {
       "method": "GET",
+      "path": "/host/cpu/hardware",
+      "handler": "GetHostCPUHardware",
+      "auth": "api",
+      "admin": true,
+      "elasticOnly": false,
+      "vmAccess": false,
+      "highRisk": "",
+      "comment": "获取宿主机 CPU 硬件信息与每核使用率"
+    },
+    {
+      "method": "GET",
       "path": "/host/cpus",
       "handler": "GetHostCPUCores",
       "auth": "api",
@@ -617,6 +628,17 @@
       "vmAccess": false,
       "highRisk": "update_kvm_unrestricted_guest",
       "comment": ""
+    },
+    {
+      "method": "GET",
+      "path": "/host/memory/modules",
+      "handler": "GetHostMemoryModules",
+      "auth": "api",
+      "admin": true,
+      "elasticOnly": false,
+      "vmAccess": false,
+      "highRisk": "",
+      "comment": "获取宿主机内存条信息"
     },
     {
       "method": "GET",

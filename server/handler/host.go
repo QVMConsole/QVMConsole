@@ -302,6 +302,24 @@ func GetHostCPUCores(c *gin.Context) {
 	})
 }
 
+// GetHostCPUHardware 获取宿主机 CPU 硬件信息与每核实时使用率（概览页 CPU 卡片展开区）
+func GetHostCPUHardware(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": "ok",
+		"data":    service.GetHostCPUHardware(),
+	})
+}
+
+// GetHostMemoryModules 获取宿主机内存条信息（概览页内存卡片展开区）
+func GetHostMemoryModules(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": "ok",
+		"data":    service.GetHostMemoryModules(),
+	})
+}
+
 // GetHardwarePassthroughStatus 获取硬件直通状态
 func GetHardwarePassthroughStatus(c *gin.Context) {
 	status := service.GetHardwarePassthroughStatus()

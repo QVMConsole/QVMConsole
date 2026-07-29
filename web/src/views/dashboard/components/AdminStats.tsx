@@ -3,13 +3,17 @@
  * - 虚拟机总数 / CPU 使用率 / 内存使用率 / 存储使用
  * - CPU / 内存 / 存储卡片带「理论最大量」双进度条（全部虚拟机满载口径）
  * - 系统设置开启 KSM / zRAM 时，在内存使用率卡片统一体现节省与压缩情况
+ * - CPU / 内存卡片带「硬件详情」折叠区（默认收起）：CPU 型号与每核使用率色块 / 内存条信息
  */
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import type { HostStats } from '@/api/host'
 import type { VmListItem } from '@/api/vm'
 import { formatKB, formatMB, parseSizeToGB } from '@/utils/format'
 import { useHostMemOptimize } from '@/hooks/useHostMemOptimize'
 import DualUsageBar from './DualUsageBar'
+import CpuDetailPanel from './CpuDetailPanel'
+import MemModulesPanel from './MemModulesPanel'
+import StatExpandToggle from './StatExpandToggle'
 import { CpuIcon, MemIcon, DiskIcon, VmIcon } from './icons'
 
 interface AdminStatsProps {
@@ -19,6 +23,9 @@ interface AdminStatsProps {
 
 export default function AdminStats({ stats, vms }: AdminStatsProps) {
   const memOptimize = useHostMemOptimize()
+  // 硬件详情折叠状态（默认收起；收起即卸载面板，停止每核使用率轮询）
+  const [cpuDetailOpen, setCpuDetailOpen] = useState(false)
+  const [memDetailOpen, setMemDetailOpen] = useState(false)
 
   // 理论最大量：全部虚拟机同时 100% 满载时的占用合计
   const theory = useMemo(() => {
@@ -117,6 +124,9 @@ export default function AdminStats({ stats, vms }: AdminStatsProps) {
           color="#38BDF8"
           colorEnd="#2DD4BF"
         />
+        {/* 硬件详情：CPU 型号 / 核心数 / 每核使用率色块（展开期间 3s 轮询） */}
+        <StatExpandToggle open={cpuDetailOpen} onToggle={() => setCpuDetailOpen((v) => !v)} />
+        {cpuDetailOpen && <CpuDetailPanel />}
       </div>
 
       {/* 内存使用率 */}
@@ -151,6 +161,9 @@ export default function AdminStats({ stats, vms }: AdminStatsProps) {
             <span className="qvm-trend-up">KSM 节省 {formatMB(ksmSavedKB / 1024)}</span>
           </div>
         )}
+        {/* 硬件详情：内存条（DIMM）信息（静态，展开时加载一次） */}
+        <StatExpandToggle open={memDetailOpen} onToggle={() => setMemDetailOpen((v) => !v)} />
+        {memDetailOpen && <MemModulesPanel />}
       </div>
 
       {/* 存储使用 */}

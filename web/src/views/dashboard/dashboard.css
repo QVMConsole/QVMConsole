@@ -146,6 +146,104 @@ body[theme-mode='dark'] .qvm-status-banner.error {
   flex-wrap: wrap;
   font-family: var(--qvm-num-font);
 }
+/* 统计卡「硬件详情」折叠开关（CPU / 内存卡片共用，默认收起） */
+.qvm-stat-expand-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 9px;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 11px;
+  color: var(--qvm-text-2);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+.qvm-stat-expand-btn:hover {
+  color: var(--qvm-text-1);
+}
+.qvm-stat-expand-btn svg {
+  transition: transform 0.2s ease;
+}
+.qvm-stat-expand-btn.open svg {
+  transform: rotate(180deg);
+}
+/* 硬件详情展开区 */
+.qvm-stat-expand {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--qvm-stroke);
+  animation: qvm-fade-up 0.25s ease both;
+}
+.qvm-hw-loading {
+  font-size: 11px;
+  color: var(--qvm-text-2);
+}
+.qvm-hw-model {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--qvm-text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.qvm-hw-meta {
+  font-size: 11px;
+  color: var(--qvm-text-2);
+  margin-top: 3px;
+  font-family: var(--qvm-num-font);
+}
+/* 每核使用率色块网格（核数多时自动换行，保持紧凑） */
+.qvm-core-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 8px;
+}
+.qvm-core-cell {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  display: inline-block;
+  transition: background 0.4s ease;
+  cursor: default;
+}
+/* 内存条（DIMM）列表 */
+.qvm-dimm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 7px;
+}
+.qvm-dimm-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 11px;
+  min-width: 0;
+}
+.qvm-dimm-slot {
+  color: var(--qvm-text-1);
+  font-weight: 600;
+  flex-shrink: 0;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.qvm-dimm-size {
+  color: var(--qvm-text-1);
+  font-family: var(--qvm-num-font);
+  flex-shrink: 0;
+}
+.qvm-dimm-meta {
+  color: var(--qvm-text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
 .qvm-trend-up {
   color: var(--qvm-acc-ink);
   font-family: var(--qvm-num-font);

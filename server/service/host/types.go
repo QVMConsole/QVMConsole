@@ -135,6 +135,36 @@ type HostDiskInfo struct {
 	UsePercent string `json:"use_percent"`
 }
 
+// --- hardware.go types ---
+
+// HostCPUHardware 宿主机 CPU 硬件信息与每核实时使用率
+type HostCPUHardware struct {
+	Model        string    `json:"model"`          // CPU 型号
+	Sockets      int       `json:"sockets"`        // 物理插槽数
+	Cores        int       `json:"cores"`          // 物理核心数
+	Threads      int       `json:"threads"`        // 逻辑线程数
+	PerCoreUsage []float64 `json:"per_core_usage"` // 每核使用率（%），下标即核心序号
+}
+
+// HostMemoryModule 单根内存条（DIMM）信息
+type HostMemoryModule struct {
+	Slot            string `json:"slot"`             // 插槽位置（Locator）
+	SizeMB          int64  `json:"size_mb"`          // 容量（MB）
+	Type            string `json:"type"`             // 类型（DDR4/DDR5 等）
+	Speed           string `json:"speed"`            // 标称频率
+	ConfiguredSpeed string `json:"configured_speed"` // 实际运行频率
+	Manufacturer    string `json:"manufacturer"`     // 厂商
+	PartNumber      string `json:"part_number"`      // 型号编码
+}
+
+// HostMemoryModulesInfo 宿主机内存条汇总信息
+type HostMemoryModulesInfo struct {
+	TotalSlots int                `json:"total_slots"` // 总插槽数
+	Installed  int                `json:"installed"`   // 已插条数
+	Modules    []HostMemoryModule `json:"modules"`     // 内存条列表
+	Message    string             `json:"message"`     // 不可用时的说明
+}
+
 // --- maintenance.go types ---
 
 type MaintenanceModeTaskParams struct {

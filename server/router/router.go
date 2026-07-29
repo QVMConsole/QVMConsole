@@ -480,6 +480,8 @@ func Setup() *gin.Engine {
 				host.GET("/stats/sse", handler.GetHostStatsSSE)
 				host.GET("/stats/history", handler.GetHostStatsHistory)
 				host.GET("/cpus", handler.GetHostCPUCores)
+				host.GET("/cpu/hardware", middleware.AdminMiddleware(), handler.GetHostCPUHardware)     // 获取宿主机 CPU 硬件信息与每核使用率
+				host.GET("/memory/modules", middleware.AdminMiddleware(), handler.GetHostMemoryModules) // 获取宿主机内存条信息
 				host.GET("/disks", handler.GetHostDisks)
 				host.GET("/kvm-intel-unrestricted-guest", middleware.AdminMiddleware(), handler.GetHostKVMIntelUnrestrictedGuestStatus)
 				host.PUT("/kvm-intel-unrestricted-guest", middleware.AdminMiddleware(), handler.UpdateHostKVMIntelUnrestrictedGuest)

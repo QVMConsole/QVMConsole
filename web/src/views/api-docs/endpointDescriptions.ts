@@ -807,6 +807,14 @@ export const endpointDescriptions: Record<string, EndpointDescription> = {
   'GET /host/stats/sse': { summary: '宿主机实时统计 SSE 推送', query: ['token'], response: 'text/event-stream。' },
   'GET /host/stats/history': { summary: '读取宿主机历史统计', query: ['start', 'end'] },
   'GET /host/cpus': { summary: '获取宿主机 CPU 核心数', response: 'data: cores。' },
+  'GET /host/cpu/hardware': {
+    summary: '获取宿主机 CPU 硬件信息与每核使用率',
+    response: 'data: model, sockets, cores, threads, per_core_usage。',
+  },
+  'GET /host/memory/modules': {
+    summary: '获取宿主机内存条（DIMM）信息',
+    response: 'data: total_slots, installed, modules, message。',
+  },
   'GET /host/disks': { summary: '获取宿主机磁盘挂载列表' },
   'GET /host/kvm-intel-unrestricted-guest': { summary: '读取 Intel KVM unrestricted_guest 状态' },
   'PUT /host/kvm-intel-unrestricted-guest': { summary: '设置 Intel KVM unrestricted_guest', body: 'JSON: enabled' },

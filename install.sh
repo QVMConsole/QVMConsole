@@ -73,6 +73,7 @@ APT_DEPS=(
     "openssh-client"
     "openssh-server"
     "parted"
+    "dmidecode"
 )
 
 # 架构特有依赖：在 check_and_install_deps 中根据 $ARCH 动态追加
@@ -118,6 +119,7 @@ RPM_PKG_MAP=(
     ["openssh-client"]="openssh-clients"
     ["openssh-server"]="openssh-server"
     ["parted"]="parted"
+    ["dmidecode"]="dmidecode"
 )
 
 # RPM 系架构特有包名（openEuler 官方文档确认）
