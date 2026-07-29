@@ -4,7 +4,7 @@
  * - 修改成功后会话失效，需重新登录
  */
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 import { Button, Input, Toast } from '@douyinfe/semi-ui'
 import { changePassword } from '@/api/auth'
 import { useUserStore } from '@/stores/user'

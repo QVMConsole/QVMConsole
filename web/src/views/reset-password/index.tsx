@@ -6,7 +6,7 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { Button, Input, Toast } from '@douyinfe/semi-ui'
 import { IconLock } from '@douyinfe/semi-icons'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router'
 import { resetPasswordByEmail } from '@/api/auth'
 import { useAppStore } from '@/stores/app'
 import { useTheme } from '@/hooks/useTheme'

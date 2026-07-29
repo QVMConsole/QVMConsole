@@ -5,7 +5,7 @@
  * - 小屏时转为抽屉模式
  */
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router'
 import { Toast, Tooltip } from '@douyinfe/semi-ui'
 import { IconChevronLeft } from '@douyinfe/semi-icons'
 import { ADMIN_NAV, USER_NAV, type NavItem } from '@/config/nav'

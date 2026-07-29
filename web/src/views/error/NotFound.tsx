@@ -3,7 +3,7 @@
  */
 import { Empty, Button } from '@douyinfe/semi-ui'
 import { IllustrationNotFound, IllustrationNotFoundDark } from '@douyinfe/semi-illustrations'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 import { useTheme } from '@/hooks/useTheme'
 
 export default function NotFound() {

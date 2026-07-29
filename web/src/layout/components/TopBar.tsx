@@ -12,7 +12,7 @@ import { CLOUD_TYPES, ROLES, THEME_MODES, EXTERNAL_LINKS } from '@/config/consta
 import { useUserStore } from '@/stores/user'
 import { useTaskStore } from '@/stores/task'
 import { usePageTabsStore } from '@/stores/pageTabs'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 import PageTabsBar from './PageTabsBar'
 import SponsorWidget from './SponsorWidget'
 

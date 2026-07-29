@@ -5,7 +5,7 @@
  * - 支持 ?tab=xxx 直接定位（如虚拟机表单空状态跳转到"存储与网络"）
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router'
 import { Button, Spin, Tabs, Toast } from '@douyinfe/semi-ui'
 import {
   IconArticle,

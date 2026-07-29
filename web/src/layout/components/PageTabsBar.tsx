@@ -3,7 +3,7 @@
  * - 工作台为固定标签，其余标签随路由访问注册
  * - 支持关闭单个标签
  */
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router'
 import { IconGridRectangle, IconClose } from '@douyinfe/semi-icons'
 import { usePageTabsStore } from '@/stores/pageTabs'
 

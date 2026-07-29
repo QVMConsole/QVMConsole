@@ -5,7 +5,7 @@
  * - 打开后自动连接；窗口标题同步为「VNC - 虚拟机名」
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams } from 'react-router'
 import RFB from '@novnc/novnc'
 import { Button, Dropdown, Modal, Tag, TextArea, Toast, Tooltip } from '@douyinfe/semi-ui'
 import {

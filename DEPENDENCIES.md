@@ -7,7 +7,7 @@
 | 依赖 | 最低版本 | 用途 |
 |------|---------|------|
 | Go | 1.22+ | 后端开发语言 |
-| Node.js | 18+ | 前端构建工具链 |
+| Node.js | 22.22+ | 前端构建工具链（React Router 8 要求） |
 | npm | 9+ | 前端包管理 |
 | air | 1.61.7 | Go 热重载开发工具 |
 
@@ -270,7 +270,7 @@ bash build.sh --variant compat --variant native	等同于默认，构建两个
 
 ```bash
 go version          # 应显示 go1.22+
-node --version      # 应显示 v18+
+node --version      # 应显示 v22.22+
 npm --version       # 应显示 9+
 air -v              # 应显示 air v1.61.7
 ls web/node_modules # 前端依赖目录应存在

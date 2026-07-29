@@ -6,7 +6,7 @@
  * - 支持 ?tab=xxx 直接定位（email / totp / password / username）
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router'
 import { Tabs } from '@douyinfe/semi-ui'
 import { IconKeyStroked, IconLockStroked, IconMailStroked, IconSafeStroked, IconUser } from '@douyinfe/semi-icons'
 import { getUserInfo } from '@/api/auth'

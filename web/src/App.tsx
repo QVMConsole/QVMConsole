@@ -5,7 +5,7 @@
  * - 挂载全局高风险验证弹窗
  */
 import { useEffect } from 'react'
-import { RouterProvider } from 'react-router-dom'
+import { RouterProvider } from 'react-router'
 import { ConfigProvider } from '@douyinfe/semi-ui'
 import zh_CN from '@douyinfe/semi-ui/lib/es/locale/source/zh_CN'
 import { router } from '@/router'

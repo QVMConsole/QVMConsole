@@ -20,7 +20,7 @@ import {
   IconUserGroup,
   IconActivity,
 } from '@douyinfe/semi-icons'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router'
 import { login, type LoginStageResponse } from '@/api/auth'
 import { useUserStore } from '@/stores/user'
 import { useAppStore } from '@/stores/app'

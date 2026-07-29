@@ -6,7 +6,7 @@
 import { useState } from 'react'
 import { Banner, Button, Input, Modal, Select, Toast } from '@douyinfe/semi-ui'
 import { IconMail, IconKey } from '@douyinfe/semi-icons'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 import {
   sendForgotPasswordCode,
   verifyForgotPasswordCode,

@@ -4,7 +4,7 @@
  * 页面组件在 ./pages 中统一以 React.lazy 懒加载声明，新增业务模块时在此追加路由。
  */
 import { Suspense, type ReactNode } from 'react'
-import { createBrowserRouter, Navigate } from 'react-router-dom'
+import { createBrowserRouter, Navigate } from 'react-router'
 import { Spin } from '@douyinfe/semi-ui'
 import Layout from '@/layout'
 import { RequireAuth } from './guards'

@@ -6,7 +6,7 @@
  * - 底部监控图表：实时监控 + 历史查询（近 24 小时），磁盘 IO 双单位
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router'
 import { Button, Tabs, TabPane, Tag, Toast, Tooltip } from '@douyinfe/semi-ui'
 import {
   IconArrowLeft,

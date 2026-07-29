@@ -8,7 +8,7 @@
  * 迁移自旧前端 views/storage/index.vue
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router'
 import { Button, Spin, Tabs, Toast } from '@douyinfe/semi-ui'
 import {
   IconDisc,

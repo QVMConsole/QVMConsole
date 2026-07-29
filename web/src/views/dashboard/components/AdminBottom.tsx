@@ -1,7 +1,7 @@
 /**
  * 管理员仪表盘：底部行（最近虚拟机列表）
  */
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 import { IconDesktop } from '@douyinfe/semi-icons'
 import type { VmListItem } from '@/api/vm'
 import { formatRuntime } from '@/utils/format'

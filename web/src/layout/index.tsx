@@ -4,7 +4,7 @@
  * - 登录后启动任务 SSE；路由变化时同步页面标签与浏览器标题
  */
 import { useEffect, useState } from 'react'
-import { Outlet, useLocation, useMatches } from 'react-router-dom'
+import { Outlet, useLocation, useMatches } from 'react-router'
 import { applyDocumentTitle } from '@/config/site'
 import { useUserStore } from '@/stores/user'
 import { useAppStore } from '@/stores/app'

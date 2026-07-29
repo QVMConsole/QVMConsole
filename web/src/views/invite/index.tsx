@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { Banner, Button, Descriptions, Input, Spin, Table, Toast } from '@douyinfe/semi-ui'
 import { IconLock } from '@douyinfe/semi-icons'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router'
 import {
   completeInvite,
   getInviteInfo,

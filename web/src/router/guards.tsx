@@ -4,7 +4,7 @@
  * - 轻量云非管理员用户：仅允许访问白名单路由，其余重定向到虚拟机列表
  */
 import type { ReactNode } from 'react'
-import { Navigate, useLocation } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router'
 import { useUserStore } from '@/stores/user'
 import { CLOUD_TYPES, ROLES } from '@/config/constants'
 

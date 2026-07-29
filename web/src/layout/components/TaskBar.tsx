@@ -5,7 +5,7 @@
  * - 支持任务详情抽屉与取消任务（二次确认）
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 import { Modal, Toast } from '@douyinfe/semi-ui'
 import { IconCheckList, IconChevronUp, IconDesktop, IconPulse } from '@douyinfe/semi-icons'
 import { useTaskStore, taskTypeText, taskTypeColor, taskStatusText } from '@/stores/task'
