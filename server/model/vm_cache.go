@@ -13,6 +13,7 @@ type VMCache struct {
 	MaxMemoryMB   int       `json:"max_memory_mb"`
 	Remark        string    `json:"remark" gorm:"size:255"`
 	GroupName     string    `json:"group_name" gorm:"index;size:128"`
+	TagsJSON      string    `json:"-" gorm:"type:text"`
 	Template      string    `json:"template" gorm:"size:255"`
 	DiskSizeText  string    `json:"disk_size_text" gorm:"size:64"`
 	CreatedAtText string    `json:"created_at_text" gorm:"size:32"`

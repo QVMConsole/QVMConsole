@@ -2,7 +2,7 @@
  * 虚拟机列表页（深空极光版）
  * - SSE 常驻实时刷新（缓存优先，静默更新）
  * - 表格 / 卡片双视图，列头点击排序，客户端分页
- * - 搜索过滤（名称/备注/模板）与分组视图（按状态/按模板/自定义，组可折叠、组内全选）
+ * - 搜索过滤（名称/备注/模板/标签）、标签筛选与分组视图（按状态/按模板/自定义，组可折叠、组内全选）
  * - 状态与操作纯图标展示（悬停 Tooltip）
  * - 单机/批量电源操作、锁定/救援/导出/转独立、删除/备注/分组/制作模板/重装/迁移
  */
@@ -11,7 +11,7 @@ import { useNavigate } from 'react-router'
 import { Button, Checkbox, Pagination, RadioGroup, Toast, Tooltip } from '@douyinfe/semi-ui'
 import { IconGridView, IconList, IconRefresh, IconAlertTriangle } from '@douyinfe/semi-icons'
 import type { VmListItem, VmPowerAction } from '@/api/vm'
-import { lockVm, makeVMIndependent, operateVm, rescueVm, unlockVm } from '@/api/vm'
+import { lockVm, makeVMIndependent, operateVm, rescueVm, unlockVm, updateVm } from '@/api/vm'
 import { exportVM } from '@/api/storage'
 import { useUserStore } from '@/stores/user'
 import { useVmStore } from '@/stores/vm'
@@ -89,6 +89,7 @@ export default function VmListPage() {
   const [sortField, setSortField] = useState<VmSortField>('name')
   const [sortOrder, setSortOrder] = useState<VmSortOrder>('ascend')
   const [searchText, setSearchText] = useState('')
+  const [tagFilter, setTagFilter] = useState<string[]>([])
   const [groupBy, setGroupBy] = useState<VmGroupBy>(() => {
     const saved = localStorage.getItem(GROUP_BY_KEY)
     return saved === 'status' || saved === 'template' || saved === 'custom' ? saved : ''
@@ -122,16 +123,20 @@ export default function VmListPage() {
   }, [list])
 
   // ==================== 搜索 / 排序 / 分组 / 分页 ====================
+  const allTags = useMemo(
+    () => [...new Set(list.flatMap((vm) => vm.tags || []))].sort((a, b) => a.localeCompare(b)),
+    [list],
+  )
+
   const filteredList = useMemo(() => {
     const q = searchText.trim().toLowerCase()
-    if (!q) return list
-    return list.filter(
-      (vm) =>
-        vm.name.toLowerCase().includes(q) ||
-        (vm.remark || '').toLowerCase().includes(q) ||
-        (vm.template || '').toLowerCase().includes(q),
-    )
-  }, [list, searchText])
+    return list.filter((vm) => {
+      const searchable = [vm.name, vm.remark || '', vm.template || '', ...(vm.tags || [])].join(' ').toLowerCase()
+      const matchesSearch = !q || searchable.includes(q)
+      const matchesTags = tagFilter.length === 0 || tagFilter.every((tag) => (vm.tags || []).includes(tag))
+      return matchesSearch && matchesTags
+    })
+  }, [list, searchText, tagFilter])
 
   const sortedList = useMemo(() => {
     const dir = sortOrder === 'ascend' ? 1 : -1
@@ -463,6 +468,14 @@ export default function VmListPage() {
   const handleGroupSuccess = (name: string, group: string) => {
     setVmList(list.map((v) => (v.name === name ? { ...v, group } : v)))
   }
+  const handleTagsSave = useCallback(
+    async (vm: VmListItem, tags: string[]) => {
+      const res = await updateVm(vm.name, { tags })
+      setVmList(list.map((item) => (item.name === vm.name ? { ...item, tags } : item)))
+      Toast.success(res.message || '标签已更新')
+    },
+    [list, setVmList],
+  )
   const handleDeleteSuccess = () => {
     setSelectedKeys([])
     void reload()
@@ -480,6 +493,12 @@ export default function VmListPage() {
         sortLabel={sortLabel}
         searchText={searchText}
         onSearchChange={handleSearchChange}
+        tagOptions={allTags}
+        tagFilter={tagFilter}
+        onTagFilterChange={(tags) => {
+          setTagFilter(tags)
+          setPage(1)
+        }}
       />
 
       {isLightweight && <PendingRegistrations onProvisioned={() => void reload()} />}
@@ -572,6 +591,7 @@ export default function VmListPage() {
             onPower={(vm, action) => void handlePower(vm, action)}
             onMenu={(cmd, vm) => void handleMenu(cmd, vm)}
             onConsole={handleConsole}
+            onTagsSave={handleTagsSave}
             onOpenDetail={handleOpenDetail}
             compact={compact}
           />
@@ -590,6 +610,7 @@ export default function VmListPage() {
             onPower={(vm, action) => void handlePower(vm, action)}
             onMenu={(cmd, vm) => void handleMenu(cmd, vm)}
             onConsole={handleConsole}
+            onTagsSave={handleTagsSave}
             onOpenDetail={handleOpenDetail}
             compact={compact}
           />
@@ -604,6 +625,7 @@ export default function VmListPage() {
             onPower={(vm, action) => void handlePower(vm, action)}
             onMenu={(cmd, vm) => void handleMenu(cmd, vm)}
             onConsole={handleConsole}
+            onTagsSave={handleTagsSave}
             onOpenDetail={handleOpenDetail}
           />
         ) : (

@@ -12,6 +12,7 @@ export interface VmListItem {
   name: string
   remark: string
   group: string
+  tags: string[]
   status: string // running / shut off / paused / migrating ...
   vcpu: number
   memory: number // MB
@@ -260,6 +261,7 @@ export interface HostDevicePayload {
 export interface UpdateVmPayload {
   remark?: string
   group?: string
+  tags?: string[]
   vcpu?: number
   max_vcpu?: number
   memory?: number // GB
@@ -416,6 +418,7 @@ export interface VmDetailInfo {
   name: string
   remark: string
   group: string
+  tags: string[]
   status: string
   vcpu: number
   memory: number // MB

@@ -12,6 +12,7 @@ import VmStatusIcon from './VmStatusIcon'
 import VmResourceBars from './VmResourceBars'
 import VmIpCell from './VmIpCell'
 import VmActionsCell, { type VmMenuCommand } from './VmActionsCell'
+import VmTagsEditor from './VmTagsEditor'
 import { shouldOpenVmDetail } from '../utils'
 
 interface VmCardViewProps {
@@ -24,6 +25,7 @@ interface VmCardViewProps {
   onPower: (vm: VmListItem, action: VmPowerAction) => void
   onMenu: (cmd: VmMenuCommand, vm: VmListItem) => void
   onConsole: (vm: VmListItem) => void
+  onTagsSave: (vm: VmListItem, tags: string[]) => Promise<void>
   /** 点击虚拟机卡片跳转详情页 */
   onOpenDetail: (vm: VmListItem) => void
 }
@@ -38,6 +40,7 @@ export default function VmCardView({
   onPower,
   onMenu,
   onConsole,
+  onTagsSave,
   onOpenDetail,
 }: VmCardViewProps) {
   if (vms.length === 0) {
@@ -105,6 +108,11 @@ export default function VmCardView({
           <div className="qvm-vcard-specs">
             <span className="qvm-num">{vmConfigText(vm)}</span>
             {vm.group && <span className="qvm-vm-group-tag">{vm.group}</span>}
+          </div>
+
+          <div className="qvm-vcard-tags">
+            <span className="qvm-vcard-label">标签</span>
+            <VmTagsEditor vm={vm} onSave={onTagsSave} />
           </div>
 
           <VmResourceBars vm={vm} />

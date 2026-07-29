@@ -122,6 +122,14 @@ func SetVMGroup(name, group string) error {
 	return vmpkg.SetVMGroup(name, group)
 }
 
+func GetVMTags(name string) ([]string, error) {
+	return vmpkg.GetVMTags(name)
+}
+
+func SetVMTags(name string, tags []string) error {
+	return vmpkg.SetVMTags(name, tags)
+}
+
 // ── Freeze ──
 
 func GetVMFreeze(name string) (bool, error) {

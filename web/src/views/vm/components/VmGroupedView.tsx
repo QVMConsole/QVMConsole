@@ -32,6 +32,7 @@ interface VmGroupedViewProps {
   onPower: (vm: VmListItem, action: VmPowerAction) => void
   onMenu: (cmd: VmMenuCommand, vm: VmListItem) => void
   onConsole: (vm: VmListItem) => void
+  onTagsSave: (vm: VmListItem, tags: string[]) => Promise<void>
   onOpenDetail: (vm: VmListItem) => void
   compact: boolean
 }
@@ -54,6 +55,7 @@ export default function VmGroupedView({
   onPower,
   onMenu,
   onConsole,
+  onTagsSave,
   onOpenDetail,
   compact,
 }: VmGroupedViewProps) {
@@ -115,6 +117,7 @@ export default function VmGroupedView({
                     onPower={onPower}
                     onMenu={onMenu}
                     onConsole={onConsole}
+                    onTagsSave={onTagsSave}
                     onOpenDetail={onOpenDetail}
                     compact={compact}
                   />
@@ -129,6 +132,7 @@ export default function VmGroupedView({
                     onPower={onPower}
                     onMenu={onMenu}
                     onConsole={onConsole}
+                    onTagsSave={onTagsSave}
                     onOpenDetail={onOpenDetail}
                   />
                 )}

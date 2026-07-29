@@ -30,7 +30,7 @@ export function isVmMigrating(vm?: VmListItem | null): boolean {
 /** 判断点击目标是否属于列表中的选择或行内操作控件。 */
 export function shouldOpenVmDetail(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return true
-  return !target.closest('.semi-checkbox, .qvm-act-cell')
+  return !target.closest('.semi-checkbox, .qvm-act-cell, .qvm-tag-editor')
 }
 
 /** 内存 MB → 可读文本 */

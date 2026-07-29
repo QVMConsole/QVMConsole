@@ -9,6 +9,7 @@ export function detailToListItem(vm: VmDetailInfo): VmListItem {
     name: vm.name,
     remark: vm.remark || '',
     group: vm.group || '',
+    tags: vm.tags || [],
     status: vm.status,
     vcpu: vm.vcpu,
     memory: vm.memory,

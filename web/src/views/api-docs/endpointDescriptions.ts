@@ -311,8 +311,8 @@ export const endpointDescriptions: Record<string, EndpointDescription> = {
   },
   'PUT /vm/:name': {
     summary: '编辑虚拟机配置',
-    body: 'JSON: vcpu, ram, remark, boot_type, boot_order, bandwidth, display, apic, pae, rtc, cpu_limit_percent(仅管理员, 0-100) 等可编辑字段',
-    notes: ['remark 支持单独提交，用于独立更新虚拟机备注。', '修改 boot_type 需要虚拟机关机后执行。'],
+    body: 'JSON: vcpu, ram, remark, tags[], boot_type, boot_order, bandwidth, display, apic, pae, rtc, cpu_limit_percent(仅管理员, 0-100) 等可编辑字段',
+    notes: ['remark 支持单独提交，用于独立更新虚拟机备注。', 'tags[] 支持单独提交，最多 20 个标签，单个标签最多 32 个字符。', '修改 boot_type 需要虚拟机关机后执行。'],
   },
   'PUT /vm/:name/xml': { summary: '保存虚拟机 XML', body: 'JSON: xml' },
   'GET /vm/:name/stats': { summary: '读取虚拟机实时资源统计', query: ['refresh'] },

@@ -65,6 +65,10 @@
   max-width: 320px;
   border-radius: 10px;
 }
+.qvm-tag-filter.semi-select {
+  width: 180px;
+  margin-left: 8px;
+}
 
 /* ============ 分组视图 ============ */
 .qvm-group-toggle {
@@ -310,6 +314,41 @@
   white-space: nowrap;
   flex: none;
 }
+.qvm-tag-editor {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.qvm-tag-list {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.qvm-tag-list .semi-tag {
+  margin: 0;
+  max-width: 110px;
+}
+.qvm-tag-list .semi-tag-content {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.qvm-tag-input-wrap {
+  display: flex;
+  align-items: center;
+  min-width: 98px;
+  width: 98px;
+}
+.qvm-tag-input-wrap .semi-input-wrapper {
+  min-width: 0;
+  border-radius: 6px;
+}
+.qvm-tag-add-button.semi-button {
+  flex: none;
+  padding: 0 3px;
+}
 .qvm-tpl-name {
   color: var(--qvm-text-2);
   font-size: 12px;
@@ -539,6 +578,18 @@
   font-size: 12px;
   color: var(--qvm-text-1);
   margin-bottom: 10px;
+}
+.qvm-vcard-tags {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.qvm-vcard-tags .qvm-vcard-label {
+  padding-top: 4px;
+}
+.qvm-vcard-tags .qvm-tag-editor {
+  flex: 1;
 }
 .qvm-vcard-info {
   margin-top: 10px;
@@ -773,9 +824,14 @@
   .qvm-vm-toolbar-search {
     order: 3;
     flex-basis: 100%;
+    flex-wrap: wrap;
   }
   .qvm-vm-search.semi-input-wrapper {
     max-width: none;
+  }
+  .qvm-tag-filter.semi-select {
+    width: 100%;
+    margin: 8px 0 0;
   }
   .qvm-vm-table .col-hide-sm {
     display: none;

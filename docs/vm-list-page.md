@@ -11,7 +11,8 @@
 | 实时刷新 | 进入页面即建立 SSE 长连接（管理员 `/vm/sse`，用户 `/self/vms/sse`），列表实时推送更新；断线 5 秒自动重连。无独立「自动刷新」开关 |
 | 缓存优先 | 从其他页面返回时先渲染 Zustand 缓存，SSE/HTTP 静默更新，避免转圈 |
 | 双视图 | 表格 / 卡片视图切换，选择持久化到 localStorage（`vmListViewMode`），默认表格 |
-| 搜索框 | 工具栏中部搜索框，按 名称 / 备注 / 模板 模糊过滤（客户端），可一键清空；统计行显示「匹配 N 台」 |
+| 标签 | 表格与卡片视图均提供标签字段；可直接输入并按回车或点击加号添加，点击标签关闭图标可移除。标签持久化在 libvirt 虚拟机元数据中，缓存仅作列表投影；每台最多 20 个标签、单个最长 32 个字符。 |
+| 搜索与标签筛选 | 工具栏搜索框按 名称 / 备注 / 模板 / 标签 模糊过滤（客户端），可一键清空；标签多选框按所选标签交集筛选，支持在候选标签中搜索；统计行显示「匹配 N 台」。 |
 | 分组视图 | 列表头右侧「全部 / 按状态 / 按模板 / 自定义」分组切换（localStorage `vmListGroupBy` 持久化，默认全部平铺）。分组模式下按组分块渲染（表格/卡片均支持），组头可折叠、显示数量标签，支持「全选本组」与跨组多选；组内顺序沿用当前排序，不分页 |
 | 列头排序 | 「名称」「配置 (资源使用)」「IP 地址」三列点击表头切换升/降序，工具栏右侧显示当前排序依据 |
 | 详情入口 | 表格视图点击任意非交互区域的虚拟机行、卡片视图点击任意非交互区域的虚拟机卡片，均进入详情页；勾选框和行内操作保持原行为。 |
@@ -82,7 +83,7 @@ web/src/views/vm/
 
 - `GET /vm/list`、`GET /self/vms`、`GET /vm/sse`、`GET /self/vms/sse`
 - `POST /vm/:name/operate`（start/shutdown/reboot/destroy/reset）
-- `PUT /vm/:name`（备注/分组）、`GET /vm/:name/ip`、`GET /vm/:name/qcow2-disks`
+- `PUT /vm/:name`（备注/分组/标签）、`GET /vm/:name/ip`、`GET /vm/:name/qcow2-disks`
 - `DELETE /vm/:name`、`DELETE /self/vm/:name`
 - `POST /vm/:name/lock|unlock|rescue|make-independent|reinstall`
 - `POST /self/vm/export`、`GET /self/storage/info`

@@ -34,6 +34,9 @@ func GetVM(name string) (*VmDetail, error) {
 	if remark, err := GetVMRemark(name); err == nil {
 		vm.Remark = remark
 	}
+	if tags, err := GetVMTags(name); err == nil {
+		vm.Tags = tags
+	}
 
 	// 状态
 	state, err := libvirt_rpc.GetDomainStateRPC(name)

@@ -1,10 +1,10 @@
 /**
  * 虚拟机列表顶部工具栏
  * - 左：批量电源下拉 + 新建虚拟机
- * - 中：搜索框（名称 / 备注 / 模板）
+ * - 中：搜索框（名称 / 备注 / 模板 / 标签）与标签筛选
  * - 右：当前排序依据指示
  */
-import { Button, Dropdown, Input } from '@douyinfe/semi-ui'
+import { Button, Dropdown, Input, Select } from '@douyinfe/semi-ui'
 import {
   IconPlayCircle,
   IconRestart,
@@ -26,6 +26,9 @@ interface VmToolbarProps {
   sortLabel: string
   searchText: string
   onSearchChange: (text: string) => void
+  tagOptions: string[]
+  tagFilter: string[]
+  onTagFilterChange: (tags: string[]) => void
 }
 
 export default function VmToolbar({
@@ -37,6 +40,9 @@ export default function VmToolbar({
   sortLabel,
   searchText,
   onSearchChange,
+  tagOptions,
+  tagFilter,
+  onTagFilterChange,
 }: VmToolbarProps) {
   const disabled = selectedCount === 0 || batchOperating
 
@@ -98,10 +104,20 @@ export default function VmToolbar({
         <Input
           className="qvm-vm-search"
           prefix={<IconSearch />}
-          placeholder="搜索名称 / 备注 / 模板"
+          placeholder="搜索名称 / 备注 / 模板 / 标签"
           showClear
           value={searchText}
           onChange={(value) => onSearchChange(value)}
+        />
+        <Select
+          className="qvm-tag-filter"
+          multiple
+          filter
+          showClear
+          placeholder="筛选标签"
+          value={tagFilter}
+          onChange={(value) => onTagFilterChange((value as string[]) || [])}
+          optionList={tagOptions.map((tag) => ({ label: tag, value: tag }))}
         />
       </div>
       <div className="qvm-vm-toolbar-right">

@@ -15,6 +15,7 @@ import VmStatusIcon from './VmStatusIcon'
 import VmResourceBars from './VmResourceBars'
 import VmIpCell from './VmIpCell'
 import VmActionsCell, { type VmMenuCommand } from './VmActionsCell'
+import VmTagsEditor from './VmTagsEditor'
 import { shouldOpenVmDetail } from '../utils'
 
 export type VmSortField = 'name' | 'resource' | 'ip'
@@ -34,6 +35,7 @@ interface VmTableViewProps {
   onPower: (vm: VmListItem, action: VmPowerAction) => void
   onMenu: (cmd: VmMenuCommand, vm: VmListItem) => void
   onConsole: (vm: VmListItem) => void
+  onTagsSave: (vm: VmListItem, tags: string[]) => Promise<void>
   /** 点击虚拟机列表项跳转详情页 */
   onOpenDetail: (vm: VmListItem) => void
   /** 小屏模式：隐藏次要列与勾选列 */
@@ -61,6 +63,7 @@ export default function VmTableView({
   onPower,
   onMenu,
   onConsole,
+  onTagsSave,
   onOpenDetail,
   compact,
 }: VmTableViewProps) {
@@ -108,6 +111,12 @@ export default function VmTableView({
         onHeaderCell: () => ({ className: 'col-hide-md' }),
         ellipsis: true,
         render: (text) => <span className="qvm-tpl-name">{text || '-'}</span>,
+      },
+      {
+        title: '标签',
+        dataIndex: 'tags',
+        width: 250,
+        render: (_text, vm) => <VmTagsEditor vm={vm} onSave={onTagsSave} />,
       },
       {
         title: '配置 (资源使用)',
@@ -174,6 +183,7 @@ export default function VmTableView({
     onPower,
     onMenu,
     onConsole,
+    onTagsSave,
     onOpenDetail,
   ])
 

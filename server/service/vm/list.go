@@ -140,6 +140,9 @@ func ListVMs(options ...VMListOptions) ([]VmInfo, error) {
 		if remark, err := GetVMRemark(name); err == nil {
 			vm.Remark = remark
 		}
+		if tags, err := GetVMTags(name); err == nil {
+			vm.Tags = tags
+		}
 
 		if listOptions.IncludeIP {
 			vm.IP = ip_resolver.GetVMIP(name, vm.Status == "running")

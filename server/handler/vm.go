@@ -629,6 +629,16 @@ func EditVm(c *gin.Context) {
 		}
 	}
 
+	if req.Tags != nil {
+		if err := service.SetVMTags(name, *req.Tags); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"code":    500,
+				"message": "设置标签失败: " + err.Error(),
+			})
+			return
+		}
+	}
+
 	if req.Autostart != nil {
 		if err := service.SetVMAutostart(name, *req.Autostart); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{

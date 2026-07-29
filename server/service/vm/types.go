@@ -23,6 +23,7 @@ type VmInfo struct {
 	Name                     string               `json:"name"`
 	Remark                   string               `json:"remark"`
 	Group                    string               `json:"group"`
+	Tags                     []string             `json:"tags"`
 	Status                   string               `json:"status"`             // running, shut off, paused, etc.
 	VCPU                     int                  `json:"vcpu"`               // CPU 核心数
 	Memory                   int                  `json:"memory"`             // 内存（MB）
