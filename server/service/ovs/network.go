@@ -297,7 +297,8 @@ func IsSystemdUnitActive(unit string) bool {
 	if strings.TrimSpace(unit) == "" {
 		return false
 	}
-	return utils.ExecCommand("systemctl", "is-active", "--quiet", unit).Error == nil
+	// 探测类命令：unit 未运行属预期情况，失败仅记 DEBUG
+	return utils.ExecCommandQuiet("systemctl", "is-active", "--quiet", unit).Error == nil
 }
 
 // IsSystemdUnitFailed returns true if the given systemd unit is in failed state.

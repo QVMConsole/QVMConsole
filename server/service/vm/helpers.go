@@ -11,7 +11,8 @@ import (
 
 // DomainExists checks whether a libvirt domain with the given name exists.
 func DomainExists(vmName string) bool {
-	return utils.ExecCommand("virsh", "dominfo", vmName).Error == nil
+	// 存在性探测：域不存在属预期情况，失败仅记 DEBUG
+	return utils.ExecCommandQuiet("virsh", "dominfo", vmName).Error == nil
 }
 
 // GetDomainState returns the current state of a libvirt domain.

@@ -15,8 +15,8 @@ import (
 
 // ExportVMParams 导出虚拟机参数
 type ExportVMParams struct {
-	VMName   string `json:"vm_name"`   // 虚拟机名称
-	Username string `json:"username"`  // 导出到哪个用户的存储
+	VMName   string `json:"vm_name"`  // 虚拟机名称
+	Username string `json:"username"` // 导出到哪个用户的存储
 }
 
 // ExportVMResult 导出结果
@@ -77,8 +77,8 @@ func GetVMExportSize(vmName string) (int64, error) {
 
 // ExportVM 导出虚拟机磁盘到用户存储
 func ExportVM(ctx context.Context, params *ExportVMParams, progressFn func(int, string)) (*ExportVMResult, error) {
-	// 检查虚拟机是否存在
-	checkVM := utils.ExecCommand("virsh", "dominfo", params.VMName)
+	// 检查虚拟机是否存在（存在性探测：失败会返回给调用方，仅记 DEBUG）
+	checkVM := utils.ExecCommandQuiet("virsh", "dominfo", params.VMName)
 	if checkVM.ExitCode != 0 {
 		return nil, fmt.Errorf("虚拟机 '%s' 不存在", params.VMName)
 	}

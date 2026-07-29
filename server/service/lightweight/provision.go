@@ -198,7 +198,8 @@ func isVMAlreadyExistsError(err error) bool {
 }
 
 func vmDomainExists(vmName string) bool {
-	result := utils.ExecCommand("virsh", "dominfo", strings.TrimSpace(vmName))
+	// 存在性探测：域不存在属预期情况，失败仅记 DEBUG
+	result := utils.ExecCommandQuiet("virsh", "dominfo", strings.TrimSpace(vmName))
 	return result.ExitCode == 0
 }
 

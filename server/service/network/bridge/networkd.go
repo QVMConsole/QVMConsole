@@ -21,8 +21,8 @@ func disableNetworkdDHCPForPort(iface string) {
 	if iface == "" {
 		return
 	}
-	// 仅当 systemd-networkd 在运行时处理
-	if utils.ExecCommand("systemctl", "is-active", "--quiet", "systemd-networkd").Error != nil {
+	// 仅当 systemd-networkd 在运行时处理（探测类命令，失败仅记 DEBUG）
+	if utils.ExecCommandQuiet("systemctl", "is-active", "--quiet", "systemd-networkd").Error != nil {
 		return
 	}
 	content := fmt.Sprintf(`[Match]
@@ -61,7 +61,7 @@ func removeNetworkdDHCPOverrideForPort(iface string) {
 		logger.App.Warn("删除 networkd 覆盖配置失败", "iface", iface, "error", err)
 		return
 	}
-	if utils.ExecCommand("systemctl", "is-active", "--quiet", "systemd-networkd").Error == nil {
+	if utils.ExecCommandQuiet("systemctl", "is-active", "--quiet", "systemd-networkd").Error == nil {
 		utils.ExecCommand("networkctl", "reload")
 		logger.App.Info("已恢复 networkd 对端口的管理", "iface", iface)
 	}

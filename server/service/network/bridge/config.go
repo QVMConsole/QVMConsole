@@ -318,8 +318,8 @@ func networkdStaticConfigPath(iface string) string {
 }
 
 func writeNetworkdStaticConfig(iface string, addrs []string, gateway string, dns []string) error {
-	// 仅当 systemd-networkd 活跃时写入
-	if utils.ExecCommand("systemctl", "is-active", "--quiet", "systemd-networkd").Error != nil {
+	// 仅当 systemd-networkd 活跃时写入（探测类命令，失败仅记 DEBUG）
+	if utils.ExecCommandQuiet("systemctl", "is-active", "--quiet", "systemd-networkd").Error != nil {
 		logger.App.Debug("systemd-networkd 不活跃，跳过 networkd 静态配置持久化", "interface", iface)
 		return nil
 	}
@@ -358,7 +358,7 @@ func removeNetworkdStaticConfig(iface string) {
 		logger.App.Warn("删除 networkd 静态配置失败", "interface", iface, "error", err)
 		return
 	}
-	if utils.ExecCommand("systemctl", "is-active", "--quiet", "systemd-networkd").Error == nil {
+	if utils.ExecCommandQuiet("systemctl", "is-active", "--quiet", "systemd-networkd").Error == nil {
 		utils.ExecCommand("networkctl", "reload")
 		logger.App.Info("已移除 networkd 静态配置", "interface", iface)
 	}

@@ -262,7 +262,8 @@ func GetVMNetworkRuntimeStatus(vmName string) (*VMNetworkRuntimeStatus, error) {
 // ── Internal diagnostics helpers ──
 
 func readSystemdServiceStatus(name string) OVSServiceStatus {
-	result := utils.ExecCommand("systemctl", "is-active", name)
+	// 探测类命令：服务未运行属预期情况，失败仅记 DEBUG
+	result := utils.ExecCommandQuiet("systemctl", "is-active", name)
 	state := strings.TrimSpace(result.Stdout)
 	if state == "" {
 		state = strings.TrimSpace(result.Stderr)

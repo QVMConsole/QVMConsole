@@ -636,7 +636,8 @@ func getPCINames(vendorID, productID string) (string, string) {
 
 // getPCIIOMMUGroup 获取 PCI 设备的 IOMMU 组号
 func getPCIIOMMUGroup(pciAddress string) int {
-	result := utils.ExecShell(fmt.Sprintf(
+	// 探测类命令：设备无 IOMMU 分组属预期情况，失败仅记 DEBUG
+	result := utils.ExecShellQuiet(fmt.Sprintf(
 		"readlink /sys/bus/pci/devices/%s/iommu_group 2>/dev/null | xargs basename 2>/dev/null", pciAddress))
 	if result.Error != nil || strings.TrimSpace(result.Stdout) == "" {
 		return -1

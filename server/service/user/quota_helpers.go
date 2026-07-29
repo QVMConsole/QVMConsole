@@ -10,6 +10,43 @@ import (
 	"kvm_console/utils"
 )
 
+// listExistingDomainSet 一次性获取宿主机上实际存在的所有域名称集合
+// 返回值 ok 为 false 表示 virsh 查询失败（libvirt 异常），调用方应保守处理
+func listExistingDomainSet() (map[string]struct{}, bool) {
+	result := utils.ExecCommand("virsh", "list", "--all", "--name")
+	if result.Error != nil {
+		return nil, false
+	}
+	set := make(map[string]struct{})
+	for _, line := range strings.Split(result.Stdout, "\n") {
+		name := strings.TrimSpace(line)
+		if name != "" {
+			set[name] = struct{}{}
+		}
+	}
+	return set, true
+}
+
+// FilterExistingVMs 过滤出访问列表中实际存在的虚拟机，
+// 剔除已删除但仍残留在访问列表文件中的条目，避免后续逐台 virsh 查询刷错误日志。
+// libvirt 查询失败时保守返回原名单，避免误判导致配额漏算。
+func FilterExistingVMs(vms []string) []string {
+	if len(vms) == 0 {
+		return vms
+	}
+	set, ok := listExistingDomainSet()
+	if !ok {
+		return vms
+	}
+	existing := make([]string, 0, len(vms))
+	for _, vm := range vms {
+		if _, found := set[vm]; found {
+			existing = append(existing, vm)
+		}
+	}
+	return existing
+}
+
 // GetVMCPUAndMemory 获取VM的CPU核心数和内存（MB）
 func GetVMCPUAndMemory(vmName string) (cpu int, memMB int) {
 	infoResult := utils.ExecCommand("virsh", "dominfo", vmName)

@@ -55,8 +55,8 @@ func GetUserQuotaUsage(username string) (*QuotaUsage, error) {
 		MaxPublicIPs:      user.MaxPublicIPs,
 	}
 
-	// 获取用户拥有的VM列表（自建 + 管理员分配的）
-	vms := GetUserVMList(username)
+	// 获取用户拥有的VM列表（自建 + 管理员分配的），并剔除访问列表中残留的已删除VM
+	vms := FilterExistingVMs(GetUserVMList(username))
 	usage.UsedVM = len(vms)
 
 	// 遍历每个VM，统计资源使用
@@ -165,7 +165,8 @@ func CheckQuotaForEdit(username string, deltaCPU, deltaMemoryGB, deltaDiskGB int
 
 // GetRunningVMsResourceUsage 统计用户已运行（running）的VM的CPU和内存使用量（内存返回 MB）
 func GetRunningVMsResourceUsage(username string) (runningCPU int, runningMemoryMB int, err error) {
-	vms := GetUserVMList(username)
+	// 剔除访问列表中残留的已删除VM，避免逐台 virsh 查询刷错误日志
+	vms := FilterExistingVMs(GetUserVMList(username))
 
 	for _, vmName := range vms {
 		// 检查VM是否正在运行

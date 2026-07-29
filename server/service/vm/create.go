@@ -247,8 +247,8 @@ func CreateVM(params *CreateVMParams, progressFn func(int, string)) (string, err
 	}
 	params.StoragePoolID = resolvedStoragePoolID
 
-	// 检查虚拟机是否已存在
-	checkVM := utils.ExecCommand("virsh", "dominfo", params.Name)
+	// 检查虚拟机是否已存在（存在性探测：域不存在属预期情况，失败仅记 DEBUG）
+	checkVM := utils.ExecCommandQuiet("virsh", "dominfo", params.Name)
 	if checkVM.ExitCode == 0 {
 		return "", fmt.Errorf("虚拟机 '%s' 已存在", params.Name)
 	}
