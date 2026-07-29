@@ -33,3 +33,4 @@
 
 同理，Semi Switch 也不要用 checkedText/uncheckedText 内嵌中文（过窄会竖排），统一使用共享组件 features/vm-form/sections/TextSwitch.tsx（Switch + 右侧外部状态文字）。
 29.项目中所有Switch组件禁止使用checkedText/uncheckedText内嵌中文文字（因宽度不足会导致文字竖排），必须统一使用共享组件features/vm-form/sections/TextSwitch.tsx（Switch + 右侧外部状态文字）。
+30. 前端开发前端开发前请务必阅读 semi-ui-skills 技能文档，确保对 Semi 组件库的使用规范有充分了解。
