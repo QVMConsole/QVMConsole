@@ -174,6 +174,12 @@ func CloneVm(c *gin.Context) {
 	if templateType == "" {
 		templateType = meta.Type
 	}
+	// 其它模板的实际行为由模板元数据决定，始终不初始化来宾系统。
+	if meta != nil && strings.EqualFold(strings.TrimSpace(meta.Type), "other") {
+		templateType = "other"
+		req.TemplateType = templateType
+		req.DisableSystemInit = true
+	}
 	req.User = clonepkg.NormalizeCloneUsernameForTemplate(templateType, req.User)
 
 	cloudInitMode := ""
@@ -381,6 +387,10 @@ func BatchCloneVm(c *gin.Context) {
 	if err := service.EnsureTemplateVisibleForClone(req.Template, isAdmin); err != nil {
 		templateVisibilityResponse(c, err)
 		return
+	}
+	if meta := service.GetTemplateMeta(req.Template); meta != nil && strings.EqualFold(strings.TrimSpace(meta.Type), "other") {
+		req.TemplateType = "other"
+		req.DisableSystemInit = true
 	}
 
 	diskSize, err := service.ResolveCloneDiskSizeGB(req.Template, req.DiskSize)

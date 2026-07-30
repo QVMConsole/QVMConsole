@@ -131,6 +131,11 @@ func CloneVM(ctx context.Context, params *CloneParams, progressFn func(int, stri
 	if tplType == "" {
 		tplType = meta.Type
 	}
+	// 以模板元数据为准：其它模板不执行来宾系统初始化。
+	if meta != nil && strings.EqualFold(strings.TrimSpace(meta.Type), "other") {
+		tplType = "other"
+		params.DisableSystemInit = true
+	}
 	if tplType == "" {
 		tplType = "linux"
 	}
@@ -187,19 +192,7 @@ func CloneVM(ctx context.Context, params *CloneParams, progressFn func(int, stri
 	// 检测模板磁盘格式（支持 qcow2 和 raw 格式的模板）
 	templateFormat := detectTemplateDiskFormat(templatePath)
 
-	if isOther {
-		// ===== Other 类型：直接复制模板磁盘，不做任何初始化 =====
-		progressFn(10, "复制模板磁盘（完整复制）...")
-		result := utils.ExecCommandLongRunning("cp", "--sparse=always", templatePath, cloneDisk)
-		if result.Error != nil {
-			return nil, fmt.Errorf("复制模板磁盘失败: %s", result.Stderr)
-		}
-
-		// 如果指定了磁盘大小，进行扩容
-		if params.DiskSize > 0 {
-			utils.ExecShell(fmt.Sprintf("qemu-img resize %s %dG", utils.ShellSingleQuote(cloneDisk), params.DiskSize))
-		}
-	} else if params.CloneMode == "full" {
+	if params.CloneMode == "full" {
 		// ===== 完整克隆：将模板数据完整复制到新磁盘，脱离链式依赖 =====
 		progressFn(10, "创建完整克隆磁盘（脱离链式条件）...")
 		var convertCmd string
@@ -215,7 +208,7 @@ func CloneVM(ctx context.Context, params *CloneParams, progressFn func(int, stri
 			return nil, fmt.Errorf("创建完整克隆磁盘失败: %s", result.Stderr)
 		}
 	} else {
-		// ===== 链式克隆（Linux/Windows/FnOS/OpenWrt） =====
+		// ===== 链式克隆（Linux/Windows/FnOS/OpenWrt/Other） =====
 		progressFn(10, "创建链式克隆磁盘...")
 		var createCmd string
 		if params.DiskSize > 0 {

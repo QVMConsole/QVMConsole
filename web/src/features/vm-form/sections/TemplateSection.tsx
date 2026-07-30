@@ -51,6 +51,7 @@ export default function TemplateSection() {
     [options.templates, f.template],
   )
   const isNoInitTemplate = selectedTemplate?.cloud_init_mode === 'none'
+  const isOtherTemplate = selectedTemplate?.type === 'other'
   const templateMinDiskSize = resolveTemplateMinDiskSize(selectedTemplate)
   const registrationMode = ctx.registration.enabled
 
@@ -93,6 +94,9 @@ export default function TemplateSection() {
     const list = await options.loadTemplates(true)
     const tpl = list.find((t) => t.name === name) || null
     onTemplateChange(tpl)
+    if (tpl?.type === 'other') {
+      setField('system_init_enabled', false)
+    }
     setError('disk_size', validateTemplateDiskSize(f.disk_size, true, resolveTemplateMinDiskSize(tpl)))
   }
 
@@ -210,7 +214,9 @@ export default function TemplateSection() {
         <FormField
           label="克隆模式"
           tip={
-            f.clone_mode === 'linked'
+            isOtherTemplate
+              ? '其它模板支持链式克隆和完整克隆，但不会执行系统初始化。'
+              : f.clone_mode === 'linked'
               ? '基于模板创建 backing_file 链式磁盘，依赖模板存在。磁盘创建速度快，节省存储空间。'
               : '将模板数据完整复制到独立磁盘，不依赖模板，脱离链式条件。磁盘创建较慢，占用完整磁盘空间。'
           }
@@ -238,9 +244,19 @@ export default function TemplateSection() {
             onChange={(v) => setField('system_init_enabled', v)}
             checkedText="是"
             uncheckedText="否"
+            disabled={isOtherTemplate}
           />
         </FormField>
       </SectionCard>
+
+      {!registrationMode && isOtherTemplate && (
+        <Banner
+          type="warning"
+          closeIcon={null}
+          style={{ marginBottom: 14 }}
+          description="当前为其它模板：可选择链式克隆或完整克隆，但系统不会初始化，也不会修改主机名、用户名、密码或网络配置。"
+        />
+      )}
 
       {/* 登记模式摘要 */}
       {registrationMode && (

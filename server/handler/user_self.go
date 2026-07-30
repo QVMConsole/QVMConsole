@@ -257,9 +257,14 @@ func SelfCloneVm(c *gin.Context) {
 
 	// 从模板元数据获取类型
 	meta := service.GetTemplateMeta(req.Template)
-	templateType := req.TemplateType
+	templateType := strings.ToLower(strings.TrimSpace(req.TemplateType))
 	if templateType == "" {
 		templateType = meta.Type
+	}
+	// 其它模板不执行来宾系统初始化。
+	if meta != nil && strings.EqualFold(strings.TrimSpace(meta.Type), "other") {
+		templateType = "other"
+		req.DisableSystemInit = true
 	}
 	req.User = service.NormalizeCloneUsernameForTemplate(templateType, req.User)
 

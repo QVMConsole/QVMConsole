@@ -31,6 +31,7 @@ export function templateTypeLabel(type?: string): string {
     windows: 'Windows',
     fnos: 'FnOS',
     openwrt: 'OpenWrt',
+    other: '其它',
   }
   return map[normalizeTemplateType(type)] || 'Linux'
 }

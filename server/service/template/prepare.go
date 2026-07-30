@@ -48,6 +48,13 @@ func PrepareTemplate(params *PrepareTemplateParams, progressFn func(int, string)
 	if tplType == "" {
 		tplType = "linux"
 	}
+	// 其它模板禁止写入任何来宾初始化配置。
+	if tplType == "other" {
+		params.CloudInitMode = "none"
+		params.TemplateUser = ""
+		params.PostBootCommand = ""
+		params.PostBootBlocking = false
+	}
 	if err := ValidateTemplateCategory(tplType, params.Category); err != nil {
 		return err
 	}

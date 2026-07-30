@@ -3,7 +3,7 @@
  * 迁移自旧前端 TemplateForm.vue
  */
 import { useMemo, useState } from 'react'
-import { Checkbox, Input, Modal, Radio, Select, TextArea, Toast } from '@douyinfe/semi-ui'
+import { Banner, Checkbox, Input, Modal, Radio, Select, TextArea, Toast } from '@douyinfe/semi-ui'
 import { prepareTemplate } from '@/api/template'
 import { confirmModal } from '@/utils/confirm'
 import {
@@ -19,7 +19,7 @@ interface MakeTemplateDialogProps {
   onClose: () => void
 }
 
-type TemplateType = 'linux' | 'windows' | 'fnos' | 'openwrt'
+type TemplateType = 'linux' | 'windows' | 'fnos' | 'openwrt' | 'other'
 
 /** 各系统类型的初始化方式选项 */
 const INIT_MODE_OPTIONS: Record<TemplateType, Array<{ value: string; label: string; tip: string }>> = {
@@ -39,6 +39,9 @@ const INIT_MODE_OPTIONS: Record<TemplateType, Array<{ value: string; label: stri
     { value: 'openwrt', label: '🌐 UCI 配置注入（推荐）', tip: '克隆时通过 virt-customize 注入静态 IP、网关、DNS 和主机名等 OpenWrt UCI 配置' },
     { value: 'none', label: '🚫 不初始化', tip: '克隆时将直接完整复制模板磁盘，不做任何初始化操作' },
   ],
+  other: [
+    { value: 'none', label: '🚫 不执行系统初始化', tip: '克隆时可选择链式或完整克隆，但不会执行任何系统初始化操作' },
+  ],
 }
 
 const TYPE_OPTIONS: Array<{ value: TemplateType; label: string }> = [
@@ -46,6 +49,7 @@ const TYPE_OPTIONS: Array<{ value: TemplateType; label: string }> = [
   { value: 'windows', label: '🪟 Windows' },
   { value: 'fnos', label: '📦 FnOS' },
   { value: 'openwrt', label: '🌐 OpenWrt' },
+  { value: 'other', label: '💾 其它' },
 ]
 
 /** 选择「不初始化」时的风险确认文案 */
@@ -74,6 +78,11 @@ const NONE_INIT_CONFIRM: Record<TemplateType, { title: string; content: string; 
       '选择「不初始化」意味着克隆此模板时不会注入任何网络配置。克隆出的 OpenWrt 将保留模板原始 IP 配置。\n\n请确保模板已完成必要的通用化处理。',
     okText: '我已知晓风险，继续',
   },
+  other: {
+    title: '风险确认：其它模板',
+    content: '其它模板克隆时不会执行任何系统初始化操作。',
+    okText: '我已知晓风险，继续',
+  },
 }
 
 function defaultInitMode(type: TemplateType): string {
@@ -93,6 +102,7 @@ export default function MakeTemplateDialog({ vmName, onClose }: MakeTemplateDial
   const [loading, setLoading] = useState(false)
 
   const showCategory = ['linux', 'windows', 'openwrt'].includes(type)
+  const isOtherType = type === 'other'
   const categoryOptions = useMemo(() => templateCategoryOptions(type), [type])
   const initOptions = INIT_MODE_OPTIONS[type]
   const initTip = initOptions.find((o) => o.value === initMode)?.tip || ''
@@ -213,22 +223,30 @@ export default function MakeTemplateDialog({ vmName, onClose }: MakeTemplateDial
         </div>
       )}
 
-      <div className="qvm-form-divider">{`${type === 'linux' ? 'Linux' : type === 'windows' ? 'Windows' : type === 'fnos' ? 'FnOS' : 'OpenWrt'} 模板配置`}</div>
+      <div className="qvm-form-divider">{`${type === 'linux' ? 'Linux' : type === 'windows' ? 'Windows' : type === 'fnos' ? 'FnOS' : type === 'openwrt' ? 'OpenWrt' : '其它'} 模板配置`}</div>
 
-      <div className="qvm-form-item">
-        <div className="qvm-form-label">初始化方式</div>
-        <Radio.Group
-          value={initMode}
-          onChange={(e) => void handleInitModeChange(e.target.value as string)}
-        >
-          {initOptions.map((option) => (
-            <Radio key={option.value} value={option.value}>
-              {option.label}
-            </Radio>
-          ))}
-        </Radio.Group>
-        <div className="qvm-form-tip">{initTip}</div>
-      </div>
+      {isOtherType ? (
+        <Banner
+          type="warning"
+          closeIcon={null}
+          description="其它模板克隆时可选择链式或完整克隆，但系统不会初始化，也不会修改模板内的主机名、用户、密码或网络配置。"
+        />
+      ) : (
+        <div className="qvm-form-item">
+          <div className="qvm-form-label">初始化方式</div>
+          <Radio.Group
+            value={initMode}
+            onChange={(e) => void handleInitModeChange(e.target.value as string)}
+          >
+            {initOptions.map((option) => (
+              <Radio key={option.value} value={option.value}>
+                {option.label}
+              </Radio>
+            ))}
+          </Radio.Group>
+          <div className="qvm-form-tip">{initTip}</div>
+        </div>
+      )}
 
       {type === 'linux' && initMode !== 'none' && (
         <>
