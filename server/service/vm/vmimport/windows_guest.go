@@ -1,6 +1,7 @@
 package vmimport
 
 import (
+	"encoding/xml"
 	"fmt"
 	"os"
 	"strings"
@@ -48,6 +49,12 @@ func importVMWindowsDefine(params *ImportVMParams, destDiskPath, format string, 
 		_ = os.Remove(destDiskPath)
 		return err
 	}
+	preserveNVRAM := false
+	defer func() {
+		if !preserveNVRAM {
+			_ = os.Remove(nvramClone)
+		}
+	}()
 
 	ramKiB := ramMB * 1024
 
@@ -108,7 +115,23 @@ func importVMWindowsDefine(params *ImportVMParams, destDiskPath, format string, 
     <memballoon model='virtio' freePageReporting='on'><stats period='5'/></memballoon>
   </devices>
 </domain>`,
-		params.Name, ramKiB, service.BuildVCPUTag(params.VCPU, params.MaxVCPU), archName, machineType, loaderPath, varsTemplate, nvramClone, clockOpenTag, hyperVBlock, emulatorPath, format, destDiskPath, networkXML, hyperVFeaturesBlock, watchdogModel)
+		params.Name,
+		ramKiB,
+		service.BuildVCPUTag(params.VCPU, params.MaxVCPU),
+		archName,
+		machineType,
+		loaderPath,
+		varsTemplate,
+		nvramClone,
+		hyperVBlock,
+		clockOpenTag,
+		hyperVFeaturesBlock,
+		emulatorPath,
+		format,
+		destDiskPath,
+		networkXML,
+		watchdogModel,
+	)
 
 	var err error
 	if memoryMeta != nil {
@@ -188,6 +211,10 @@ func importVMWindowsDefine(params *ImportVMParams, destDiskPath, format string, 
 		vmXML = service.InjectSPICEGraphicsToDomainXML(vmXML, "", "127.0.0.1")
 		vmXML = service.EnsureQXLVideo(vmXML)
 	}
+	if err := validateWindowsImportDomainXML(vmXML); err != nil {
+		_ = os.Remove(destDiskPath)
+		return err
+	}
 
 	xmlPath := fmt.Sprintf("/tmp/_vm-import-%s.xml", params.Name)
 	if err := os.WriteFile(xmlPath, []byte(vmXML), 0644); err != nil {
@@ -202,6 +229,7 @@ func importVMWindowsDefine(params *ImportVMParams, destDiskPath, format string, 
 		_ = os.Remove(destDiskPath)
 		return fmt.Errorf("定义虚拟机失败: %s", defineResult.Stderr)
 	}
+	preserveNVRAM = true
 
 	return importVMPostDefine(params.Name, srcDiskPath, destDiskPath, params.CopyDisk, memoryMeta, params.Remark, params.Freeze, params.StartAfterImport)
 }
@@ -240,6 +268,12 @@ func importDiskByPathWindowsDefine(params *ImportDiskByPathParams, destDiskPath,
 		_ = os.Remove(destDiskPath)
 		return err
 	}
+	preserveNVRAM := false
+	defer func() {
+		if !preserveNVRAM {
+			_ = os.Remove(nvramClone)
+		}
+	}()
 
 	ramKiB := ramMB * 1024
 
@@ -259,6 +293,8 @@ func importDiskByPathWindowsDefine(params *ImportDiskByPathParams, destDiskPath,
 	// 使用显式 loader/nvram，不使用 firmware='efi' 自动选择
 	loaderPath2 := vm_xml.ResolveOVMFLoaderPath(true)
 	varsTemplate2 := vm_xml.ResolveOVMFVarsTemplatePath(true)
+	systemDiskBus := normalizeImportDiskBus(params.SystemDiskBus)
+	systemDiskDevice := importDiskTargetDevice(systemDiskBus)
 
 	vmXML := fmt.Sprintf(`<domain type='kvm'>
   <name>%s</name>
@@ -284,7 +320,7 @@ func importDiskByPathWindowsDefine(params *ImportDiskByPathParams, destDiskPath,
     <emulator>%s</emulator>
     <disk type='file' device='disk'>
       <driver name='qemu' type='%s' discard='unmap' detect_zeroes='unmap'/>
-      <source file='%s'/><target dev='vda' bus='virtio'/>
+      <source file='%s'/><target dev='%s' bus='%s'/>
     </disk>
     <controller type='usb' index='0' model='qemu-xhci' ports='15'/>
     <controller type='virtio-serial' index='0'/>
@@ -299,7 +335,25 @@ func importDiskByPathWindowsDefine(params *ImportDiskByPathParams, destDiskPath,
     <memballoon model='virtio' freePageReporting='on'><stats period='5'/></memballoon>
   </devices>
 </domain>`,
-		params.Name, ramKiB, service.BuildVCPUTag(params.VCPU, params.MaxVCPU), archName, machineType, loaderPath2, varsTemplate2, nvramClone, clockOpenTag, hyperVBlock, emulatorPath, format, destDiskPath, networkXML, hyperVFeaturesBlock, watchdogModel)
+		params.Name,
+		ramKiB,
+		service.BuildVCPUTag(params.VCPU, params.MaxVCPU),
+		archName,
+		machineType,
+		loaderPath2,
+		varsTemplate2,
+		nvramClone,
+		hyperVBlock,
+		clockOpenTag,
+		hyperVFeaturesBlock,
+		emulatorPath,
+		format,
+		destDiskPath,
+		systemDiskDevice,
+		systemDiskBus,
+		networkXML,
+		watchdogModel,
+	)
 
 	var err error
 	if memoryMeta != nil {
@@ -373,6 +427,10 @@ func importDiskByPathWindowsDefine(params *ImportDiskByPathParams, destDiskPath,
 		vmXML = service.InjectSPICEGraphicsToDomainXML(vmXML, "", "127.0.0.1")
 		vmXML = service.EnsureQXLVideo(vmXML)
 	}
+	if err := validateWindowsImportDomainXML(vmXML); err != nil {
+		_ = os.Remove(destDiskPath)
+		return err
+	}
 
 	xmlPath := fmt.Sprintf("/tmp/_vm-importd-%s.xml", params.Name)
 	if err := os.WriteFile(xmlPath, []byte(vmXML), 0644); err != nil {
@@ -387,6 +445,16 @@ func importDiskByPathWindowsDefine(params *ImportDiskByPathParams, destDiskPath,
 		_ = os.Remove(destDiskPath)
 		return fmt.Errorf("定义虚拟机失败: %s", defineResult.Stderr)
 	}
+	preserveNVRAM = true
 
 	return importVMPostDefine(params.Name, mainDiskSrc, destDiskPath, params.CopyDisk, memoryMeta, params.Remark, params.Freeze, params.StartAfterImport)
+}
+
+// validateWindowsImportDomainXML 在交给 libvirt 前校验生成结果，避免格式化参数错位产生残缺 XML。
+func validateWindowsImportDomainXML(domainXML string) error {
+	var document struct{}
+	if err := xml.Unmarshal([]byte(domainXML), &document); err != nil {
+		return fmt.Errorf("生成 Windows 虚拟机 XML 失败: %w", err)
+	}
+	return nil
 }

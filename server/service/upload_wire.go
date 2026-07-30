@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	templatepkg "kvm_console/service/template"
 	uploadpkg "kvm_console/service/upload"
 	userpkg "kvm_console/service/user"
-	templatepkg "kvm_console/service/template"
 )
 
 // upload_wire.go 将 service/upload 子包的能力转发为根 service 包函数，
@@ -82,7 +82,7 @@ func validateStorageFileSuffix(category, name string) error {
 			return errors.New("ISO 类别仅支持 .iso 文件")
 		}
 	case "disk":
-		exts := []string{".qcow2", ".raw", ".vmdk", ".vhd", ".vhdx", ".img", ".vfd"}
+		exts := []string{".qcow2", ".raw", ".vmdk", ".vhd", ".vhdx", ".img", ".vfd", ".ova", ".ovf", ".mf"}
 		ok := false
 		for _, e := range exts {
 			if strings.HasSuffix(lower, e) {
@@ -91,7 +91,7 @@ func validateStorageFileSuffix(category, name string) error {
 			}
 		}
 		if !ok {
-			return errors.New("虚拟磁盘仅支持: .qcow2, .raw, .vmdk, .vhd, .vhdx, .img, .vfd")
+			return errors.New("虚拟磁盘仅支持: .qcow2, .raw, .vmdk, .vhd, .vhdx, .img, .vfd, .ova, .ovf, .mf")
 		}
 	}
 	return nil

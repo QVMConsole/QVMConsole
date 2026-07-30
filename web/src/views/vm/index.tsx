@@ -12,7 +12,6 @@ import { Button, Checkbox, Pagination, RadioGroup, Toast, Tooltip } from '@douyi
 import { IconGridView, IconList, IconRefresh, IconAlertTriangle } from '@douyinfe/semi-icons'
 import type { VmListItem, VmPowerAction } from '@/api/vm'
 import { lockVm, makeVMIndependent, operateVm, rescueVm, unlockVm, updateVm } from '@/api/vm'
-import { exportVM } from '@/api/storage'
 import { useUserStore } from '@/stores/user'
 import { useVmStore } from '@/stores/vm'
 import { useVmListSSE } from '@/hooks/useVmListSSE'
@@ -39,6 +38,7 @@ import VmGroupDialog from './dialogs/VmGroupDialog'
 import MakeTemplateDialog from './dialogs/MakeTemplateDialog'
 import VmReinstallDialog from './dialogs/VmReinstallDialog'
 import VmMigrationDialog from './dialogs/VmMigrationDialog'
+import VmExportDialog from './dialogs/VmExportDialog'
 import CreateVmWizard from '@/features/vm-form/CreateVmWizard'
 import './vm.css'
 
@@ -50,6 +50,7 @@ type DialogState =
   | { type: 'template'; vm: VmListItem }
   | { type: 'reinstall'; vm: VmListItem }
   | { type: 'migration'; vm: VmListItem }
+  | { type: 'export'; vm: VmListItem }
   | null
 
 const PAGE_SIZE = 20
@@ -340,20 +341,7 @@ export default function VmListPage() {
           setDialog({ type: 'delete', vm })
           return
         case 'export': {
-          const quotaTip = isAdmin
-            ? ''
-            : '\n\n注意：导出的磁盘文件将占用您的存储配额。如果导出过程中配额不足，系统将自动中止导出并清理不完整的文件。'
-          const ok = await confirmModal({
-            title: '导出虚拟机',
-            content: `确定要导出虚拟机「${vm.name}」的磁盘到我的存储吗？\n导出过程可能需要较长时间，请在任务中心查看进度。${quotaTip}`,
-          })
-          if (!ok) return
-          try {
-            const res = await exportVM({ vm_name: vm.name })
-            Toast.success(res.message || '导出任务已提交')
-          } catch {
-            // 错误提示由请求层统一处理
-          }
+          setDialog({ type: 'export', vm })
           return
         }
         case 'rescue': {
@@ -416,7 +404,7 @@ export default function VmListPage() {
         }
       }
     },
-    [handlePower, isAdmin, list, setVmList],
+    [handlePower, list, setVmList],
   )
 
   // ==================== 其他入口 ====================
@@ -677,6 +665,9 @@ export default function VmListPage() {
       )}
       {dialog?.type === 'migration' && isAdmin && (
         <VmMigrationDialog vm={dialog.vm} onClose={closeDialog} onSuccess={() => void reload()} />
+      )}
+      {dialog?.type === 'export' && (
+        <VmExportDialog vm={dialog.vm} onClose={closeDialog} />
       )}
       <CreateVmWizard
         visible={createWizardVisible}

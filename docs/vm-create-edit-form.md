@@ -45,7 +45,8 @@ web/src/features/vm-form/
 │   ├── FormField.tsx         # 字段行（label + 控件 + 提示/错误 + 帮助 Tooltip）
 │   ├── TextSwitch.tsx        # 带内部单字符状态文字的开关
 │   ├── storageTargetUtils.ts # 存储位置选项标签工具
-│   ├── CreateModeSection.tsx # 【创建】创建方式三卡（ISO/模板/导入）
+│   ├── CreateModeSection.tsx # 【创建】创建方式四卡（ISO/模板/已有磁盘/OVF-OVA）
+│   ├── ApplianceImportSection.tsx # 【创建】OVF/OVA 来源、检查、元数据与包内磁盘摘要
 │   ├── BasicInfoSection.tsx  # 【创建】名称/批量/备注/系统类型/系统版本/导入初始化
 │   ├── TemplateSection.tsx   # 【创建】模板/克隆模式/初始化/凭据/FnOS/OpenWrt/登记摘要
 │   ├── StoragePoolSection.tsx# 【创建】存储位置（含选项标签工具函数）
@@ -105,7 +106,8 @@ web/src/features/vm-form/
 
 | 步骤 | 内容 | 阻断校验 |
 |------|------|----------|
-| 创建方式 | ISO 镜像安装 / 模板快速克隆 / 导入已有磁盘 三卡 | - |
+| 创建方式 | ISO 镜像安装 / 模板快速克隆 / 导入已有磁盘 / 导入虚拟机 四卡 | - |
+| 虚拟机包 | 仅导入虚拟机模式：使用大卡片选择“跟随 OVF 配置 / 自定义”；创建向导不读取包内容 | 必须选择源文件；跟随模式直接提交，自定义模式继续完整向导；包校验由异步任务执行 |
 | 基础信息 | 名称、批量数量（模板）、备注、系统类型/版本（ISO）、导入初始化（导入）、模板与凭据（模板） | 名称格式、模板/磁盘/凭据按模式分支 |
 | 硬件规格 | CPU/内存/热添加/CPU 限制/动态内存 + 虚拟化方案/架构/机型/引导 | vcpu、ram > 0 |
 | 存储介质 | 存储位置 + ISO/系统盘（ISO）、导入磁盘（导入）、额外数据盘（模板） | ISO 磁盘大小、导入磁盘文件/路径 |
@@ -121,6 +123,7 @@ web/src/features/vm-form/
 - 模板单台：管理员 `POST /vm/clone`，用户 `POST /self/vm/clone`
 - 模板批量（batch_count > 1）：`POST /vm/batch-clone`（登记模式禁用批量；批量不允许直通设备；密码留空每台自动生成）
 - 导入：用户存储 `POST /self/vm/import`；管理员绝对路径 `POST /vm/import-disk`
+- 导入虚拟机：创建向导直接调用对应 `import-appliance` 接口并创建独立任务；只读 `inspect` 接口保留给 API 调试或独立预览
 - 提交前：CPU 亲和性格式校验 + 密码 HIBP 泄露检测（`utils/validate.ts`）
 - 轻量云登记模式（`registration` 上下文 + `onDraft` 回调）已预留，供用户管理页复用
 

@@ -27,6 +27,7 @@ export interface SettingsForm {
   template_dir: string
   template_import_dir: string
   template_export_dir: string
+  appliance_temp_dir: string
   clone_dir: string
   iso_dir: string
   default_network: string
@@ -94,6 +95,7 @@ export const DEFAULT_SETTINGS_FORM: SettingsForm = {
   template_dir: '',
   template_import_dir: '',
   template_export_dir: '',
+  appliance_temp_dir: '',
   clone_dir: '',
   iso_dir: '/var/lib/libvirt/images/ISO',
   default_network: '',
@@ -194,6 +196,7 @@ export function buildSettingsPayload(form: SettingsForm): Record<string, unknown
     template_dir: form.template_dir,
     template_import_dir: form.template_import_dir,
     template_export_dir: form.template_export_dir,
+    appliance_temp_dir: form.appliance_temp_dir,
     clone_dir: form.clone_dir,
     iso_dir: form.iso_dir,
     default_network: form.default_network,

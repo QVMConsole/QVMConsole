@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-29T10:08:31.842Z",
-  "count": 309,
+  "generated_at": "2026-07-30T14:33:02.664Z",
+  "count": 314,
   "endpoints": [
     {
       "method": "POST",
@@ -1500,6 +1500,17 @@
     },
     {
       "method": "GET",
+      "path": "/self/vm/:name/export-options",
+      "handler": "GetVMExportOptionsHandler",
+      "auth": "jwt",
+      "admin": false,
+      "elasticOnly": false,
+      "vmAccess": false,
+      "highRisk": "",
+      "comment": "获取虚拟机可导出磁盘"
+    },
+    {
+      "method": "GET",
       "path": "/self/vm/:name/qcow2-disks",
       "handler": "GetVmQcow2Disks",
       "auth": "jwt",
@@ -1552,6 +1563,28 @@
       "vmAccess": false,
       "highRisk": "",
       "comment": "导入虚拟机"
+    },
+    {
+      "method": "POST",
+      "path": "/self/vm/import-appliance",
+      "handler": "ImportSelfAppliance",
+      "auth": "jwt",
+      "admin": false,
+      "elasticOnly": true,
+      "vmAccess": false,
+      "highRisk": "create_vm",
+      "comment": "从 OVF/OVA 导入虚拟机"
+    },
+    {
+      "method": "POST",
+      "path": "/self/vm/import-appliance/inspect",
+      "handler": "InspectSelfAppliance",
+      "auth": "jwt",
+      "admin": false,
+      "elasticOnly": true,
+      "vmAccess": false,
+      "highRisk": "",
+      "comment": "检查我的存储 OVF/OVA"
     },
     {
       "method": "GET",
@@ -3169,6 +3202,28 @@
       "vmAccess": true,
       "highRisk": "create_vm",
       "comment": ""
+    },
+    {
+      "method": "POST",
+      "path": "/vm/import-appliance",
+      "handler": "ImportAdminAppliance",
+      "auth": "jwt",
+      "admin": true,
+      "elasticOnly": true,
+      "vmAccess": true,
+      "highRisk": "create_vm",
+      "comment": "导入 OVF/OVA 虚拟机包"
+    },
+    {
+      "method": "POST",
+      "path": "/vm/import-appliance/inspect",
+      "handler": "InspectAdminAppliance",
+      "auth": "jwt",
+      "admin": true,
+      "elasticOnly": true,
+      "vmAccess": true,
+      "highRisk": "",
+      "comment": "检查 OVF/OVA 虚拟机包"
     },
     {
       "method": "POST",

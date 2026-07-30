@@ -3,6 +3,7 @@
  * 创建向导（CreateVmWizard）与详情页编辑（EditVmForm）共用同一份模型、
  * 校验规则与联动逻辑，新增/调整字段只需改动本目录一处。
  */
+import type { ApplianceMetadata } from '@/api/storage'
 import type {
   AddDiskPayload,
   ExtraDiskPayload,
@@ -14,7 +15,10 @@ import type {
 } from '@/api/vm'
 
 /** 创建方式 */
-export type VmCreateMode = 'iso' | 'template' | 'import'
+export type VmCreateMode = 'iso' | 'template' | 'import' | 'appliance'
+
+/** 虚拟机包配置应用方式 */
+export type ApplianceConfigMode = 'ovf' | 'custom'
 
 /** 表单工作模式 */
 export type VmFormMode = 'create' | 'edit'
@@ -86,6 +90,14 @@ export interface VmFormModel {
   hostname: string
   template_root_pass: string
   template_user: string
+
+  // ===== 虚拟机包导入模式 =====
+  appliance_file: string
+  appliance_path: string
+  appliance_source_type: string // storage / path
+  appliance_config_mode: ApplianceConfigMode
+  copy_source: boolean
+  appliance_metadata: ApplianceMetadata | null
 
   // ===== 模板模式 =====
   template: string

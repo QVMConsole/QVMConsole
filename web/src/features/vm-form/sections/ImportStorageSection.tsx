@@ -18,6 +18,7 @@ export default function ImportStorageSection() {
   const { form: f, setField } = form
   const isAdmin = ctx.isAdmin
   const [iopsDialogIndex, setIopsDialogIndex] = useState(-1)
+  const diskFiles = options.diskFiles.filter((file) => !/\.(ova|ovf|mf)$/i.test(file.name))
 
   const addExtraImportDisk = () => {
     const defaultTarget = options.storageTargets.find((t) => t.is_default)
@@ -91,7 +92,7 @@ export default function ImportStorageSection() {
             onFocus={() => void options.loadDiskFiles()}
             onChange={(v) => setField('disk_file', (v as string) || '')}
           >
-            {options.diskFiles.map((file) => (
+            {diskFiles.map((file) => (
               <Select.Option key={file.name} value={file.name}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                   <span>{file.name}</span>
@@ -175,7 +176,7 @@ export default function ImportStorageSection() {
                   loading={options.diskFilesLoading}
                   onFocus={() => void options.loadDiskFiles()}
                   onChange={(v) => updateExtraDisk(index, 'disk_file', v)}
-                  optionList={options.diskFiles.map((file) => ({ value: file.name, label: file.name }))}
+                  optionList={diskFiles.map((file) => ({ value: file.name, label: file.name }))}
                 />
               ) : (
                 <Input

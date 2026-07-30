@@ -8,6 +8,7 @@ import service from './client'
 import { API_BASE_URL } from '@/config/constants'
 import { useUserStore } from '@/stores/user'
 import type { ApiResponse } from '@/types/api'
+import type { ImportVmPayload } from './vm'
 
 // 宿主机存储池列表（完整类型见 ./storagePool）
 export { getStoragePoolList } from './storagePool'
@@ -38,8 +39,37 @@ export function initStorage() {
   return service.post<unknown, ApiResponse>('/self/storage/init')
 }
 
-/** 导出虚拟机磁盘到我的存储 */
-export function exportVM(data: { vm_name: string }) {
+export interface VmExportDiskOption {
+  device: string
+  capacity_bytes: number
+  actual_bytes: number
+  format: string
+  bus: string
+  is_system: boolean
+  supported: boolean
+  reason?: string
+}
+
+export interface VmExportOptions {
+  vm_name: string
+  status: string
+  disks: VmExportDiskOption[]
+}
+
+/** 获取虚拟机可导出磁盘及格式边界 */
+export function getVMExportOptions(vmName: string) {
+  return service.get<unknown, ApiResponse<VmExportOptions>>(
+    `/self/vm/${encodeURIComponent(vmName)}/export-options`,
+    { silent: true },
+  )
+}
+
+/** 导出虚拟机磁盘或标准 OVA 到我的存储 */
+export function exportVM(data: {
+  vm_name: string
+  format?: 'qcow2' | 'ova'
+  disk_devices?: string[]
+}) {
   return service.post<unknown, ApiResponse<{ task_id?: string }>>('/self/vm/export', data)
 }
 
@@ -198,4 +228,63 @@ export function selfCreateVm(data: import('./vm').CreateVmPayload) {
 /** 用户自助：从我的存储导入磁盘创建虚拟机 */
 export function importVM(data: import('./vm').ImportVmPayload) {
   return service.post<unknown, ApiResponse<{ task_id?: string }>>('/self/vm/import', data)
+}
+
+export interface ApplianceDiskMetadata {
+  id: string
+  file_ref: string
+  capacity_bytes: number
+  format: string
+  bus: string
+  is_system: boolean
+}
+
+export interface ApplianceNetworkMetadata {
+  name: string
+  model: string
+}
+
+export interface ApplianceMetadata {
+  source_format: string
+  name: string
+  architecture: string
+  vcpu: number
+  ram: number
+  boot_type: string
+  machine_type: string
+  os_type: string
+  disks: ApplianceDiskMetadata[]
+  networks: ApplianceNetworkMetadata[]
+  warnings: string[]
+}
+
+export interface InspectAppliancePayload {
+  appliance_file?: string
+  appliance_path?: string
+  source_type: 'storage' | 'path'
+}
+
+export interface ImportAppliancePayload extends ImportVmPayload {
+  appliance_file?: string
+  appliance_path?: string
+  source_type: 'storage' | 'path'
+  config_mode: 'ovf' | 'custom'
+  copy_source: boolean
+}
+
+/** 检查 OVF/OVA 虚拟机包 */
+export function inspectAppliance(data: InspectAppliancePayload, isAdmin: boolean) {
+  return service.post<unknown, ApiResponse<ApplianceMetadata>>(
+    isAdmin ? '/vm/import-appliance/inspect' : '/self/vm/import-appliance/inspect',
+    data,
+    { timeout: 0 },
+  )
+}
+
+/** 提交 OVF/OVA 虚拟机包导入任务 */
+export function importAppliance(data: ImportAppliancePayload, isAdmin: boolean) {
+  return service.post<unknown, ApiResponse<{ task_id?: string }>>(
+    isAdmin ? '/vm/import-appliance' : '/self/vm/import-appliance',
+    data,
+  )
 }

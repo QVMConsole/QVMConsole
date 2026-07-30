@@ -143,7 +143,7 @@ func UploadUserStorageFile(c *gin.Context) {
 	// disk 类别要求虚拟磁盘文件后缀
 	if category == "disk" {
 		nameLower := strings.ToLower(header.Filename)
-		validExts := []string{".qcow2", ".raw", ".vmdk", ".vhd", ".vhdx", ".img", ".vfd"}
+		validExts := []string{".qcow2", ".raw", ".vmdk", ".vhd", ".vhdx", ".img", ".vfd", ".ova", ".ovf", ".mf"}
 		validExt := false
 		for _, ext := range validExts {
 			if strings.HasSuffix(nameLower, ext) {
@@ -154,7 +154,7 @@ func UploadUserStorageFile(c *gin.Context) {
 		if !validExt {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"code":    400,
-				"message": "虚拟磁盘仅支持以下格式: .qcow2, .raw, .vmdk, .vhd, .vhdx, .img, .vfd",
+				"message": "虚拟磁盘仅支持以下格式: .qcow2, .raw, .vmdk, .vhd, .vhdx, .img, .vfd, .ova, .ovf, .mf",
 			})
 			return
 		}

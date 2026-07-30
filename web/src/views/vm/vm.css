@@ -4,6 +4,76 @@
  */
 
 /* ============ 顶部工具栏 ============ */
+.qvm-export-format-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+  width: 100%;
+}
+.qvm-export-format-option.semi-radio {
+  width: 100%;
+  min-height: 96px;
+  margin: 0;
+}
+.qvm-export-format-option .semi-radio-addon {
+  color: var(--qvm-text-1);
+  font-weight: 600;
+}
+.qvm-export-format-option .semi-radio-extra,
+.qvm-export-disk-option .semi-checkbox-extra {
+  color: var(--qvm-text-2);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.qvm-export-section-title {
+  margin: 16px 0 8px;
+  color: var(--qvm-text-1);
+  font-size: 13px;
+  font-weight: 600;
+}
+.qvm-export-disk-list {
+  display: grid;
+  gap: 7px;
+  width: 100%;
+}
+.qvm-export-disk-option.semi-checkbox {
+  width: 100%;
+  margin: 0;
+}
+.qvm-export-disk-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: var(--qvm-text-1);
+}
+.qvm-export-system-disk.semi-checkbox-disabled {
+  opacity: 1;
+}
+.qvm-export-system-disk .semi-checkbox-inner-display {
+  border-color: var(--semi-color-success) !important;
+  background-color: var(--semi-color-success) !important;
+  color: var(--semi-color-white) !important;
+}
+.qvm-export-unsupported-disk:not(.qvm-export-system-disk) {
+  opacity: 0.58;
+}
+.qvm-export-loading,
+.qvm-export-estimate,
+.qvm-export-quota-tip {
+  padding: 10px 0;
+  color: var(--qvm-text-2);
+  font-size: 12px;
+}
+body[theme-mode='dark'] .qvm-export-format-option .semi-radio-addon,
+body[theme-mode='dark'] .qvm-export-disk-list strong {
+  color: #b8c1cf;
+}
+@media (max-width: 640px) {
+  .qvm-export-format-list { grid-template-columns: minmax(0, 1fr); }
+}
+
 .qvm-vm-toolbar {
   display: flex;
   align-items: center;

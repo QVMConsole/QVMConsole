@@ -736,6 +736,44 @@ func registerTaskHandlers() {
 		resultJSON, _ := json.Marshal(result)
 		return string(resultJSON), nil
 	})
+	// 导入 OVF/OVA 虚拟机包任务
+	taskqueue.RegisterHandler(model.TaskTypeImportAppliance, func(ctx context.Context, task *model.Task, progress func(int, string)) (string, error) {
+		params, err := vmimport.ParseImportApplianceParams(task.Params)
+		if err != nil {
+			return "", fmt.Errorf("解析参数失败: %w", err)
+		}
+		result, err := vmimport.ImportAppliance(ctx, params, progress)
+		if err != nil {
+			_ = service.RemoveVMFromUser(params.Username, params.Name)
+			return "", err
+		}
+		rollback := func(cause error) (string, error) {
+			vmimport.RollbackApplianceImport(params.Name, result.DiskPaths)
+			_ = service.RemoveVMFromUser(params.Username, params.Name)
+			return "", cause
+		}
+		if err := bindTaskVMToVPC(params.Username, params.Name, params.SwitchID, params.SecurityGroupID); err != nil {
+			return rollback(fmt.Errorf("虚拟机已创建，但绑定 VPC 网络失败: %w", err))
+		}
+		service.AttachExtraNICs(params.Name, params.ExtraNics)
+		applyImportDiskIOPS(&params.ImportDiskByPathParams)
+		if result.StartAfterImport {
+			progress(96, "正在启动导入的虚拟机...")
+			if err := service.StartVM(params.Name); err != nil {
+				return rollback(fmt.Errorf("启动导入的虚拟机失败: %w", err))
+			}
+		}
+		if err := vmimport.RemoveApplianceSource(params); err != nil {
+			logger.App.Warn("删除虚拟机包源文件失败", "vm", params.Name, "error", err)
+		}
+		if saveErr := service.SaveVMCredential(params.Name, params.User, params.Password, "import_appliance", task.CreatedBy, false); saveErr != nil {
+			logger.App.Warn("保存虚拟机包导入凭据失败", "vm", params.Name, "error", saveErr)
+		}
+		refreshVMCacheAfterTask(params.Name)
+		progress(100, fmt.Sprintf("虚拟机包导入完成，共导入 %d 块磁盘", result.ImportedDisks))
+		resultJSON, _ := json.Marshal(result)
+		return string(resultJSON), nil
+	})
 	// 管理员通过绝对路径导入磁盘任务
 	taskqueue.RegisterHandler(model.TaskTypeImportDisk, func(ctx context.Context, task *model.Task, progress func(int, string)) (string, error) {
 		params, err := vmimport.ParseImportDiskByPathParams(task.Params)

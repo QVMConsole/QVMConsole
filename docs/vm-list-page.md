@@ -20,7 +20,7 @@
 | 状态/操作图标化 | 状态列与操作列均为纯图标，悬停 Tooltip 显示文案 |
 | IP 地址直显 | 列表随 SSE 直接下发 IP（`include_ip=1`），未分配时显示「未分配」 |
 | 批量电源 | 勾选后工具栏「批量电源」可用：开机 / 重启 / 关机 / 强制断电 / 删除（危险操作带二次确认，含锁定机批量提醒） |
-| 新建虚拟机 | 全屏弹窗向导（创建方式 → 基础信息 → 硬件规格 → 存储介质 → 网络设置 → 系统配置 → 高级选项 → 硬件直通(管理员) → 确认信息），支持 ISO 安装 / 模板克隆（含批量）/ 导入磁盘三种方式，与详情页编辑表单共用 `features/vm-form` 同一套模型与规则 |
+| 新建虚拟机 | 全屏弹窗向导支持 ISO 安装 / 模板克隆（含批量）/ 导入已有磁盘 / 导入 OVF-OVA 虚拟机包四种方式，与详情页编辑表单共用 `features/vm-form` 同一套模型与规则 |
 | 单机操作 | 控制台（占位）、电源（按状态自动切换 开机/关机/继续启动）、更多菜单 |
 | 维护模式 | 系统维护模式下页面内容虚化并弹出维护提示 |
 
@@ -31,7 +31,7 @@
 - 重置（仅暂停态）/ 重启 / 强制断电（仅运行态）
 - 编辑备注、编辑分组（轻量云隐藏）
 - 制作模板（仅管理员）
-- 导出虚拟机（轻量云隐藏，非管理员提示存储配额）
+- 导出虚拟机（轻量云隐藏）：可选兼容 QCOW2 系统盘或标准 OVA；OVA 要求关机，系统盘固定、数据盘可选，结果计入我的存储配额
 - 重装系统（轻量云隐藏，含模板选择 / 系统盘大小 / 主机名 / 凭据 / FnOS 设备 ID）
 - 迁移（仅管理员，含「迁移虚拟机」跨节点预检与「迁移硬盘」本机换存储）
 - 转为独立虚拟机（仅管理员 + 链式克隆 + 关机态）
@@ -76,6 +76,7 @@ web/src/views/vm/
     ├── MakeTemplateDialog.tsx   # 制作模板（含「不初始化」风险确认）
     ├── VmReinstallDialog.tsx    # 重装系统
     ├── VmMigrationDialog.tsx    # 迁移虚拟机（节点/存储/网络/预检/提交）
+    ├── VmExportDialog.tsx       # QCOW2 / 标准 OVA 导出与磁盘选择
     └── DiskMigrationPanel.tsx   # 迁移硬盘（迁移弹窗子面板）
 ```
 
@@ -86,7 +87,7 @@ web/src/views/vm/
 - `PUT /vm/:name`（备注/分组/标签）、`GET /vm/:name/ip`、`GET /vm/:name/qcow2-disks`
 - `DELETE /vm/:name`、`DELETE /self/vm/:name`
 - `POST /vm/:name/lock|unlock|rescue|make-independent|reinstall`
-- `POST /self/vm/export`、`GET /self/storage/info`
+- `GET /self/vm/:name/export-options`、`POST /self/vm/export`、`GET /self/storage/info`
 - `GET /template/list`、`POST /template/prepare`
 - `GET /nodes`、`GET /nodes/:id/migration-options`、`POST /vm/:name/migration/preview`、`POST /vm/:name/migrate`
 - `GET /vm/:name/disk-migration/options`、`POST /vm/:name/disk/:dev/migrate`

@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Button, Modal, Steps, Toast } from '@douyinfe/semi-ui'
 import {
   IconBolt,
+  IconBox,
   IconCheckList,
   IconServer,
   IconDisc,
@@ -20,7 +21,7 @@ import { DiskIcon } from './icons'
 import { useUserStore } from '@/stores/user'
 import { ROLES } from '@/config/constants'
 import { adminImportDisk, batchCloneVm, cloneVm, createVm } from '@/api/vm'
-import { importVM, selfCreateVm } from '@/api/storage'
+import { importAppliance, importVM, selfCreateVm } from '@/api/storage'
 import { selfCloneVm } from '@/api/user'
 import { checkPasswordBreachAsync } from '@/utils/validate'
 import { resolveTemplateMinDiskSize } from '@/views/vm/utils'
@@ -44,6 +45,7 @@ import VirtEngineSection from './sections/VirtEngineSection'
 import StoragePoolSection from './sections/StoragePoolSection'
 import IsoStorageSection from './sections/IsoStorageSection'
 import ImportStorageSection from './sections/ImportStorageSection'
+import ApplianceImportSection, { ApplianceDiskSummarySection } from './sections/ApplianceImportSection'
 import ExtraDiskSection from './sections/ExtraDiskSection'
 import NicSection from './sections/NicSection'
 import BootOrderSection from './sections/BootOrderSection'
@@ -153,7 +155,7 @@ export default function CreateVmWizard({
           form.setField('security_group_id', defaultGroup?.id || groups[0]?.id || null)
         })
       }
-      if (initialMode === 'import' && !reg.enabled) void options.loadDiskFiles()
+      if ((initialMode === 'import' || initialMode === 'appliance') && !reg.enabled) void options.loadDiskFiles()
       if (initialMode === 'template' && !reg.enabled) await options.loadTemplates(true)
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -172,8 +174,20 @@ export default function CreateVmWizard({
         { name: 'confirm', title: '确认信息', icon: <IconCheckList /> },
       ]
     }
-    return [
+    const applianceSteps: StepDef[] = [
       { name: 'mode', title: '创建方式', icon: <IconDisc /> },
+      ...(form.form.create_mode === 'appliance'
+        ? [{ name: 'appliance', title: '虚拟机包', icon: <IconBox /> }]
+        : []),
+    ]
+    if (
+      form.form.create_mode === 'appliance' &&
+      form.form.appliance_config_mode === 'ovf'
+    ) {
+      return applianceSteps
+    }
+    return [
+      ...applianceSteps,
       { name: 'basic', title: '基础信息', icon: <IconInfoCircle /> },
       { name: 'hardware', title: '硬件规格', icon: <IconServer /> },
       { name: 'storage', title: '存储介质', icon: <DiskIcon /> },
@@ -183,16 +197,23 @@ export default function CreateVmWizard({
       ...(isAdmin ? [{ name: 'passthrough', title: '硬件直通', icon: <IconPuzzle /> }] : []),
       { name: 'confirm', title: '确认信息', icon: <IconCheckList /> },
     ]
-  }, [reg.enabled, isAdmin])
+  }, [reg.enabled, isAdmin, form.form.create_mode, form.form.appliance_config_mode])
 
   const maxStep = steps.length - 1
   const currentStepName = steps[step]?.name
+  const followsOvfConfig =
+    form.form.create_mode === 'appliance' && form.form.appliance_config_mode === 'ovf'
+  const showSubmitButton =
+    form.form.create_mode !== 'appliance' ||
+    followsOvfConfig ||
+    currentStepName === 'confirm'
 
   // ==================== 校验上下文 ====================
   const validateCtx: ValidateContext = useMemo(() => {
     const selectedTemplate = options.templates.find((tpl) => tpl.name === form.form.template) || null
     return {
       isAdmin,
+      hostArch: options.hostArch,
       isTemplateMode: form.isTemplateSourceMode,
       isWindowsTemplate: form.isWindowsTemplate,
       isFnOSTemplate: form.isFnOSTemplate,
@@ -202,7 +223,7 @@ export default function CreateVmWizard({
       registrationMode: reg.enabled,
       templateMinDiskSize: resolveTemplateMinDiskSize(selectedTemplate),
     }
-  }, [isAdmin, form, options.templates, reg.enabled])
+  }, [isAdmin, form, options.templates, options.hostArch, reg.enabled])
 
   const missing = useMemo(() => collectMissingRequired(form.form, validateCtx), [form.form, validateCtx])
   const submitDisabledReason =
@@ -223,7 +244,7 @@ export default function CreateVmWizard({
   const handleSelectMode = (mode: VmCreateMode) => {
     const selectedTemplate = options.templates.find((t) => t.name === form.form.template) || null
     form.onCreateModeChange(mode, selectedTemplate)
-    if (mode === 'import') void options.loadDiskFiles()
+    if (mode === 'import' || mode === 'appliance') void options.loadDiskFiles()
     if (mode === 'template') void options.loadTemplates(true)
     setStep((s) => Math.min(s + 1, maxStep))
   }
@@ -252,7 +273,22 @@ export default function CreateVmWizard({
     const f = form.form
     setSubmitting(true)
     try {
-      if (f.create_mode === 'import') {
+      if (f.create_mode === 'appliance') {
+        const base = buildImportPayload(f, { isAdmin, hostCores: options.hostCores })
+        await importAppliance(
+          {
+            ...base,
+            appliance_file: f.appliance_file || undefined,
+            appliance_path: f.appliance_path || undefined,
+            source_type: isAdmin && f.appliance_source_type === 'path' ? 'path' : 'storage',
+            config_mode: f.appliance_config_mode,
+            copy_source: f.copy_source,
+            storage_pool_id: f.storage_pool_id,
+          },
+          isAdmin,
+        )
+        Toast.success('虚拟机包导入任务已提交，请在任务中查看进度')
+      } else if (f.create_mode === 'import') {
         // 导入模式
         const payload = buildImportPayload(f, { isAdmin, hostCores: options.hostCores })
         if (isAdmin && f.disk_source_type === 'path') {
@@ -361,6 +397,8 @@ export default function CreateVmWizard({
     switch (currentStepName) {
       case 'mode':
         return <CreateModeSection onSelect={handleSelectMode} />
+      case 'appliance':
+        return <ApplianceImportSection />
       case 'basic':
         return (
           <>
@@ -389,6 +427,14 @@ export default function CreateVmWizard({
             <>
               <StoragePoolSection />
               <ImportStorageSection />
+            </>
+          )
+        }
+        if (form.form.create_mode === 'appliance') {
+          return (
+            <>
+              <StoragePoolSection />
+              <ApplianceDiskSummarySection />
             </>
           )
         }
@@ -422,6 +468,12 @@ export default function CreateVmWizard({
   const stepHeader = useMemo(() => {
     const meta: Record<string, { title: string; desc: string }> = {
       mode: { title: '选择创建方式', desc: '根据需求选择最适合的虚拟机创建途径' },
+      appliance: {
+        title: '导入虚拟机',
+        desc: followsOvfConfig
+          ? '检查 OVF 或 OVA 后，按包内配置直接创建虚拟机'
+          : '检查 OVF 或 OVA，并在后续步骤自定义最终配置',
+      },
       basic: { title: '基础信息', desc: '设置虚拟机名称、用途和操作系统类型' },
       hardware: { title: '硬件规格', desc: '配置 CPU、内存和虚拟化引擎参数' },
       storage: {
@@ -431,7 +483,9 @@ export default function CreateVmWizard({
             ? '选择 ISO 镜像并配置系统磁盘'
             : form.isTemplateSourceMode
               ? '配置存储位置并追加数据盘'
-              : '选择要导入的磁盘文件',
+              : form.form.create_mode === 'appliance'
+                ? '选择全部包内磁盘的目标存储位置'
+                : '选择要导入的磁盘文件',
       },
       network: { title: '网络设置', desc: '配置网卡类型和网口' },
       security: { title: '系统配置', desc: '设置引导顺序、守护服务和开机自启' },
@@ -440,7 +494,7 @@ export default function CreateVmWizard({
       confirm: { title: '确认信息', desc: '核对全部配置后提交创建任务' },
     }
     return meta[currentStepName] || { title: '', desc: '' }
-  }, [currentStepName, form.form.create_mode, form.isTemplateSourceMode])
+  }, [currentStepName, form.form.create_mode, form.isTemplateSourceMode, followsOvfConfig])
 
   return (
     <Modal
@@ -460,15 +514,21 @@ export default function CreateVmWizard({
                 下一步
               </Button>
             )}
-            <Button
-              type="warning"
-              theme="solid"
-              loading={submitting}
-              disabled={missing.length > 0}
-              onClick={() => void handleSubmit()}
-            >
-              {reg.enabled ? '加入注册列表' : '创建虚拟机'}
-            </Button>
+            {showSubmitButton && (
+              <Button
+                type="warning"
+                theme="solid"
+                loading={submitting}
+                disabled={missing.length > 0}
+                onClick={() => void handleSubmit()}
+              >
+                {reg.enabled
+                  ? '加入注册列表'
+                  : followsOvfConfig
+                    ? '按 OVF 配置创建'
+                    : '创建虚拟机'}
+              </Button>
+            )}
           </div>
         </div>
       }

@@ -184,7 +184,6 @@ export default function VmTableView({
     onMenu,
     onConsole,
     onTagsSave,
-    onOpenDetail,
   ])
 
   return (

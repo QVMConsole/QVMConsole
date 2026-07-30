@@ -47,6 +47,8 @@ API 文档页展示面板全部 HTTP 接口的调用说明，供外部程序使�
 
 **新接口即使没写文案也会自动出现在文档页**：摘要回退为 router.go 行尾注释或 handler 函数名，并带「待补充文案」标签，方便后续认领补齐。
 
+OVF/OVA 功能新增的检查、导入和导出选项接口已由生成脚本纳入清单，并在 `endpointDescriptions.ts` 中补充 `ApplianceMetadata`、`config_mode` 导入策略与 `format/disk_devices` 字段说明。创建向导直接提交异步导入任务，只读检查接口保留给 API 调试和独立预览。
+
 ### 后端新增接口时的工作流
 
 1. 后端在 `router.go` 正常注册路由（建议行尾写中文注释，会被自动用作摘要兜底）

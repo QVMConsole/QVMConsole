@@ -1,8 +1,8 @@
 /**
  * 创建方式选择分区（向导第 1 步）
- * ISO 镜像安装 / 模板快速克隆 / 导入已有磁盘 三卡片选择。
+ * ISO 镜像安装 / 模板快速克隆 / 导入已有磁盘 / 导入虚拟机四卡片选择。
  */
-import { IconDisc, IconCopy, IconImport } from '@douyinfe/semi-icons'
+import { IconBox, IconDisc, IconCopy, IconImport } from '@douyinfe/semi-icons'
 import { useVmFormScope } from '../scopeContext'
 import type { VmCreateMode } from '../types'
 
@@ -21,9 +21,15 @@ const MODE_CARDS: { mode: VmCreateMode; icon: React.ReactNode; title: string; de
   },
   {
     mode: 'import',
-    icon: <IconImport size="extra-large" />,
+    icon: <IconBox size="extra-large" />,
     title: '导入已有磁盘',
     desc: '使用已有的虚拟机磁盘文件快速运行',
+  },
+  {
+    mode: 'appliance',
+    icon: <IconImport size="extra-large" />,
+    title: '导入虚拟机',
+    desc: '从 OVF 或 OVA 虚拟机包恢复配置和磁盘',
   },
 ]
 

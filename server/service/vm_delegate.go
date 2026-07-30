@@ -705,6 +705,10 @@ func GetVMExportSize(vmName string) (int64, error) {
 	return vmpkg.GetVMExportSize(vmName)
 }
 
+func GetVMExportOptions(vmName string) (*VMExportOptions, error) {
+	return vmpkg.GetVMExportOptions(vmName)
+}
+
 func ExportVM(ctx context.Context, params *ExportVMParams, progressFn func(int, string)) (*ExportVMResult, error) {
 	return vmpkg.ExportVM(ctx, (*vmpkg.ExportVMParams)(params), progressFn)
 }

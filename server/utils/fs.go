@@ -89,6 +89,26 @@ func FileReadable(path string) bool {
 	return true
 }
 
+var libvirtQEMUOwnershipCandidates = [][2]string{
+	{"libvirt-qemu", "kvm"},
+	{"libvirt-qemu", ""},             // 使用 libvirt-qemu 的主组
+	{"libvirt-qemu", "libvirt-qemu"}, // Debian/Ubuntu 系列显式指定
+	{"qemu", "qemu"},
+}
+
+// ResolveLibvirtQEMUUser 返回当前系统实际使用的 QEMU/libvirt 服务账号。
+func ResolveLibvirtQEMUUser() (string, error) {
+	var lastErr error
+	for _, candidate := range libvirtQEMUOwnershipCandidates {
+		if _, _, err := GetUserIDs(candidate[0], candidate[1]); err == nil {
+			return candidate[0], nil
+		} else {
+			lastErr = err
+		}
+	}
+	return "", fmt.Errorf("查找 QEMU/libvirt 服务账号失败: %w", lastErr)
+}
+
 // ChownLibvirtQEMU 尝试按优先级将文件 chown 为 QEMU/libvirt 进程用户/组
 // 兼容不同发行版的用户/组命名差异：
 //  1. libvirt-qemu:kvm       — RH/Fedora 系列
@@ -98,15 +118,9 @@ func FileReadable(path string) bool {
 //
 // 返回错误仅当所有尝试都失败时
 func ChownLibvirtQEMU(path string) error {
-	candidates := [][2]string{
-		{"libvirt-qemu", "kvm"},
-		{"libvirt-qemu", ""},             // 使用 libvirt-qemu 的主组
-		{"libvirt-qemu", "libvirt-qemu"}, // Debian/Ubuntu 系列显式指定
-		{"qemu", "qemu"},
-	}
 
 	var lastErr error
-	for _, c := range candidates {
+	for _, c := range libvirtQEMUOwnershipCandidates {
 		uid, gid, err := GetUserIDs(c[0], c[1])
 		if err != nil {
 			lastErr = err

@@ -2,190 +2,465 @@ package vm
 
 import (
 	"context"
+	"encoding/xml"
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
+	"kvm_console/config"
 	"kvm_console/logger"
+	"kvm_console/service/appliance"
+	"kvm_console/service/libvirt_rpc"
 	"kvm_console/taskqueue"
 	"kvm_console/utils"
 )
 
-// ExportVMParams 导出虚拟机参数
+const (
+	ExportFormatQCOW2 = "qcow2"
+	ExportFormatOVA   = "ova"
+)
+
+// ExportVMParams 导出虚拟机参数。
 type ExportVMParams struct {
-	VMName   string `json:"vm_name"`  // 虚拟机名称
-	Username string `json:"username"` // 导出到哪个用户的存储
+	VMName      string   `json:"vm_name"`
+	Username    string   `json:"username"`
+	Format      string   `json:"format,omitempty"`
+	DiskDevices []string `json:"disk_devices,omitempty"`
 }
 
-// ExportVMResult 导出结果
+// ExportVMResult 导出结果。
 type ExportVMResult struct {
 	VMName   string `json:"vm_name"`
+	Format   string `json:"format"`
 	FileName string `json:"file_name"`
 	FilePath string `json:"file_path"`
 	FileSize string `json:"file_size"`
 }
 
-// GetVMExportSize 预估导出文件大小（字节）
-// 链式克隆：计算整个 backing chain 的 actual-size 之和（接近 convert 后大小）
-// 独立磁盘：返回实际文件大小
-func GetVMExportSize(vmName string) (int64, error) {
-	diskInfo := GetVMDiskInfo(vmName)
-	if diskInfo.Path == "" {
-		return 0, fmt.Errorf("无法获取虚拟机 %s 的磁盘路径", vmName)
-	}
-
-	// 检查是否有 backing file（链式克隆）
-	backingResult := utils.ExecShell(fmt.Sprintf(
-		"qemu-img info -U %s 2>/dev/null | grep 'backing file:'", utils.ShellSingleQuote(diskInfo.Path)))
-	hasBacking := backingResult.Error == nil && strings.TrimSpace(backingResult.Stdout) != ""
-
-	if hasBacking {
-		// 链式克隆：计算整个 backing chain 的实际数据量之和
-		// 使用 --backing-chain 获取所有层的 actual-size
-		chainResult := utils.ExecShell(fmt.Sprintf(
-			"qemu-img info -U --backing-chain --output=json %s 2>/dev/null", utils.ShellSingleQuote(diskInfo.Path)))
-		if chainResult.Error == nil && strings.TrimSpace(chainResult.Stdout) != "" {
-			var totalSize int64
-			// 简单解析所有 actual-size 字段
-			for _, line := range strings.Split(chainResult.Stdout, "\n") {
-				line = strings.TrimSpace(line)
-				if strings.Contains(line, `"actual-size"`) {
-					line = strings.TrimPrefix(line, `"actual-size":`)
-					line = strings.TrimSuffix(line, ",")
-					line = strings.TrimSpace(line)
-					var size int64
-					fmt.Sscanf(line, "%d", &size)
-					totalSize += size
-				}
-			}
-			if totalSize > 0 {
-				// 加 10% 余量，因为 convert 后可能略有差异
-				return totalSize * 110 / 100, nil
-			}
-		}
-	}
-
-	// 独立磁盘：返回实际文件大小
-	if fi, err := os.Stat(diskInfo.Path); err == nil && fi.Size() > 0 {
-		return fi.Size(), nil
-	}
-
-	return 0, fmt.Errorf("无法获取磁盘大小")
+// VMExportDiskOption 是导出弹窗展示的磁盘选项。
+type VMExportDiskOption struct {
+	Device        string `json:"device"`
+	Format        string `json:"format"`
+	Bus           string `json:"bus"`
+	CapacityBytes int64  `json:"capacity_bytes"`
+	ActualBytes   int64  `json:"actual_bytes"`
+	IsSystem      bool   `json:"is_system"`
+	Supported     bool   `json:"supported"`
+	Reason        string `json:"reason,omitempty"`
+	path          string
 }
 
-// ExportVM 导出虚拟机磁盘到用户存储
-func ExportVM(ctx context.Context, params *ExportVMParams, progressFn func(int, string)) (*ExportVMResult, error) {
-	// 检查虚拟机是否存在（存在性探测：失败会返回给调用方，仅记 DEBUG）
-	checkVM := utils.ExecCommandQuiet("virsh", "dominfo", params.VMName)
-	if checkVM.ExitCode != 0 {
-		return nil, fmt.Errorf("虚拟机 '%s' 不存在", params.VMName)
-	}
+// VMExportOptions 是导出前可读取的虚拟机状态与磁盘列表。
+type VMExportOptions struct {
+	VMName string               `json:"vm_name"`
+	Status string               `json:"status"`
+	Disks  []VMExportDiskOption `json:"disks"`
+}
 
-	// 获取磁盘路径
+type exportDomainXML struct {
+	Name   string `xml:"name"`
+	VCPU   int    `xml:"vcpu"`
+	Memory struct {
+		Value int64  `xml:",chardata"`
+		Unit  string `xml:"unit,attr"`
+	} `xml:"memory"`
+	OS struct {
+		Type struct {
+			Arch    string `xml:"arch,attr"`
+			Machine string `xml:"machine,attr"`
+		} `xml:"type"`
+		Loader string `xml:"loader"`
+	} `xml:"os"`
+}
+
+// GetVMExportOptions 返回所有本地持久磁盘，供 OVA 导出选择。
+func GetVMExportOptions(vmName string) (*VMExportOptions, error) {
+	if !DomainExists(vmName) {
+		return nil, fmt.Errorf("虚拟机 '%s' 不存在", vmName)
+	}
+	disks, err := D.ListDisks(vmName)
+	if err != nil {
+		return nil, err
+	}
+	options := &VMExportOptions{VMName: vmName, Status: strings.ToLower(strings.TrimSpace(GetDomainState(vmName)))}
+	for _, disk := range disks {
+		if disk.DeviceType != "disk" || disk.Path == "" {
+			continue
+		}
+		capacityGB, _ := strconv.ParseFloat(strings.TrimSpace(disk.CapacityGB), 64)
+		option := VMExportDiskOption{
+			Device:        disk.Device,
+			Format:        disk.Format,
+			Bus:           disk.Bus,
+			CapacityBytes: int64(capacityGB * 1024 * 1024 * 1024),
+			IsSystem:      disk.IsSystem,
+			Supported:     true,
+			path:          disk.Path,
+		}
+		if info, statErr := os.Stat(disk.Path); statErr == nil {
+			option.ActualBytes = info.Size()
+			if !info.Mode().IsRegular() && info.Mode()&os.ModeDevice == 0 {
+				option.Supported = false
+				option.Reason = "当前存储源不是本地文件或块设备"
+			}
+		} else {
+			option.Supported = false
+			option.Reason = "磁盘源文件不存在"
+		}
+		options.Disks = append(options.Disks, option)
+	}
+	if len(options.Disks) == 0 {
+		return nil, fmt.Errorf("虚拟机没有可导出的持久磁盘")
+	}
+	return options, nil
+}
+
+// GetVMExportSize 预估默认系统盘导出文件大小。
+func GetVMExportSize(vmName string) (int64, error) {
+	options, err := GetVMExportOptions(vmName)
+	if err != nil {
+		return 0, err
+	}
+	for _, disk := range options.Disks {
+		if disk.IsSystem {
+			if disk.ActualBytes > 0 {
+				return disk.ActualBytes * 110 / 100, nil
+			}
+			return disk.CapacityBytes, nil
+		}
+	}
+	return 0, fmt.Errorf("没有可导出的系统盘")
+}
+
+// ExportVM 根据 format 导出 QCOW2 磁盘或标准 OVA 虚拟机包。
+func ExportVM(ctx context.Context, params *ExportVMParams, progressFn func(int, string)) (*ExportVMResult, error) {
+	format := strings.ToLower(strings.TrimSpace(params.Format))
+	if format == "" {
+		format = ExportFormatQCOW2
+	}
+	switch format {
+	case ExportFormatQCOW2:
+		return exportVMQCOW2(ctx, params, progressFn)
+	case ExportFormatOVA:
+		return exportVMOVA(ctx, params, progressFn)
+	default:
+		return nil, fmt.Errorf("导出格式仅支持 qcow2 或 ova")
+	}
+}
+
+func exportVMQCOW2(ctx context.Context, params *ExportVMParams, progressFn func(int, string)) (*ExportVMResult, error) {
 	diskInfo := GetVMDiskInfo(params.VMName)
 	if diskInfo.Path == "" {
-		return nil, fmt.Errorf("无法获取虚拟机 %s 的磁盘路径", params.VMName)
+		return nil, fmt.Errorf("获取虚拟机 %s 的系统盘路径失败", params.VMName)
 	}
-
-	progressFn(10, "获取磁盘信息...")
-
-	// 生成导出文件名
+	progressFn(10, "获取系统盘信息...")
 	timestamp := time.Now().Format("20060102-150405")
-	exportFileName := fmt.Sprintf("%s-export-%s.qcow2", params.VMName, timestamp)
+	fileName := fmt.Sprintf("%s-export-%s.qcow2", params.VMName, timestamp)
 	exportDir := D.GetUserDiskDir(params.Username)
-	exportPath := filepath.Join(exportDir, exportFileName)
-
-	// 确保目标目录存在
-	utils.ExecCommand("mkdir", "-p", exportDir)
-
-	// 判断是否使用系统用户执行写入（使 project quota 硬限制生效）
-	// admin 没有系统用户，仍用 root；普通用户用 sudo -u 执行
-	useSudo := false
-	if params.Username != "admin" {
-		checkUser := utils.ExecShell(fmt.Sprintf("id %s 2>/dev/null", utils.ShellSingleQuote(params.Username)))
-		if checkUser.Error == nil && strings.TrimSpace(checkUser.Stdout) != "" {
-			useSudo = true
-			// 确保用户在 kvm 组中（兼容旧用户）
-			utils.ExecCommand("usermod", "-aG", "kvm", params.Username)
-		}
+	exportPath := filepath.Join(exportDir, fileName)
+	if err := os.MkdirAll(exportDir, 0o775); err != nil {
+		return nil, fmt.Errorf("创建导出目录失败: %w", err)
+	}
+	useSudo := prepareExportUser(params.Username)
+	if err := checkExportCanceled(ctx); err != nil {
+		return nil, err
 	}
 
-	// 检查取消
-	select {
-	case <-ctx.Done():
-		return nil, taskqueue.ErrTaskCanceled
-	default:
-	}
-
-	// 检查是否有 backing file（链式克隆）
-	backingResult := utils.ExecShell(fmt.Sprintf(
-		"qemu-img info -U %s 2>/dev/null | grep 'backing file:'", utils.ShellSingleQuote(diskInfo.Path)))
+	backingResult := utils.ExecShell(fmt.Sprintf("qemu-img info -U %s 2>/dev/null | grep 'backing file:'", utils.ShellSingleQuote(diskInfo.Path)))
 	hasBacking := backingResult.Error == nil && strings.TrimSpace(backingResult.Stdout) != ""
-
 	if hasBacking {
-		// 链式克隆：使用 qemu-img convert 合并为独立文件
-		progressFn(20, "检测到链式克隆磁盘，正在合并导出（可能需要较长时间）...")
-		logger.App.Info("导出 VM: 链式克隆磁盘，使用 qemu-img convert 合并", "vm", params.VMName)
-
-		var convertCmd string
+		progressFn(20, "检测到链式磁盘，正在展平并导出...")
+		args := []string{"qemu-img", "convert", "-O", "qcow2", diskInfo.Path, exportPath}
 		if useSudo {
-			convertCmd = fmt.Sprintf("sudo -u %s qemu-img convert -O qcow2 %s %s",
-				utils.ShellSingleQuote(params.Username), utils.ShellSingleQuote(diskInfo.Path), utils.ShellSingleQuote(exportPath))
-		} else {
-			convertCmd = fmt.Sprintf("qemu-img convert -O qcow2 %s %s",
-				utils.ShellSingleQuote(diskInfo.Path), utils.ShellSingleQuote(exportPath))
+			args = append([]string{"sudo", "-u", params.Username}, args...)
 		}
-		result := utils.ExecShellWithTimeout(convertCmd, 2*time.Hour)
+		result := utils.ExecCommandContextWithTimeout(ctx, args[0], 2*time.Hour, args[1:]...)
 		if result.Error != nil {
-			// 清理不完整的文件
 			_ = os.Remove(exportPath)
-			return nil, fmt.Errorf("导出失败（qemu-img convert）: %s", result.Stderr)
+			return nil, fmt.Errorf("展平系统盘失败: %s", strings.TrimSpace(result.Stderr))
 		}
 	} else {
-		// 独立磁盘：使用 cp 复制
-		progressFn(20, "正在复制磁盘文件...")
-		logger.App.Info("导出 VM: 独立磁盘，使用 cp 复制", "vm", params.VMName)
-
-		var result *utils.CmdResult
+		progressFn(20, "正在复制系统盘文件...")
+		args := []string{"cp", "--sparse=always", diskInfo.Path, exportPath}
 		if useSudo {
-			result = utils.ExecCommandLongRunning("sudo", "-u", params.Username, "cp", "--sparse=always", diskInfo.Path, exportPath)
-		} else {
-			result = utils.ExecCommandLongRunning("cp", "--sparse=always", diskInfo.Path, exportPath)
+			args = append([]string{"sudo", "-u", params.Username}, args...)
 		}
+		result := utils.ExecCommandContextWithTimeout(ctx, args[0], 2*time.Hour, args[1:]...)
 		if result.Error != nil {
 			_ = os.Remove(exportPath)
-			return nil, fmt.Errorf("导出失败（cp）: %s", result.Stderr)
+			return nil, fmt.Errorf("复制系统盘失败: %s", strings.TrimSpace(result.Stderr))
 		}
 	}
-
-	// 检查取消
-	select {
-	case <-ctx.Done():
+	if err := checkExportCanceled(ctx); err != nil {
 		_ = os.Remove(exportPath)
-		return nil, taskqueue.ErrTaskCanceled
-	default:
+		return nil, err
+	}
+	_ = utils.ChownLibvirtQEMU(exportPath)
+	return finishExport(params.VMName, ExportFormatQCOW2, fileName, exportPath, progressFn), nil
+}
+
+func exportVMOVA(ctx context.Context, params *ExportVMParams, progressFn func(int, string)) (*ExportVMResult, error) {
+	options, err := GetVMExportOptions(params.VMName)
+	if err != nil {
+		return nil, err
+	}
+	if options.Status != "shut off" && options.Status != "shutoff" {
+		return nil, fmt.Errorf("标准 OVA 导出要求虚拟机先关机，当前状态: %s", options.Status)
+	}
+	selected, err := selectExportDisks(options.Disks, params.DiskDevices)
+	if err != nil {
+		return nil, err
+	}
+	progressFn(5, "已确认虚拟机配置和导出磁盘...")
+
+	tempBase := config.GlobalConfig.ApplianceTempDir
+	if tempBase == "" {
+		tempBase = filepath.Join(os.TempDir(), "kvm_console", "appliance")
+	}
+	if err := os.MkdirAll(tempBase, 0o755); err != nil {
+		return nil, fmt.Errorf("创建 OVA 临时目录失败: %w", err)
+	}
+	if err := checkOVAExportTempSpace(tempBase, selected); err != nil {
+		return nil, err
+	}
+	workDir, err := os.MkdirTemp(tempBase, "export-")
+	if err != nil {
+		return nil, fmt.Errorf("创建 OVA 工作目录失败: %w", err)
+	}
+	defer os.RemoveAll(workDir)
+
+	exportDisks := make([]appliance.ExportDisk, 0, len(selected))
+	for i, disk := range selected {
+		if err := checkExportCanceled(ctx); err != nil {
+			return nil, err
+		}
+		progress := 10 + i*55/len(selected)
+		progressFn(progress, fmt.Sprintf("正在转换磁盘 %s（%d/%d）...", disk.Device, i+1, len(selected)))
+		fileName := fmt.Sprintf("disk-%02d-%s.vmdk", i+1, disk.Device)
+		target := filepath.Join(workDir, fileName)
+		result := utils.ExecCommandContextWithTimeout(ctx, "qemu-img", 4*time.Hour,
+			"convert", "-O", "vmdk", "-o", "subformat=streamOptimized", disk.path, target)
+		if result.Error != nil {
+			return nil, fmt.Errorf("转换磁盘 %s 为 VMDK 失败: %s", disk.Device, strings.TrimSpace(result.Stderr))
+		}
+		info, statErr := os.Stat(target)
+		if statErr != nil {
+			return nil, fmt.Errorf("读取转换后磁盘 %s 失败: %w", disk.Device, statErr)
+		}
+		exportDisks = append(exportDisks, appliance.ExportDisk{
+			ID: disk.Device, FileName: fileName, FilePath: target,
+			CapacityBytes: disk.CapacityBytes, FileSize: info.Size(), Bus: disk.Bus,
+		})
 	}
 
-	progressFn(90, "设置文件权限...")
+	progressFn(70, "正在生成 OVF 描述和完整性清单...")
+	configData, err := buildApplianceExportConfig(params.VMName, exportDisks)
+	if err != nil {
+		return nil, err
+	}
+	ovf, err := appliance.BuildOVF(configData)
+	if err != nil {
+		return nil, err
+	}
+	descriptorName := params.VMName + ".ovf"
+	tempOVA := filepath.Join(workDir, params.VMName+".ova")
+	progressFn(76, "正在封装 OVA 文件...")
+	if err := appliance.CreateOVA(ctx, tempOVA, descriptorName, ovf, exportDisks); err != nil {
+		return nil, fmt.Errorf("封装 OVA 失败: %w", err)
+	}
+	if err := checkExportCanceled(ctx); err != nil {
+		return nil, err
+	}
 
-	// 设置文件权限（确保 VM 和 web 服务都能访问）
-	_ = utils.ChownLibvirtQEMU(exportPath)
+	timestamp := time.Now().Format("20060102-150405")
+	fileName := fmt.Sprintf("%s-export-%s.ova", params.VMName, timestamp)
+	exportDir := D.GetUserDiskDir(params.Username)
+	if err := os.MkdirAll(exportDir, 0o775); err != nil {
+		return nil, fmt.Errorf("创建导出目录失败: %w", err)
+	}
+	finalPath := filepath.Join(exportDir, fileName)
+	partialPath := finalPath + ".partial"
+	defer os.Remove(partialPath)
+	progressFn(90, "正在写入我的存储并校验配额...")
+	writeUser, err := prepareOVAExportUser(params.Username, workDir, tempOVA)
+	if err != nil {
+		return nil, err
+	}
+	args := []string{"cp", tempOVA, partialPath}
+	if writeUser != "" {
+		args = append([]string{"sudo", "-u", writeUser}, args...)
+	}
+	copyResult := utils.ExecCommandContextWithTimeout(ctx, args[0], 4*time.Hour, args[1:]...)
+	if copyResult.Error != nil {
+		return nil, fmt.Errorf("写入我的存储失败，请检查存储配额: %s", strings.TrimSpace(copyResult.Stderr))
+	}
+	if err := os.Rename(partialPath, finalPath); err != nil {
+		return nil, fmt.Errorf("完成 OVA 文件落盘失败: %w", err)
+	}
+	logger.App.Info("OVA 导出完成", "vm", params.VMName, "disks", len(selected), "file", finalPath)
+	return finishExport(params.VMName, ExportFormatOVA, fileName, finalPath, progressFn), nil
+}
 
-	// 获取导出文件大小
-	sizeResult := utils.ExecShell(fmt.Sprintf("du -h %s | awk '{print $1}'", utils.ShellSingleQuote(exportPath)))
+func checkOVAExportTempSpace(tempDir string, disks []VMExportDiskOption) error {
+	var sourceBytes int64
+	for _, disk := range disks {
+		if disk.ActualBytes > 0 {
+			sourceBytes += disk.ActualBytes
+		} else {
+			sourceBytes += disk.CapacityBytes
+		}
+	}
+	_, _, availableKB, err := utils.GetDiskSpace(tempDir)
+	if err != nil {
+		if runtime.GOOS == "linux" {
+			return fmt.Errorf("检查 OVA 临时空间失败: %w", err)
+		}
+		return nil
+	}
+	required := sourceBytes*220/100 + 64*1024*1024
+	if availableKB*1024 < required {
+		return fmt.Errorf("OVA 临时空间不足，需要至少 %d MB，当前可用 %d MB", required/1024/1024, availableKB/1024)
+	}
+	return nil
+}
+
+func selectExportDisks(all []VMExportDiskOption, devices []string) ([]VMExportDiskOption, error) {
+	requested := map[string]bool{}
+	for _, device := range devices {
+		if value := strings.TrimSpace(device); value != "" {
+			requested[value] = true
+		}
+	}
+	known := map[string]bool{}
+	for _, disk := range all {
+		known[disk.Device] = true
+	}
+	for device := range requested {
+		if !known[device] {
+			return nil, fmt.Errorf("请求导出的磁盘设备不存在: %s", device)
+		}
+	}
+	var selected []VMExportDiskOption
+	systemSelected := false
+	for _, disk := range all {
+		want := len(requested) == 0 || requested[disk.Device] || disk.IsSystem
+		if !want {
+			continue
+		}
+		if !disk.Supported {
+			if disk.IsSystem || requested[disk.Device] {
+				return nil, fmt.Errorf("磁盘 %s 当前不可导出: %s", disk.Device, disk.Reason)
+			}
+			continue
+		}
+		selected = append(selected, disk)
+		systemSelected = systemSelected || disk.IsSystem
+	}
+	if !systemSelected {
+		return nil, fmt.Errorf("OVA 导出需要包含系统盘")
+	}
+	return selected, nil
+}
+
+func buildApplianceExportConfig(vmName string, disks []appliance.ExportDisk) (appliance.ExportConfig, error) {
+	xmlText, err := libvirt_rpc.GetDomainXMLRPC(vmName, 0)
+	if err != nil {
+		return appliance.ExportConfig{}, fmt.Errorf("读取虚拟机 XML 失败: %w", err)
+	}
+	var domain exportDomainXML
+	if err := xml.Unmarshal([]byte(xmlText), &domain); err != nil {
+		return appliance.ExportConfig{}, fmt.Errorf("解析虚拟机 XML 失败: %w", err)
+	}
+	ramBytes := memoryToBytes(domain.Memory.Value, domain.Memory.Unit)
+	networks := []appliance.Network{}
+	for i, nic := range libvirt_rpc.ParseInterfacesFromDomainXML(xmlText) {
+		networks = append(networks, appliance.Network{Name: fmt.Sprintf("network-%d", i+1), Model: nic.Model})
+	}
+	bootType := "bios"
+	if strings.TrimSpace(domain.OS.Loader) != "" {
+		bootType = "uefi"
+	}
+	return appliance.ExportConfig{
+		Name: vmName, Architecture: domain.OS.Type.Arch, VCPU: domain.VCPU,
+		RAMMB: int(ramBytes / 1024 / 1024), BootType: bootType,
+		MachineType: domain.OS.Type.Machine, OSType: DetectVMOSType("", xmlText),
+		Disks: disks, Networks: networks,
+	}, nil
+}
+
+func memoryToBytes(value int64, unit string) int64 {
+	switch strings.ToLower(strings.TrimSpace(unit)) {
+	case "b", "bytes":
+		return value
+	case "mb", "mib":
+		return value * 1024 * 1024
+	case "gb", "gib":
+		return value * 1024 * 1024 * 1024
+	default:
+		return value * 1024
+	}
+}
+
+func prepareExportUser(username string) bool {
+	if username == "" {
+		return false
+	}
+	check := utils.ExecCommandQuiet("id", username)
+	if check.ExitCode != 0 {
+		return false
+	}
+	utils.ExecCommand("usermod", "-aG", "kvm", username)
+	return true
+}
+
+func prepareOVAExportUser(username, workDir, sourcePath string) (string, error) {
+	writeUser := ""
+	if username != "" {
+		if _, _, err := utils.GetUserIDs(username, ""); err == nil {
+			writeUser = username
+		}
+	}
+	if writeUser == "" {
+		qemuUser, err := utils.ResolveLibvirtQEMUUser()
+		if err != nil {
+			if runtime.GOOS != "linux" {
+				return "", nil
+			}
+			return "", fmt.Errorf("准备我的存储写入身份失败: %w", err)
+		}
+		writeUser = qemuUser
+	}
+	if result := utils.ExecCommand("chown", writeUser, workDir, sourcePath); result.Error != nil {
+		return "", fmt.Errorf("设置 OVA 临时文件用户权限失败: %s", strings.TrimSpace(result.Stderr))
+	}
+	if err := os.Chmod(workDir, 0o700); err != nil {
+		return "", err
+	}
+	if err := os.Chmod(sourcePath, 0o600); err != nil {
+		return "", err
+	}
+	return writeUser, nil
+}
+
+func checkExportCanceled(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return taskqueue.ErrTaskCanceled
+	default:
+		return nil
+	}
+}
+
+func finishExport(vmName, format, fileName, path string, progressFn func(int, string)) *ExportVMResult {
+	sizeResult := utils.ExecShell(fmt.Sprintf("du -h %s | awk '{print $1}'", utils.ShellSingleQuote(path)))
 	fileSize := "未知"
 	if sizeResult.Error == nil {
 		fileSize = strings.TrimSpace(sizeResult.Stdout)
 	}
-
 	progressFn(100, fmt.Sprintf("导出完成，文件大小: %s", fileSize))
-
-	return &ExportVMResult{
-		VMName:   params.VMName,
-		FileName: exportFileName,
-		FilePath: exportPath,
-		FileSize: fileSize,
-	}, nil
+	return &ExportVMResult{VMName: vmName, Format: format, FileName: fileName, FilePath: path, FileSize: fileSize}
 }

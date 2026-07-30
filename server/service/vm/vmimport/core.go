@@ -70,6 +70,9 @@ func ImportVM(ctx context.Context, params *ImportVMParams, progressFn func(int, 
 	if strings.Contains(params.DiskFile, "/") || strings.Contains(params.DiskFile, "..") {
 		return nil, fmt.Errorf("非法磁盘文件名: %s", params.DiskFile)
 	}
+	if ext := strings.ToLower(filepath.Ext(params.DiskFile)); ext == ".ova" || ext == ".ovf" || ext == ".mf" {
+		return nil, fmt.Errorf("普通磁盘导入不接受 %s，请使用导入虚拟机功能", ext)
+	}
 
 	// 源磁盘路径（用户 disk 目录中）
 	srcDiskPath := filepath.Join(service.GetUserDiskDir(params.Username), params.DiskFile)

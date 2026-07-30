@@ -22,7 +22,26 @@ import (
 
 // ExportVMRequest 导出虚拟机请求
 type ExportVMRequest struct {
-	VMName string `json:"vm_name" binding:"required"`
+	VMName      string   `json:"vm_name" binding:"required"`
+	Format      string   `json:"format"`
+	DiskDevices []string `json:"disk_devices"`
+}
+
+// GetVMExportOptionsHandler 获取虚拟机状态和可导出磁盘。
+func GetVMExportOptionsHandler(c *gin.Context) {
+	vmName := c.Param("name")
+	username, _ := c.Get("username")
+	role, _ := c.Get("role")
+	if role != "admin" && !service.UserOwnsVM(username.(string), vmName) {
+		c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": "无权操作此虚拟机"})
+		return
+	}
+	options, err := service.GetVMExportOptions(vmName)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "ok", "data": options})
 }
 
 // ExportVMHandler 导出虚拟机（用户自助）
@@ -60,25 +79,56 @@ func ExportVMHandler(c *gin.Context) {
 		return
 	}
 
-	// 检查配额：要求可用空间 >= 4GB（实际写入超标由文件系统 quota 硬限制阻止）
-	storageInfo, _ := service.GetUserStorageInfo(usernameStr)
-	if storageInfo != nil && storageInfo.MaxBytes > 0 {
-		freeBytes := storageInfo.MaxBytes - storageInfo.UsedBytes
-		const minFreeBytes int64 = 4 * 1024 * 1024 * 1024 // 4GB
-		if freeBytes < minFreeBytes {
-			c.JSON(http.StatusForbidden, gin.H{
-				"code": 403,
-				"message": fmt.Sprintf("存储可用空间不足 4GB（当前可用 %s），请先删除部分文件后再导出",
-					service.FormatBytesPublic(freeBytes)),
-			})
+	format := strings.ToLower(strings.TrimSpace(req.Format))
+	if format == "" {
+		format = "qcow2"
+	}
+	if format != "qcow2" && format != "ova" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "导出格式仅支持 qcow2 或 ova"})
+		return
+	}
+	// 依据实际选择预估空间，最终仍由 project quota 在写入时强制限制。
+	var estimate int64
+	if format == "ova" {
+		options, err := service.GetVMExportOptions(req.VMName)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+			return
+		}
+		if options.Status != "shut off" && options.Status != "shutoff" {
+			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "标准 OVA 导出要求虚拟机先关机"})
+			return
+		}
+		selected := map[string]bool{}
+		for _, device := range req.DiskDevices {
+			selected[strings.TrimSpace(device)] = true
+		}
+		for _, disk := range options.Disks {
+			if disk.IsSystem || len(selected) == 0 || selected[disk.Device] {
+				if disk.ActualBytes > 0 {
+					estimate += disk.ActualBytes
+				} else {
+					estimate += disk.CapacityBytes
+				}
+			}
+		}
+		estimate = estimate * 120 / 100
+	} else {
+		estimate, _ = service.GetVMExportSize(req.VMName)
+	}
+	if estimate > 0 {
+		if err := service.CheckStorageQuota(usernameStr, estimate); err != nil {
+			c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": err.Error()})
 			return
 		}
 	}
 
 	// 提交导出任务
 	params := &service.ExportVMParams{
-		VMName:   req.VMName,
-		Username: usernameStr,
+		VMName:      req.VMName,
+		Username:    usernameStr,
+		Format:      format,
+		DiskDevices: req.DiskDevices,
 	}
 	task, err := taskqueue.SubmitWithStruct(model.TaskTypeExport, params, usernameStr)
 	if err != nil {
@@ -311,7 +361,7 @@ func UploadDiskFile(c *gin.Context) {
 
 	// 磁盘文件后缀检查
 	nameLower := strings.ToLower(header.Filename)
-	validExts := []string{".qcow2", ".raw", ".vmdk", ".vhd", ".vhdx", ".img", ".vfd"}
+	validExts := []string{".qcow2", ".raw", ".vmdk", ".vhd", ".vhdx", ".img", ".vfd", ".ova", ".ovf", ".mf"}
 	validExt := false
 	for _, ext := range validExts {
 		if strings.HasSuffix(nameLower, ext) {

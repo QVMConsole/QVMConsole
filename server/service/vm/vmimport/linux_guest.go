@@ -175,17 +175,18 @@ func importDiskByPathLinuxDefine(params *ImportDiskByPathParams, destDiskPath, f
 	} else {
 		networkArg = "--network none "
 	}
+	systemDiskBus := normalizeImportDiskBus(params.SystemDiskBus)
 	installCmd := fmt.Sprintf(
 		"virt-install --name '%s' --ram %d %s "+
 			"--machine %s "+
 			bootOpt+
-			"--disk '%s,format=%s,bus=virtio,discard=unmap,detect_zeroes=unmap' "+
+			"--disk '%s,format=%s,bus=%s,discard=unmap,detect_zeroes=unmap' "+
 			"--osinfo detect=on,require=off "+
 			networkArg+
 			"--graphics vnc,listen=0.0.0.0 "+
 			"--video virtio "+
 			"--import --cpu host-passthrough --virt-type kvm --print-xml",
-		params.Name, ramMB, vcpuArg, params.MachineType, destDiskPath, format,
+		params.Name, ramMB, vcpuArg, params.MachineType, destDiskPath, format, systemDiskBus,
 	)
 	result := utils.ExecCommandLongRunning("bash", "-c", installCmd)
 	if result.Error != nil {

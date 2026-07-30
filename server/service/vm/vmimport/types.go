@@ -68,6 +68,7 @@ type ImportDiskByPathParams struct {
 	DiskFile         string                            `json:"disk_file,omitempty"`        // 存储文件名（主磁盘 storage 模式）
 	DiskSourceType   string                            `json:"disk_source_type,omitempty"` // path/storage（主磁盘）
 	StoragePoolID    string                            `json:"storage_pool_id,omitempty"`
+	SystemDiskBus    string                            `json:"system_disk_bus,omitempty"`
 	VCPU             int                               `json:"vcpu"`
 	MaxVCPU          int                               `json:"max_vcpu,omitempty"` // CPU 热添加上限
 	RAM              int                               `json:"ram"`
@@ -104,6 +105,8 @@ type ImportDiskByPathParams struct {
 	StartAfterImport bool                              `json:"start_after_import"`           // 导入完成后是否开启虚拟机，默认 true
 	KVMHidden        *bool                             `json:"kvm_hidden,omitempty"`         // 隐藏 KVM 标志
 	VendorID         string                            `json:"vendor_id,omitempty"`          // Hyper-V vendor_id 伪装
+	// trustedApplianceSource 仅在虚拟机包完成归档、路径和清单校验后由任务内部设置。
+	trustedApplianceSource bool
 }
 
 // ExtraImportDiskEntry 额外导入磁盘条目

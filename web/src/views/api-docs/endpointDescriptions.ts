@@ -410,6 +410,16 @@ export const endpointDescriptions: Record<string, EndpointDescription> = {
     body: 'JSON: name, disk_path/disk_file, disk_source_type, storage_pool_id, vcpu, ram, copy_disk, init_type, hostname, user, password 等导入表单字段',
     response: 'data: task_id。导入为异步任务。',
   },
+  'POST /vm/import-appliance/inspect': {
+    summary: '管理员检查 OVF/OVA 虚拟机包',
+    body: 'JSON: appliance_file/appliance_path, source_type(storage/path)',
+    response: 'data: source_format, name, architecture, vcpu, ram, boot_type, machine_type, os_type, disks, networks, warnings。',
+  },
+  'POST /vm/import-appliance': {
+    summary: '管理员导入 OVF/OVA 虚拟机包',
+    body: 'JSON: appliance_file/appliance_path, source_type, config_mode(ovf/custom), copy_source，以及 name, vcpu, ram, storage_pool_id, 网络映射、开机自启和导入后启动配置',
+    response: 'data: task_id。接口立即创建 import_appliance 任务，完整包校验、架构检查、配额复核和解包在任务中执行。',
+  },
   'GET /vm/os-variants': { summary: '获取 libosinfo 系统变体列表', response: 'data: OS variant 列表。' },
   'GET /vm/iso-list': { summary: '获取全局 ISO 列表', response: 'data: ISO 文件列表。' },
   'POST /vm/clone': {
@@ -766,11 +776,25 @@ export const endpointDescriptions: Record<string, EndpointDescription> = {
   'GET /self/vm/:name/qcow2-disks': { summary: '获取自己的 VM qcow2 磁盘列表' },
   'POST /self/vm/export': {
     summary: '导出自己的 VM',
-    body: 'JSON: vm_name, export_name, include_snapshots, target_storage/category',
+    body: 'JSON: vm_name, format(qcow2/ova，省略时为 qcow2), disk_devices。OVA 的系统盘固定导出，数据盘可选。',
+  },
+  'GET /self/vm/:name/export-options': {
+    summary: '获取虚拟机导出选项',
+    response: 'data: vm_name, status, disks（设备名、格式、总线、容量、系统盘标记和兼容状态）。',
   },
   'POST /self/vm/import': {
     summary: '导入 VM 到自己账号',
     body: 'JSON: file/category/path, name, remark, vcpu, ram, switch_id, security_group_id, credentials 等',
+  },
+  'POST /self/vm/import-appliance/inspect': {
+    summary: '检查我的存储中的 OVF/OVA 虚拟机包',
+    body: 'JSON: appliance_file, source_type(storage)',
+    response: 'data: ApplianceMetadata，包含硬件、全部磁盘、网卡与兼容性提示。',
+  },
+  'POST /self/vm/import-appliance': {
+    summary: '从我的存储导入 OVF/OVA 虚拟机包',
+    body: 'JSON: appliance_file, source_type(storage), config_mode(ovf/custom), copy_source，以及最终硬件、目标存储、网络映射和导入后启动配置',
+    response: 'data: task_id。创建操作保留二次验证；完整包校验与配额复核在异步任务中执行。',
   },
   'GET /self/storage/info': { summary: '获取我的存储信息' },
   'POST /self/storage/init': { summary: '初始化我的存储' },

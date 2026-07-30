@@ -50,6 +50,8 @@ type Config struct {
 	TemplateImportDir string `json:"template_import_dir"`
 	// 模板导出目录
 	TemplateExportDir string `json:"template_export_dir"`
+	// OVF/OVA 导入导出临时目录
+	ApplianceTempDir string `json:"appliance_temp_dir"`
 	// 克隆磁盘目录
 	CloneDir string `json:"clone_dir"`
 	// 全局 ISO 目录
@@ -219,6 +221,7 @@ func Init() {
 		TemplateDir:                           templateDir,
 		TemplateImportDir:                     getEnv("KVM_TEMPLATE_IMPORT_DIR", filepath.Join(templateDir, "_imports")),
 		TemplateExportDir:                     getEnv("KVM_TEMPLATE_EXPORT_DIR", filepath.Join(templateDir, "_exports")),
+		ApplianceTempDir:                      getEnv("KVM_APPLIANCE_TEMP_DIR", filepath.Join(templateDir, "_appliance")),
 		CloneDir:                              getEnv("KVM_CLONE_DIR", "/var/lib/libvirt/images"),
 		ISODir:                                getEnv("KVM_ISO_DIR", DefaultISODir),
 		DefaultNetwork:                        getEnv("KVM_DEFAULT_NETWORK", "default"),
@@ -461,6 +464,7 @@ var PersistableKeys = []string{
 	"template_dir",
 	"template_import_dir",
 	"template_export_dir",
+	"appliance_temp_dir",
 	"clone_dir",
 	"iso_dir",
 	"default_network",
@@ -537,6 +541,7 @@ var keyToEnvVar = map[string]string{
 	"template_dir":              "KVM_TEMPLATE_DIR",
 	"template_import_dir":       "KVM_TEMPLATE_IMPORT_DIR",
 	"template_export_dir":       "KVM_TEMPLATE_EXPORT_DIR",
+	"appliance_temp_dir":        "KVM_APPLIANCE_TEMP_DIR",
 	"clone_dir":                 "KVM_CLONE_DIR",
 	"iso_dir":                   "KVM_ISO_DIR",
 	"default_network":           "KVM_DEFAULT_NETWORK",
@@ -629,6 +634,8 @@ func (c *Config) LoadFromDB(settings map[string]string) {
 			c.TemplateImportDir = value
 		case "template_export_dir":
 			c.TemplateExportDir = value
+		case "appliance_temp_dir":
+			c.ApplianceTempDir = value
 		case "clone_dir":
 			c.CloneDir = value
 		case "iso_dir":
@@ -843,6 +850,7 @@ func (c *Config) ToSettingsMap() map[string]string {
 		"template_dir":              c.TemplateDir,
 		"template_import_dir":       c.TemplateImportDir,
 		"template_export_dir":       c.TemplateExportDir,
+		"appliance_temp_dir":        c.ApplianceTempDir,
 		"clone_dir":                 c.CloneDir,
 		"iso_dir":                   c.ISODir,
 		"default_network":           c.DefaultNetwork,

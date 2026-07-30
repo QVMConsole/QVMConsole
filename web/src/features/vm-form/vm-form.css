@@ -177,7 +177,7 @@
 /* ==================== 创建方式卡片 ==================== */
 .qvm-vf-mode-cards {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
 }
 .qvm-vf-mode-card {
@@ -214,6 +214,95 @@
   font-size: 12.5px;
   color: var(--qvm-text-2);
   line-height: 1.6;
+}
+body[theme-mode='dark'] .qvm-vf-mode-card-title,
+body[theme-mode='dark'] .qvm-vf-section-title,
+body[theme-mode='dark'] .qvm-vf-appliance-mode-option .semi-radio-addon,
+body[theme-mode='dark'] .qvm-vf-appliance-meta strong {
+  color: #b8c1cf;
+}
+
+/* ==================== OVF / OVA 虚拟机包 ==================== */
+.qvm-vf-appliance-mode-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+  width: 100%;
+}
+.qvm-vf-appliance-mode-option.semi-radio {
+  width: 100%;
+  min-height: 104px;
+  margin: 0;
+}
+.qvm-vf-appliance-mode-option .semi-radio-addon {
+  color: var(--qvm-text-1);
+  font-weight: 600;
+}
+.qvm-vf-appliance-mode-option .semi-radio-extra {
+  color: var(--qvm-text-2);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.qvm-vf-select-file {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.qvm-vf-select-file > span:last-child {
+  color: var(--qvm-text-2);
+  font-size: 12px;
+}
+.qvm-vf-appliance-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.qvm-vf-appliance-meta {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  margin-bottom: 14px;
+  border: 1px solid var(--qvm-stroke);
+  border-radius: 10px;
+  background: var(--qvm-hover-bg);
+}
+.qvm-vf-appliance-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.qvm-vf-appliance-meta-grid > span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: var(--qvm-text-2);
+  font-size: 12px;
+}
+.qvm-vf-appliance-meta-grid strong {
+  color: var(--qvm-text-1);
+  font-size: 13px;
+}
+.qvm-vf-appliance-disks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.qvm-vf-appliance-disk-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+.qvm-vf-appliance-disk-list > div {
+  display: grid;
+  grid-template-columns: 100px minmax(0, 1fr) 110px 70px;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--qvm-stroke);
+  border-radius: 8px;
+  color: var(--qvm-text-1);
+  font-size: 12px;
 }
 
 /* ==================== OS 快捷卡片 ==================== */
@@ -612,8 +701,28 @@
   .qvm-vf-grid-3 {
     grid-template-columns: minmax(0, 1fr);
   }
-  .qvm-vf-mode-cards,
+  .qvm-vf-mode-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .qvm-vf-os-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .qvm-vf-appliance-meta-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .qvm-vf-mode-cards,
+  .qvm-vf-appliance-mode-list,
+  .qvm-vf-appliance-meta-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .qvm-vf-appliance-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .qvm-vf-appliance-disk-list > div {
     grid-template-columns: minmax(0, 1fr);
   }
 }

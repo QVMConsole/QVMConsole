@@ -178,6 +178,8 @@ func Setup() *gin.Engine {
 				// 普通创建
 				vm.POST("/create", middleware.ElasticCloudOnlyMiddleware(), handler.CreateVm)
 				vm.POST("/import-disk", middleware.ElasticCloudOnlyMiddleware(), middleware.AdminMiddleware(), handler.AdminImportDisk)
+				vm.POST("/import-appliance/inspect", middleware.ElasticCloudOnlyMiddleware(), middleware.AdminMiddleware(), handler.InspectAdminAppliance) // 检查 OVF/OVA 虚拟机包
+				vm.POST("/import-appliance", middleware.ElasticCloudOnlyMiddleware(), middleware.AdminMiddleware(), handler.ImportAdminAppliance)          // 导入 OVF/OVA 虚拟机包
 				vm.GET("/os-variants", handler.GetOSVariants)
 				vm.GET("/iso-list", handler.GetISOList)
 
@@ -216,9 +218,9 @@ func Setup() *gin.Engine {
 				vm.GET("/:name/disk-migration/options", middleware.AdminMiddleware(), handler.GetDiskMigrationOptions)
 				vm.POST("/:name/disk", middleware.ElasticCloudOnlyMiddleware(), handler.AddDisk)
 				vm.POST("/:name/disk/:dev/resize", middleware.ElasticCloudOnlyMiddleware(), handler.ResizeDisk)
-				vm.GET("/:name/disk/:dev/guest-status", handler.GetDiskGuestStatus) // 获取磁盘来宾映射与文件系统状态
+				vm.GET("/:name/disk/:dev/guest-status", handler.GetDiskGuestStatus)                                      // 获取磁盘来宾映射与文件系统状态
 				vm.POST("/:name/disk/:dev/guest-mount", middleware.ElasticCloudOnlyMiddleware(), handler.GuestMountDisk) // 配置或重试来宾磁盘挂载
-				vm.POST("/:name/disk/:dev/guest-grow", middleware.ElasticCloudOnlyMiddleware(), handler.GuestGrowDisk) // 重试 Linux 系统分区扩容
+				vm.POST("/:name/disk/:dev/guest-grow", middleware.ElasticCloudOnlyMiddleware(), handler.GuestGrowDisk)   // 重试 Linux 系统分区扩容
 				vm.PUT("/:name/disk/:dev/bus", middleware.ElasticCloudOnlyMiddleware(), handler.ChangeDiskBus)
 				vm.POST("/:name/disk/attach", middleware.ElasticCloudOnlyMiddleware(), handler.AttachDisk)
 				vm.POST("/:name/disk/import", middleware.ElasticCloudOnlyMiddleware(), middleware.AdminMiddleware(), handler.ImportDiskForVM)
@@ -454,8 +456,11 @@ func Setup() *gin.Engine {
 				self.GET("/vm/:name/qcow2-disks", handler.GetVmQcow2Disks)                                        // 获取qcow2磁盘列表
 
 				// 虚拟机导出/导入
-				self.POST("/vm/export", middleware.ElasticCloudOnlyMiddleware(), handler.ExportVMHandler) // 导出虚拟机
-				self.POST("/vm/import", middleware.ElasticCloudOnlyMiddleware(), handler.ImportVMHandler) // 导入虚拟机
+				self.GET("/vm/:name/export-options", handler.GetVMExportOptionsHandler)                                          // 获取虚拟机可导出磁盘
+				self.POST("/vm/export", middleware.ElasticCloudOnlyMiddleware(), handler.ExportVMHandler)                        // 导出虚拟机
+				self.POST("/vm/import", middleware.ElasticCloudOnlyMiddleware(), handler.ImportVMHandler)                        // 导入虚拟机
+				self.POST("/vm/import-appliance/inspect", middleware.ElasticCloudOnlyMiddleware(), handler.InspectSelfAppliance) // 检查我的存储 OVF/OVA
+				self.POST("/vm/import-appliance", middleware.ElasticCloudOnlyMiddleware(), handler.ImportSelfAppliance)          // 从 OVF/OVA 导入虚拟机
 
 				// 用户存储池
 				self.GET("/storage/info", middleware.ElasticCloudOnlyMiddleware(), handler.GetUserStorageInfo)                              // 存储池信息

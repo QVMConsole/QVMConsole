@@ -19,6 +19,7 @@ import type { VmFormModel } from './types'
 /** 校验上下文（创建模式分支判断） */
 export interface ValidateContext {
   isAdmin: boolean
+  hostArch: string
   isTemplateMode: boolean
   isWindowsTemplate: boolean
   isFnOSTemplate: boolean
@@ -150,6 +151,14 @@ export function validateCreateStep(
     }
     return ''
   }
+  if (step === 'appliance') {
+    if (ctx.isAdmin && form.appliance_source_type === 'path') {
+      if (!form.appliance_path) return '请输入 OVA/OVF 文件绝对路径'
+    } else if (!form.appliance_file) {
+      return '请选择 OVA/OVF 虚拟机包'
+    }
+    return ''
+  }
   if (step === 'hardware') {
     if (!form.vcpu || form.vcpu <= 0) return '请设置 CPU 核心数'
     if (!form.ram || form.ram <= 0) return '请设置内存大小'
@@ -178,7 +187,16 @@ export function collectMissingRequired(form: VmFormModel, ctx: ValidateContext):
   if (!VM_NAME_PATTERN.test(form.name)) missing.push('虚拟机名称')
   if (!form.vcpu || form.vcpu <= 0) missing.push('CPU 核心')
   if (!form.ram || form.ram <= 0) missing.push('内存')
-  if (!ctx.isAdmin && !form.security_group_id && !ctx.registrationMode) missing.push('安全组')
+  const taskMapsApplianceNetwork =
+    form.create_mode === 'appliance' && form.appliance_config_mode === 'ovf'
+  if (
+    !ctx.isAdmin &&
+    !form.security_group_id &&
+    !ctx.registrationMode &&
+    !taskMapsApplianceNetwork
+  ) {
+    missing.push('安全组')
+  }
   if (form.create_mode === 'iso') {
     if (!form.disk_size || form.disk_size <= 0) missing.push('系统盘大小')
   } else if (form.create_mode === 'import') {
@@ -186,6 +204,12 @@ export function collectMissingRequired(form: VmFormModel, ctx: ValidateContext):
       if (!form.disk_path) missing.push('磁盘路径')
     } else if (!form.disk_file) {
       missing.push('磁盘文件')
+    }
+  } else if (form.create_mode === 'appliance') {
+    if (ctx.isAdmin && form.appliance_source_type === 'path') {
+      if (!form.appliance_path) missing.push('虚拟机包路径')
+    } else if (!form.appliance_file) {
+      missing.push('虚拟机包')
     }
   } else if (ctx.isTemplateMode) {
     if (!form.template) missing.push('模板')

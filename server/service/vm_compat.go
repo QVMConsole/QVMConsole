@@ -50,6 +50,8 @@ type VMDiskMigrationDisk = vmpkg.VMDiskMigrationDisk
 
 type ExportVMParams = vmpkg.ExportVMParams
 type ExportVMResult = vmpkg.ExportVMResult
+type VMExportOptions = vmpkg.VMExportOptions
+type VMExportDiskOption = vmpkg.VMExportDiskOption
 
 // ── Password reset types ──
 

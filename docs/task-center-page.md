@@ -1,5 +1,7 @@
 # 任务中心页（新前端）
 
+> OVF/OVA 虚拟机包导入使用独立任务类型 `import_appliance`，在筛选项和任务详情中显示为“导入虚拟机包”；普通单磁盘导入仍使用原任务类型。
+
 > 对应路由：`/task`（所有登录用户；普通用户仅能看到自己的任务，由后端过滤）
 > 源码目录：`web/src/views/task/`
 > 旧版对照：`web-backup/src/views/task/index.vue`

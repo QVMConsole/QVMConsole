@@ -75,6 +75,9 @@ func ImportDiskByPath(ctx context.Context, params *ImportDiskByPathParams, progr
 	if mainDiskSrc == "" {
 		return nil, fmt.Errorf("磁盘路径不能为空")
 	}
+	if ext := strings.ToLower(filepath.Ext(mainDiskSrc)); ext == ".ova" || ext == ".ovf" || ext == ".mf" {
+		return nil, fmt.Errorf("普通磁盘导入不接受 %s，请使用导入虚拟机功能", ext)
+	}
 	if !filepath.IsAbs(mainDiskSrc) {
 		return nil, fmt.Errorf("磁盘路径必须是绝对路径: %s", mainDiskSrc)
 	}
@@ -82,8 +85,9 @@ func ImportDiskByPath(ctx context.Context, params *ImportDiskByPathParams, progr
 		return nil, fmt.Errorf("磁盘文件不存在: %s", mainDiskSrc)
 	}
 
-	// 安全检查：拒绝将模板目录中的文件作为 VM 系统盘导入
-	if config.GlobalConfig != nil && config.GlobalConfig.TemplateDir != "" {
+	// 普通磁盘导入继续拒绝模板文件；已完成归档、路径和清单校验的 appliance
+	// 临时磁盘允许位于默认的 TemplateDir/_appliance 工作目录中。
+	if !params.trustedApplianceSource && config.GlobalConfig != nil && config.GlobalConfig.TemplateDir != "" {
 		templateDir := filepath.Clean(config.GlobalConfig.TemplateDir)
 		cleanedSrc := filepath.Clean(mainDiskSrc)
 		if cleanedSrc == templateDir || strings.HasPrefix(cleanedSrc, templateDir+string(filepath.Separator)) {
@@ -130,10 +134,13 @@ func ImportDiskByPath(ctx context.Context, params *ImportDiskByPathParams, progr
 	if needsConversion {
 		// 非 qcow2 格式，使用 qemu-img convert 转换（源文件在 define 成功后删除）
 		progressFn(12, fmt.Sprintf("检测到 %s 格式，正在转换为 qcow2（此过程可能需要较长时间）...", srcFormat))
-		convertCmd := fmt.Sprintf("qemu-img convert -f '%s' -O qcow2 '%s' '%s'",
-			srcFormat, mainDiskSrc, destDiskPath)
-		convertResult := utils.ExecCommandLongRunning("bash", "-c", convertCmd)
+		convertResult := utils.ExecCommandContextWithTimeout(ctx, "qemu-img", 4*time.Hour,
+			"convert", "-f", srcFormat, "-O", "qcow2", mainDiskSrc, destDiskPath)
 		if convertResult.Error != nil {
+			_ = os.Remove(destDiskPath)
+			if ctx.Err() != nil {
+				return nil, taskqueue.ErrTaskCanceled
+			}
 			return nil, fmt.Errorf("磁盘格式转换失败: %s", convertResult.Stderr)
 		}
 		progressFn(20, "磁盘格式转换完成")
@@ -141,16 +148,24 @@ func ImportDiskByPath(ctx context.Context, params *ImportDiskByPathParams, progr
 		// 已经是 qcow2 格式，按是否保留原磁盘处理
 		if params.CopyDisk {
 			progressFn(12, "检测到 qcow2 格式，正在复制磁盘文件到目标存储位置（保留原文件）...")
-			cpResult := utils.ExecCommandLongRunning("cp", "--sparse=always", mainDiskSrc, destDiskPath)
+			cpResult := utils.ExecCommandContextWithTimeout(ctx, "cp", 4*time.Hour, "--sparse=always", mainDiskSrc, destDiskPath)
 			if cpResult.Error != nil {
+				_ = os.Remove(destDiskPath)
+				if ctx.Err() != nil {
+					return nil, taskqueue.ErrTaskCanceled
+				}
 				return nil, fmt.Errorf("复制磁盘文件失败: %s", cpResult.Stderr)
 			}
 			progressFn(20, "磁盘文件复制完成")
 		} else {
 			// 不保留原文件，先复制（define 成功后再删除源文件，避免 define 失败时源数据丢失）
 			progressFn(12, "检测到 qcow2 格式，正在复制磁盘文件到目标存储位置（不保留原文件）...")
-			cpResult := utils.ExecCommandLongRunning("cp", "--sparse=always", mainDiskSrc, destDiskPath)
+			cpResult := utils.ExecCommandContextWithTimeout(ctx, "cp", 4*time.Hour, "--sparse=always", mainDiskSrc, destDiskPath)
 			if cpResult.Error != nil {
+				_ = os.Remove(destDiskPath)
+				if ctx.Err() != nil {
+					return nil, taskqueue.ErrTaskCanceled
+				}
 				return nil, fmt.Errorf("复制磁盘文件失败: %s", cpResult.Stderr)
 			}
 			progressFn(20, "磁盘文件复制完成")
@@ -352,6 +367,12 @@ func importSingleDiskToVM(ctx context.Context, vmName string, entry *ExtraImport
 	// 目标路径
 	ts := time.Now().Format("20060102150405")
 	destDiskPath := filepath.Join(targetDir, fmt.Sprintf("%s-%s-%s.qcow2", vmName, nextDev, ts))
+	completed := false
+	defer func() {
+		if !completed {
+			_ = os.Remove(destDiskPath)
+		}
+	}()
 
 	// 复制/转换/移动
 	select {
@@ -363,23 +384,32 @@ func importSingleDiskToVM(ctx context.Context, vmName string, entry *ExtraImport
 	needsConversion := srcFormat != "qcow2"
 	if needsConversion {
 		progressFn(10, fmt.Sprintf("检测到 %s 格式，正在转换为 qcow2...", srcFormat))
-		convertCmd := fmt.Sprintf("qemu-img convert -f '%s' -O qcow2 '%s' '%s'", srcFormat, srcDiskPath, destDiskPath)
-		convertResult := utils.ExecCommandLongRunning("bash", "-c", convertCmd)
+		convertResult := utils.ExecCommandContextWithTimeout(ctx, "qemu-img", 4*time.Hour,
+			"convert", "-f", srcFormat, "-O", "qcow2", srcDiskPath, destDiskPath)
 		if convertResult.Error != nil {
+			if ctx.Err() != nil {
+				return "", taskqueue.ErrTaskCanceled
+			}
 			return "", fmt.Errorf("磁盘格式转换失败: %s", convertResult.Stderr)
 		}
 	} else {
 		if entry.CopyDisk {
 			progressFn(10, "正在复制磁盘文件（保留原文件）...")
-			cpResult := utils.ExecCommandLongRunning("cp", "--sparse=always", srcDiskPath, destDiskPath)
+			cpResult := utils.ExecCommandContextWithTimeout(ctx, "cp", 4*time.Hour, "--sparse=always", srcDiskPath, destDiskPath)
 			if cpResult.Error != nil {
+				if ctx.Err() != nil {
+					return "", taskqueue.ErrTaskCanceled
+				}
 				return "", fmt.Errorf("复制磁盘文件失败: %s", cpResult.Stderr)
 			}
 		} else {
 			// 不保留原文件，先复制（挂载成功后再删除源文件，避免挂载失败时源数据丢失）
 			progressFn(10, "正在复制磁盘文件（不保留原文件）...")
-			cpResult := utils.ExecCommandLongRunning("cp", "--sparse=always", srcDiskPath, destDiskPath)
+			cpResult := utils.ExecCommandContextWithTimeout(ctx, "cp", 4*time.Hour, "--sparse=always", srcDiskPath, destDiskPath)
 			if cpResult.Error != nil {
+				if ctx.Err() != nil {
+					return "", taskqueue.ErrTaskCanceled
+				}
 				return "", fmt.Errorf("复制磁盘文件失败: %s", cpResult.Stderr)
 			}
 		}
@@ -400,6 +430,7 @@ func importSingleDiskToVM(ctx context.Context, vmName string, entry *ExtraImport
 	if !entry.CopyDisk {
 		_ = os.Remove(srcDiskPath)
 	}
+	completed = true
 	progressFn(100, "磁盘导入完成")
 	return nextDev, nil
 }

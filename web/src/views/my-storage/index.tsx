@@ -320,7 +320,7 @@ export default function MyStoragePage() {
         item.category === 'iso'
           ? '.iso'
           : item.category === 'disk'
-            ? '.qcow2,.raw,.vmdk,.vhd,.vhdx,.img,.vfd'
+            ? '.qcow2,.raw,.vmdk,.vhd,.vhdx,.img,.vfd,.ova,.ovf,.mf'
             : ''
       input.accept = accept
       input.value = ''

@@ -37,7 +37,7 @@ export default function ConfirmSection() {
 
   const createModeLabel = useMemo(() => {
     if (ctx.registration.enabled) return '轻量云服务器登记'
-    const map: Record<string, string> = { iso: 'ISO 镜像安装', template: '模板克隆', import: '导入磁盘' }
+    const map: Record<string, string> = { iso: 'ISO 镜像安装', template: '模板克隆', import: '导入已有磁盘', appliance: '导入虚拟机' }
     const base = map[f.create_mode] || f.create_mode
     if (isTemplateSourceMode) {
       return base + (f.clone_mode === 'full' ? '（完整克隆）' : '（链式克隆）')
@@ -70,6 +70,10 @@ export default function ConfirmSection() {
   const storageLabel = resolveStorageTargetLabel(options.storageTargets, f.storage_pool_id)
 
   const validNics = f.extra_nics.filter((n) => n.switch_id)
+  const applianceDiskGB = useMemo(
+    () => Math.ceil((f.appliance_metadata?.disks.reduce((sum, disk) => sum + disk.capacity_bytes, 0) || 0) / 1024 / 1024 / 1024),
+    [f.appliance_metadata],
+  )
 
   // 高级选项非默认项汇总
   const advancedItems = useMemo(() => {
@@ -127,7 +131,7 @@ export default function ConfirmSection() {
           rows={[
             { label: 'CPU', value: `${f.vcpu} 核` },
             { label: '内存', value: `${f.ram} GB` },
-            f.create_mode === 'iso' || f.create_mode === 'import'
+            f.create_mode === 'iso' || f.create_mode === 'import' || f.create_mode === 'appliance'
               ? { label: '虚拟化方案', value: f.virt_type === 'kvm' ? 'KVM 硬件虚拟化' : `QEMU 软件虚拟化（${f.arch}）` }
               : null,
             { label: '芯片组', value: f.machine_type?.toUpperCase() },
@@ -174,6 +178,29 @@ export default function ConfirmSection() {
               : null,
           ]}
         />
+        {f.create_mode === 'appliance' && (
+          <SummaryGroup
+            title="虚拟机包信息"
+            rows={[
+              { label: '源文件', value: f.appliance_source_type === 'path' ? f.appliance_path : f.appliance_file },
+              { label: '配置方式', value: f.appliance_config_mode === 'ovf' ? '跟随 OVF 配置' : '自定义配置' },
+              f.appliance_metadata
+                ? { label: '包格式', value: f.appliance_metadata.source_format.toUpperCase() }
+                : null,
+              f.appliance_metadata
+                ? { label: '包内名称', value: f.appliance_metadata.name || '未声明' }
+                : null,
+              f.appliance_metadata
+                ? { label: '原始配置', value: `${f.appliance_metadata.vcpu} 核 / ${f.appliance_metadata.ram} GB / ${f.appliance_metadata.boot_type || '默认固件'}` }
+                : null,
+              f.appliance_metadata
+                ? { label: '包内设备', value: `${f.appliance_metadata.disks.length} 块磁盘 / ${f.appliance_metadata.networks.length} 个网口` }
+                : { label: '任务校验', value: '提交后在异步任务中解析并校验虚拟机包' },
+              { label: '源文件策略', value: f.copy_source ? '导入成功后保留' : '完整导入成功后删除' },
+              { label: '导入后', value: f.start_after_import ? '自动开机' : '保持关机' },
+            ]}
+          />
+        )}
         <SummaryGroup
           title="网络与系统"
           rows={[
@@ -217,7 +244,7 @@ export default function ConfirmSection() {
         <div className="qvm-vf-confirm-total">
           <span>预估资源占用</span>
           <strong>
-            CPU {f.vcpu} 核 / 内存 {f.ram} GB{f.disk_size > 0 ? ` / 磁盘 ${f.disk_size} GB` : ''}
+            CPU {f.vcpu} 核 / 内存 {f.ram} GB{f.create_mode === 'appliance' && applianceDiskGB > 0 ? ` / 包内磁盘 ${applianceDiskGB} GB` : f.disk_size > 0 ? ` / 磁盘 ${f.disk_size} GB` : ''}
             {isTemplateSourceMode && f.batch_count > 1 ? ` × ${f.batch_count} 台` : ''}
           </strong>
         </div>

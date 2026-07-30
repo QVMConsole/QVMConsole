@@ -378,6 +378,12 @@ export function useVmForm({ isEdit, registration, hostArch }: UseVmFormParams) {
           next.disk_source_type = 'storage'
           next.disk_path = ''
           next.extra_import_disks = []
+        } else if (mode === 'appliance') {
+          next.boot_order = ['hd']
+          next.appliance_source_type = 'storage'
+          next.appliance_config_mode = 'ovf'
+          next.appliance_path = ''
+          next.appliance_metadata = null
         } else if (mode === 'template') {
           next.boot_order = ['hd']
           next.clone_mode = 'linked'
@@ -391,7 +397,7 @@ export function useVmForm({ isEdit, registration, hostArch }: UseVmFormParams) {
             ? next.template_type === 'windows'
               ? 'windows'
               : 'linux'
-            : mode === 'import'
+            : mode === 'import' || mode === 'appliance'
               ? 'linux'
               : next.os_type
         next.rtc_offset = getRecommendedRTCOffset(guestType)

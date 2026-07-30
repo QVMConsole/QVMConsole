@@ -33,6 +33,7 @@ const (
 	TaskTypeLightweightRuntimeQuotaShutdown = "lightweight_runtime_quota_shutdown" // 轻量云单 VM 运行时长配额耗尽后自动关机
 	TaskTypeExport                          = "export"                             // 导出虚拟机
 	TaskTypeImport                          = "import"                             // 导入虚拟机
+	TaskTypeImportAppliance                 = "import_appliance"                   // 导入 OVF/OVA 虚拟机包
 	TaskTypeDiskTransfer                    = "disk_transfer"                      // 磁盘转移到用户存储
 	TaskTypeRescue                          = "rescue"                             // 救援系统
 	TaskTypeResetVMPassword                 = "reset_vm_password"                  // 重置来宾虚拟机密码

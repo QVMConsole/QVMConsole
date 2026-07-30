@@ -64,6 +64,17 @@ export default function StorageNetworkTab({ form, patch }: SettingsTabProps) {
         />
       </SettingRow>
 
+      <SettingRow
+        label="虚拟机包临时目录"
+        tip="用于 OVF/OVA 安全解包、磁盘转换和封装；任务开始前会检查可用空间 | 环境变量: KVM_APPLIANCE_TEMP_DIR"
+      >
+        <Input
+          value={form.appliance_temp_dir}
+          onChange={(v) => patch({ appliance_temp_dir: v })}
+          placeholder="/var/lib/libvirt/images/templates/_appliance"
+        />
+      </SettingRow>
+
       <SettingRow label="克隆磁盘目录" tip="环境变量: KVM_CLONE_DIR">
         <Input
           value={form.clone_dir}

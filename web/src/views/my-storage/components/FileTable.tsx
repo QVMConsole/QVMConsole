@@ -31,7 +31,7 @@ interface FileTableProps {
 const ACCEPT_MAP: Record<StorageCategory, string> = {
   iso: '.iso',
   share: '',
-  disk: '.qcow2,.raw,.vmdk,.vhd,.vhdx,.img,.vfd',
+  disk: '.qcow2,.raw,.vmdk,.vhd,.vhdx,.img,.vfd,.ova,.ovf,.mf',
 }
 
 /** 各类别的上传按钮文字 */
@@ -144,7 +144,7 @@ export default function FileTable({
       {/* disk 类别提示 */}
       {category === 'disk' && (
         <div className="mst-cat-tip">
-          此目录存放虚拟机导出的磁盘文件和从外部上传的磁盘文件（支持 .qcow2、.raw、.vmdk、.vhd、.vhdx、.img、.vfd）
+          此目录存放虚拟机导出的磁盘、OVA/OVF 虚拟机包和配套清单（支持 .qcow2、.raw、.vmdk、.vhd、.vhdx、.img、.vfd、.ova、.ovf、.mf）
         </div>
       )}
 
