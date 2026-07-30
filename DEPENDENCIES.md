@@ -259,9 +259,9 @@ echo "启动开发服务器: ./start-dev.sh"
 
 命令	构建内容
 bash build.sh	默认构建全部（compat + native 两个二进制）
-bash build.sh --variant compat	仅构建 zig 兼容版 → kvm-console
+bash build.sh --variant compat	仅构建 zig 兼容版 → kvm-console（amd64 默认最高 GLIBC 2.2.5，arm64 默认最高 GLIBC 2.17）
 bash build.sh --variant native	仅构建宿主机原生版 → kvm-console
-bash build.sh --variant compat --variant native	等同于默认，构建两个
+bash build.sh --compat-glibc 2.17	将兼容版 GLIBC 上限设置为 2.17
 
 
 ## 验证安装
@@ -378,5 +378,4 @@ systemctl status openvswitch         # openEuler/CentOS
 # 创建网桥验证
 ovs-vsctl add-br br-test && ovs-vsctl del-br br-test
 ```
-
 

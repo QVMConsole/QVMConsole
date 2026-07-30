@@ -40,6 +40,53 @@ VERSION=""
 SKIP_FRONTEND=false
 SKIP_BACKEND=false
 BUILD_VARIANT=""  # 构建变体：空=全部, compat=zig兼容版, native=宿主机原生版
+COMPAT_GLIBC_VERSION="${COMPAT_GLIBC_VERSION:-}"  # 兼容版 GLIBC 上限：未指定时按架构使用默认值
+
+get_compat_glibc_default() {
+    case "$1" in
+        amd64) echo "2.2.5" ;;
+        arm64) echo "2.17" ;;
+        *) error "无法为架构 $1 确定兼容版 GLIBC 版本" ;;
+    esac
+}
+
+get_compat_zig_target() {
+    local arch="$1"
+    local glibc_version="$2"
+    case "$arch" in
+        amd64) echo "x86_64-linux-gnu.${glibc_version}" ;;
+        arm64) echo "aarch64-linux-gnu.${glibc_version}" ;;
+        *) error "无法为架构 $arch 确定 Zig 目标三元组" ;;
+    esac
+}
+
+verify_compat_glibc() {
+    local binary="$1"
+    local expected_max="$2"
+    local actual_max
+
+    if ! command -v readelf &>/dev/null; then
+        warn "未检测到 readelf，跳过兼容版 GLIBC 依赖校验"
+        return
+    fi
+
+    actual_max=$(readelf --version-info -W "$binary" 2>/dev/null \
+        | grep -oE 'GLIBC_[0-9.]+' \
+        | sed 's/^GLIBC_//' \
+        | sort -Vu \
+        | tail -n 1 || true)
+
+    if [ -z "$actual_max" ]; then
+        warn "未从兼容版二进制读取到 GLIBC 动态依赖，跳过版本上限校验"
+        return
+    fi
+
+    if ! printf '%s\n%s\n' "$actual_max" "$expected_max" | sort -V -C; then
+        error "兼容版 GLIBC 依赖校验失败：实际最高 GLIBC ${actual_max}，目标上限为 ${expected_max}"
+    fi
+
+    success "兼容版 GLIBC 依赖校验通过（最高 GLIBC ${actual_max}，目标上限 ${expected_max}）"
+}
 
 usage() {
     echo "用法: $0 [选项]"
@@ -48,6 +95,7 @@ usage() {
     echo "  -v, --version VERSION    指定版本号 (例如: 1.0.0)"
     echo "  --target-arch ARCH       目标架构: amd64 或 arm64 (默认: ${HOST_ARCH})"
     echo "  --variant VARIANT        构建变体: compat(兼容版) / native(原生版) (默认: 全部)"
+    echo "  --compat-glibc VERSION   兼容版 GLIBC 上限（默认: amd64=2.2.5，arm64=2.17）"
     echo "  --skip-frontend          跳过前端构建"
     echo "  --skip-backend           跳过后端构建"
     echo "  -h, --help               显示帮助信息"
@@ -55,7 +103,8 @@ usage() {
     echo "示例:"
     echo "  $0                       构建全部，版本号为 dev"
     echo "  $0 -v 1.0.0             指定版本号构建全部"
-    echo "  $0 --variant compat      仅构建 zig 兼容版（最低 GLIBC 2.2.5）"
+    echo "  $0 --variant compat      仅构建 zig 兼容版（amd64 默认最高 GLIBC 2.2.5）"
+    echo "  $0 --compat-glibc 2.17  构建 GLIBC 2.17 兼容版"
     echo "  $0 --variant native      仅构建宿主机原生版"
     echo "  $0 --target-arch arm64   交叉编译 ARM64 版本"
     echo "  $0 --target-arch amd64   交叉编译 AMD64 版本"
@@ -78,6 +127,13 @@ while [[ $# -gt 0 ]]; do
             BUILD_VARIANT="$2"
             if [[ "$BUILD_VARIANT" != "compat" && "$BUILD_VARIANT" != "native" ]]; then
                 error "不支持的构建变体: ${BUILD_VARIANT}，仅支持 compat / native"
+            fi
+            shift 2
+            ;;
+        --compat-glibc)
+            COMPAT_GLIBC_VERSION="$2"
+            if ! [[ "$COMPAT_GLIBC_VERSION" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+                error "无效的兼容版 GLIBC 版本: ${COMPAT_GLIBC_VERSION}"
             fi
             shift 2
             ;;
@@ -117,6 +173,11 @@ if [ "$TARGET_ARCH" != "$HOST_ARCH" ]; then
     IS_CROSS_COMPILE=true
 fi
 
+if [ -z "$COMPAT_GLIBC_VERSION" ]; then
+    COMPAT_GLIBC_VERSION=$(get_compat_glibc_default "$TARGET_ARCH")
+fi
+COMPAT_ZIG_TARGET=$(get_compat_zig_target "$TARGET_ARCH" "$COMPAT_GLIBC_VERSION")
+
 echo ""
 echo -e "${CYAN}╔══════════════════════════════════════════════════╗${NC}"
 echo -e "${CYAN}║         QVMConsole 构建打包脚本                  ║${NC}"
@@ -125,6 +186,7 @@ echo -e "${CYAN}║${NC}  版本:   ${GREEN}${BUILD_VERSION}${NC}"
 echo -e "${CYAN}║${NC}  时间:   ${GREEN}${BUILD_TIME}${NC}"
 echo -e "${CYAN}║${NC}  宿主机: ${GREEN}${HOST_ARCH}${NC}"
 echo -e "${CYAN}║${NC}  目标:   ${GREEN}${TARGET_ARCH}${NC}"
+echo -e "${CYAN}║${NC}  兼容版: ${GREEN}${COMPAT_ZIG_TARGET}${NC}"
 if [ "$IS_CROSS_COMPILE" = true ]; then
     echo -e "${CYAN}║${NC}  模式:   ${YELLOW}交叉编译${NC}"
 else
@@ -192,11 +254,11 @@ if [ "$SKIP_BACKEND" = false ]; then
         native)  BUILD_NATIVE=true ;;
     esac
 
-    # ========== 构建 zig 兼容版（最低 GLIBC 2.2.5） ==========
+    # ========== 构建 zig 兼容版（显式锁定 GLIBC 目标） ==========
     if [ "$BUILD_COMPAT" = true ]; then
-        info "构建 zig 兼容版..."
+        info "构建 zig 兼容版（目标: ${COMPAT_ZIG_TARGET}）..."
 
-        # CGO 编译检测：优先使用 zig，回退到 gcc 交叉编译器
+        # 兼容版必须通过 Zig 的目标三元组锁定 GLIBC 版本；系统 GCC 会继承构建机 GLIBC。
         # 注意：必须显式设置 CGO_CFLAGS 禁止 FMA/AVX2 指令生成，否则新版 GCC 可能在
         #       浮点运算中自动使用 vfmadd 等 FMA3 指令，导致 Ivy Bridge 等旧 CPU 上 SIGILL
         compat_cgo_cflags="-O2"
@@ -206,33 +268,11 @@ if [ "$SKIP_BACKEND" = false ]; then
 
         if [ "${CGO_ENABLED:-1}" = "1" ]; then
             if command -v zig &>/dev/null; then
-                if [ "$IS_CROSS_COMPILE" = true ]; then
-                    if [ "$TARGET_ARCH" = "amd64" ]; then
-                        export CC="zig cc -target x86_64-linux-gnu"
-                        export CXX="zig cxx -target x86_64-linux-gnu"
-                    elif [ "$TARGET_ARCH" = "arm64" ]; then
-                        export CC="zig cc -target aarch64-linux-gnu"
-                        export CXX="zig cxx -target aarch64-linux-gnu"
-                    fi
-                else
-                    export CC="zig cc"
-                    export CXX="zig cxx"
-                fi
+                export CC="zig cc -target ${COMPAT_ZIG_TARGET}"
+                export CXX="zig cxx -target ${COMPAT_ZIG_TARGET}"
                 info "使用 zig 作为 C 编译器: ${CC}"
-            elif [ "$IS_CROSS_COMPILE" = true ]; then
-                cross_cc=$(GOOS=linux GOARCH="$GOARCH_VALUE" go env CC 2>/dev/null || true)
-                if [ -z "$cross_cc" ] || ! command -v "$cross_cc" >/dev/null 2>&1; then
-                    warn "CGO 交叉编译需要安装交叉编译器或 zig"
-                    if [ "$TARGET_ARCH" = "amd64" ]; then
-                        warn "  方案1: apt-get install gcc-x86-64-linux-gnu"
-                        warn "  方案2: 安装 zig (推荐，兼容旧版 glibc)"
-                    elif [ "$TARGET_ARCH" = "arm64" ]; then
-                        warn "  方案1: apt-get install gcc-aarch64-linux-gnu"
-                        warn "  方案2: 安装 zig (推荐，兼容旧版 glibc)"
-                    fi
-                    error "缺少交叉编译器，请安装 gcc 交叉编译器或 zig"
-                fi
-                info "检测到交叉编译器: ${cross_cc}"
+            else
+                error "构建兼容版需要 Zig，以确保 GLIBC 依赖不高于 ${COMPAT_GLIBC_VERSION}"
             fi
         fi
 
@@ -252,7 +292,8 @@ if [ "$SKIP_BACKEND" = false ]; then
         if [ ! -f "$RELEASE_DIR/${OUTPUT_NAME}/kvm-console" ]; then
             error "zig 兼容版构建失败，未生成二进制文件"
         fi
-        success "zig 兼容版构建完成（最低 GLIBC 2.2.5）"
+        verify_compat_glibc "$RELEASE_DIR/${OUTPUT_NAME}/kvm-console" "$COMPAT_GLIBC_VERSION"
+        success "zig 兼容版构建完成（GLIBC 上限 ${COMPAT_GLIBC_VERSION}）"
     fi
 
     # ========== 构建宿主机原生版 ==========
@@ -391,7 +432,7 @@ echo -e "${CYAN}║${NC}  架构:   ${GREEN}${TARGET_ARCH}${NC}"
 echo -e "${CYAN}╠══════════════════════════════════════════════════╣${NC}"
 echo -e "${CYAN}║${NC}  内容:"
 if [ -f "$RELEASE_DIR/${OUTPUT_NAME}/kvm-console" ]; then
-    echo -e "${CYAN}║${NC}    - kvm-console        后端二进制（zig 兼容版，最低 GLIBC 2.2.5）"
+    echo -e "${CYAN}║${NC}    - kvm-console        后端二进制（zig 兼容版，GLIBC 上限 ${COMPAT_GLIBC_VERSION}）"
 fi
 if [ -f "$RELEASE_DIR/${OUTPUT_NAME}/kvm-console-native" ]; then
     echo -e "${CYAN}║${NC}    - kvm-console-native  后端二进制（宿主机原生版）"
