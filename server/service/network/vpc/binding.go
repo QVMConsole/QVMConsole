@@ -185,7 +185,8 @@ func ApplyVPCSwitchToDomainXML(vmXML string, switchID uint) (string, error) {
 	// 系统基础网络交换机（VLANID == 0）：只设置 OVS 网桥源，不打 VLAN
 	if sw.VLANID == 0 {
 		updated, bridgeChanged := setFirstOVSInterfaceBridge(vmXML, HookOvsBridgeName())
-		if !bridgeChanged {
+		// 网卡已连接到目标 OVS 网桥时，XML 不会产生变更，但该场景已满足绑定条件。
+		if !bridgeChanged && !firstOVSInterfaceUsesBridge(updated, HookOvsBridgeName()) {
 			return "", fmt.Errorf("无法在虚拟机 XML 中找到可接入 VPC 的 OVS 网卡")
 		}
 		// 移除可能存在的 VLAN 标签
