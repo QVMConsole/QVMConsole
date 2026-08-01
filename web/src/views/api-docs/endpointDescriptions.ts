@@ -746,6 +746,7 @@ export const endpointDescriptions: Record<string, EndpointDescription> = {
     body: 'JSON: vm_name, max_cpu, max_memory, max_disk, max_bandwidth_*, max_traffic_*, max_snapshots, max_runtime_hours',
   },
   'DELETE /user/:username/lightweight-vm/:vmName': { summary: '移除已开通轻量云 VM 注册记录' },
+  'POST /user/:username/lightweight-vm/:vmName/delete': { summary: '删除已开通轻量云 VM' },
   'DELETE /user/:username/lightweight-registrations/:id': { summary: '删除轻量云待开通登记' },
   'PUT /user/:username/quota': {
     summary: '更新用户配额',

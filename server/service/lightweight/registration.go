@@ -11,8 +11,8 @@ import (
 
 	"kvm_console/logger"
 	"kvm_console/model"
-	clonepkg "kvm_console/service/clone"
 	"kvm_console/service/arch"
+	clonepkg "kvm_console/service/clone"
 	"kvm_console/service/storage/disk"
 	"kvm_console/service/vm_xml"
 )
@@ -335,8 +335,8 @@ func DeleteLightweightVMRegistration(username string, id uint) error {
 	return model.DB.Delete(&reg).Error
 }
 
-// RemoveLightweightVMRegistrationByVMName 将已开通 VM 从注册 VM 列表中移除，不删除虚拟机本体。
-func RemoveLightweightVMRegistrationByVMName(username string, vmName string) error {
+// ValidateLightweightVMRemoval 校验轻量云 VM 是否可移除。
+func ValidateLightweightVMRemoval(username string, vmName string) error {
 	username = strings.TrimSpace(username)
 	vmName = strings.TrimSpace(vmName)
 	if username == "" {
@@ -353,29 +353,39 @@ func RemoveLightweightVMRegistrationByVMName(username string, vmName string) err
 		return err
 	}
 
+	var provisioningCount int64
+	if err := model.DB.Model(&model.LightweightVMRegistration{}).
+		Where("username = ? AND vm_name = ? AND status = ?", username, vmName, LightweightVMRegistrationStatusProvisioning).
+		Count(&provisioningCount).Error; err != nil {
+		return err
+	}
+	if provisioningCount > 0 {
+		return fmt.Errorf("当前 VM 正在开通中，暂不能移除")
+	}
+
+	var quotaCount int64
+	if err := model.DB.Model(&model.LightweightVMQuota{}).Where("username = ? AND vm_name = ?", username, vmName).Count(&quotaCount).Error; err != nil {
+		return err
+	}
+	var regCount int64
+	if err := model.DB.Model(&model.LightweightVMRegistration{}).Where("username = ? AND vm_name = ?", username, vmName).Count(&regCount).Error; err != nil {
+		return err
+	}
+	if quotaCount == 0 && regCount == 0 {
+		return fmt.Errorf("轻量云 VM 记录不存在")
+	}
+	return nil
+}
+
+// RemoveLightweightVMRegistrationByVMName 将已开通 VM 从注册 VM 列表中移除，不删除虚拟机本体。
+func RemoveLightweightVMRegistrationByVMName(username string, vmName string) error {
+	username = strings.TrimSpace(username)
+	vmName = strings.TrimSpace(vmName)
+	if err := ValidateLightweightVMRemoval(username, vmName); err != nil {
+		return err
+	}
+
 	err := model.DB.Transaction(func(tx *gorm.DB) error {
-		var provisioningCount int64
-		if err := tx.Model(&model.LightweightVMRegistration{}).
-			Where("username = ? AND vm_name = ? AND status = ?", username, vmName, LightweightVMRegistrationStatusProvisioning).
-			Count(&provisioningCount).Error; err != nil {
-			return err
-		}
-		if provisioningCount > 0 {
-			return fmt.Errorf("当前 VM 正在开通中，暂不能移除")
-		}
-
-		var quotaCount int64
-		if err := tx.Model(&model.LightweightVMQuota{}).Where("username = ? AND vm_name = ?", username, vmName).Count(&quotaCount).Error; err != nil {
-			return err
-		}
-		var regCount int64
-		if err := tx.Model(&model.LightweightVMRegistration{}).Where("username = ? AND vm_name = ?", username, vmName).Count(&regCount).Error; err != nil {
-			return err
-		}
-		if quotaCount == 0 && regCount == 0 {
-			return fmt.Errorf("轻量云 VM 记录不存在")
-		}
-
 		if err := tx.Where("username = ? AND vm_name = ?", username, vmName).Delete(&model.LightweightVMRegistration{}).Error; err != nil {
 			return err
 		}

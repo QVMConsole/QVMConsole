@@ -503,11 +503,12 @@ func registerTaskHandlers() {
 	// 删除虚拟机任务
 	taskqueue.RegisterHandler(model.TaskTypeDelete, func(ctx context.Context, task *model.Task, progress func(int, string)) (string, error) {
 		var params struct {
-			Name          string   `json:"name"`
-			DeleteDisks   []string `json:"delete_disks"`
-			TransferDisks []string `json:"transfer_disks"`
-			TransferUser  string   `json:"transfer_user"`
-			Action        string   `json:"action"`
+			Name                string   `json:"name"`
+			DeleteDisks         []string `json:"delete_disks"`
+			TransferDisks       []string `json:"transfer_disks"`
+			TransferUser        string   `json:"transfer_user"`
+			LightweightUsername string   `json:"lightweight_username"`
+			Action              string   `json:"action"`
 		}
 		if err := json.Unmarshal([]byte(task.Params), &params); err != nil {
 			return "", fmt.Errorf("解析参数失败: %w", err)
@@ -554,6 +555,12 @@ func registerTaskHandlers() {
 		}
 		if err := model.DeleteVMLock(params.Name); err != nil {
 			logger.App.Warn("主动删除VM锁失败", "vm", params.Name, "error", err)
+		}
+		if params.LightweightUsername != "" {
+			// DeleteVM 已清理轻量云注册和配额；这里补充移除用户访问授权。
+			if err := service.RemoveVMFromUser(params.LightweightUsername, params.Name); err != nil {
+				logger.App.Warn("删除轻量云VM后移除用户访问授权失败", "vm", params.Name, "user", params.LightweightUsername, "error", err)
+			}
 		}
 		markVMCacheMissingAfterTask(params.Name)
 		// 删除完成后重新分配用户带宽

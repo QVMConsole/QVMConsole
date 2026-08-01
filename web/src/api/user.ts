@@ -295,6 +295,13 @@ export function removeLightweightRegisteredVm(username: string, vmName: string) 
   )
 }
 
+/** 删除已开通轻量云 VM（异步任务，成功后同步移除注册记录和单 VM 配额） */
+export function deleteLightweightRegisteredVm(username: string, vmName: string) {
+  return service.post<unknown, ApiResponse<{ task_id?: string }>>(
+    `/user/${encodeURIComponent(username)}/lightweight-vm/${encodeURIComponent(vmName)}/delete`,
+  )
+}
+
 /** 更新轻量云单 VM 配额（管理员） */
 export function updateLightweightVmQuota(username: string, data: LightweightVmQuotaPayload) {
   return service.put<

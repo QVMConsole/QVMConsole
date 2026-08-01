@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-01T02:15:37.431Z",
-  "count": 315,
+  "generated_at": "2026-08-01T03:42:18.509Z",
+  "count": 316,
   "endpoints": [
     {
       "method": "POST",
@@ -2212,6 +2212,17 @@
       "vmAccess": false,
       "highRisk": "",
       "comment": ""
+    },
+    {
+      "method": "POST",
+      "path": "/user/:username/lightweight-vm/:vmName/delete",
+      "handler": "DeleteLightweightVM",
+      "auth": "jwt",
+      "admin": true,
+      "elasticOnly": false,
+      "vmAccess": false,
+      "highRisk": "delete_vm",
+      "comment": "删除轻量云 VM"
     },
     {
       "method": "GET",

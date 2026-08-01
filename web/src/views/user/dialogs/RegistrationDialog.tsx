@@ -2,7 +2,7 @@
  * 轻量云 VM 注册管理弹窗
  * - 注册新 VM：复用创建向导登记模式生成草稿，保存后随邀请流程开通
  * - 分配已有 VM：选择未占用 VM 并逐台设置单 VM 配额
- * - 支持编辑单 VM 配额、删除待注册项、移除已开通 VM（不删除虚拟机本体）
+ * - 支持编辑单 VM 配额、删除待注册项，以及移除或删除已开通 VM
  */
 import { useEffect, useMemo, useState } from 'react'
 import {
@@ -17,11 +17,12 @@ import {
   Toast,
   Tooltip,
 } from '@douyinfe/semi-ui'
-import { IconDelete, IconEditStroked, IconMinusCircle, IconPlus, IconRefresh } from '@douyinfe/semi-icons'
+import { IconDelete, IconEditStroked, IconPlus, IconRefresh } from '@douyinfe/semi-icons'
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table'
 import {
   assignVms,
   createLightweightVmRegistrations,
+  deleteLightweightRegisteredVm,
   deleteLightweightVmRegistration,
   removeLightweightRegisteredVm,
   type LightweightVmQuotaPayload,
@@ -100,6 +101,8 @@ export default function RegistrationDialog({
   const [vmsLoaded, setVmsLoaded] = useState(false)
   const [wizardVisible, setWizardVisible] = useState(false)
   const [quotaEditRow, setQuotaEditRow] = useState<RegRow | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<RegRow | null>(null)
+  const [deleteMode, setDeleteMode] = useState<'remove' | 'delete'>('remove')
 
   const vpcLabel = useMemo(() => {
     const vpc = natVpcSwitches.find(
@@ -256,21 +259,20 @@ export default function RegistrationDialog({
     }
   }
 
-  /** 移除已开通 VM（保留虚拟机本体，仅清理注册记录与单 VM 配额） */
-  const handleRemoveActive = async (regRow: RegRow) => {
-    const ok = await confirmModal({
-      title: '移除已开通 VM',
-      content: `确定移除已开通 VM ${regRow.vm_name}？该操作会移除注册列表记录和单 VM 配额，不会删除虚拟机本体。`,
-      okText: '确定移除',
-      danger: true,
-    })
-    if (!ok) return
+  /** 处理已开通 VM 的移除或删除。 */
+  const handleDeleteActive = async () => {
+    if (!deleteTarget) return
+    const regRow = deleteTarget
     setRemovingVm(regRow.vm_name)
     try {
-      const res = await removeLightweightRegisteredVm(row.username, regRow.vm_name)
-      Toast.success(res.message || '轻量云 VM 已移除')
+      const res =
+        deleteMode === 'delete'
+          ? await deleteLightweightRegisteredVm(row.username, regRow.vm_name)
+          : await removeLightweightRegisteredVm(row.username, regRow.vm_name)
+      Toast.success(res.message || (deleteMode === 'delete' ? '删除任务已提交' : '轻量云 VM 已移除'))
       setRegistrations((prev) => prev.filter((item) => item.vm_name !== regRow.vm_name))
       setQuotas((prev) => prev.filter((item) => item.vm_name !== regRow.vm_name))
+      setDeleteTarget(null)
       onChanged()
     } catch {
       // 请求层已提示
@@ -388,13 +390,16 @@ export default function RegistrationDialog({
                 <IconEditStroked />
               </span>
             </Tooltip>
-            {r.status === 'active' && !r.quota_only && (
-              <Tooltip content="移除（保留虚拟机）" position="top">
+            {r.status === 'active' && (
+              <Tooltip content="删除" position="top">
                 <span
                   className="usr-act-ic danger"
-                  onClick={() => void handleRemoveActive(r)}
+                  onClick={() => {
+                    setDeleteMode('remove')
+                    setDeleteTarget(r)
+                  }}
                 >
-                  {removing ? <IconRefresh spin /> : <IconMinusCircle />}
+                  {removing ? <IconRefresh spin /> : <IconDelete />}
                 </span>
               </Tooltip>
             )}
@@ -552,6 +557,39 @@ export default function RegistrationDialog({
           pagination={false}
           size="small"
           empty="暂无注册 VM"
+        />
+      </Modal>
+
+      <Modal
+        title="删除轻量云 VM"
+        visible={!!deleteTarget}
+        onCancel={() => setDeleteTarget(null)}
+        onOk={() => void handleDeleteActive()}
+        okText={deleteMode === 'delete' ? '确认删除' : '确认移除'}
+        cancelText="取消"
+        okButtonProps={{
+          type: 'danger',
+          loading: !!deleteTarget && removingVm === deleteTarget.vm_name,
+        }}
+        width={520}
+        closeOnEsc
+      >
+        <RadioGroup
+          value={deleteMode}
+          onChange={(event) => setDeleteMode(event.target.value as 'remove' | 'delete')}
+        >
+          <Radio value="remove">仅移除分配</Radio>
+          <Radio value="delete">同时删除虚拟机</Radio>
+        </RadioGroup>
+        <Banner
+          type={deleteMode === 'delete' ? 'danger' : 'warning'}
+          closeIcon={null}
+          style={{ marginTop: 16 }}
+          description={
+            deleteMode === 'delete'
+              ? `将删除虚拟机 ${deleteTarget?.vm_name || ''} 及其磁盘文件。删除成功后会同时清理注册记录、单 VM 配额和访问授权，此操作不可恢复。`
+              : `将仅移除虚拟机 ${deleteTarget?.vm_name || ''} 的注册记录、单 VM 配额和访问授权，虚拟机本体及磁盘会保留。`
+          }
         />
       </Modal>
 

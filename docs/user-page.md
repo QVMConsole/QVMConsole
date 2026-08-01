@@ -69,7 +69,7 @@ web/src/views/user/
 ### 轻量云注册管理（注册 VM 入口）
 
 - 列表合并三类行：已保存注册项、仅有单 VM 配额的已开通 VM（`quota_only`）、本地草稿（未保存）。
-- 支持：添加注册草稿（复用创建向导）、编辑单 VM 配额（草稿本地改，已保存走 `PUT /user/:name/lightweight-vm-quota` 即时生效）、删除待注册项、移除已开通 VM（保留虚拟机本体）。
+- 支持：添加注册草稿（复用创建向导）、编辑单 VM 配额（草稿本地改，已保存走 `PUT /user/:name/lightweight-vm-quota` 即时生效）、删除待注册项；已开通 VM（包括仅配额行）点击「删除」后可选择仅移除分配，或同时删除虚拟机及其磁盘。后者走删除任务和 `delete_vm` 二次验证，只有物理删除成功后才清理注册记录、单 VM 配额和访问授权。
 - 「分配已有 VM」模式与创建用户时一致，提交 `PUT /user/:name/vms` 附带 `lightweight_quotas`。
 
 ### 行为约束（与旧版一致）
@@ -97,6 +97,7 @@ web/src/views/user/
 | POST | /api/user/:username/lightweight-registrations | 登记待开通 VM |
 | DELETE | /api/user/:username/lightweight-registrations/:id | 删除注册项 |
 | DELETE | /api/user/:username/lightweight-vm/:vmName | 移除已开通 VM 记录 |
+| POST | /api/user/:username/lightweight-vm/:vmName/delete | 删除已开通轻量云 VM（任务） |
 | PUT | /api/user/:username/lightweight-vm-quota | 更新单 VM 配额 |
 
 ## 深色模式

@@ -10,6 +10,7 @@ import (
 	"kvm_console/logger"
 	"kvm_console/model"
 	"kvm_console/service"
+	"kvm_console/service/libvirt_rpc"
 	"kvm_console/taskqueue"
 	"kvm_console/utils"
 )
@@ -450,6 +451,43 @@ func RemoveLightweightVMRegistrationByVMName(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "轻量云 VM 已移除"})
+}
+
+// DeleteLightweightVM 删除已开通的轻量云 VM，并在删除成功后移除所属记录。
+func DeleteLightweightVM(c *gin.Context) {
+	if !requireHighRiskVerification(c, "delete_vm") {
+		return
+	}
+	username := c.Param("username")
+	vmName := c.Param("vmName")
+	if err := service.ValidateLightweightVMRemoval(username, vmName); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+	if _, _, _, _, err := libvirt_rpc.GetDomainInfoRPC(vmName); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "虚拟机不存在"})
+		return
+	}
+	if service.IsVMLocked(vmName) {
+		c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": "该虚拟机已锁定，无法删除。请先解锁后再操作。"})
+		return
+	}
+
+	operator, _ := c.Get("username")
+	operatorName, _ := operator.(string)
+	task, err := taskqueue.SubmitWithStruct(model.TaskTypeDelete, map[string]interface{}{
+		"name":                 vmName,
+		"lightweight_username": username,
+	}, operatorName)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "提交删除任务失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": "删除任务已提交",
+		"data":    gin.H{"task_id": task.ID},
+	})
 }
 
 // UpdateLightweightVMQuota 更新轻量云单 VM 的流量、带宽和端口转发配额。
