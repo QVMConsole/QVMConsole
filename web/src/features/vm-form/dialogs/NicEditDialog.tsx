@@ -8,9 +8,15 @@ import {
   addVMInterface,
   updateVMInterface,
   type VMInterfaceInfo,
+  type VpcSecurityGroup,
+  type VpcSwitch,
 } from '@/api/vpc'
 import { useVmFormScope } from '../scopeContext'
 import { NIC_MODEL_OPTIONS } from '../constants'
+import {
+  filterSecurityGroupsForSwitch,
+  formatSecurityGroupOptionLabel,
+} from '../vpcOptionUtils'
 import FormField from '../sections/FormField'
 
 interface NicEditDialogProps {
@@ -18,11 +24,24 @@ interface NicEditDialogProps {
   vmName: string
   /** 编辑模式传入网口信息；添加模式传 null */
   editing: VMInterfaceInfo | null
+  /** VM 归属用户，系统基础网络按此用户选择安全组 */
+  ownerUsername?: string
+  switches?: VpcSwitch[]
+  securityGroups?: VpcSecurityGroup[]
   onClose: () => void
   onSaved: () => void | Promise<void>
 }
 
-export default function NicEditDialog({ visible, vmName, editing, onClose, onSaved }: NicEditDialogProps) {
+export default function NicEditDialog({
+  visible,
+  vmName,
+  editing,
+  ownerUsername = '',
+  switches = [],
+  securityGroups = [],
+  onClose,
+  onSaved,
+}: NicEditDialogProps) {
   const { options } = useVmFormScope()
   const [nicModel, setNicModel] = useState('virtio')
   const [switchId, setSwitchId] = useState<number | null>(null)
@@ -30,6 +49,14 @@ export default function NicEditDialog({ visible, vmName, editing, onClose, onSav
   const [bandwidthIn, setBandwidthIn] = useState(0)
   const [bandwidthOut, setBandwidthOut] = useState(0)
   const [submitting, setSubmitting] = useState(false)
+  const availableSwitches = useMemo(
+    () => (switches.length > 0 ? switches : options.vpcSwitches),
+    [options.vpcSwitches, switches],
+  )
+  const availableGroups = useMemo(
+    () => (securityGroups.length > 0 ? securityGroups : options.vpcSecurityGroups),
+    [options.vpcSecurityGroups, securityGroups],
+  )
 
   useEffect(() => {
     if (!visible) return
@@ -42,7 +69,7 @@ export default function NicEditDialog({ visible, vmName, editing, onClose, onSav
       setBandwidthOut(editing.binding?.bandwidth_outbound_avg || 0)
     } else {
       setNicModel('virtio')
-      setSwitchId(options.vpcSwitches[0]?.id ?? null)
+      setSwitchId(availableSwitches[0]?.id ?? null)
       setSecurityGroupId(null)
       setBandwidthIn(0)
       setBandwidthOut(0)
@@ -50,23 +77,33 @@ export default function NicEditDialog({ visible, vmName, editing, onClose, onSav
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, editing])
 
+  useEffect(() => {
+    if (!visible || editing || switchId !== null || availableSwitches.length === 0) return
+    setSwitchId(availableSwitches[0].id)
+  }, [availableSwitches, editing, switchId, visible])
+
   const selectedSwitch = useMemo(
-    () => options.vpcSwitches.find((item) => item.id === switchId) || null,
-    [options.vpcSwitches, switchId],
+    () => availableSwitches.find((item) => item.id === switchId) || null,
+    [availableSwitches, switchId],
   )
   const isBridge = selectedSwitch?.bridge_mode === 'bridge'
+  const securityGroupOwner = ownerUsername || editing?.binding?.username || editing?.security_group?.username || ''
+  const filteredSecurityGroups = useMemo(
+    () => filterSecurityGroupsForSwitch(availableGroups, selectedSwitch, securityGroupOwner, vmName),
+    [availableGroups, selectedSwitch, securityGroupOwner, vmName],
+  )
 
   // 切换交换机时：桥接直通清空安全组；安全组不属于新交换机用户时清空
   const handleSwitchChange = (value: unknown) => {
     const id = Number(value)
     setSwitchId(id)
-    const sw = options.vpcSwitches.find((item) => item.id === id)
+    const sw = availableSwitches.find((item) => item.id === id)
     if (sw?.bridge_mode === 'bridge') {
       setSecurityGroupId(null)
       return
     }
-    const currentGroup = options.vpcSecurityGroups.find((g) => g.id === securityGroupId)
-    if (currentGroup && sw?.username && currentGroup.username !== sw.username) {
+    const nextGroups = filterSecurityGroupsForSwitch(availableGroups, sw, securityGroupOwner, vmName)
+    if (securityGroupId && !nextGroups.some((group) => group.id === securityGroupId)) {
       setSecurityGroupId(null)
     }
   }
@@ -129,10 +166,10 @@ export default function NicEditDialog({ visible, vmName, editing, onClose, onSav
           filter
           onChange={handleSwitchChange}
         >
-          {options.vpcSwitches.map((item) => (
+          {availableSwitches.map((item) => (
             <Select.Option key={item.id} value={item.id}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                <span>{item.name}</span>
+                <span>{item.username ? `${item.username} / ${item.name}` : item.name}</span>
                 <Tag size="small" color={item.bridge_mode === 'bridge' ? 'orange' : 'blue'}>
                   {item.bridge_mode === 'bridge'
                     ? `${item.bridge_name || '桥接'}${item.bridge_vlan_id > 0 ? ` / VLAN ${item.bridge_vlan_id}` : ''}`
@@ -153,9 +190,9 @@ export default function NicEditDialog({ visible, vmName, editing, onClose, onSav
             filter
             showClear
             onChange={(v) => setSecurityGroupId(v === undefined ? null : Number(v))}
-            optionList={options.vpcSecurityGroups.map((item) => ({
+            optionList={filteredSecurityGroups.map((item) => ({
               value: item.id,
-              label: item.is_default ? `${item.name}（默认）` : item.name,
+              label: formatSecurityGroupOptionLabel(item, false),
             }))}
           />
         </FormField>

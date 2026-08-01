@@ -18,6 +18,10 @@ import {
 import { getVMNetworkStatus, type VmNetworkStatus } from '@/api/vm'
 import { useUserStore } from '@/stores/user'
 import { CLOUD_TYPES, ROLES } from '@/config/constants'
+import {
+  filterSecurityGroupsForSwitch,
+  formatSecurityGroupOptionLabel,
+} from '../vpcOptionUtils'
 import SectionCard from './SectionCard'
 import FormField from './FormField'
 import { useVmFormScope } from '../scopeContext'
@@ -31,6 +35,7 @@ interface NicManageSectionProps {
 export default function NicManageSection({ vmName, vmStatus }: NicManageSectionProps) {
   const { options } = useVmFormScope()
   const role = useUserStore((s) => s.role)
+  const username = useUserStore((s) => s.username)
   const cloudType = useUserStore((s) => s.cloudType)
   const isAdmin = role === ROLES.admin
   const isLightweight = !isAdmin && cloudType === CLOUD_TYPES.lightweight
@@ -46,6 +51,19 @@ export default function NicManageSection({ vmName, vmStatus }: NicManageSectionP
     open: false,
     editing: null,
   })
+
+  const ownerUsername = useMemo(
+    () => vpcInfo?.owner_username || vpcInfo?.binding?.username || username || '',
+    [vpcInfo?.owner_username, vpcInfo?.binding?.username, username],
+  )
+  const availableSwitches = useMemo(
+    () => (vpcInfo?.switches && vpcInfo.switches.length > 0 ? vpcInfo.switches : options.vpcSwitches),
+    [options.vpcSwitches, vpcInfo?.switches],
+  )
+  const availableGroups = useMemo(
+    () => (vpcInfo?.groups && vpcInfo.groups.length > 0 ? vpcInfo.groups : options.vpcSecurityGroups),
+    [options.vpcSecurityGroups, vpcInfo?.groups],
+  )
 
   // ==================== 数据加载 ====================
 
@@ -100,10 +118,38 @@ export default function NicManageSection({ vmName, vmStatus }: NicManageSectionP
   // ==================== 主网口 VPC 绑定 ====================
 
   const bindSelectedSwitch = useMemo(
-    () => options.vpcSwitches.find((item) => item.id === bindSwitchId) || null,
-    [options.vpcSwitches, bindSwitchId],
+    () => availableSwitches.find((item) => item.id === bindSwitchId) || null,
+    [availableSwitches, bindSwitchId],
   )
   const bindIsBridge = bindSelectedSwitch?.bridge_mode === 'bridge'
+  const bindSecurityGroups = useMemo(
+    () => filterSecurityGroupsForSwitch(availableGroups, bindSelectedSwitch, ownerUsername, vmName),
+    [availableGroups, bindSelectedSwitch, ownerUsername, vmName],
+  )
+
+  useEffect(() => {
+    if (bindIsBridge) {
+      if (bindGroupId !== null) setBindGroupId(null)
+      return
+    }
+    if (bindGroupId && !bindSecurityGroups.some((group) => group.id === bindGroupId)) {
+      setBindGroupId(null)
+    }
+  }, [bindGroupId, bindIsBridge, bindSecurityGroups])
+
+  const handleBindSwitchChange = (value: unknown) => {
+    const nextSwitchId = Number(value)
+    setBindSwitchId(nextSwitchId)
+    const nextSwitch = availableSwitches.find((item) => item.id === nextSwitchId) || null
+    if (nextSwitch?.bridge_mode === 'bridge') {
+      setBindGroupId(null)
+      return
+    }
+    const nextGroups = filterSecurityGroupsForSwitch(availableGroups, nextSwitch, ownerUsername, vmName)
+    if (bindGroupId && !nextGroups.some((group) => group.id === bindGroupId)) {
+      setBindGroupId(null)
+    }
+  }
 
   const submitBind = async () => {
     if (isLightweight) {
@@ -308,12 +354,12 @@ export default function NicManageSection({ vmName, vmStatus }: NicManageSectionP
               placeholder="选择交换机"
               filter
               disabled={isLightweight}
-              onChange={(v) => setBindSwitchId(Number(v))}
+              onChange={handleBindSwitchChange}
             >
-              {options.vpcSwitches.map((item) => (
+              {availableSwitches.map((item) => (
                 <Select.Option key={item.id} value={item.id}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                    <span>{item.name}</span>
+                    <span>{isAdmin && item.username ? `${item.username} / ${item.name}` : item.name}</span>
                     <Tag size="small" color={item.bridge_mode === 'bridge' ? 'orange' : 'blue'}>
                       {item.bridge_mode === 'bridge' ? '桥接直通' : item.cidr}
                     </Tag>
@@ -334,9 +380,9 @@ export default function NicManageSection({ vmName, vmStatus }: NicManageSectionP
                 filter
                 disabled={isLightweight}
                 onChange={(v) => setBindGroupId(Number(v))}
-                optionList={options.vpcSecurityGroups.map((item) => ({
+                optionList={bindSecurityGroups.map((item) => ({
                   value: item.id,
-                  label: item.is_default ? `${item.name}（默认）` : item.name,
+                  label: formatSecurityGroupOptionLabel(item, false),
                 }))}
               />
             </FormField>
@@ -393,6 +439,9 @@ export default function NicManageSection({ vmName, vmStatus }: NicManageSectionP
         visible={nicDialog.open}
         vmName={vmName}
         editing={nicDialog.editing}
+        ownerUsername={ownerUsername}
+        switches={availableSwitches}
+        securityGroups={availableGroups}
         onClose={() => setNicDialog({ open: false, editing: null })}
         onSaved={refresh}
       />

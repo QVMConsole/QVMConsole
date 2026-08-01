@@ -149,6 +149,7 @@ export interface LightweightVMQuota {
 
 /** VM VPC 绑定信息（/vm/:name/vpc 响应） */
 export interface VpcBindingInfo {
+  owner_username?: string
   binding?: VpcVMBinding | null
   bindings?: VpcVMBinding[]
   switch?: VpcSwitch | null

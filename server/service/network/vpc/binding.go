@@ -259,6 +259,12 @@ func GetVPCBindingInfo(operator, role, vmName string) (*VPCBindingInfo, error) {
 	if username == "" && role != "admin" {
 		username = operator
 	}
+	if username == "" && role == "admin" {
+		var cache model.VMCache
+		if err := model.DB.Where("name = ?", vmName).First(&cache).Error; err == nil && strings.TrimSpace(cache.OwnerUsername) != "" {
+			username = strings.TrimSpace(cache.OwnerUsername)
+		}
+	}
 	if username != "" && !isLightweightOperator {
 		_, _ = EnsureDefaultSecurityGroup(username)
 	}
@@ -282,6 +288,7 @@ func GetVPCBindingInfo(operator, role, vmName string) (*VPCBindingInfo, error) {
 			username = binding.Username
 		}
 	}
+	info.OwnerUsername = username
 	if quota, err := HookGetLightweightVMQuota(vmName); err == nil {
 		info.LightweightQuota = quota
 	}

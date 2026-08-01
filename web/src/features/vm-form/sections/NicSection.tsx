@@ -5,11 +5,16 @@
 import { Button, Empty, Select, Tag } from '@douyinfe/semi-ui'
 import { IconGlobe, IconDelete, IconPlus } from '@douyinfe/semi-icons'
 import { IllustrationNoContent, IllustrationNoContentDark } from '@douyinfe/semi-illustrations'
+import { useUserStore } from '@/stores/user'
 import SectionCard from './SectionCard'
 import FormField from './FormField'
 import { useVmFormScope } from '../scopeContext'
 import { NIC_MODEL_OPTIONS } from '../constants'
 import type { VpcSwitch } from '@/api/vpc'
+import {
+  filterSecurityGroupsForSwitch,
+  formatSecurityGroupOptionLabel,
+} from '../vpcOptionUtils'
 
 /** 交换机选项展示文案（桥接直通显示 VLAN 信息） */
 function switchOptionLabel(item: VpcSwitch, isAdmin: boolean): string {
@@ -23,6 +28,7 @@ function switchOptionLabel(item: VpcSwitch, isAdmin: boolean): string {
 
 export default function NicSection() {
   const { form, options, ctx } = useVmFormScope()
+  const username = useUserStore((s) => s.username)
   const { form: f, setField } = form
   const isEdit = ctx.mode === 'edit'
   const running = ctx.vmStatus === 'running'
@@ -42,10 +48,25 @@ export default function NicSection() {
     setField('extra_nics', f.extra_nics.filter((_, i) => i !== index))
   }
 
+  const getSecurityGroupsForSwitch = (switchId: number | null) => {
+    const sw = options.vpcSwitches.find((item) => item.id === switchId) || null
+    return filterSecurityGroupsForSwitch(options.vpcSecurityGroups, sw, username)
+  }
+
   const updateNic = (index: number, key: 'nic_model' | 'switch_id' | 'security_group_id', value: unknown) => {
     setField(
       'extra_nics',
-      f.extra_nics.map((nic, i) => (i === index ? { ...nic, [key]: value } : nic)),
+      f.extra_nics.map((nic, i) => {
+        if (i !== index) return nic
+        const next = { ...nic, [key]: value }
+        if (key === 'switch_id' && next.security_group_id) {
+          const groups = getSecurityGroupsForSwitch(Number(value) || null)
+          if (!groups.some((group) => group.id === next.security_group_id)) {
+            next.security_group_id = null
+          }
+        }
+        return next
+      }),
     )
   }
 
@@ -140,9 +161,9 @@ export default function NicSection() {
                       filter
                       onFocus={() => void options.loadVPCOptions()}
                       onChange={(v) => updateNic(index, 'security_group_id', v)}
-                      optionList={options.vpcSecurityGroups.map((item) => ({
+                      optionList={getSecurityGroupsForSwitch(nic.switch_id).map((item) => ({
                         value: item.id,
-                        label: item.is_default ? `${item.name}（默认）` : item.name,
+                        label: formatSecurityGroupOptionLabel(item, ctx.isAdmin),
                       }))}
                     />
                   </FormField>

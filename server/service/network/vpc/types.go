@@ -62,6 +62,7 @@ type VPCQuotaInfo struct {
 }
 
 type VPCBindingInfo struct {
+	OwnerUsername    string                    `json:"owner_username"`
 	Binding          *model.VPCVMBinding       `json:"binding"`
 	Bindings         []model.VPCVMBinding      `json:"bindings,omitempty"`
 	Switch           *model.VPCSwitch          `json:"switch"`
