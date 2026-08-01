@@ -84,7 +84,7 @@ export default function AboutPage() {
 
   return (
     <div className="about-page">
-      <Collapse defaultActiveKey={['tech', 'project', 'panel', 'system']} keepDOM>
+      <Collapse defaultActiveKey={['project', 'panel', 'system']} keepDOM>
         <Collapse.Panel
           itemKey="tech"
           header={

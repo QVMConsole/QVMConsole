@@ -76,7 +76,7 @@ web/src/views/api-docs/
 
 迁移自旧前端关于页，四个折叠区块：
 
-- **技术栈**：React 19 / Semi Design / Vite / Zustand / Go / Gin / SQLite / libvirt / QEMU-KVM / noVNC（点击跳转官网）
+- **技术栈**：React 19 / Semi Design / Vite / Zustand / Go / Gin / SQLite / libvirt / QEMU-KVM / noVNC（默认折叠，点击展开后可跳转官网）
 - **项目信息**：开源地址、开发者、官网、文档链接
 - **面板信息**：版本 / 构建时间 / 站点名称（`GET /public/version`）、运行模式
 - **系统信息**：操作系统 / 内核 / 架构 / 主机名 / CPU 核数 / Go / QEMU / libvirt 版本 / 运行时间（`GET /system-info`）
