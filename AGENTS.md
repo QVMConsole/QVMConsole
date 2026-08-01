@@ -11,7 +11,7 @@
 9. 我的存储中的所有标签页无特殊说明的功能都需要纳入配额，目录不存在 → 补建 + 加入 project disk 目录已存在但不在 /etc/projects 中 → 自动加入 project mapping + 对已有文件追溯设置 project ID（chattr -p）disk 目录已存在且已在 project 中 → 正常返回。但是需要注意系统只会阻止非root用户的写入，所以你需要操作时使用用户级别操作，当前面板注册用户会自动在系统里创建一个用户所以你就用这个用户就行。使用我的存储前也要多一步校验是否开通了存储。
 10. 涉及界面上的修改应当先确认是否有其他地方同样使用了这个方式，应当一并修改。
 11. 不需要做编译验证
-12. 测试环境的机器目录是在/opt/project/new-web 管理员账号admin admin123 普通用户 test Qw133133133133@ 一般我来测试就行，除非是修复bug。测试环境数据库是/opt/project/new-web/data/kvm_console.db
+12. 测试环境的机器目录是在/opt/project/QVMConsole 管理员账号admin admin123 普通用户 test Qw133133133133@ 一般我来测试就行，除非是修复bug。测试环境数据库是/opt/project/QVMConsole/data/kvm_console.db
 13. 敏感操作，如创建、删除虚拟机，重置密码等需要二次验证
 14. 所有文件都会实时同步到测试机并自动触发热重载你并不需要调用MCP上传文件，但是要注意的是当前启动程序启动的时候执行命令非常多所以启动比较慢大概10秒左右，验证后端是否更新需要注意等待。
 15. 后续新增后端业务接口时，除登录、注册、邀请、找回密码、安全初始化、邮箱、2FA 等账户安全流程外，必须默认兼容 API Key 调用；接口清单由 web/scripts/generate-api-endpoints.mjs 在构建时从后端源码自动解析生成（predev/prebuild 钩子），**无需手动往接口文档页添加**；新增接口时建议在 router.go 行尾写中文注释（会作为摘要兜底），并在 web/src/views/api-docs/endpointDescriptions.ts 补充中文文案（新增路由组时同步补 moduleGroups 分组映射）；docs 功能文档仍需同步补充。敏感操作即使支持 API Key，也必须保留二次验证。

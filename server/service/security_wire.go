@@ -307,14 +307,18 @@ func TryClearBootstrapSkipped(userID uint) error {
 	return securitypkg.TryClearBootstrapSkipped(userID)
 }
 
-func CreateActiveUserDirectly(username, email, password, role, cloudType string,
+func CreateActiveUserDirectly(username, email, password, role, cloudType string, dedicatedVPCSwitchID uint, useExistingVMs bool,
 	maxCPU, maxMemory, maxDisk, maxVM, maxStorage, maxRuntimeHours int,
 	enablePortForward bool, maxPortForwards, maxSnapshots int,
 	maxBandwidthUp, maxBandwidthDown, maxTrafficDown, maxTrafficUp float64, maxPublicIPs int) (*model.User, error) {
-	return securitypkg.CreateActiveUserDirectly(username, email, password, role, cloudType,
+	return securitypkg.CreateActiveUserDirectly(username, email, password, role, cloudType, dedicatedVPCSwitchID, useExistingVMs,
 		maxCPU, maxMemory, maxDisk, maxVM, maxStorage, maxRuntimeHours,
 		enablePortForward, maxPortForwards, maxSnapshots,
 		maxBandwidthUp, maxBandwidthDown, maxTrafficDown, maxTrafficUp, maxPublicIPs)
+}
+
+func UpdateManagedUserAccount(username string, email *string, newPassword string) (*model.User, bool, error) {
+	return securitypkg.UpdateManagedUserAccount(username, email, newPassword)
 }
 
 func NeedsLoginVerification(user *model.User) bool {

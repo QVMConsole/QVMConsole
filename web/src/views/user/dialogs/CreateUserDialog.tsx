@@ -1,6 +1,7 @@
 /**
  * 新增用户弹窗
- * - SMTP 已配置：发送邀请邮件激活；未配置：直接设置初始密码（接入密码泄露检测）
+ * - 密码留空时发送邀请邮件；填写初始密码时直接创建可登录用户
+ * - SMTP 未配置时密码必填，所有密码输入均接入泄露检测
  * - 普通用户支持弹性云（用户级配额）与轻量云（分配已有 VM / 登记待开通 VM）
  * - 登记新 VM 复用创建向导的轻量云登记模式（onDraft 回传草稿）
  */
@@ -19,7 +20,7 @@ import {
   Tag,
   Toast,
 } from '@douyinfe/semi-ui'
-import { IconPlus } from '@douyinfe/semi-icons'
+import { IconPlus, IconRefresh } from '@douyinfe/semi-icons'
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table'
 import {
   createUser,
@@ -31,7 +32,7 @@ import {
 import { getVmList } from '@/api/vm'
 import type { VpcSwitch } from '@/api/vpc'
 import { useUserStore } from '@/stores/user'
-import { checkPasswordBreachAsync, validatePassword } from '@/utils/validate'
+import { checkPasswordBreachAsync, generatePassword, validatePassword } from '@/utils/validate'
 import CreateVmWizard, { type RegistrationDraft } from '@/features/vm-form/CreateVmWizard'
 import QuotaFormFields from '../components/QuotaFormFields'
 import LightweightQuotaTable from '../components/LightweightQuotaTable'
@@ -205,15 +206,15 @@ export default function CreateUserDialog({
       Toast.warning('请输入用户名')
       return
     }
-    if (!email.trim()) {
-      Toast.warning('请输入邮箱')
+    if (!smtpConfigured && !password) {
+      Toast.warning('SMTP 未配置，请为用户设置初始密码')
       return
     }
-    if (!smtpConfigured) {
-      if (!password) {
-        Toast.warning('SMTP 未配置，请为用户设置初始密码')
-        return
-      }
+    if (!password && !email.trim()) {
+      Toast.warning('未设置初始密码时，请填写邮箱以发送注册邀请')
+      return
+    }
+    if (password) {
       const local = validatePassword(password)
       if (!local.valid) {
         Toast.error(local.message)
@@ -235,8 +236,8 @@ export default function CreateUserDialog({
         return
       }
     }
-    // 密码泄露检测（SMTP 未配置时用户将直接使用该密码登录）
-    if (!smtpConfigured && password) {
+    // 填写密码后直接创建可登录用户，因此始终执行泄露检测。
+    if (password) {
       const breach = await checkPasswordBreachAsync(password)
       if (breach.enabled && breach.breached) {
         Toast.error('该密码已在已知泄露数据库中发现，请更换为更安全的密码')
@@ -248,11 +249,13 @@ export default function CreateUserDialog({
     try {
       const payload: CreateUserPayload = {
         username: username.trim(),
-        email: email.trim(),
         role,
         ...quota,
       }
-      if (!smtpConfigured) {
+      if (email.trim()) {
+        payload.email = email.trim()
+      }
+      if (password) {
         payload.password = password
       }
       if (role === 'user') {
@@ -272,7 +275,7 @@ export default function CreateUserDialog({
         }
       }
       const res = await createUser(payload)
-      Toast.success(res.message || (smtpConfigured ? '邀请邮件已发送' : '用户创建成功'))
+      Toast.success(res.message || (password ? '用户创建成功' : '邀请邮件已发送'))
       onSaved()
       requestClose()
     } catch {
@@ -303,41 +306,55 @@ export default function CreateUserDialog({
             <Input value={username} onChange={setUsername} placeholder="登录用户名" />
           </div>
           <div className="qvm-form-item">
-            <div className="qvm-form-label required">邮箱</div>
-            <Input value={email} onChange={setEmail} placeholder="接收邀请/通知邮件" />
+            <div className="qvm-form-label">邮箱</div>
+            <Input value={email} onChange={setEmail} placeholder="选填；发送邀请时必须填写" />
           </div>
         </div>
 
-        {!smtpConfigured && (
-          <>
-            <Banner
-              type="warning"
-              closeIcon={null}
-              description="SMTP 未配置，用户将直接使用初始密码登录，无需邮件邀请。"
-              style={{ marginBottom: 12 }}
-            />
-            <div className="usr-quota-grid cols-2">
-              <div className="qvm-form-item">
-                <div className="qvm-form-label required">初始密码</div>
-                <Input
-                  mode="password"
-                  value={password}
-                  onChange={setPassword}
-                  placeholder="为用户设置初始密码"
-                />
-              </div>
-              <div className="qvm-form-item">
-                <div className="qvm-form-label required">确认密码</div>
-                <Input
-                  mode="password"
-                  value={confirmPassword}
-                  onChange={setConfirmPassword}
-                  placeholder="请再次输入密码"
-                />
-              </div>
+        <Banner
+          type={smtpConfigured ? 'info' : 'warning'}
+          closeIcon={null}
+          description={
+            smtpConfigured
+              ? '初始密码留空时发送邀请邮件；填写密码后直接创建可登录用户，不再发送注册邀请。'
+              : 'SMTP 未配置，必须设置初始密码，用户创建后可直接登录。'
+          }
+          style={{ marginBottom: 12 }}
+        />
+        <div className="usr-quota-grid cols-2">
+          <div className="qvm-form-item">
+            <div className={`qvm-form-label${smtpConfigured ? '' : ' required'}`}>初始密码</div>
+            <div className="usr-password-row">
+              <Input
+                mode="password"
+                value={password}
+                onChange={setPassword}
+                placeholder={smtpConfigured ? '留空则发送邀请邮件' : '为用户设置初始密码'}
+              />
+              <Button
+                type="primary"
+                theme="light"
+                icon={<IconRefresh />}
+                onClick={() => {
+                  const generated = generatePassword()
+                  setPassword(generated)
+                  setConfirmPassword(generated)
+                }}
+              >
+                随机
+              </Button>
             </div>
-          </>
-        )}
+          </div>
+          <div className="qvm-form-item">
+            <div className={`qvm-form-label${smtpConfigured ? '' : ' required'}`}>确认密码</div>
+            <Input
+              mode="password"
+              value={confirmPassword}
+              onChange={setConfirmPassword}
+              placeholder={password ? '请再次输入密码' : '设置初始密码后需确认'}
+            />
+          </div>
+        </div>
 
         <div className="usr-quota-grid cols-2">
           <div className="qvm-form-item">

@@ -16,7 +16,7 @@ web/src/views/user/
 │   └── LightweightQuotaTable.tsx      # 轻量云单 VM 配额编辑表格（三处弹窗复用）
 └── dialogs/
     ├── CreateUserDialog.tsx           # 新增用户
-    ├── EditQuotaDialog.tsx            # 编辑用户配置
+    ├── EditQuotaDialog.tsx            # 编辑账户资料与用户配置
     ├── AssignVmDialog.tsx             # 分配 VM（弹性云）
     ├── RegistrationDialog.tsx         # 轻量云注册 VM / 分配已有 VM 管理
     ├── RegistrationQuotaDialog.tsx    # 编辑轻量云单 VM 配额
@@ -48,15 +48,21 @@ web/src/views/user/
 
 ### 新增用户
 
-- SMTP 已配置：仅填用户名/邮箱，发送邀请邮件激活；未配置：必填初始密码 + 确认密码，接入本地弱密码检测与后端泄露检测（`checkPasswordBreachAsync`）。
+- 邮箱为选填；初始密码留空时必须填写邮箱，并在 SMTP 已配置时发送邀请邮件，由用户自行完成注册。
+- 填写初始密码：不论 SMTP 是否配置、是否填写邮箱，均直接创建已激活、可登录的用户，不再发送注册邀请。
+- 普通用户未设置邮箱时跳过邮箱二段登录；邮件通知、找回密码及基于邮箱的高风险验证需在后续绑定邮箱后使用。
+- 初始密码旁提供「随机」按钮，会同时生成密码和确认密码；手工输入与随机密码都接入本地弱密码检测和后端泄露检测（`checkPasswordBreachAsync`）。
 - 角色为管理员：仅存储配额（默认 0 不限）；普通用户默认存储配额 10GB。
 - 弹性云用户：完整用户级配额表单（计算/存储/运行时长/端口转发/公网 IP/快照/带宽/流量）。
 - 轻量云用户：
   - `选择已有 VM`：多选未被占用的 VM，并为每台设置单 VM 配额（LightweightQuotaTable）；
   - `注册新 VM`：先选专用 NAT VPC，再通过 **创建虚拟机向导的轻量云登记模式**（`CreateVmWizard` 的 `registration` + `onDraft`）添加注册草稿，提交后随邀请流程开通。
+  - 分配专用 VPC 时允许复用并自动修复该 VM 既有的 VM 级安全组归属，即使历史安全组用户名为空；管理员 NAT VPC 归属到交换机用户，系统基础网络归属到 VM 实际用户，仅限当前轻量云用户绑定的专用 NAT VPC。
 
 ### 编辑用户配置
 
+- 邮箱为选填，可直接修改或清空；新密码同样为选填，留空时保持原密码，填写时需二次确认并通过密码泄露检测。
+- 为「待激活」用户设置新密码后，该账户会直接激活并完成系统用户资源初始化，原邀请链接随即失效。
 - 管理员：仅存储配额（附当前使用量）。
 - 普通用户：可切换弹性云/轻量云；弹性云展示完整配额表单及使用量进度；轻量云需选择专用 VPC，计算配额改由单 VM 配额管理。
 
@@ -73,12 +79,13 @@ web/src/views/user/
 - 删除用户、封禁、创建用户等敏感操作由请求层统一处理 428 高危二次验证。
 - 删除/封禁为任务队列异步操作，提交后延迟约 2 秒刷新列表。
 
-## 后端接口（无改动，完全复用）
+## 后端接口
 
 | 方法 | 路径 | 用途 |
 | --- | --- | --- |
 | GET | /api/user/list | 用户列表（含配额使用、轻量云注册/配额） |
 | POST | /api/user | 创建用户 |
+| PUT | /api/user/:username/account | 更新用户邮箱和密码；为待邀请用户设置密码时直接激活 |
 | DELETE | /api/user/:username | 删除用户（任务） |
 | PUT | /api/user/:username/quota | 更新配额 |
 | GET | /api/user/:username/quota | 配额使用情况 |

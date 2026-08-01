@@ -239,6 +239,24 @@
 .usr-quota-grid.cols-3 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
+
+.usr-password-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.usr-password-row .semi-input-wrapper {
+  flex: 1;
+  min-width: 0;
+}
+
+.usr-section-title {
+  margin: 14px 0 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--qvm-text-1);
+}
 .usr-quota-field-label {
   font-size: 12.5px;
   font-weight: 600;

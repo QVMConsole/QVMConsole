@@ -300,7 +300,10 @@ func Login(c *gin.Context) {
 				allowedMethods = append(allowedMethods, service.ChallengeMethodRecovery)
 			}
 		} else if user.TOTPEnabled {
-			allowedMethods = []string{service.ChallengeMethodTOTP, service.ChallengeMethodEmail}
+			allowedMethods = []string{service.ChallengeMethodTOTP}
+			if strings.TrimSpace(user.Email) != "" && user.EmailVerifiedAt != nil {
+				allowedMethods = append(allowedMethods, service.ChallengeMethodEmail)
+			}
 			if service.HasRecoveryCodes(&user) {
 				allowedMethods = append(allowedMethods, service.ChallengeMethodRecovery)
 			}

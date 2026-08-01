@@ -387,6 +387,100 @@ func resetUserPassword(user *model.User, newPassword string) error {
 	return nil
 }
 
+// UpdateManagedUserAccount 由管理员更新用户邮箱和登录密码。
+// 待邀请用户设置密码后会直接激活，并完成与邀请注册相同的系统资源初始化。
+func UpdateManagedUserAccount(username string, emailInput *string, newPassword string) (*model.User, bool, error) {
+	username = strings.TrimSpace(username)
+	if username == "" {
+		return nil, false, fmt.Errorf("用户名不能为空")
+	}
+
+	var user model.User
+	if err := model.DB.Where("username = ?", username).First(&user).Error; err != nil {
+		return nil, false, fmt.Errorf("用户 %s 不存在", username)
+	}
+
+	passwordChanged := newPassword != ""
+	if passwordChanged {
+		if err := D.ValidateStrongPassword(newPassword); err != nil {
+			return nil, false, err
+		}
+	}
+
+	now := time.Now()
+	updates := map[string]interface{}{
+		"high_risk_verified_until": nil,
+		"security_updated_at":      &now,
+	}
+	if emailInput != nil {
+		email := strings.TrimSpace(strings.ToLower(*emailInput))
+		updates["email"] = email
+		if email == "" {
+			updates["email_verified_at"] = nil
+		} else {
+			updates["email_verified_at"] = &now
+		}
+	}
+	activated := passwordChanged && user.Status == UserStatusPendingInvite
+	if passwordChanged {
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+		if err != nil {
+			return nil, false, fmt.Errorf("密码加密失败: %w", err)
+		}
+		updates["password_hash"] = string(hashedPassword)
+		updates["force_password_change"] = false
+		updates["force_password_change_reason"] = ""
+		updates["login_verified_until"] = nil
+		for key, value := range PasswordFingerprintUpdateFields(newPassword) {
+			updates[key] = value
+		}
+		if activated {
+			loginVerifiedUntil := now.Add(LoginVerificationWindow)
+			updates["status"] = UserStatusActive
+			updates["login_verified_until"] = &loginVerifiedUntil
+		}
+	}
+
+	if err := model.DB.Model(&user).Updates(updates).Error; err != nil {
+		return nil, false, fmt.Errorf("更新用户账户失败: %w", err)
+	}
+
+	if passwordChanged {
+		if activated {
+			user.Status = UserStatusActive
+			if emailInput != nil {
+				user.Email = strings.TrimSpace(strings.ToLower(*emailInput))
+			}
+			if err := D.ProvisionSystemUserResources(&user, newPassword); err != nil {
+				return nil, false, err
+			}
+			if user.Role == "user" && !D.IsLightweightCloudType(user.CloudType) {
+				if _, err := D.EnsureDefaultSecurityGroup(user.Username); err != nil {
+					return nil, false, err
+				}
+				if _, err := D.EnsureDefaultVPCSwitch(user.Username); err != nil {
+					return nil, false, err
+				}
+			}
+			if err := InvalidateAuthActionTokens(user.ID, ActionTokenPurposeInviteRegister); err != nil {
+				return nil, false, err
+			}
+		} else if user.Role == "user" {
+			if err := SyncUserPassword(user.Username, newPassword); err != nil {
+				return nil, false, err
+			}
+		}
+		if err := InvalidateAuthActionTokens(user.ID, ActionTokenPurposePasswordReset); err != nil {
+			return nil, false, err
+		}
+	}
+
+	if err := model.DB.First(&user, user.ID).Error; err != nil {
+		return nil, false, fmt.Errorf("读取更新后的用户失败: %w", err)
+	}
+	return &user, activated, nil
+}
+
 // BindUserEmail 绑定或更新邮箱
 func BindUserEmail(userID uint, email string, verifiedAt time.Time) error {
 	email = strings.TrimSpace(strings.ToLower(email))
@@ -549,7 +643,8 @@ func CanEnterBootstrap(user *model.User) bool {
 		}
 		return !IsSMTPConfigured() || user.EmailVerifiedAt == nil || !user.TOTPEnabled
 	}
-	return user.EmailVerifiedAt == nil
+	// 普通用户邮箱为选填。没有邮箱时可以直接登录，后续仍可在安全设置中绑定。
+	return strings.TrimSpace(user.Email) != "" && user.EmailVerifiedAt == nil
 }
 
 // SkipAdminBootstrap 管理员跳过安全初始化，标记已跳过
@@ -577,21 +672,39 @@ func TryClearBootstrapSkipped(userID uint) error {
 	return nil
 }
 
-// CreateActiveUserDirectly 直接创建已激活用户（SMTP未配置时的回退方案）
-func CreateActiveUserDirectly(username, email, password, role, cloudType string,
+// CreateActiveUserDirectly 使用管理员指定的初始密码直接创建已激活用户。
+func CreateActiveUserDirectly(username, email, password, role, cloudType string, dedicatedVPCSwitchID uint, useExistingVMs bool,
 	maxCPU, maxMemory, maxDisk, maxVM, maxStorage, maxRuntimeHours int,
 	enablePortForward bool, maxPortForwards, maxSnapshots int,
 	maxBandwidthUp, maxBandwidthDown, maxTrafficDown, maxTrafficUp float64, maxPublicIPs int) (*model.User, error) {
 
 	username = strings.TrimSpace(username)
 	email = strings.TrimSpace(strings.ToLower(email))
-	if username == "" || email == "" {
-		return nil, fmt.Errorf("用户名和邮箱不能为空")
+	if username == "" {
+		return nil, fmt.Errorf("用户名不能为空")
 	}
 	if role == "" {
 		role = "user"
 	}
 	cloudType = D.NormalizeCloudType(cloudType)
+	if role == "admin" {
+		cloudType = D.CloudTypeElastic
+		dedicatedVPCSwitchID = 0
+	}
+	if role == "user" && D.IsLightweightCloudType(cloudType) && dedicatedVPCSwitchID == 0 && !useExistingVMs {
+		return nil, fmt.Errorf("轻量云用户必须选择专用 VPC 网络")
+	}
+	if role == "user" && D.IsLightweightCloudType(cloudType) && dedicatedVPCSwitchID > 0 {
+		var count int64
+		if err := model.DB.Model(&model.VPCSwitch{}).
+			Where("id = ? AND (bridge_mode = '' OR bridge_mode = ? OR bridge_mode IS NULL)", dedicatedVPCSwitchID, D.BridgeModeNAT).
+			Count(&count).Error; err != nil {
+			return nil, fmt.Errorf("检查专用 VPC 网络失败: %w", err)
+		}
+		if count == 0 {
+			return nil, fmt.Errorf("请选择有效的 NAT 类型专用 VPC 网络")
+		}
+	}
 
 	if err := D.ValidateStrongPassword(password); err != nil {
 		return nil, err
@@ -614,6 +727,10 @@ func CreateActiveUserDirectly(username, email, password, role, cloudType string,
 	now := time.Now()
 	loginVerifiedUntil := now.Add(LoginVerificationWindow)
 	fingerprint := BuildPasswordFingerprint(password)
+	var emailVerifiedAt *time.Time
+	if email != "" {
+		emailVerifiedAt = &now
+	}
 	user := &model.User{
 		Username:             username,
 		PasswordHash:         string(hashedPassword),
@@ -622,8 +739,9 @@ func CreateActiveUserDirectly(username, email, password, role, cloudType string,
 		Email:                email,
 		Role:                 role,
 		CloudType:            cloudType,
+		DedicatedVPCSwitchID: dedicatedVPCSwitchID,
 		Status:               UserStatusActive,
-		EmailVerifiedAt:      &now,
+		EmailVerifiedAt:      emailVerifiedAt,
 		LoginVerifiedUntil:   &loginVerifiedUntil,
 		MaxCPU:               maxCPU,
 		MaxMemory:            maxMemory,
@@ -683,6 +801,10 @@ func NeedsLoginVerification(user *model.User) bool {
 			return false
 		}
 		return true
+	}
+	// 普通用户未设置邮箱且未启用 2FA 时不进入邮箱二段登录，否则会因没有收件地址而卡住登录。
+	if strings.TrimSpace(user.Email) == "" && !user.TOTPEnabled {
+		return false
 	}
 	if user.LoginVerifiedUntil == nil {
 		return true

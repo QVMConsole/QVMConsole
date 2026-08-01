@@ -377,7 +377,7 @@ export default function UserPage() {
           !(row.quota && (row.quota.is_limited_down || row.quota.is_limited_up))
         return (
           <div className="usr-act-cell">
-            <Tooltip content="配置" position="top">
+            <Tooltip content="编辑用户" position="top">
               <span
                 className={`usr-act-ic config${configDisabled ? ' disabled' : ''}`}
                 onClick={() => {

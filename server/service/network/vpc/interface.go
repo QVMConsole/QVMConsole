@@ -71,7 +71,7 @@ func AddVMInterface(vmName string, req AddVMInterfaceRequest) (*VMInterfaceInfo,
 			if err := model.DB.First(&group, securityGroupID).Error; err != nil {
 				return nil, fmt.Errorf("安全组不存在")
 			}
-			if !sw.IsSystem && group.Username != sw.Username {
+			if !sw.IsSystem && group.Username != sw.Username && !isLightweightDedicatedVPCSecurityGroup(group, vmName, sw.ID) {
 				return nil, fmt.Errorf("安全组必须属于交换机用户 %s", sw.Username)
 			}
 		}
@@ -207,7 +207,7 @@ func UpdateVMInterface(vmName string, interfaceOrder int, req AddVMInterfaceRequ
 			if err := model.DB.First(&group, securityGroupID).Error; err != nil {
 				return fmt.Errorf("安全组不存在")
 			}
-			if !sw.IsSystem && group.Username != sw.Username {
+			if !sw.IsSystem && group.Username != sw.Username && !isLightweightDedicatedVPCSecurityGroup(group, vmName, sw.ID) {
 				return fmt.Errorf("安全组必须属于交换机用户 %s", sw.Username)
 			}
 		}

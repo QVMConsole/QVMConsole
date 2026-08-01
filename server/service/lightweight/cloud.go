@@ -156,7 +156,11 @@ func EnsureLightweightVMNetwork(username, vmName string) error {
 	if HookSwitchUsesDirectBridge(sw) {
 		return fmt.Errorf("轻量云专用 VPC 不能使用桥接直通网络")
 	}
-	group, err := ensureLightweightVMSecurityGroup(sw.Username, vmName)
+	groupOwner := strings.TrimSpace(sw.Username)
+	if sw.IsSystem || groupOwner == "" {
+		groupOwner = username
+	}
+	group, err := ensureLightweightVMSecurityGroup(groupOwner, vmName)
 	if err != nil {
 		return err
 	}
@@ -166,6 +170,13 @@ func EnsureLightweightVMNetwork(username, vmName string) error {
 func ensureLightweightVMSecurityGroup(groupOwner, vmName string) (*model.VPCSecurityGroup, error) {
 	var group model.VPCSecurityGroup
 	if err := model.DB.Where("vm_name = ? AND is_vm_scoped = ?", vmName, true).First(&group).Error; err == nil {
+		groupOwner = strings.TrimSpace(groupOwner)
+		if groupOwner != "" && group.Username != groupOwner {
+			if err := model.DB.Model(&group).Update("username", groupOwner).Error; err != nil {
+				return nil, fmt.Errorf("修复轻量云 VM 专属安全组归属失败: %w", err)
+			}
+			group.Username = groupOwner
+		}
 		return &group, nil
 	}
 	name := "light-" + vmName

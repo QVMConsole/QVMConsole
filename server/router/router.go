@@ -427,7 +427,8 @@ func Setup() *gin.Engine {
 			user.Use(middleware.AdminMiddleware())
 			{
 				user.GET("/list", handler.GetUserList)
-				user.POST("", handler.CreateUser)
+				user.POST("", handler.CreateUser)                         // 创建邀请用户或可直接登录用户
+				user.PUT("/:username/account", handler.UpdateUserAccount) // 更新用户邮箱和密码
 				user.PUT("/:username/vms", handler.AssignVMs)
 				user.POST("/:username/lightweight-registrations", handler.CreateLightweightVMRegistrations)
 				user.PUT("/:username/lightweight-vm-quota", handler.UpdateLightweightVMQuota)

@@ -39,11 +39,12 @@ func IsSecurityVerificationDisabled() bool {
 // BuildSecurityState 构建安全状态
 func BuildSecurityState(user *model.User) SecurityState {
 	state := SecurityState{
-		Email:               strings.TrimSpace(user.Email),
-		MaskedEmail:         MaskEmail(user.Email),
-		EmailVerified:       user.EmailVerifiedAt != nil,
-		TOTPEnabled:         user.TOTPEnabled,
-		MustBindEmail:       user.EmailVerifiedAt == nil,
+		Email:         strings.TrimSpace(user.Email),
+		MaskedEmail:   MaskEmail(user.Email),
+		EmailVerified: user.EmailVerifiedAt != nil,
+		TOTPEnabled:   user.TOTPEnabled,
+		// 普通用户邮箱是可选资料：未填写时不进入强制绑定流程；管理员保留原有安全初始化要求。
+		MustBindEmail:       user.EmailVerifiedAt == nil && (user.Role == "admin" || strings.TrimSpace(user.Email) != ""),
 		MustBind2FA:         user.Role == "admin" && !user.TOTPEnabled,
 		SMTPConfigured:      IsSMTPConfigured(),
 		DevelopmentMode:     IsSecurityVerificationDisabled(),
@@ -75,6 +76,11 @@ func BuildSecurityState(user *model.User) SecurityState {
 		state.RequiresLoginVerify = time.Now().After(*user.LoginVerifiedUntil)
 	} else {
 		state.RequiresLoginVerify = true
+	}
+	if user.Role != "admin" && strings.TrimSpace(user.Email) == "" && !user.TOTPEnabled {
+		state.RequiresLoginVerify = false
+		state.HighRiskMethod = ""
+		return state
 	}
 	if user.TOTPEnabled {
 		state.HighRiskMethod = ChallengeMethodTOTP

@@ -18,7 +18,7 @@ import (
 type CreateUserRequest struct {
 	Username                    string                                     `json:"username" binding:"required"`
 	Email                       string                                     `json:"email"`
-	Password                    string                                     `json:"password"`   // SMTP 未配置时必填
+	Password                    string                                     `json:"password"`   // 选填；填写后直接创建激活用户
 	Role                        string                                     `json:"role"`       // admin/user
 	CloudType                   string                                     `json:"cloud_type"` // elastic/lightweight
 	DedicatedVPCSwitchID        uint                                       `json:"dedicated_vpc_switch_id"`
@@ -39,6 +39,12 @@ type CreateUserRequest struct {
 	LightweightVMRegistrations  []service.LightweightVMRegistrationRequest `json:"lightweight_vm_registrations"`
 	LightweightExistingVMs      []string                                   `json:"lightweight_existing_vms"`       // 选择已有VM列表
 	LightweightExistingVMQuotas []service.LightweightVMQuotaRequest        `json:"lightweight_existing_vm_quotas"` // 已有VM配额
+}
+
+// UpdateUserAccountRequest 更新用户账户资料请求
+type UpdateUserAccountRequest struct {
+	Email    *string `json:"email"`
+	Password string  `json:"password"`
 }
 
 // UpdateQuotaRequest 更新配额请求
@@ -137,8 +143,15 @@ func resolveUpdateUserEnablePortForward(username string, value *bool) (bool, err
 	return user.EnablePortForward, nil
 }
 
+func validateManagedPassword(password string) error {
+	return service.ValidateStrongPassword(password)
+}
+
 // CreateUser 创建用户
 func CreateUser(c *gin.Context) {
+	if !requireHighRiskVerification(c, "create_user") {
+		return
+	}
 	var req CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -157,26 +170,32 @@ func CreateUser(c *gin.Context) {
 	maxPortForwards := resolveCreateUserMaxPortForwards(role, req.MaxPortForwards)
 	maxSnapshots := resolveCreateUserMaxSnapshots(role, req.MaxSnapshots)
 
-	// SMTP 未配置时，邮件发送不可用，必须填写密码直接创建激活用户
+	email := strings.TrimSpace(req.Email)
+	password := req.Password
+	dedicatedVPCSwitchID := req.DedicatedVPCSwitchID
+	useExistingVMs := service.IsLightweightCloudType(cloudType) && len(req.LightweightExistingVMs) > 0
+	if useExistingVMs {
+		dedicatedVPCSwitchID = 0
+	}
+
+	// 填写密码时直接创建激活用户；留空时才进入邮件邀请流程。
 	smtpConfigured := service.IsSMTPConfigured()
-	if !smtpConfigured {
-		email := strings.TrimSpace(req.Email)
-		if email == "" {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"code":    400,
-				"message": "SMTP 尚未配置，无法发送邀请邮件，请填写完整的用户信息（包括邮箱和密码）",
-			})
-			return
-		}
-		password := strings.TrimSpace(req.Password)
-		if password == "" {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"code":    400,
-				"message": "SMTP 未配置时，必须为用户设置初始密码",
-			})
-			return
-		}
-		if err := service.ValidateStrongPassword(password); err != nil {
+	if password == "" && !smtpConfigured {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "SMTP 未配置时，必须为用户设置初始密码",
+		})
+		return
+	}
+	if password == "" && email == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "未设置初始密码时，必须填写邮箱以发送注册邀请",
+		})
+		return
+	}
+	if password != "" {
+		if err := validateManagedPassword(password); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"code":    400,
 				"message": "密码不符合要求: " + err.Error(),
@@ -185,7 +204,7 @@ func CreateUser(c *gin.Context) {
 		}
 
 		// 直接创建激活用户
-		user, err := service.CreateActiveUserDirectly(req.Username, email, password, role, cloudType,
+		user, err := service.CreateActiveUserDirectly(req.Username, email, password, role, cloudType, dedicatedVPCSwitchID, useExistingVMs,
 			req.MaxCPU, req.MaxMemory, req.MaxDisk, req.MaxVM, req.MaxStorage, req.MaxRuntimeHours,
 			enablePortForward, maxPortForwards, maxSnapshots,
 			req.MaxBandwidthUp, req.MaxBandwidthDown, req.MaxTrafficDown, req.MaxTrafficUp, req.MaxPublicIPs)
@@ -225,24 +244,10 @@ func CreateUser(c *gin.Context) {
 
 		c.JSON(http.StatusOK, gin.H{
 			"code":    200,
-			"message": "用户已创建（SMTP 未配置，用户可直接使用初始密码登录）",
+			"message": "用户已创建，可直接使用初始密码登录",
 			"data":    gin.H{"username": user.Username},
 		})
 		return
-	}
-
-	// SMTP 已配置：原有邀请注册流程
-	email := strings.TrimSpace(req.Email)
-	if email == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "邮箱不能为空"})
-		return
-	}
-
-	// 如果选择已有VM，不需要专用VPC
-	dedicatedVPCSwitchID := req.DedicatedVPCSwitchID
-	useExistingVMs := service.IsLightweightCloudType(cloudType) && len(req.LightweightExistingVMs) > 0
-	if useExistingVMs {
-		dedicatedVPCSwitchID = 0
 	}
 
 	user, inviteToken, err := service.CreatePendingInvitedUserWithExistingVMs(req.Username, req.Email, role, cloudType, dedicatedVPCSwitchID, useExistingVMs,
@@ -324,6 +329,60 @@ func CreateUser(c *gin.Context) {
 		"message": "邀请邮件已发送",
 		"data": gin.H{
 			"invite_url": inviteURL,
+		},
+	})
+}
+
+// UpdateUserAccount 管理员更新用户邮箱和密码。
+func UpdateUserAccount(c *gin.Context) {
+	if !requireHighRiskVerification(c, "update_user_account") {
+		return
+	}
+
+	username := strings.TrimSpace(c.Param("username"))
+	var req UpdateUserAccountRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		return
+	}
+	if req.Email == nil && req.Password == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请至少提交邮箱或新密码"})
+		return
+	}
+	if req.Password != "" {
+		if err := validateManagedPassword(req.Password); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "密码不符合要求: " + err.Error()})
+			return
+		}
+	}
+
+	user, activated, err := service.UpdateManagedUserAccount(username, req.Email, req.Password)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if strings.Contains(err.Error(), "不存在") || strings.Contains(err.Error(), "不能为空") || strings.Contains(err.Error(), "密码") {
+			status = http.StatusBadRequest
+		}
+		c.JSON(status, gin.H{"code": status, "message": err.Error()})
+		return
+	}
+	message := "用户账户资料已更新"
+	if activated {
+		message = "用户账户资料已更新，待邀请账户已激活，可直接登录"
+	} else if req.Password != "" {
+		if req.Email == nil {
+			message = "用户登录密码已更新"
+		} else {
+			message = "用户邮箱和密码已更新"
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": message,
+		"data": gin.H{
+			"username":  user.Username,
+			"email":     user.Email,
+			"status":    user.Status,
+			"activated": activated,
 		},
 	})
 }
