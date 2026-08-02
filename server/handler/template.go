@@ -84,6 +84,25 @@ func PrepareTemplate(c *gin.Context) {
 	})
 }
 
+// GetLinuxTemplatePrepareCheck 获取 Linux 模板预处理前的链式依赖检查结果。
+func GetLinuxTemplatePrepareCheck(c *gin.Context) {
+	name := strings.TrimSpace(c.Param("name"))
+	if name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "缺少模板名称"})
+		return
+	}
+	if err := service.ValidateTemplateName(name); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+	check, err := service.GetLinuxTemplatePrepareCheck(name)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "检查模板链式依赖失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "ok", "data": check})
+}
+
 // PrepareImportedLinuxTemplate 为历史导入的 Linux 模板补齐离线克隆依赖。
 func PrepareImportedLinuxTemplate(c *gin.Context) {
 	name := strings.TrimSpace(c.Param("name"))
@@ -93,6 +112,19 @@ func PrepareImportedLinuxTemplate(c *gin.Context) {
 	}
 	if err := service.ValidateTemplateName(name); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+	check, err := service.GetLinuxTemplatePrepareCheck(name)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "检查模板链式依赖失败: " + err.Error()})
+		return
+	}
+	if !check.CanPrepare {
+		c.JSON(http.StatusConflict, gin.H{
+			"code":    http.StatusConflict,
+			"message": "模板链路仍有关联的链式克隆虚拟机，请先在虚拟机管理的“更多”菜单中逐台转为独立虚拟机后再预处理",
+			"data":    check,
+		})
 		return
 	}
 	username, _ := c.Get("username")

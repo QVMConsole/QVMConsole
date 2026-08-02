@@ -230,6 +230,9 @@ func PrepareImportedLinuxTemplate(templateName string, progressFn func(int, stri
 	if normalizeTemplateType(meta.Type) != "linux" {
 		return fmt.Errorf("仅 Linux 模板支持离线克隆依赖预处理")
 	}
+	if err := ensureLinuxTemplateCanBePrepared(templateName); err != nil {
+		return err
+	}
 
 	progressFn(15, "检查 Linux 克隆依赖...")
 	_ = utils.RemoveFileImmutable(templatePath)

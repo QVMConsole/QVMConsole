@@ -155,6 +155,13 @@ type TemplateRelatedVM struct {
 	CloneMode string `json:"clone_mode"` // 克隆模式: linked / full
 }
 
+// LinuxTemplatePrepareCheck Linux 模板预处理前的链式依赖检查结果。
+type LinuxTemplatePrepareCheck struct {
+	TemplateName string              `json:"template_name"`
+	LinkedVMs    []TemplateRelatedVM `json:"linked_vms"`
+	CanPrepare   bool                `json:"can_prepare"`
+}
+
 // PrepareTemplateParams 制作模板参数
 type PrepareTemplateParams struct {
 	VMName           string `json:"vm_name"`

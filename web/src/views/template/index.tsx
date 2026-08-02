@@ -6,12 +6,13 @@
  * - 删除模板链路（级联/提升子节点/热删除，高风险二次验证由请求层自动处理）
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Button, Spin, Toast } from '@douyinfe/semi-ui'
+import { Button, Modal, Spin, Toast } from '@douyinfe/semi-ui'
 import { IconChevronDown, IconChevronUp, IconRefresh, IconUpload } from '@douyinfe/semi-icons'
 import {
   deleteTemplateExport,
   exportTemplate,
   getTemplateExportDownloadUrl,
+  getLinuxTemplatePrepareCheck,
   getTemplateList,
   prepareImportedLinuxTemplate,
   type TemplateItem,
@@ -141,9 +142,43 @@ export default function TemplateListPage() {
   )
 
   const handlePrepareLinux = useCallback(async (node: TemplateItem) => {
+    try {
+      const checkRes = await getLinuxTemplatePrepareCheck(node.name)
+      const check = checkRes.data
+      if (check && !check.can_prepare) {
+        const linkedVMs = check.linked_vms || []
+        Modal.warning({
+          title: '请先转换关联虚拟机',
+          content: (
+            <div className="tpl-prepare-blocker">
+              <p>
+                预处理会改写模板底盘。以下链式克隆虚拟机仍依赖该模板，继续操作会导致它们继承模板变更。
+              </p>
+              <ul>
+                {linkedVMs.map((vm) => (
+                  <li key={vm.name}>
+                    <strong>{vm.name}</strong>
+                    <span>（{vm.status || '状态未知'}）</span>
+                  </li>
+                ))}
+              </ul>
+              <p>
+                请先关机，再前往“虚拟机管理”，在每台虚拟机的“更多”菜单中执行“转为独立虚拟机”；待全部转换任务完成后，再返回此处预处理。
+              </p>
+            </div>
+          ),
+          okText: '知道了',
+        })
+        return
+      }
+    } catch (err) {
+      console.error('检查 Linux 模板链式依赖失败', err)
+      return
+    }
+
     const ok = await confirmModal({
       title: 'Linux 模板离线预处理',
-      content: `将检查并补齐模板「${node.admin_name || node.name}」的 cloud-init 与磁盘扩容依赖。任务执行期间模板不可用于新的预处理操作。`,
+      content: `将检查并补齐模板「${node.admin_name || node.name}」的 cloud-init 与磁盘扩容依赖。预处理会再次检查链式克隆依赖；若期间新增关联虚拟机，任务不会执行。`,
       okText: '提交任务',
     })
     if (!ok) return

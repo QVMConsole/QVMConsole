@@ -12,6 +12,7 @@ type TemplateMeta = templatepkg.TemplateMeta
 type TemplateDefaultConfig = templatepkg.TemplateDefaultConfig
 type TemplateInfo = templatepkg.TemplateInfo
 type TemplateRelatedVM = templatepkg.TemplateRelatedVM
+type LinuxTemplatePrepareCheck = templatepkg.LinuxTemplatePrepareCheck
 type PrepareTemplateParams = templatepkg.PrepareTemplateParams
 type DeleteTemplateParams = templatepkg.DeleteTemplateParams
 type DeleteTemplateResult = templatepkg.DeleteTemplateResult
@@ -67,6 +68,11 @@ func PrepareTemplate(params *PrepareTemplateParams, progressFn func(int, string)
 // PrepareImportedLinuxTemplate 为已导入 Linux 模板补齐离线克隆依赖。
 func PrepareImportedLinuxTemplate(templateName string, progressFn func(int, string)) error {
 	return templatepkg.PrepareImportedLinuxTemplate(templateName, progressFn)
+}
+
+// GetLinuxTemplatePrepareCheck delegates to templatepkg.GetLinuxTemplatePrepareCheck.
+func GetLinuxTemplatePrepareCheck(templateName string) (*LinuxTemplatePrepareCheck, error) {
+	return templatepkg.GetLinuxTemplatePrepareCheck(templateName)
 }
 
 // DeleteTemplate delegates to templatepkg.DeleteTemplate

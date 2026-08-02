@@ -90,6 +90,20 @@ export function prepareImportedLinuxTemplate(name: string) {
   )
 }
 
+/** Linux 模板离线预处理链式依赖检查结果 */
+export interface LinuxTemplatePrepareCheck {
+  template_name: string
+  linked_vms: TemplateRelatedVM[]
+  can_prepare: boolean
+}
+
+/** 检查 Linux 模板预处理是否存在链式克隆依赖 */
+export function getLinuxTemplatePrepareCheck(name: string) {
+  return service.get<unknown, ApiResponse<LinuxTemplatePrepareCheck>>(
+    `/template/${encodeURIComponent(name)}/prepare-linux/check`,
+  )
+}
+
 // ==================== 模板包分片上传 ====================
 
 /** 初始化/恢复模板包上传会话（含秒传判断） */

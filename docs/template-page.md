@@ -15,7 +15,7 @@
 | 全部展开/收起 | 页头按钮批量控制；手动刷新后默认全部收起 |
 | 导出 | 「导出节点」导出单节点包，「导出整树」（仅根节点）导出整棵派生树；均为异步任务 |
 | 导出包管理 | 已导出节点可「下载导出包」（附带 token 新窗口打开）与「删除导出包」（二次确认） |
-| 离线预处理 | 仅 Linux 节点显示，提交补齐 cloud-init 与磁盘扩容依赖的预处理任务（二次确认） |
+| 离线预处理 | 仅 Linux 节点显示；预处理前检查当前模板派生链的链式 VM，发现依赖时列出 VM 并提示先在“虚拟机管理 → 更多”手动转为独立虚拟机，全部完成后才可提交预处理任务 |
 | 发布设置 | 管理员名称、用户侧显示、Linux/Windows 分类、启用克隆、禁用模板、默认创建配置（CPU/内存/磁盘/磁盘驱动/网卡/显示设备/CPU 拓扑/首次重启）、Linux 启动后命令（含阻塞开关） |
 | 其它模板 | 制作时选择「其它」会固定关闭系统初始化；克隆时支持链式克隆和完整克隆，但不会修改模板内的主机名、用户名、密码或网络配置 |
 | 导入模板包 | 支持「上传文件」（分片上传：MD5 秒传 + 断点续传 + 缺片自愈补传，含哈希计算/上传双阶段进度）与「主机绝对路径」两种来源；解析预览展示节点链路（冲突/已存在/将导入）后确认导入（异步任务）；预览后未导入而关闭弹窗会自动清理临时包 |
@@ -47,7 +47,8 @@ web/src/views/template/
 ## 涉及接口
 
 - `GET /template/list`：模板列表（树节点扁平结构，前端构建族树）
-- `POST /template/:name/prepare-linux`：Linux 模板离线预处理（管理员）
+- `GET /template/:name/prepare-linux/check`：检查 Linux 模板预处理的链式 VM 依赖（管理员）
+- `POST /template/:name/prepare-linux`：Linux 模板离线预处理（管理员；存在链式 VM 依赖时返回 409）
 - `POST /template/upload/init|chunk|complete`、`DELETE /template/upload`：模板包分片上传与临时包清理
 - `POST /template/import/preview`、`POST /template/import/confirm`：导入解析预览与确认
 - `POST /template/:name/export?scope=node|root`、`DELETE /template/:name/export`、`GET /template/download/:filename`：导出与下载

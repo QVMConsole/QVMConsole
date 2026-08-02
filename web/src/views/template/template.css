@@ -401,6 +401,31 @@ body[theme-mode='dark'] .tpl-chain-summary .chain-leaf {
   color: var(--qvm-text-2);
 }
 
+/* ==================== 预处理链式依赖提示 ==================== */
+.tpl-prepare-blocker {
+  color: var(--qvm-text-1);
+  line-height: 1.65;
+}
+.tpl-prepare-blocker p {
+  margin: 0 0 10px;
+}
+.tpl-prepare-blocker ul {
+  max-height: 180px;
+  margin: 0 0 10px;
+  padding-left: 22px;
+  overflow-y: auto;
+}
+.tpl-prepare-blocker li {
+  color: var(--qvm-text-1);
+}
+.tpl-prepare-blocker li span {
+  color: var(--qvm-text-2);
+}
+body[theme-mode='dark'] .tpl-prepare-blocker,
+body[theme-mode='dark'] .tpl-prepare-blocker li {
+  color: #b8c1cf;
+}
+
 /* ==================== 弹窗通用表单（与 vm 页保持一致） ==================== */
 .qvm-form-item {
   margin-bottom: 14px;

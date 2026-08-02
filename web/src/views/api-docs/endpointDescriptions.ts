@@ -541,6 +541,11 @@ export const endpointDescriptions: Record<string, EndpointDescription> = {
   'POST /template/:name/prepare-linux': {
     summary: '预处理已导入 Linux 模板',
     response: 'data: task_id。任务会在模板阶段安装并校验 cloud-init 与磁盘扩容依赖，克隆阶段保持离线。',
+    notes: ['模板链路存在链式克隆 VM 时返回 409；请先逐台调用“转为独立虚拟机”并等待任务完成。'],
+  },
+  'GET /template/:name/prepare-linux/check': {
+    summary: '检查 Linux 模板预处理链式依赖',
+    response: 'data: template_name, linked_vms[], can_prepare。linked_vms 不为空时不可预处理。',
   },
   'POST /template/upload/init': {
     summary: '模板包分片上传-初始化/秒传',
