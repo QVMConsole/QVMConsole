@@ -23,7 +23,7 @@ func AttachVMInterface(vmName string, sw model.VPCSwitch, nicModel string, inter
 
 	// 生成网口 XML
 	bridgeName := D.BridgeNameForSwitch(sw)
-	interfaceXML := buildVMInterfaceXML(bridgeName, sw, nicModel, interfaceOrder)
+	interfaceXML := buildVMInterfaceXML(vmName, bridgeName, sw, nicModel, interfaceOrder)
 
 	// 检查虚拟机状态
 	state := strings.TrimSpace(utils.ExecCommand("virsh", "domstate", vmName).Stdout)
@@ -233,15 +233,15 @@ func extractInterfaceByMAC(xmlText, targetMAC string) (string, bool) {
 }
 
 // buildVMInterfaceXML 构建虚拟机网口的 XML 块
-func buildVMInterfaceXML(bridgeName string, sw model.VPCSwitch, nicModel string, interfaceOrder int) string {
+func buildVMInterfaceXML(vmName, bridgeName string, sw model.VPCSwitch, nicModel string, interfaceOrder int) string {
 	model := nicModel
 	if model == "" {
 		model = "virtio"
 	}
 
 	// 生成 MAC 地址和 UUID（interfaceid 必须是 UUID 格式）
-	macAddr := generateInterfaceMAC(bridgeName, interfaceOrder)
-	ifaceUUID := generateInterfaceUUID(bridgeName, interfaceOrder)
+	macAddr := generateInterfaceMAC(vmName, interfaceOrder)
+	ifaceUUID := generateInterfaceUUID(vmName, interfaceOrder)
 
 	xml := fmt.Sprintf(`    <interface type='bridge'>
       <mac address='%s'/>

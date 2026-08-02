@@ -7,6 +7,7 @@ import (
 	"kvm_console/logger"
 	"kvm_console/model"
 	"kvm_console/service/ip_resolver"
+	"kvm_console/utils"
 )
 
 func BindVMToVPC(username, vmName string, switchID, securityGroupID uint) error {
@@ -79,7 +80,19 @@ func bindVMToVPCWithSecurityGroupOwner(username, vmName string, switchID, securi
 		SecurityGroupID: securityGroupID,
 	}
 	var existing model.VPCVMBinding
-	if err := model.DB.Where("vm_name = ?", vmName).First(&existing).Error; err == nil {
+	hasExistingBinding := model.DB.Where("vm_name = ? AND interface_order = ?", vmName, 0).First(&existing).Error == nil
+
+	// 主网口绑定以前只会重写已有网卡的 XML。模板未带网卡时会留下绑定记录，
+	// 却没有任何实际硬件，因此必须在保存记录前补齐主网卡。
+	nicModel, createdInterface, err := ensurePrimaryVMInterface(vmName, sw)
+	if err != nil {
+		return err
+	}
+	if createdInterface {
+		binding.NicModel = nicModel
+	}
+
+	if hasExistingBinding {
 		if existing.SwitchID != switchID {
 			oldSwitchID = existing.SwitchID
 			oldTrafficDown, oldTrafficUp = AggregateSwitchMonthlyTraffic(oldSwitchID)
@@ -94,10 +107,15 @@ func bindVMToVPCWithSecurityGroupOwner(username, vmName string, switchID, securi
 		existing.Username = username
 		existing.SwitchID = switchID
 		existing.SecurityGroupID = securityGroupID
+		if createdInterface {
+			existing.NicModel = nicModel
+		}
 		if err := model.DB.Save(&existing).Error; err != nil {
+			rollbackPrimaryVMInterface(vmName, createdInterface)
 			return err
 		}
 	} else if err := model.DB.Create(&binding).Error; err != nil {
+		rollbackPrimaryVMInterface(vmName, createdInterface)
 		return err
 	}
 	if oldSwitchID != 0 {
@@ -115,6 +133,55 @@ func bindVMToVPCWithSecurityGroupOwner(username, vmName string, switchID, securi
 		return nil
 	}
 	return ApplyVPCACLRules()
+}
+
+// ensurePrimaryVMInterface 为没有任何网卡的虚拟机创建主网卡。
+// 返回的型号只在本次确实创建硬件时写回主网口绑定记录。
+func ensurePrimaryVMInterface(vmName string, sw model.VPCSwitch) (string, bool, error) {
+	vmName = strings.TrimSpace(vmName)
+	if vmName == "" {
+		return "", false, fmt.Errorf("虚拟机名称不能为空")
+	}
+	if HookParseVirshDomiflist == nil || HookAttachVMInterface == nil {
+		return "", false, fmt.Errorf("网口服务尚未初始化")
+	}
+
+	interfacesResult := utils.ExecCommand("virsh", "domiflist", vmName)
+	if interfacesResult.Error != nil {
+		interfacesResult = utils.ExecCommand("virsh", "domiflist", vmName, "--inactive")
+	}
+	if interfacesResult.Error != nil {
+		return "", false, fmt.Errorf("读取虚拟机网口失败: %s", HookFirstNonEmpty(interfacesResult.Stderr, interfacesResult.Error.Error()))
+	}
+	if len(HookParseVirshDomiflist(interfacesResult.Stdout)) > 0 {
+		return "", false, nil
+	}
+
+	xmlResult := utils.ExecCommand("virsh", "dumpxml", vmName)
+	if xmlResult.Error != nil {
+		xmlResult = utils.ExecCommand("virsh", "dumpxml", vmName, "--inactive")
+	}
+	if xmlResult.Error != nil {
+		return "", false, fmt.Errorf("读取虚拟机 XML 失败: %s", HookFirstNonEmpty(xmlResult.Stderr, xmlResult.Error.Error()))
+	}
+
+	nicModel := "virtio"
+	if err := EnsureVPCSwitchRuntime(sw); err != nil {
+		return "", false, err
+	}
+	if err := HookAttachVMInterface(vmName, sw, nicModel, 0); err != nil {
+		return "", false, err
+	}
+	return nicModel, true, nil
+}
+
+func rollbackPrimaryVMInterface(vmName string, created bool) {
+	if !created || HookDetachVMInterface == nil {
+		return
+	}
+	if err := HookDetachVMInterface(vmName, 0); err != nil {
+		logger.App.Warn("回滚主网卡失败", "vm", vmName, "error", err)
+	}
 }
 
 func BindVMToVPCAsAdmin(vmName string, switchID, securityGroupID uint) error {
