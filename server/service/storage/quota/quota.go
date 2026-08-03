@@ -3,6 +3,7 @@ package quota
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -51,6 +52,9 @@ func GetStorageMountPoint() string {
 
 // GetStorageImagePath 获取存储镜像文件路径
 func GetStorageImagePath() string {
+	if configuredPath := strings.TrimSpace(os.Getenv("KVM_USER_STORAGE_IMAGE")); configuredPath != "" && filepath.IsAbs(configuredPath) {
+		return filepath.Clean(configuredPath)
+	}
 	return defaultStorageImagePath
 }
 

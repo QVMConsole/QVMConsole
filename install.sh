@@ -27,6 +27,8 @@ DOWNLOAD_URL_ARM64="https://download.xiaozhuhouses.asia/download/v1/links/SSr8OG
 
 STORAGE_IMG="/var/lib/kvm-user-storage.img"
 STORAGE_MOUNT="/var/lib/kvm-user-storage"
+STORAGE_DEFAULT_BACKING_DIR="/var/lib"
+STORAGE_IMG_FILENAME="kvm-user-storage.img"
 OVS_CONFIG_DIR="/etc/kvm-console/ovs"
 OVS_STATE_DIR="/var/lib/kvm-console/ovs"
 OVS_DNSMASQ_UNIT="kvm-console-ovs-dnsmasq.service"
@@ -926,36 +928,129 @@ configure_libvirt_nonroot() {
     success "libvirt 非 root 用户配置完成"
 }
 
-detect_root_size() {
-    # 优先使用更稳健的 df --output 方式获取根分区大小
-    local root_size_gb
-    root_size_gb=$(df --output=size -BG / 2>/dev/null | awk 'NR==2{gsub(/[^0-9]/,"",$1); print $1}')
-    if [ -n "$root_size_gb" ] && [ "$root_size_gb" -gt 0 ] 2>/dev/null; then
-        echo "${root_size_gb}G"
+detect_storage_backing_size() {
+    local backing_dir="$1"
+    # 优先使用更稳健的 df --output 方式获取选中磁盘的文件系统大小
+    local filesystem_size_gb
+    filesystem_size_gb=$(df --output=size -BG "$backing_dir" 2>/dev/null | awk 'NR==2{gsub(/[^0-9]/,"",$1); print $1}')
+    if [ -n "$filesystem_size_gb" ] && [ "$filesystem_size_gb" -gt 0 ] 2>/dev/null; then
+        echo "${filesystem_size_gb}G"
         return
     fi
     # 回退方案：解析 df -k 输出
-    local root_size_kb
-    root_size_kb=$(df -k / 2>/dev/null | awk 'NR==2{print $2}')
-    if [ -n "$root_size_kb" ] && [ "$root_size_kb" -gt 0 ] 2>/dev/null; then
-        echo "$((root_size_kb / 1024 / 1024))G"
+    local filesystem_size_kb
+    filesystem_size_kb=$(df -k "$backing_dir" 2>/dev/null | awk 'NR==2{print $2}')
+    if [ -n "$filesystem_size_kb" ] && [ "$filesystem_size_kb" -gt 0 ] 2>/dev/null; then
+        echo "$((filesystem_size_kb / 1024 / 1024))G"
         return
     fi
     echo "100G"
 }
 
-ensure_storage_fstab() {
-    touch /etc/fstab
-    if ! grep -Fq "$STORAGE_IMG $STORAGE_MOUNT ext4 loop,prjquota" /etc/fstab 2>/dev/null; then
-        echo "${STORAGE_IMG} ${STORAGE_MOUNT} ext4 loop,prjquota 0 0" >> /etc/fstab
-        success "已写入用户存储挂载配置到 /etc/fstab"
+load_existing_storage_image() {
+    local configured_image
+    local mounted_source
+
+    # 优先从 fstab 读取已持久化的镜像位置，兼容此前的默认路径。
+    configured_image=$(awk -v mount_point="$STORAGE_MOUNT" '$1 !~ /^#/ && $2 == mount_point { print $1; exit }' /etc/fstab 2>/dev/null || true)
+    if [[ "$configured_image" = /* ]] && [ -f "$configured_image" ]; then
+        STORAGE_IMG="$configured_image"
+        return 0
     fi
+
+    # fstab 尚未写入时，尝试从已挂载的 loop 设备恢复镜像路径。
+    if mountpoint -q "$STORAGE_MOUNT"; then
+        mounted_source=$(findmnt -rn -o SOURCE -T "$STORAGE_MOUNT" 2>/dev/null || true)
+        if [[ "$mounted_source" == /dev/loop* ]]; then
+            configured_image=$(losetup -n -O BACK-FILE "$mounted_source" 2>/dev/null | head -n 1 || true)
+            if [[ "$configured_image" = /* ]] && [ -f "$configured_image" ]; then
+                STORAGE_IMG="$configured_image"
+                return 0
+            fi
+        fi
+    fi
+
+    [ -f "$STORAGE_IMG" ]
+}
+
+choose_storage_image_location() {
+    local root_target
+    local source
+    local target
+    local filesystem
+    local available
+    local total
+    local choice
+    local index
+    declare -a storage_dirs
+    declare -a storage_labels
+
+    root_target=$(findmnt -rn -o TARGET -T "$STORAGE_DEFAULT_BACKING_DIR" 2>/dev/null || true)
+    storage_dirs=("$STORAGE_DEFAULT_BACKING_DIR")
+    storage_labels=("根目录（默认） 目录: ${STORAGE_DEFAULT_BACKING_DIR}")
+
+    # 仅提供已挂载、可写的本地文件系统；未挂载磁盘不能安全地直接用于创建镜像。
+    while read -r source target filesystem; do
+        [ -n "$source" ] && [ -n "$target" ] || continue
+        [ "$target" = "$root_target" ] && continue
+        [ "$target" = "$STORAGE_MOUNT" ] && continue
+        [[ "$source" == /dev/* ]] || continue
+        if findmnt -rn -o OPTIONS -T "$target" 2>/dev/null | grep -qw ro; then
+            continue
+        fi
+        available=$(df -hP "$target" 2>/dev/null | awk 'NR==2 {print $4}')
+        total=$(df -hP "$target" 2>/dev/null | awk 'NR==2 {print $2}')
+        storage_dirs+=("$target")
+        storage_labels+=("设备: ${source}  挂载点: ${target}  文件系统: ${filesystem}  可用: ${available:-未知}/${total:-未知}")
+    done < <(findmnt -rn -t ext4,xfs,btrfs -o SOURCE,TARGET,FSTYPE 2>/dev/null || true)
+
+    echo ""
+    info "请选择用户存储镜像所在磁盘（默认使用根目录）"
+    for index in "${!storage_dirs[@]}"; do
+        printf '  %s) %s\n' "$index" "${storage_labels[$index]}"
+    done
+    echo "  提示：未挂载或只读磁盘不会显示，请先在系统或存储池页面完成挂载。"
+
+    while true; do
+        read -rp "请选择存储磁盘 [默认 0]: " choice
+        choice=${choice:-0}
+        if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -lt "${#storage_dirs[@]}" ]; then
+            STORAGE_IMG="${storage_dirs[$choice]%/}/${STORAGE_IMG_FILENAME}"
+            success "用户存储镜像将创建在: $STORAGE_IMG"
+            return
+        fi
+        warn "无效的选择，请输入 0 到 $((${#storage_dirs[@]} - 1)) 之间的数字"
+    done
+}
+
+ensure_storage_fstab() {
+    local expected_entry="${STORAGE_IMG} ${STORAGE_MOUNT} ext4 loop,prjquota 0 0"
+    local temporary_fstab
+
+    touch /etc/fstab
+    if grep -Fxq "$expected_entry" /etc/fstab 2>/dev/null; then
+        return
+    fi
+
+    # 挂载点由面板专用，替换旧条目可避免升级或重新选择磁盘后产生重复挂载。
+    temporary_fstab=$(mktemp /etc/fstab.kvm-console.XXXXXX)
+    awk -v mount_point="$STORAGE_MOUNT" '$2 != mount_point { print }' /etc/fstab > "$temporary_fstab"
+    printf '%s\n' "$expected_entry" >> "$temporary_fstab"
+    chmod --reference=/etc/fstab "$temporary_fstab" 2>/dev/null || chmod 644 "$temporary_fstab"
+    mv "$temporary_fstab" /etc/fstab
+    success "已更新用户存储挂载配置到 /etc/fstab"
 }
 
 setup_quota() {
     info "检查用户存储 Project Quota 文件系统..."
     mkdir -p "$STORAGE_MOUNT"
     touch /etc/projects /etc/projid
+
+    if load_existing_storage_image; then
+        info "检测到已有用户存储镜像: $STORAGE_IMG"
+    else
+        choose_storage_image_location
+    fi
 
     if mountpoint -q "$STORAGE_MOUNT"; then
         quotaon -P "$STORAGE_MOUNT" 2>/dev/null || true
@@ -988,7 +1083,7 @@ setup_quota() {
 
     local storage_size
     local default_size
-    default_size=$(detect_root_size)
+    default_size=$(detect_storage_backing_size "$(dirname "$STORAGE_IMG")")
     echo ""
     info "用户存储配额需要创建专用 ext4 project quota 稀疏镜像"
     while true; do
@@ -1102,6 +1197,7 @@ write_env() {
     env_default "KVM_ADMIN_PASS" "admin123"
     env_default "KVM_SERVICE_UNIT_NAME" "${SERVICE_NAME}.service"
     env_default "KVM_SMTP_PASSWORD_ENC" ""
+    env_set "KVM_USER_STORAGE_IMAGE" "$STORAGE_IMG"
 
     # === 以下为可配置项：仅首次安装或修复时写入默认值 ===
     # 更新时跳过，保持 .env 现有内容不动，面板保存设置时会同步写 .env
