@@ -652,16 +652,18 @@ func ImportTemplate(ctx context.Context, params *ImportTemplateParams, progressF
 			convertCleanup()
 		}
 
-		// Linux 导入模板在模板阶段预装依赖，克隆阶段保持完全离线。
+		// 已就绪模板包保留原离线依赖状态，旧包或未就绪模板才补齐依赖。
 		meta := node.Meta
 		meta.Category = normalizeTemplateCategoryForName(meta.Type, meta.Category, node.Name)
-		if normalizeTemplateType(meta.Type) == "linux" {
+		if normalizeTemplateType(meta.Type) == "linux" && !isLinuxTemplateInitReady(&meta) {
 			progressFn(75+(i*10/maxInt(len(manifest.Nodes), 1)), fmt.Sprintf("正在准备节点 %s 的离线克隆依赖 ...", node.Meta.AdminName))
 			if prepErr := EnsureLinuxCloudInitDeps(targetPath); prepErr != nil {
 				updateLinuxInitStatus(&meta, prepErr)
 			} else {
 				updateLinuxInitStatus(&meta, nil)
 			}
+		} else if normalizeTemplateType(meta.Type) == "linux" {
+			progressFn(75+(i*10/maxInt(len(manifest.Nodes), 1)), fmt.Sprintf("节点 %s 已继承离线克隆依赖状态，跳过预处理", node.Meta.AdminName))
 		}
 
 		// 转换和预处理后重新计算哈希用于保存

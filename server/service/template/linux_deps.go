@@ -214,6 +214,11 @@ func updateLinuxInitStatus(meta *TemplateMeta, err error) {
 	meta.LinuxInitError = strings.TrimSpace(err.Error())
 }
 
+// isLinuxTemplateInitReady 用于识别已在模板包中确认过离线依赖的 Linux 模板。
+func isLinuxTemplateInitReady(meta *TemplateMeta) bool {
+	return meta != nil && strings.EqualFold(strings.TrimSpace(meta.LinuxInitStatus), "ready")
+}
+
 // PrepareImportedLinuxTemplate 为已导入的 Linux 模板补齐离线克隆依赖。
 func PrepareImportedLinuxTemplate(templateName string, progressFn func(int, string)) error {
 	if progressFn == nil {

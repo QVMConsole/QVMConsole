@@ -17,6 +17,12 @@
 
 检查接口：`GET /api/template/{name}/prepare-linux/check`，返回 `linked_vms` 与 `can_prepare`。预处理接口：`POST /api/template/{name}/prepare-linux`。管理员会话和管理员 API Key 均可调用；响应返回任务 ID，执行进度通过任务中心查询。链式依赖尚未转换时，预处理接口返回 `409` 与关联 VM 列表。
 
+## 模板包迁移
+
+通过模板管理导出的 `.tar.gz` 或 `.tgz` 模板包会携带每个节点的 `linux_init_status` 及磁盘内容。状态为 `ready` 的 Linux 节点重新导入时直接继承该状态，不会再次运行 guestfs 检查或预装流程，也不会改写原检查时间。
+
+旧版模板包、状态缺失或状态为 `unknown`、`failed` 的节点，导入时仍会补齐离线克隆依赖，并根据结果更新状态。兼容导入单个 `.qcow2` 时没有可继承的模板元数据，因此同样会执行一次依赖准备。
+
 ## 克隆网络兼容
 
 Linux 模板克隆时会预先生成主网卡 MAC，并将该 MAC 同时用于 libvirt XML 与克隆副本内的 Netplan 配置。若模板 Netplan 使用固定 `match.macaddress`，仅替换首个主网卡 MAC，保留已有 DHCP、静态地址、网关和 DNS 配置。若创建时不带主网口且模板为固定 MAC 的 DHCP 配置，则克隆副本会改为匹配 `en*` 的 DHCP 配置，以支持之后从面板添加网口；静态网络模板保持原样。模板本体不被修改。
