@@ -136,19 +136,26 @@ type VMNetworkRuntimeStatus struct {
 	Issues     []string               `json:"issues"`
 }
 
+// VMIPAddress 描述网卡上的单个 IP 地址及其来源。
+type VMIPAddress struct {
+	Address string `json:"address"`
+	Source  string `json:"source"`
+}
+
 // VMNetworkInterface describes a VM's network interface runtime info.
 type VMNetworkInterface struct {
-	InterfaceType   string   `json:"interface_type"`
-	Target          string   `json:"target"`
-	SourceBridge    string   `json:"source_bridge"`
-	SourceNetwork   string   `json:"source_network"`
-	Model           string   `json:"model"`
-	MAC             string   `json:"mac"`
-	VirtualPortType string   `json:"virtualport_type"`
-	OFPort          string   `json:"ofport"`
-	IP              string   `json:"ip"`
-	IPSource        string   `json:"ip_source"`
-	Issues          []string `json:"issues"`
+	InterfaceType   string        `json:"interface_type"`
+	Target          string        `json:"target"`
+	SourceBridge    string        `json:"source_bridge"`
+	SourceNetwork   string        `json:"source_network"`
+	Model           string        `json:"model"`
+	MAC             string        `json:"mac"`
+	VirtualPortType string        `json:"virtualport_type"`
+	OFPort          string        `json:"ofport"`
+	IP              string        `json:"ip"`
+	IPSource        string        `json:"ip_source"`
+	IPAddresses     []VMIPAddress `json:"ip_addresses"`
+	Issues          []string      `json:"issues"`
 }
 
 // OVSBandwidthReadStatus describes the OVS bandwidth QoS read status.

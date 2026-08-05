@@ -619,10 +619,6 @@ body[theme-mode='dark'] .qvm-action-item.lock {
 .qvm-code-pwd {
   letter-spacing: 0.5px;
 }
-.qvm-ip-unreachable {
-  color: var(--qvm-warn);
-}
-
 .qvm-credential-wrap {
   display: inline-flex;
   align-items: center;

@@ -21,7 +21,7 @@ type GuestAgentStatus struct {
 // GuestAgentIPResult 按 MAC 分组的 IP 地址结果
 type GuestAgentIPResult struct {
 	MAC string   `json:"mac"`
-	IPs []string `json:"ips"` // 该 MAC 对应的 IPv4 地址列表
+	IPs []string `json:"ips"` // 该 MAC 对应的 IP 地址列表
 }
 
 // guestNetworkInterface JSON 解析用的中间结构
@@ -121,7 +121,7 @@ func CheckVMGuestAgentStatus(vmName string) *GuestAgentStatus {
 }
 
 // GetVMGuestAgentIPs 从 QEMU Guest Agent 获取虚拟机所有网口的 IP 地址
-// 返回按 MAC 分组的 IPv4 地址列表，自动过滤 loopback 和 link-local 地址
+// 返回按 MAC 分组的 IPv4/IPv6 地址列表，自动过滤 loopback 和 link-local 地址
 func GetVMGuestAgentIPs(vmName string) ([]GuestAgentIPResult, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), ConnectTimeout)
 	defer cancel()
@@ -137,9 +137,9 @@ func GetVMGuestAgentIPs(vmName string) ([]GuestAgentIPResult, error) {
 			continue
 		}
 
-		var ipv4s []string
+		var ips []string
 		for _, addr := range iface.IPAddresses {
-			if addr.IPAddressType != "ipv4" {
+			if addr.IPAddressType != "ipv4" && addr.IPAddressType != "ipv6" {
 				continue
 			}
 			ip := strings.TrimSpace(addr.IPAddress)
@@ -152,24 +152,24 @@ func GetVMGuestAgentIPs(vmName string) ([]GuestAgentIPResult, error) {
 			if parsed == nil || parsed.IsLoopback() {
 				continue
 			}
-			// 过滤 link-local (169.254.x.x)
+			// 过滤链路本地地址，避免展示无法直接访问的地址。
 			if parsed.IsLinkLocalUnicast() {
 				continue
 			}
 
-			ipv4s = append(ipv4s, ip)
+			ips = append(ips, ip)
 		}
 
-		if len(ipv4s) > 0 {
+		if len(ips) > 0 {
 			results = append(results, GuestAgentIPResult{
 				MAC: mac,
-				IPs: ipv4s,
+				IPs: ips,
 			})
 		}
 	}
 
 	if len(results) == 0 {
-		logger.App.Debug("guest agent 未返回有效 IPv4 地址", "vm", vmName)
+		logger.App.Debug("guest agent 未返回有效 IP 地址", "vm", vmName)
 	} else {
 		logger.App.Debug("guest agent 获取 IP 成功", "vm", vmName, "count", len(results))
 	}
@@ -190,8 +190,13 @@ func GetVMIPByMACFromAgent(vmName, mac string) (string, bool) {
 	}
 
 	for _, r := range results {
-		if r.MAC == mac && len(r.IPs) > 0 {
-			return r.IPs[0], true
+		if r.MAC != mac {
+			continue
+		}
+		for _, ip := range r.IPs {
+			if parsed := net.ParseIP(ip); parsed != nil && parsed.To4() != nil {
+				return ip, true
+			}
 		}
 	}
 

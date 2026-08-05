@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button, Spin, Tag, Toast, Tooltip } from '@douyinfe/semi-ui'
 import { IconCopy, IconEyeClosedSolid, IconEyeOpened, IconRefresh } from '@douyinfe/semi-icons'
-import type { VmDetailInfo, VmDiskItem, VmNetworkInterface, VmPCIEInfo } from '@/api/vm'
+import type { VmDetailInfo, VmDiskItem, VmNetworkIPAddress, VmNetworkInterface, VmPCIEInfo } from '@/api/vm'
 import { getDiskList, getVmPCIEInfo, getVMNetworkStatus } from '@/api/vm'
 import { copyTextWithFallback } from '@/utils/clipboard'
 import {
@@ -39,8 +39,7 @@ export default function InfoTab({ vm, isLightweight, onResetPassword, onReinstal
   const [pcieInfo, setPcieInfo] = useState<VmPCIEInfo | null>(null)
   const [disks, setDisks] = useState<VmDiskItem[]>([])
   const [disksLoading, setDisksLoading] = useState(false)
-  const [interfaceIPs, setInterfaceIPs] = useState<{ ip: string; source: string }[]>([])
-  const [showAllIPs, setShowAllIPs] = useState(false)
+  const [interfaceIPs, setInterfaceIPs] = useState<VmNetworkIPAddress[]>([])
   const [credentialPasswordVisible, setCredentialPasswordVisible] = useState(false)
 
   const vmName = vm?.name || ''
@@ -87,11 +86,17 @@ export default function InfoTab({ vm, isLightweight, onResetPassword, onReinstal
         const ifaces: VmNetworkInterface[] = res.data?.interfaces || []
         const seen = new Set<string>()
         const ips = ifaces
-          .filter((i) => i.ip && i.ip !== '0.0.0.0')
-          .map((i) => ({ ip: i.ip, source: i.ip_source || '' }))
+          .flatMap((item) => {
+            const addresses = item.ip_addresses?.length
+              ? item.ip_addresses
+              : item.ip
+                ? [{ address: item.ip, source: item.ip_source }]
+                : []
+            return addresses.filter((address) => address.address && address.address !== '0.0.0.0')
+          })
           .filter((item) => {
-            if (seen.has(item.ip)) return false
-            seen.add(item.ip)
+            if (seen.has(item.address)) return false
+            seen.add(item.address)
             return true
           })
         setInterfaceIPs(ips)
@@ -134,18 +139,6 @@ export default function InfoTab({ vm, isLightweight, onResetPassword, onReinstal
     vm?.memory_backend === 'virtio_mem'
       ? 'Windows 弹性内存基于 virtio-mem：主内存为规格值，基础内存自动计算；运行后使用率超过 70% 每次扩容 1GB，低于 50% 时按目标使用率缩容。'
       : '系统会根据宿主机资源和面板调度策略动态调整：宿主机内存紧张时可能回收，但最低不低于设定内存的 50%；资源充足时可额外调度约 30% 内存应对突发负载。'
-
-  // IP 显示（已获取到 IP 时不再展示「无法获取」悬停提示）
-  const ipDisplay = vm?.ip || (vm?.ip_status ? '无法获取' : '获取中…')
-  const ipTooltip = vm?.ip
-    ? ''
-    : vm?.ip_status === 'vlan_bridge'
-      ? '桥接 VLAN 模式下上游路由器分配的 IP 无法从宿主机获取'
-      : vm?.ip_status === 'shut_off'
-        ? '虚拟机处于关机状态，无法获取 IP'
-        : ''
-
-  const visibleIPs = showAllIPs ? interfaceIPs : interfaceIPs.slice(0, 3)
 
   if (!vm) {
     return (
@@ -302,36 +295,33 @@ export default function InfoTab({ vm, isLightweight, onResetPassword, onReinstal
       {/* 网络与连接 */}
       <div className="qvm-info-card">
         <div className="qvm-info-card-title">网络与连接</div>
-        <Row label="IP 地址">
-          {ipTooltip ? (
-            <Tooltip content={ipTooltip} position="top">
-              <span className={`qvm-mono qvm-ip-unreachable`}>{ipDisplay}</span>
-            </Tooltip>
-          ) : (
-            <span className="qvm-mono">{ipDisplay}</span>
-          )}
-        </Row>
-        {interfaceIPs.length > 0 && (
-          <Row label="全部 IP">
+        <Row label="全部 IP">
+          {interfaceIPs.length > 0 ? (
             <div className="qvm-ip-list">
-              {visibleIPs.map((item) => (
-                <span key={item.ip} className="qvm-ip-list-item">
-                  <code className="qvm-code">{item.ip}</code>
+              {interfaceIPs.map((item) => (
+                <span key={item.address} className="qvm-ip-list-item">
+                  <code className="qvm-code">{item.address}</code>
                   {item.source && (
                     <Tag size="small" color={ipSourceTagColor(item.source)}>
                       {ipSourceLabel(item.source)}
                     </Tag>
                   )}
+                  <Tooltip content="复制 IP 地址" position="top">
+                    <Button
+                      size="small"
+                      theme="borderless"
+                      icon={<IconCopy size="small" />}
+                      aria-label={`复制 IP 地址 ${item.address}`}
+                      onClick={() => void copyField(item.address, 'IP 地址')}
+                    />
+                  </Tooltip>
                 </span>
               ))}
-              {interfaceIPs.length > 3 && (
-                <Button size="small" theme="borderless" type="primary" onClick={() => setShowAllIPs((v) => !v)}>
-                  {showAllIPs ? '收起' : `显示全部 (${interfaceIPs.length})`}
-                </Button>
-              )}
             </div>
-          </Row>
-        )}
+          ) : (
+            '-'
+          )}
+        </Row>
         <Row label="公网 IP">
           {vm.public_ips && vm.public_ips.length > 0 ? (
             <span className="qvm-ip-list">
