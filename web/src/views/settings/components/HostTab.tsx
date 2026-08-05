@@ -55,7 +55,6 @@ export default function HostTab({ form, patch }: SettingsTabProps) {
   const [kvmEnabled, setKvmEnabled] = useState(true)
   // 硬件直通
   const [hwStatus, setHwStatus] = useState<HardwarePassthroughStatus | null>(null)
-  const [hwLoading, setHwLoading] = useState(false)
 
   const ksmOptions = ksmStatus?.profiles?.length ? ksmStatus.profiles : FALLBACK_KSM_PROFILES
   const zramOptions = zramStatus?.profiles?.length ? zramStatus.profiles : FALLBACK_ZRAM_PROFILES
@@ -92,14 +91,11 @@ export default function HostTab({ form, patch }: SettingsTabProps) {
   }, [])
 
   const loadHwStatus = useCallback(async () => {
-    setHwLoading(true)
     try {
       const res = await getHardwarePassthroughStatus()
       setHwStatus(res.data || null)
     } catch {
       // 请求层已统一提示
-    } finally {
-      setHwLoading(false)
     }
   }, [])
 
@@ -364,9 +360,6 @@ export default function HostTab({ form, patch }: SettingsTabProps) {
 
       <PassthroughSection
         status={hwStatus}
-        loading={hwLoading}
-        enabled={form.hardware_passthrough_enabled}
-        onEnabledChange={(v) => patch({ hardware_passthrough_enabled: v })}
         reload={loadHwStatus}
       />
 

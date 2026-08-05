@@ -8,9 +8,11 @@
  * - 428 高风险二次验证：弹窗收集验证码 → 调 /auth/high-risk/verify → 携带 X-High-Risk-Token 重试原请求
  */
 import axios, { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
+import { createElement } from 'react'
 import { Toast } from '@douyinfe/semi-ui'
 import NProgress from 'nprogress'
 import { API_BASE_URL } from '@/config/constants'
+import TaskMessage from '@/components/business/TaskMessage'
 import { useUserStore } from '@/stores/user'
 import {
   useHighRiskStore,
@@ -79,8 +81,18 @@ service.interceptors.request.use(
 )
 
 // ==================== 工具函数 ====================
-function showError(message: string) {
-  Toast.error({ content: message || '请求失败', duration: 5 })
+export function showError(message: string) {
+  Toast.error({ content: createElement(TaskMessage, { message: message || '请求失败' }), duration: 5 })
+}
+
+declare global {
+  interface Window {
+    __qvmDebugShowError?: (message: string) => void
+  }
+}
+
+if (import.meta.env.DEV) {
+  window.__qvmDebugShowError = showError
 }
 
 function handleUnauthorized(message?: string) {

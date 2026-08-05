@@ -3,6 +3,7 @@
  * - 登录后由主布局启动 SSE，全局共享任务进度
  * - 任务列表首屏走 /task/list，后续通过 SSE 增量更新
  */
+import { createElement } from 'react'
 import { create } from 'zustand'
 import { Notification } from '@douyinfe/semi-ui'
 import {
@@ -12,6 +13,7 @@ import {
   type TaskProgressEvent,
 } from '@/api/task'
 import { useUserStore } from '@/stores/user'
+import TaskMessage from '@/components/business/TaskMessage'
 
 export type TaskSseStatus = 'connecting' | 'connected' | 'disconnected'
 
@@ -58,7 +60,11 @@ function notifyTaskResult(event: TaskProgressEvent) {
 
   Notification.error({
     title: '任务执行失败',
-    content: event.message ? `${taskLabel}执行失败：${event.message}` : `${taskLabel}执行失败，请前往任务中心查看详情`,
+    content: createElement(TaskMessage, {
+      message: event.message
+        ? `${taskLabel}执行失败：${event.message}`
+        : `${taskLabel}执行失败，请前往任务中心查看详情`,
+    }),
     duration: 8,
   })
 }

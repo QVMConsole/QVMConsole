@@ -31,6 +31,7 @@ import {
   useTaskStore,
 } from '@/stores/task'
 import TaskDetailSheet from '@/components/business/TaskDetailSheet'
+import TaskMessage from '@/components/business/TaskMessage'
 import { confirmModal } from '@/utils/confirm'
 import { formatDateTime } from '@/utils/format'
 import './task.css'
@@ -297,8 +298,8 @@ export default function TaskCenterPage() {
     {
       title: '状态消息',
       dataIndex: 'message',
-      ellipsis: { showTitle: true },
-      render: (text) => text || '-',
+      width: 360,
+      render: (text) => <TaskMessage message={typeof text === 'string' ? text : undefined} truncate />,
     },
     {
       title: '创建人',

@@ -11,7 +11,7 @@
 |----------|------|------|
 | `basic` | 基础设置 | 网站标题、端口自动分配范围、访问链接、服务端口（只读） |
 | `network` | 存储与网络 | 模板/克隆/ISO/OVF-OVA 临时目录等存储路径（含"替换为我的存储"）、OVS 网络设置、全局带宽限制、默认磁盘 IOPS |
-| `host` | 宿主机设置 | KSM 内存去重挡位、zRAM 压缩内存挡位、KVM Unrestricted Guest、硬件直通诊断（IOMMU 一键开启 / vfio-pci 一键加载）、网络等待就绪检测 |
+| `host` | 宿主机设置 | KSM 内存去重挡位、zRAM 压缩内存挡位、KVM Unrestricted Guest、硬件直通环境诊断（IOMMU 一键开启 / vfio-pci 一键加载）、网络等待就绪检测 |
 | `advanced` | 调度与高级 | 动态内存调度参数（NumField 网格）、SPICE 默认开启、批量克隆并发、救援系统 ISO、CPU 亲和性预设 |
 | `security` | 安全与维护 | 开发环境开关、SMTP 配置与测试发信、会话指纹/请求过滤/泄露密码检测、JWT 密钥轮换、维护模式 |
 | `log` | 日志管理 | 日志最大备份数、磁盘占用统计、日志文件多选删除 / 导出 ZIP |
@@ -59,6 +59,8 @@ web/src/views/settings/
   - KVM Unrestricted Guest 开关（`PUT /host/kvm-intel-unrestricted-guest`）
   - CPU 亲和性预设（`PUT /settings/cpu-affinity-presets`，独立"保存预设"按钮）
   - IOMMU 一键开启 / vfio-pci 一键加载
+
+宿主机设置不再显示无实际作用的“启用硬件直通”开关，也不列出可直通设备；PCI 设备在虚拟机创建或编辑时的“硬件直通”分区中选择。
 - **高风险二次验证**：维护模式切换保存、JWT 密钥手动轮换和立即执行密码泄露扫描会触发后端 428，由请求层（`api/client.ts`）自动弹出验证弹窗后重试。
 - **定时泄露检测**：独立 `TextSwitch` 控制每天本地时间 `00:00` 的扫描，默认开启；旁边“立即执行”按钮不受实时检测或定时检测开关限制。运行期间按钮显示旋转图标并禁用，状态区展示管理员与普通用户泄露数量。
 - **测试发信**：先静默保存当前配置再调用 `POST /settings/smtp/test`（按钮在 SMTP 表单区内，不在页脚）。

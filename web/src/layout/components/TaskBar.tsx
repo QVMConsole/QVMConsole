@@ -11,6 +11,7 @@ import { IconCheckList, IconChevronUp, IconDesktop, IconPulse } from '@douyinfe/
 import { useTaskStore, taskTypeText, taskTypeColor, taskStatusText } from '@/stores/task'
 import { cancelTask, getTaskDetail, type TaskItem } from '@/api/task'
 import TaskDetailSheet from '@/components/business/TaskDetailSheet'
+import TaskMessage from '@/components/business/TaskMessage'
 
 const COLLAPSED_HEIGHT = 46
 const DEFAULT_HEIGHT = 320
@@ -263,8 +264,8 @@ export default function TaskBar() {
                           <span className="qvm-cell-prog-num">{task.progress || 0}%</span>
                         </div>
                       </td>
-                      <td className="qvm-cell-msg" title={task.message}>
-                        {task.message || '-'}
+                      <td className="qvm-cell-msg">
+                        <TaskMessage message={task.message} truncate />
                       </td>
                       <td className="qvm-mono">{task.created_by || '-'}</td>
                       <td className="qvm-mono">{formatTime(task.created_at)}</td>

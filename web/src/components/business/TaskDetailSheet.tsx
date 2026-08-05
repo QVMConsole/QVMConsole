@@ -9,6 +9,7 @@ import { taskStatusText, taskTypeColor, taskTypeText } from '@/stores/task'
 import type { TaskItem } from '@/api/task'
 import { getTemplateExportDownloadUrl } from '@/api/template'
 import { formatDateTime } from '@/utils/format'
+import TaskMessage from './TaskMessage'
 
 interface DownloadLink {
   label: string
@@ -103,7 +104,7 @@ export default function TaskDetailSheet({ task, visible, onClose }: TaskDetailSh
             </Descriptions.Item>
             <Descriptions.Item itemKey="状态">{taskStatusText(task.status)}</Descriptions.Item>
             <Descriptions.Item itemKey="进度">{task.progress || 0}%</Descriptions.Item>
-            <Descriptions.Item itemKey="状态消息">{task.message || '-'}</Descriptions.Item>
+            <Descriptions.Item itemKey="状态消息"><TaskMessage message={task.message} /></Descriptions.Item>
             <Descriptions.Item itemKey="创建人">{task.created_by || '-'}</Descriptions.Item>
             <Descriptions.Item itemKey="创建时间">{formatDateTime(task.created_at)}</Descriptions.Item>
             <Descriptions.Item itemKey="更新时间">{formatDateTime(task.updated_at)}</Descriptions.Item>
