@@ -314,6 +314,16 @@ func CountVMInterfaces(vmName string) int {
 
 // GetVMMACByOrder 获取虚拟机第 N 个网口的 MAC 地址
 func GetVMMACByOrder(vmName string, order int) string {
+	if order < 0 {
+		return ""
+	}
+	expectedMAC := strings.ToLower(generateInterfaceMAC(vmName, order))
+	for _, mac := range getAllVMInterfaceMACs(vmName) {
+		if strings.EqualFold(mac, expectedMAC) {
+			return expectedMAC
+		}
+	}
+
 	result := utils.ExecCommand("virsh", "domiflist", vmName)
 	if result.Error != nil {
 		return ""

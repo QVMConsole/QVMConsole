@@ -15,6 +15,23 @@ func ApplyVPCSwitchRuntime(vmName string, sw model.VPCSwitch) error {
 	return applyVPCSwitchRuntime(vmName, sw, true)
 }
 
+func firstVMRuntimeInterface(vmName string) (RuntimeInterface, bool) {
+	if HookParseVirshDomiflist == nil {
+		return RuntimeInterface{}, false
+	}
+	for _, iface := range HookParseVirshDomiflist(utils.ExecCommand("virsh", "domiflist", vmName).Stdout) {
+		if strings.TrimSpace(iface.Name) != "" || strings.TrimSpace(iface.MAC) != "" {
+			return iface, true
+		}
+	}
+	return RuntimeInterface{}, false
+}
+
+func firstVMRuntimeInterfaceUsesForeignBridge(vmName string) bool {
+	iface, ok := firstVMRuntimeInterface(vmName)
+	return ok && iface.Type == "bridge" && iface.Source != "" && iface.Source != HookOvsBridgeName()
+}
+
 func applyVPCSwitchRuntime(vmName string, sw model.VPCSwitch, ensureSwitch bool) error {
 	if ensureSwitch {
 		if err := EnsureVPCSwitchRuntime(sw); err != nil {
@@ -49,10 +66,8 @@ func applyVPCSwitchRuntime(vmName string, sw model.VPCSwitch, ensureSwitch bool)
 		return nil
 	}
 	if strings.TrimSpace(utils.ExecCommand("virsh", "domstate", vmName).Stdout) == "running" {
-		for _, iface := range HookParseVirshDomiflist(utils.ExecCommand("virsh", "domiflist", vmName).Stdout) {
-			if iface.Type == "bridge" && iface.Source != "" && iface.Source != HookOvsBridgeName() {
-				return fmt.Errorf("从桥接直通交换机切换回 VPC 需要先关闭虚拟机")
-			}
+		if firstVMRuntimeInterfaceUsesForeignBridge(vmName) {
+			return fmt.Errorf("从桥接直通交换机切换回 VPC 需要先关闭虚拟机")
 		}
 	}
 	if err := ensureVMVPCInterfaceConfig(vmName, sw.VLANID); err != nil {
@@ -127,10 +142,8 @@ func validateVMCanApplyVPCSwitch(vmName string, sw model.VPCSwitch) error {
 		}
 		return fmt.Errorf("桥接直通交换机切换需要先关闭虚拟机")
 	}
-	for _, iface := range HookParseVirshDomiflist(utils.ExecCommand("virsh", "domiflist", vmName).Stdout) {
-		if iface.Type == "bridge" && iface.Source != "" && iface.Source != HookOvsBridgeName() {
-			return fmt.Errorf("从桥接直通交换机切换回 VPC 需要先关闭虚拟机")
-		}
+	if firstVMRuntimeInterfaceUsesForeignBridge(vmName) {
+		return fmt.Errorf("从桥接直通交换机切换回 VPC 需要先关闭虚拟机")
 	}
 	return nil
 }

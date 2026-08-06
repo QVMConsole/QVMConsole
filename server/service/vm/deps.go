@@ -60,6 +60,7 @@ type Deps struct {
 
 	// ---- VPC / Network ----
 	ApplyVPCBindingRuntime            func(vmName string) error
+	ApplyVPCBindingToDomainXML        func(vmName, vmXML string) (string, bool, error)
 	ApplyVPCSwitchToDomainXML         func(vmXML string, switchID uint) (string, error)
 	SafeVMXMLFileName                 func(vmName string) string
 	StripRuntimeOnlyInterfaceElements func(block string) string

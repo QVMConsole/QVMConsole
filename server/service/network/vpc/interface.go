@@ -145,6 +145,7 @@ func AddVMInterface(vmName string, req AddVMInterfaceRequest) (*VMInterfaceInfo,
 		Binding:       binding,
 		Switch:        &sw,
 		SecurityGroup: nil,
+		MAC:           HookGetVMMACByOrder(vmName, nextOrder),
 	}, nil
 }
 
@@ -448,7 +449,10 @@ func ListVMInterfaces(vmName string) ([]VMInterfaceInfo, error) {
 
 	result := make([]VMInterfaceInfo, 0, len(bindings))
 	for _, b := range bindings {
-		info := VMInterfaceInfo{Binding: b}
+		info := VMInterfaceInfo{
+			Binding: b,
+			MAC:     HookGetVMMACByOrder(vmName, b.InterfaceOrder),
+		}
 		if sw, ok := switches[b.SwitchID]; ok {
 			info.Switch = sw
 		}

@@ -230,11 +230,18 @@ export default function NicManageSection({ vmName, vmStatus }: NicManageSectionP
     })
   }
 
-  /** 按网口序号取运行态 IP */
+  const normalizeMAC = (value?: string) => value?.trim().toLowerCase() || ''
+
+  /** 优先按 MAC 匹配运行态 IP，兼容旧数据再回退到网口序号 */
   const getInterfaceIP = (row: VMInterfaceInfo): string => {
     const order = row.binding?.interface_order
-    if (order === undefined || order === null) return ''
     const ifaces = runtimeStatus?.interfaces || []
+    const rowMAC = normalizeMAC(row.mac)
+    if (rowMAC) {
+      const matched = ifaces.find((item) => normalizeMAC(item.mac) === rowMAC)
+      if (matched?.ip) return matched.ip
+    }
+    if (order === undefined || order === null) return ''
     if (order < ifaces.length) return ifaces[order].ip || ''
     return ''
   }

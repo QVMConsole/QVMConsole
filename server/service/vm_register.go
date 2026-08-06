@@ -58,6 +58,7 @@ func init() {
 
 		// ---- VPC / Network ----
 		ApplyVPCBindingRuntime:            ApplyVPCBindingRuntime,
+		ApplyVPCBindingToDomainXML:        ApplyVPCBindingToDomainXML,
 		ApplyVPCSwitchToDomainXML:         ApplyVPCSwitchToDomainXML,
 		SafeVMXMLFileName:                 SafeVMXMLFileName,
 		StripRuntimeOnlyInterfaceElements: StripRuntimeOnlyInterfaceElements,

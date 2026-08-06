@@ -41,6 +41,28 @@ func applyVMRuntimeNetworkState(name string) error {
 	return nil
 }
 
+func syncVMInactiveVPCBindingBeforeStart(name string) error {
+	if D == nil || D.ApplyVPCBindingToDomainXML == nil {
+		return nil
+	}
+	xmlContent, err := GetVMInactiveDomainXML(name)
+	if err != nil {
+		return err
+	}
+	updatedXML, hasVPCBinding, err := D.ApplyVPCBindingToDomainXML(name, xmlContent)
+	if err != nil {
+		return fmt.Errorf("同步 VPC 网络配置失败: %w", err)
+	}
+	if !hasVPCBinding || strings.TrimSpace(updatedXML) == strings.TrimSpace(xmlContent) {
+		return nil
+	}
+	if err := SetVMInactiveDomainXML(name, updatedXML); err != nil {
+		return fmt.Errorf("保存 VPC 网络配置失败: %w", err)
+	}
+	logger.App.Info("启动前已同步虚拟机 VPC 网络配置", "vm", name)
+	return nil
+}
+
 func startVM(name string, fixOnReboot bool) error {
 	if err := D.HookEnsureVMNotMigrating(name, "开机"); err != nil {
 		return err
@@ -109,6 +131,9 @@ func startVM(name string, fixOnReboot bool) error {
 	fixBackingStoreXML(name)
 	if err := memory.ApplyPendingVMMemoryConfig(name); err != nil {
 		return fmt.Errorf("应用动态内存待迁移配置失败: %w", err)
+	}
+	if err := syncVMInactiveVPCBindingBeforeStart(name); err != nil {
+		return err
 	}
 
 	// 检查UEFI NVRAM文件是否存在（如果虚拟机配置了UEFI启动）
