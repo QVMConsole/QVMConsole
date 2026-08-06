@@ -26,7 +26,13 @@ import { useUserStore } from '@/stores/user'
 import { usePageTabsStore } from '@/stores/pageTabs'
 import { useVmStore } from '@/stores/vm'
 import { useVmDetailSSE } from '@/hooks/useVmDetailSSE'
-import { canResetVmPassword, openVncWindow, vmStatusDot, detailToListItem } from './utils'
+import {
+  canResetVmPassword,
+  openVncWindow,
+  vmStatusDot,
+  detailToListItem,
+} from './utils'
+import { shouldClearPowerLoadingAfterAck } from '../utils'
 import HeroStatusCard from './components/HeroStatusCard'
 import HeroResourceCard from './components/HeroResourceCard'
 import VncPreviewCard from './components/VncPreviewCard'
@@ -57,6 +63,8 @@ export default function VmDetailPage() {
 
   const { vmData, sseStatus, statusTick } = useVmDetailSSE(vmName)
   const [operating, setOperating] = useState(false)
+  const [pendingPowerAction, setPendingPowerAction] = useState<VmPowerAction | null>(null)
+  const [shutdownAcknowledged, setShutdownAcknowledged] = useState(false)
   const [activeTab, setActiveTab] = useState('info')
   const [diskIoMode, setDiskIoMode] = useState<'iops' | 'throughput'>('throughput')
   const [dialog, setDialog] = useState<DialogState>(null)
@@ -76,7 +84,11 @@ export default function VmDetailPage() {
 
   // 状态变化时复位操作按钮 loading
   useEffect(() => {
-    if (statusTick > 0) setOperating(false)
+    if (statusTick > 0) {
+      setOperating(false)
+      setPendingPowerAction(null)
+      setShutdownAcknowledged(false)
+    }
   }, [statusTick])
 
   // 视频设备被禁用时自动离开 VNC/SPICE 标签
@@ -101,6 +113,7 @@ export default function VmDetailPage() {
         return
       }
       setOperating(true)
+      setPendingPowerAction(action)
       try {
         const res = await operateVm(vmName, action)
         const msgMap: Record<string, string> = {
@@ -116,8 +129,20 @@ export default function VmDetailPage() {
         } else {
           Toast.success(res.message || `${msgMap[action]}操作成功`)
         }
+        if (shouldClearPowerLoadingAfterAck(action)) {
+          setOperating(false)
+          setPendingPowerAction(null)
+        } else if (action === 'shutdown') {
+          setOperating(false)
+          setPendingPowerAction(null)
+          setShutdownAcknowledged(true)
+        }
       } catch {
         setOperating(false)
+        setPendingPowerAction(null)
+        if (action !== 'destroy') {
+          setShutdownAcknowledged(false)
+        }
       }
     },
     [vmData, vmName],
@@ -235,6 +260,8 @@ export default function VmDetailPage() {
           <HeroStatusCard
             vm={vmData}
             operating={operating}
+            pendingPowerAction={pendingPowerAction}
+            shutdownAcknowledged={shutdownAcknowledged}
             isLightweight={isLightweight}
             onPower={(a) => void handlePower(a)}
             onLock={(a) => void handleLockAction(a)}

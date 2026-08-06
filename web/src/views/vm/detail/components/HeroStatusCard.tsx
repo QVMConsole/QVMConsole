@@ -24,6 +24,8 @@ import { vmStatusText, formatContinuousRuntime } from '../utils'
 interface HeroStatusCardProps {
   vm: VmDetailInfo | null
   operating: boolean
+  pendingPowerAction?: VmPowerAction | null
+  shutdownAcknowledged?: boolean
   isLightweight: boolean
   onPower: (action: VmPowerAction) => void
   onLock: (action: 'lock' | 'unlock') => void
@@ -43,6 +45,8 @@ function statusVisual(status: string) {
 export default function HeroStatusCard({
   vm,
   operating,
+  pendingPowerAction,
+  shutdownAcknowledged,
   isLightweight,
   onPower,
   onLock,
@@ -56,6 +60,8 @@ export default function HeroStatusCard({
   const paused = status === 'paused'
   const migrating = status === 'migrating'
   const locked = !!vm?.locked
+  const shutdownPending = running && !!shutdownAcknowledged
+  const powerOperating = operating && !!pendingPowerAction
 
   return (
     <div className={`qvm-hero-card qvm-hero-status ${visual.cls}`}>
@@ -119,34 +125,45 @@ export default function HeroStatusCard({
                 )}
               </>
             ) : (
-              <>
-                <Popconfirm title="确定要重启吗？" onConfirm={() => onPower('reboot')}>
-                  <Button type="warning" theme="solid" icon={<IconRefresh />} loading={operating}>
-                    重启
-                  </Button>
-                </Popconfirm>
+              shutdownPending ? (
                 <Popconfirm
-                  title={locked ? '虚拟机已锁定，关机可能影响正在运行的服务，确定要关机吗？' : '确定要关机吗？'}
-                  onConfirm={() => onPower('shutdown')}
-                >
-                  <Button type="warning" theme="light" icon={<IconStop />} loading={operating}>
-                    关机
-                  </Button>
-                </Popconfirm>
-                <Popconfirm
-                  title={locked ? '虚拟机已锁定，强制断电可能影响正在运行的服务，确定要断电吗？' : '确定要强制断电吗？'}
+                  title="关机指令已下发，虚拟机仍在运行。确定要强制断电吗？"
                   onConfirm={() => onPower('destroy')}
                 >
-                  <Button type="danger" theme="light" icon={<IconStop />} loading={operating}>
+                  <Button type="danger" theme="solid" icon={<IconStop />} loading={powerOperating} block>
                     强制断电
                   </Button>
                 </Popconfirm>
-              </>
+              ) : (
+                <>
+                  <Popconfirm title="确定要重启吗？" onConfirm={() => onPower('reboot')}>
+                    <Button type="warning" theme="solid" icon={<IconRefresh />} loading={operating}>
+                      重启
+                    </Button>
+                  </Popconfirm>
+                  <Popconfirm
+                    title={locked ? '虚拟机已锁定，关机可能影响正在运行的服务，确定要关机吗？' : '确定要关机吗？'}
+                    onConfirm={() => onPower('shutdown')}
+                  >
+                    <Button type="warning" theme="light" icon={<IconStop />} loading={operating}>
+                      关机
+                    </Button>
+                  </Popconfirm>
+                  <Popconfirm
+                    title={locked ? '虚拟机已锁定，强制断电可能影响正在运行的服务，确定要断电吗？' : '确定要强制断电吗？'}
+                    onConfirm={() => onPower('destroy')}
+                  >
+                    <Button type="danger" theme="light" icon={<IconStop />} loading={operating}>
+                      强制断电
+                    </Button>
+                  </Popconfirm>
+                </>
+              )
             )}
           </div>
 
           {/* 快捷操作 */}
-          <div className="qvm-hero-actions-grid">
+          {!shutdownPending && <div className="qvm-hero-actions-grid">
             {!isLightweight &&
               (locked ? (
                 <Popconfirm title="解除锁定需要进行二次验证，确定要解锁吗？" onConfirm={() => onLock('unlock')}>
@@ -191,7 +208,7 @@ export default function HeroStatusCard({
                 编辑备注
               </span>
             )}
-          </div>
+          </div>}
         </>
       )}
     </div>

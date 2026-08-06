@@ -26,7 +26,8 @@ interface VmGroupedViewProps {
   sortField: VmSortField
   sortOrder: VmSortOrder
   onSortChange: (field: VmSortField, order: VmSortOrder) => void
-  operatingMap: Record<string, boolean>
+  operatingMap: Record<string, VmPowerAction | undefined>
+  shutdownPendingMap: Record<string, boolean | undefined>
   isAdmin: boolean
   isLightweight: boolean
   onPower: (vm: VmListItem, action: VmPowerAction) => void
@@ -50,6 +51,7 @@ export default function VmGroupedView({
   sortOrder,
   onSortChange,
   operatingMap,
+  shutdownPendingMap,
   isAdmin,
   isLightweight,
   onPower,
@@ -112,6 +114,7 @@ export default function VmGroupedView({
                     sortOrder={sortOrder}
                     onSortChange={onSortChange}
                     operatingMap={operatingMap}
+                    shutdownPendingMap={shutdownPendingMap}
                     isAdmin={isAdmin}
                     isLightweight={isLightweight}
                     onPower={onPower}
@@ -127,6 +130,7 @@ export default function VmGroupedView({
                     selectedKeys={selectedKeys}
                     onToggleSelect={onToggleSelect}
                     operatingMap={operatingMap}
+                    shutdownPendingMap={shutdownPendingMap}
                     isAdmin={isAdmin}
                     isLightweight={isLightweight}
                     onPower={onPower}

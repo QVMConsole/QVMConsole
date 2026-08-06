@@ -29,7 +29,8 @@ interface VmTableViewProps {
   sortField: VmSortField
   sortOrder: VmSortOrder
   onSortChange: (field: VmSortField, order: VmSortOrder) => void
-  operatingMap: Record<string, boolean>
+  operatingMap: Record<string, VmPowerAction | undefined>
+  shutdownPendingMap: Record<string, boolean | undefined>
   isAdmin: boolean
   isLightweight: boolean
   onPower: (vm: VmListItem, action: VmPowerAction) => void
@@ -58,6 +59,7 @@ export default function VmTableView({
   sortOrder,
   onSortChange,
   operatingMap,
+  shutdownPendingMap,
   isAdmin,
   isLightweight,
   onPower,
@@ -166,7 +168,8 @@ export default function VmTableView({
             vm={vm}
             isAdmin={isAdmin}
             isLightweight={isLightweight}
-            operating={!!operatingMap[vm.name]}
+            pendingPowerAction={operatingMap[vm.name]}
+            shutdownAcknowledged={!!shutdownPendingMap[vm.name]}
             onPower={onPower}
             onMenu={onMenu}
             onConsole={onConsole}

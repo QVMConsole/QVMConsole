@@ -22,6 +22,7 @@ import {
   buildVmGroups,
   isVmMigrating,
   POWER_ACTION_TEXT,
+  shouldClearPowerLoadingAfterAck,
   type VmGroupBucket,
   type VmGroupBy,
 } from './utils'
@@ -98,7 +99,8 @@ export default function VmListPage() {
   // 分组折叠状态（key 含分组维度前缀，默认展开）
   const [groupCollapsedMap, setGroupCollapsedMap] = useState<Record<string, boolean>>({})
   const [page, setPage] = useState(1)
-  const [operatingMap, setOperatingMap] = useState<Record<string, boolean>>({})
+  const [operatingMap, setOperatingMap] = useState<Record<string, VmPowerAction | undefined>>({})
+  const [shutdownPendingMap, setShutdownPendingMap] = useState<Record<string, boolean | undefined>>({})
   const [batchOperating, setBatchOperating] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [dialog, setDialog] = useState<DialogState>(null)
@@ -114,7 +116,15 @@ export default function VmListPage() {
       const next = { ...map }
       list.forEach((vm) => {
         const old = prevByName.get(vm.name)
-        if (old && old.status !== vm.status) next[vm.name] = false
+        if (old && old.status !== vm.status) next[vm.name] = undefined
+      })
+      return next
+    })
+    setShutdownPendingMap((map) => {
+      const next = { ...map }
+      list.forEach((vm) => {
+        const old = prevByName.get(vm.name)
+        if (old && old.status !== vm.status) next[vm.name] = undefined
       })
       return next
     })
@@ -248,14 +258,24 @@ export default function VmListPage() {
       })
     }
     if (!ok) return
-    setOperatingMap((m) => ({ ...m, [vm.name]: true }))
+    setOperatingMap((m) => ({ ...m, [vm.name]: action }))
     try {
       await operateVm(vm.name, action)
       Toast.success(`${actionText}指令已下发`)
+      if (action === 'shutdown') {
+        setOperatingMap((m) => ({ ...m, [vm.name]: undefined }))
+        setShutdownPendingMap((m) => ({ ...m, [vm.name]: true }))
+      } else if (shouldClearPowerLoadingAfterAck(action)) {
+        setOperatingMap((m) => ({ ...m, [vm.name]: undefined }))
+        void reload()
+      }
     } catch {
-      setOperatingMap((m) => ({ ...m, [vm.name]: false }))
+      setOperatingMap((m) => ({ ...m, [vm.name]: undefined }))
+      if (action !== 'destroy') {
+        setShutdownPendingMap((m) => ({ ...m, [vm.name]: undefined }))
+      }
     }
-  }, [])
+  }, [reload])
 
   // ==================== 批量操作 ====================
   const handleBatch = useCallback(
@@ -574,6 +594,7 @@ export default function VmListPage() {
             sortOrder={sortOrder}
             onSortChange={handleSortChange}
             operatingMap={operatingMap}
+            shutdownPendingMap={shutdownPendingMap}
             isAdmin={isAdmin}
             isLightweight={isLightweight}
             onPower={(vm, action) => void handlePower(vm, action)}
@@ -593,6 +614,7 @@ export default function VmListPage() {
             sortOrder={sortOrder}
             onSortChange={handleSortChange}
             operatingMap={operatingMap}
+            shutdownPendingMap={shutdownPendingMap}
             isAdmin={isAdmin}
             isLightweight={isLightweight}
             onPower={(vm, action) => void handlePower(vm, action)}
@@ -608,6 +630,7 @@ export default function VmListPage() {
             selectedKeys={selectedKeys}
             onToggleSelect={toggleSelectOne}
             operatingMap={operatingMap}
+            shutdownPendingMap={shutdownPendingMap}
             isAdmin={isAdmin}
             isLightweight={isLightweight}
             onPower={(vm, action) => void handlePower(vm, action)}
