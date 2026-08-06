@@ -346,6 +346,9 @@ func LinkedCloneVM(ctx context.Context, params *LinkedCloneParams, progressFn fu
 		cleanupLinkedCloneArtifacts("", cloneDisk)
 		return nil, err
 	}
+	if (normalizedBootType == vm_xml.VMBootTypeUEFI || normalizedBootType == vm_xml.VMBootTypeUEFISecure) && templateType != "windows" {
+		setCloneShimFallbackNoReboot(params.Name, vmXML)
+	}
 	vmXML, err = applyCloneHostDevicesToDomainXML(vmXML, params.HostDevices, params.IsAdmin)
 	if err != nil {
 		cleanupLinkedCloneArtifacts("", cloneDisk)

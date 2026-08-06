@@ -11,9 +11,12 @@
 1. 先检查当前模板节点及其派生节点关联的链式克隆 VM；只要仍存在链式依赖，任务不会提交或执行；
 2. 管理员需先关机，再前往“虚拟机管理”，在每台关联 VM 的“更多”菜单中执行“转为独立虚拟机”，并等待全部转换任务完成；
 3. 临时解除模板磁盘的不可变标记；
-4. 先以无网络方式检查 `cloud-init` 和对应的磁盘扩容工具；仅在缺失时才启动 guestfs 网络后端并安装；
-5. 写入 `linux_init_status`、`linux_init_checked` 与错误摘要到模板元数据；
-6. 恢复模板磁盘不可变标记。
+4. 先以无网络方式检查 `cloud-init` 和对应的磁盘扩容工具。Debian 系读取包状态，RPM 系只读检查依赖命令文件；仅在缺失时才启动 guestfs 网络后端，并使用模板自带的软件源安装；
+5. 成功后重新计算模板磁盘的 MD5、SHA256 与文件大小；
+6. 写入 `linux_init_status`、`linux_init_checked` 与错误摘要到模板元数据；
+7. 恢复模板磁盘不可变标记。
+
+`btrfs-progs` 作为可选工具单独尝试安装。部分 Enterprise Linux 发行版不提供该软件包时，模板仍可完成预处理；仅 Btrfs 文件系统的自动扩容不可用。
 
 检查接口：`GET /api/template/{name}/prepare-linux/check`，返回 `linked_vms` 与 `can_prepare`。预处理接口：`POST /api/template/{name}/prepare-linux`。管理员会话和管理员 API Key 均可调用；响应返回任务 ID，执行进度通过任务中心查询。链式依赖尚未转换时，预处理接口返回 `409` 与关联 VM 列表。
 

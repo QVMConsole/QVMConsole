@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -381,6 +382,57 @@ func CreateQCOW2NVRAMFromTemplate(templatePath, nvramPath string) error {
 	}
 	if err := utils.ChownLibvirtQEMU(nvramPath); err != nil {
 		return fmt.Errorf("设置 NVRAM 文件权限失败: %w", err)
+	}
+	return nil
+}
+
+// SetShimFallbackNoReboot 预置 shim fallback 的连续引导标记。
+// 首次启动仍会自动登记发行版启动项，但不会显示倒计时并执行冷复位。
+func SetShimFallbackNoReboot(nvramPath string) error {
+	nvramPath = strings.TrimSpace(nvramPath)
+	if nvramPath == "" {
+		return fmt.Errorf("NVRAM 路径为空")
+	}
+	if _, err := os.Stat(nvramPath); err != nil {
+		return fmt.Errorf("读取 NVRAM 文件失败: %w", err)
+	}
+
+	toolPath, err := exec.LookPath("virt-fw-vars")
+	if err != nil {
+		return fmt.Errorf("未找到 virt-fw-vars，请安装 python3-virt-firmware")
+	}
+
+	tmpFile, err := os.CreateTemp(filepath.Dir(nvramPath), "."+filepath.Base(nvramPath)+".shim-*.qcow2")
+	if err != nil {
+		return fmt.Errorf("创建 NVRAM 临时文件失败: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+	if err := tmpFile.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("关闭 NVRAM 临时文件失败: %w", err)
+	}
+	_ = os.Remove(tmpPath)
+	defer os.Remove(tmpPath)
+
+	result := utils.ExecCommand(toolPath,
+		"--input", nvramPath,
+		"--output", tmpPath,
+		"--set-fallback-no-reboot",
+	)
+	if result.Error != nil {
+		return fmt.Errorf("写入 shim 连续引导标记失败: %s", firstNonEmpty(result.Stderr, result.Error.Error()))
+	}
+	if DetectQemuImageFormat(tmpPath) != "qcow2" {
+		return fmt.Errorf("写入后的 NVRAM 不是有效的 QCOW2 文件")
+	}
+	if err := os.Chmod(tmpPath, 0600); err != nil {
+		return fmt.Errorf("设置 NVRAM 文件权限失败: %w", err)
+	}
+	if err := utils.ChownLibvirtQEMU(tmpPath); err != nil {
+		return fmt.Errorf("设置 NVRAM 文件属主失败: %w", err)
+	}
+	if err := os.Rename(tmpPath, nvramPath); err != nil {
+		return fmt.Errorf("替换 NVRAM 文件失败: %w", err)
 	}
 	return nil
 }
