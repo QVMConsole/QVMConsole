@@ -133,7 +133,7 @@ func setFirstOVSInterfaceBridge(xmlText, bridge string) (string, bool) {
 	for {
 		startRel := strings.Index(xmlText[searchFrom:], "<interface ")
 		if startRel < 0 {
-			return xmlText, false
+			break
 		}
 		start := searchFrom + startRel
 		endRel := strings.Index(xmlText[start:], "</interface>")
@@ -150,6 +150,58 @@ func setFirstOVSInterfaceBridge(xmlText, bridge string) (string, bool) {
 			return xmlText[:start] + updatedBlock + xmlText[end:], updatedBlock != block
 		}
 		searchFrom = end
+	}
+	return setFirstCompatibleInterfaceAsOVSBridge(xmlText, bridge)
+}
+
+// setFirstCompatibleInterfaceAsOVSBridge 兼容历史 bridge/network 网卡，将其转换为 OVS 网桥网卡。
+// 只处理可由 VPC 接管的虚拟网卡，避免改动 hostdev、direct 等特殊设备。
+func setFirstCompatibleInterfaceAsOVSBridge(xmlText, bridge string) (string, bool) {
+	searchFrom := 0
+	for {
+		startRel := strings.Index(xmlText[searchFrom:], "<interface ")
+		if startRel < 0 {
+			return xmlText, false
+		}
+		start := searchFrom + startRel
+		endRel := strings.Index(xmlText[start:], "</interface>")
+		if endRel < 0 {
+			return xmlText, false
+		}
+		end := start + endRel + len("</interface>")
+		block := xmlText[start:end]
+		isBridge := strings.Contains(block, "<interface type='bridge'") || strings.Contains(block, `<interface type="bridge"`)
+		isNetwork := strings.Contains(block, "<interface type='network'") || strings.Contains(block, `<interface type="network"`)
+		if !isBridge && !isNetwork {
+			searchFrom = end
+			continue
+		}
+
+		updatedBlock := block
+		if isNetwork {
+			interfaceTypeRe := regexp.MustCompile(`(<interface\s+)type=['"][^'"]+['"]`)
+			updatedBlock = interfaceTypeRe.ReplaceAllString(updatedBlock, "${1}type='bridge'")
+		}
+
+		sourceRe := regexp.MustCompile(`<source\b[^>]*/\s*>`)
+		sourceXML := fmt.Sprintf("<source bridge='%s'/>", strings.TrimSpace(bridge))
+		if sourceRe.MatchString(updatedBlock) {
+			updatedBlock = sourceRe.ReplaceAllString(updatedBlock, sourceXML)
+		} else {
+			openingEnd := strings.Index(updatedBlock, ">")
+			if openingEnd < 0 {
+				searchFrom = end
+				continue
+			}
+			updatedBlock = updatedBlock[:openingEnd+1] + "\n      " + sourceXML + updatedBlock[openingEnd+1:]
+		}
+		if !strings.Contains(updatedBlock, "virtualport type='openvswitch'") && !strings.Contains(updatedBlock, `virtualport type="openvswitch"`) {
+			updatedBlock = sourceRe.ReplaceAllString(updatedBlock, sourceXML+"\n      <virtualport type='openvswitch'/>")
+		}
+		if updatedBlock == block {
+			return xmlText, false
+		}
+		return xmlText[:start] + updatedBlock + xmlText[end:], true
 	}
 }
 

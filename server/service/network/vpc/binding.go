@@ -294,7 +294,8 @@ func ApplyVPCSwitchToDomainXML(vmXML string, switchID uint) (string, error) {
 	}
 	if HookSwitchUsesDirectBridge(sw) {
 		updated, changed := setFirstOVSInterfaceDirectBridge(vmXML, HookBridgeNameForSwitch(sw), sw.BridgeVLANID)
-		if !changed {
+		// 已连接目标桥接网桥且 VLAN 配置无需变化时，XML 不会产生变更，但已满足绑定条件。
+		if !changed && !firstOVSInterfaceUsesBridge(updated, HookBridgeNameForSwitch(sw)) {
 			return "", fmt.Errorf("无法在虚拟机 XML 中找到可接入桥接网桥的 OVS 网卡")
 		}
 		return updated, nil

@@ -106,6 +106,9 @@ func SwitchVMSecurityGroup(operator, role, vmName string, securityGroupID uint) 
 func ApplyVPCSwitchToDomainXML(vmXML string, switchID uint) (string, error) {
 	return vpcpkg.ApplyVPCSwitchToDomainXML(vmXML, switchID)
 }
+func ApplyVPCBindingToDomainXML(vmName, vmXML string) (string, bool, error) {
+	return vpcpkg.ApplyVPCBindingToDomainXML(vmName, vmXML)
+}
 
 // Interface management
 func AddVMInterface(vmName string, req AddVMInterfaceRequest) (*VMInterfaceInfo, error) {

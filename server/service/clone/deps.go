@@ -53,6 +53,7 @@ type Deps struct {
 	GetOVSStaticIPByMAC           func(mac string) string
 	ListAllVPCStaticHosts         func() ([]OVSStaticHost, error)
 	GetOVSLeaseIPByMAC            func(mac string) string
+	ApplyVPCBindingToDomainXML    func(vmName, xml string) (string, bool, error)
 
 	// ---- XML modification helpers ----
 	ApplyRTCConfigToDomainXML           func(xmlStr, offset, startDate, tplType string) (string, error)
@@ -111,8 +112,8 @@ type Deps struct {
 	HookEnsureVMNotMigrating func(vmName, action string) error
 
 	// ---- SPICE graphics（创建即带，默认本地监听） ----
-	InjectSPICEGraphics func(xmlStr, passwd, listenAddr string) string
-	EnsureQXLVideo      func(xmlStr string) string
+	InjectSPICEGraphics   func(xmlStr, passwd, listenAddr string) string
+	EnsureQXLVideo        func(xmlStr string) string
 	SpiceEnabledByDefault func() bool
 }
 

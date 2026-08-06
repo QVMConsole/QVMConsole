@@ -24,6 +24,25 @@ func ApplyVPCBindingRuntime(vmName string) error {
 	return ApplyVPCSwitchRuntime(vmName, sw)
 }
 
+// ApplyVPCBindingToDomainXML 按主网口绑定同步持久化 XML，供关机态流程在开机前调用。
+func ApplyVPCBindingToDomainXML(vmName, vmXML string) (string, bool, error) {
+	if model.DB == nil || strings.TrimSpace(vmName) == "" {
+		return vmXML, false, nil
+	}
+
+	var binding model.VPCVMBinding
+	if err := model.DB.Where("vm_name = ? AND interface_order = ?", vmName, 0).First(&binding).Error; err != nil {
+		// 未绑定 VPC 或历史数据无法读取时保留现有 XML，与运行态应用的兼容策略一致。
+		return vmXML, false, nil
+	}
+
+	updatedXML, err := ApplyVPCSwitchToDomainXML(vmXML, binding.SwitchID)
+	if err != nil {
+		return vmXML, true, err
+	}
+	return updatedXML, true, nil
+}
+
 func EnsureVPCForVMCreate(username string, switchID, securityGroupID uint) error {
 	_, _, err := ResolveVPCForVMCreate(username, switchID, securityGroupID)
 	return err

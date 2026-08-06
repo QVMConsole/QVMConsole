@@ -142,6 +142,8 @@ func ReinstallVM(ctx context.Context, params *ReinstallParams, progressFn func(i
 	if err != nil {
 		return err
 	}
+	rollbackXML := originalXML
+	reinstallXML := originalXML
 	currentBootType := vm_xml.ParseVMBootTypeFromDomainXML(originalXML)
 	templateBootType, err := detectTemplateBootTypeForReinstall(params.Template, meta)
 	if err != nil {
@@ -182,7 +184,7 @@ func ReinstallVM(ctx context.Context, params *ReinstallParams, progressFn func(i
 			_ = libvirt_rpc.DestroyDomainRPC(params.Name)
 			var rollbackMessages []string
 			if xmlModified {
-				if restoreXMLErr := D.SetVMInactiveDomainXML(params.Name, originalXML); restoreXMLErr != nil {
+				if restoreXMLErr := D.SetVMInactiveDomainXML(params.Name, rollbackXML); restoreXMLErr != nil {
 					rollbackMessages = append(rollbackMessages, restoreXMLErr.Error())
 				}
 			}
@@ -243,25 +245,31 @@ func ReinstallVM(ctx context.Context, params *ReinstallParams, progressFn func(i
 		} else {
 			reinstallWindowsISOPath = isoPath
 			// 将 Config Drive CD-ROM 注入 VM XML（移除旧的再添加新的）
-			updatedReinstallXML := removeConfigDriveCDROMFromXML(originalXML)
-			updatedReinstallXML = addConfigDriveCDROMToXML(updatedReinstallXML, reinstallWindowsISOPath, cloneParams.DiskBus)
-			if setXMLErr := D.SetVMInactiveDomainXML(params.Name, updatedReinstallXML); setXMLErr != nil {
-				logger.App.Warn("更新 VM XML 添加 Config Drive CD-ROM 失败",
-					"vm", params.Name, "error", setXMLErr)
-			} else {
-				xmlModified = true
-				// 更新 originalXML，供后续冷重启逻辑和回滚使用
-				originalXML = updatedReinstallXML
-			}
+			reinstallXML = removeConfigDriveCDROMFromXML(reinstallXML)
+			reinstallXML = addConfigDriveCDROMToXML(reinstallXML, reinstallWindowsISOPath, cloneParams.DiskBus)
 		}
 	}
 
 	firstBootColdReboot := D.ShouldUseWindowsFirstBootColdReboot(cloneParams.FirstBootRebootMode, cloneParams.TemplateType)
 	if firstBootColdReboot {
 		progressFn(40, "正在准备 Windows 首次冷重启策略...")
-		updatedXML := D.ApplyFirstBootRebootModeToDomainXML(originalXML, cloneParams.FirstBootRebootMode)
-		if err := D.SetVMInactiveDomainXML(params.Name, updatedXML); err != nil {
-			return fmt.Errorf("设置 Windows 首次冷重启策略失败: %w", err)
+	}
+	progressFn(45, "正在同步虚拟机网络配置...")
+	updatedReinstallXML, hasVPCBinding, err := D.ApplyVPCBindingToDomainXML(params.Name, reinstallXML)
+	if err != nil {
+		return fmt.Errorf("重装前同步 VPC 网络配置失败: %w", err)
+	}
+	if hasVPCBinding {
+		reinstallXML = updatedReinstallXML
+	}
+
+	startXML := reinstallXML
+	if firstBootColdReboot {
+		startXML = D.ApplyFirstBootRebootModeToDomainXML(reinstallXML, cloneParams.FirstBootRebootMode)
+	}
+	if startXML != rollbackXML {
+		if err := D.SetVMInactiveDomainXML(params.Name, startXML); err != nil {
+			return fmt.Errorf("保存重装前虚拟机配置失败: %w", err)
 		}
 		xmlModified = true
 	}
@@ -280,10 +288,9 @@ func ReinstallVM(ctx context.Context, params *ReinstallParams, progressFn func(i
 		if err := D.CompleteWindowsFirstBootColdReboot(ctx, params.Name, progressFn); err != nil {
 			return err
 		}
-		if err := D.SetVMInactiveDomainXML(params.Name, originalXML); err != nil {
+		if err := D.SetVMInactiveDomainXML(params.Name, reinstallXML); err != nil {
 			return fmt.Errorf("恢复首次重启策略失败: %w", err)
 		}
-		xmlModified = false
 	}
 
 	// Windows 重装：在后台等待 QEMU Guest Agent 连接后自动弹出并清理 Config Drive CD-ROM

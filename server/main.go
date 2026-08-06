@@ -1274,6 +1274,7 @@ func initCloneDeps() {
 		GetOVSStaticIPByMAC:           service.GetOVSStaticIPByMAC,
 		ListAllVPCStaticHosts:         service.ListAllVPCStaticHostsForClone,
 		GetOVSLeaseIPByMAC:            service.GetOVSLeaseIPByMAC,
+		ApplyVPCBindingToDomainXML:    service.ApplyVPCBindingToDomainXML,
 
 		// XML modification helpers
 		ApplyRTCConfigToDomainXML:           service.ApplyRTCConfigToDomainXML,
