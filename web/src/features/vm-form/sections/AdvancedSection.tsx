@@ -179,7 +179,7 @@ export default function AdvancedSection({ currentVmUUID, onOpenXmlEditor }: Adva
         )}
 
         {f.machine_type === 'q35' && (
-          <FormField label="PCIe 热插槽" tip="预留的 pcie-root-port 数量，设为 0 使用默认值（4）。足够的插槽可避免后续热添加磁盘时提示「无可用 PCI 插槽」。最大支持 32 个。">
+          <FormField label="PCIe 热插槽" tip="预留的 pcie-root-port 数量，设为 0 使用默认值（6）。创建时会根据额外网卡、磁盘和直通设备自动保证最低数量，最大支持 32 个。">
             <InputNumber
               style={{ width: 160 }}
               value={f.pcie_root_ports}

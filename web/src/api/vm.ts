@@ -1065,6 +1065,7 @@ export interface BatchCloneVmPayload {
   security_group_id?: number | null
   extra_nics?: ExtraNicPayload[]
   extra_disks?: ExtraDiskPayload[]
+  pcie_root_ports?: number
   static_ip?: string
   gateway?: string
   dns?: string

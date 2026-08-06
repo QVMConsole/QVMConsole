@@ -396,6 +396,10 @@ func cloneWindows(ctx context.Context, params *CloneParams, cloneDisk string, ra
   </devices>
 </domain>`,
 		params.Name, ramKiB, D.BuildVCPUTag(params.VCPU, params.MaxVCPU), osXML, smmXML, hyperVBlock, clockOpenTag, hyperVTimerBlock, emulatorPath, cloneDisk, diskTargetDev, diskBus, diskControllerXML, networkXML, tpmXML, watchdogModel)
+	// Windows XML 为手工构建，需要显式预留创建时额外设备使用的 PCIe 根端口。
+	additionalPCIEDevices := len(params.ExtraNics) + len(params.ExtraDisks) + len(params.HostDevices)
+	pciePortCount := vm_xml.ResolveCreatePCIERootPortCount(vmXML, params.PCIERootPorts, additionalPCIEDevices)
+	vmXML = D.InjectPCIERootPorts(vmXML, pciePortCount)
 	var err error
 	if memoryMeta != nil {
 		vmXML, err = memory.ApplyMemoryMetadataToDomainXML(vmXML, memoryMeta, false)

@@ -166,7 +166,7 @@ export function createDefaultVmForm(options: CreateDefaultFormOptions = {}): VmF
     rtc_startdate: 'now',
     guest_agent: createEmptyGuestAgentConfig(),
     smbios1: createEmptySMBIOS1Config(),
-    pcie_root_ports: 4,
+    pcie_root_ports: 6,
     host_devices: [],
     host_devices_touched: false,
     traffic_down_gb: 0,

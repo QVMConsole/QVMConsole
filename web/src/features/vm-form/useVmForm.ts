@@ -103,7 +103,7 @@ export function buildEditFormState(
   if (detail.nic_model) next.nic_model = detail.nic_model
   next.arch = detail.arch || prev.arch || 'x86_64'
   next.machine_type = detail.machine_type || prev.machine_type || 'q35'
-  next.pcie_root_ports = detail.pcie_root_ports || 4
+  next.pcie_root_ports = detail.pcie_root_ports || 6
   next.boot_type = detail.boot_type || prev.boot_type || 'bios'
   next.firmware_compat = !!detail.firmware_compat
   next.direct_boot_enabled = !!detail.direct_boot?.enabled

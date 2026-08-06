@@ -130,10 +130,8 @@ func defineAndStartNonWindowsClone(params *CloneParams, cloneDisk string, ramMB 
 
 	vmXML := InjectMemballoonConfig(result.Stdout, !isOther)
 
-	pciePortCount := params.PCIERootPorts
-	if pciePortCount <= 0 {
-		pciePortCount = 6
-	}
+	additionalPCIEDevices := len(params.ExtraNics) + len(params.ExtraDisks) + len(params.HostDevices)
+	pciePortCount := vm_xml.ResolveCreatePCIERootPortCount(vmXML, params.PCIERootPorts, additionalPCIEDevices)
 	vmXML = D.InjectPCIERootPorts(vmXML, pciePortCount)
 
 	var err error

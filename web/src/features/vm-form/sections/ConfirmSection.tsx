@@ -86,7 +86,7 @@ export default function ConfirmSection() {
     if (!f.nested_virt) items.push('关闭嵌套虚拟化')
     if (f.cpu_topology_mode !== 'auto') items.push(`CPU 拓扑：${f.cpu_topology_mode}`)
     if (f.cpu_affinity) items.push(`CPU 亲和性：${f.cpu_affinity}`)
-    if (f.pcie_root_ports !== 4) items.push(`PCIe 热插槽：${f.pcie_root_ports}`)
+    if (f.pcie_root_ports !== 6) items.push(`PCIe 热插槽：${f.pcie_root_ports}`)
     if (f.spice_enabled) items.push('启用 SPICE')
     if (f.rtc_offset !== 'utc') items.push('RTC 本地时间')
     if (f.rtc_startdate && f.rtc_startdate !== 'now') items.push(`RTC 固定时间：${f.rtc_startdate}`)

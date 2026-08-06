@@ -148,7 +148,7 @@ export default function EditVmForm({ vmName, vmStatus, onSaved }: EditVmFormProp
       setGuestAgentConnected(!!detail.guest_agent_status?.connected)
       origNicModelRef.current = detail.nic_model || 'virtio'
       origBootTypeRef.current = detail.boot_type || 'bios'
-      origPcieRootPortsRef.current = detail.pcie_root_ports || 4
+      origPcieRootPortsRef.current = detail.pcie_root_ports || 6
       origVcpuRef.current = detail.vcpu || 1
       origMemoryRef.current = nextForm.memory || 1
       // 磁盘列表与 IOPS 快照

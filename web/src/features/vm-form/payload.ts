@@ -317,6 +317,7 @@ export const buildBatchClonePayload = (
     hostname: '', // 批量模式每台由后端自动生成独立主机名
     template_user: initUser,
     extra_disks: buildExtraDisksPayload(form),
+    pcie_root_ports: form.pcie_root_ports,
   }
   const cpuLimitPercent = buildCPULimitPercentPayload(form, ctx.isAdmin)
   if (cpuLimitPercent !== undefined) payload.cpu_limit_percent = cpuLimitPercent

@@ -328,15 +328,16 @@ func RemoveVMInterface(vmName string, interfaceOrder int) error {
 }
 
 // AttachExtraNICs 批量附加额外网口（用于创建/克隆流程）
-func AttachExtraNICs(vmName string, extraNics []AddVMInterfaceRequest) {
+func AttachExtraNICs(vmName string, extraNics []AddVMInterfaceRequest) error {
 	for i, nic := range extraNics {
 		if nic.SwitchID == 0 {
 			continue
 		}
 		if _, err := AddVMInterface(vmName, nic); err != nil {
-			logger.App.Warn("添加额外网口失败", "vm", vmName, "order", i+1, "switchID", nic.SwitchID, "error", err)
+			return fmt.Errorf("添加第 %d 张网卡失败: %w", i+2, err)
 		}
 	}
+	return nil
 }
 
 // applyNewInterfaceRuntime 为新添加的网口设置 OVS VLAN tag（不影响已有网口）

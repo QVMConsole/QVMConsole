@@ -414,11 +414,9 @@ func CreateVM(params *CreateVMParams, progressFn func(int, string)) (string, err
 	enableFPR := params.OSType != "windows"
 	vmXML := D.InjectMemballoonConfig(xmlOutput, enableFPR)
 
-	// 注入 pcie-root-port 控制器（q35 机型热插拔预留，默认 6 个）
-	pciePortCount := params.PCIERootPorts
-	if pciePortCount <= 0 {
-		pciePortCount = 6
-	}
+	// 为创建时稍后追加的设备预留端口，避免虚拟机启动后额外网口无槽位可用。
+	additionalPCIEDevices := len(params.ExtraNics) + len(params.ExtraDisks) + len(params.HostDevices)
+	pciePortCount := vm_xml.ResolveCreatePCIERootPortCount(vmXML, params.PCIERootPorts, additionalPCIEDevices)
 	vmXML = InjectPCIERootPorts(vmXML, pciePortCount)
 
 	if memoryMeta != nil {
