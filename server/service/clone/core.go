@@ -148,12 +148,14 @@ func CloneVM(ctx context.Context, params *CloneParams, progressFn func(int, stri
 		params.DiskBus = "virtio"
 	}
 
-	// 凭据：优先用 CloneParams 中的，否则用元数据中的
+	// 凭据：模板旧用户名必须以服务端元数据为准，避免客户端把目标用户名误当成旧用户名。
 	if params.TemplateRootPass == "" && meta.RootPassword != "" {
 		params.TemplateRootPass = meta.RootPassword
 	}
-	if params.TemplateUser == "" && meta.TemplateUser != "" {
-		params.TemplateUser = meta.TemplateUser
+	if meta != nil {
+		params.TemplateUser = strings.TrimSpace(meta.TemplateUser)
+	} else {
+		params.TemplateUser = strings.TrimSpace(params.TemplateUser)
 	}
 	if params.PostBootCommand == "" && meta.PostBootCommand != "" {
 		params.PostBootCommand = meta.PostBootCommand

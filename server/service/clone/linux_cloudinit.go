@@ -15,6 +15,8 @@ import (
 // 无需 SSH 连接：清理身份信息、写入 cloud-init NoCloud seed 文件、离线修改密码与用户名
 // 依赖必须在模板制作或模板预处理阶段完成，克隆阶段始终禁用网络。
 func prepareLinuxNoCloudInit(params *CloneParams, cloneDisk string, progressFn func(int, string)) error {
+	targetUser := resolveLinuxCloneTargetUser(params.User, params.TemplateUser)
+
 	// 生成 cloud-init seed 文件内容
 	metaData := buildNoCloudMetaData(params)
 	userData := buildNoCloudUserData(params)
@@ -34,8 +36,6 @@ func prepareLinuxNoCloudInit(params *CloneParams, cloneDisk string, progressFn f
 	if err := os.WriteFile(userPath, []byte(userData), 0644); err != nil {
 		return fmt.Errorf("写入 cloud-init user-data 失败: %w", err)
 	}
-
-	templateUser := params.TemplateUser
 
 	args := []string{
 		"-a", cloneDisk,
@@ -58,25 +58,8 @@ func prepareLinuxNoCloudInit(params *CloneParams, cloneDisk string, progressFn f
 		"--run-command", "rm -f /etc/cloud/cloud.cfg.d/curtin-preserve-sources.cfg 2>/dev/null || true",
 		// 5. 清理 cloud-init 实例缓存（强制重新初始化，而非跳过）
 		"--run-command", "rm -rf /var/lib/cloud/instances/* /var/lib/cloud/instance",
-		// 6. 强制启用 SSH 密码登录（包括 root），覆盖发行版默认的 PermitRootLogin prohibit-password
-		//    同时处理 sshd_config.d/ 下可能存在的覆盖文件（Ubuntu 22.04+, Debian 12+）
-		"--run-command", `SSHD_CFG=/etc/ssh/sshd_config; ` +
-			`if [ -f "$SSHD_CFG" ]; then ` +
-			// 启用 PermitRootLogin yes
-			`if grep -qE "^\s*#?\s*PermitRootLogin" "$SSHD_CFG"; then ` +
-			`sed -i "s/^\s*#\?\s*PermitRootLogin.*/PermitRootLogin yes/" "$SSHD_CFG"; ` +
-			`else echo "PermitRootLogin yes" >> "$SSHD_CFG"; fi; ` +
-			// 启用 PasswordAuthentication yes
-			`if grep -qE "^\s*#?\s*PasswordAuthentication" "$SSHD_CFG"; then ` +
-			`sed -i "s/^\s*#\?\s*PasswordAuthentication.*/PasswordAuthentication yes/" "$SSHD_CFG"; ` +
-			`else echo "PasswordAuthentication yes" >> "$SSHD_CFG"; fi; ` +
-			`fi; ` +
-			// 清理 sshd_config.d/ 中可能覆盖上述设置的 drop-in 文件
-			`if [ -d /etc/ssh/sshd_config.d ]; then ` +
-			`for f in /etc/ssh/sshd_config.d/*.conf; do [ -f "$f" ] || continue; ` +
-			`sed -i "s/^\s*PermitRootLogin.*/PermitRootLogin yes/" "$f"; ` +
-			`sed -i "s/^\s*PasswordAuthentication.*/PasswordAuthentication yes/" "$f"; ` +
-			`done; fi`,
+		// 6. 启用 SSH 密码认证，并按目标用户决定是否允许 root 登录。
+		"--run-command", buildLinuxSSHPasswordAuthCommand(targetUser),
 		// 7. 写入 cloud-init NoCloud seed 文件（文件系统方式，无时序问题）
 		"--run-command", "mkdir -p /var/lib/cloud/seed/nocloud",
 		"--upload", metaPath + ":/var/lib/cloud/seed/nocloud/meta-data",
@@ -94,48 +77,20 @@ func prepareLinuxNoCloudInit(params *CloneParams, cloneDisk string, progressFn f
 	// 为后续从面板热插的网口保留 DHCP 兜底规则，不覆盖主网口的 Netplan 配置。
 	args = append(args, "--run-command", buildLinuxNetworkdDHCPHotplugFallbackCommand())
 
-	// 7. 离线修改密码（通过 virt-customize --password，直接修改 /etc/shadow，无需 cloud-init）
-	// root 密码始终设置；templateUser 若不是 root 则也设置（避免对 root 重复设置导致 virt-customize 报错）
-	if params.Password != "" {
-		args = append(args, "--password", "root:password:"+params.Password)
-		if templateUser != "" && templateUser != "root" {
-			args = append(args, "--password", templateUser+":password:"+params.Password)
-		}
+	// 7. 先按磁盘内真实账户准备目标用户，不能仅依赖模板元数据判断账户是否存在。
+	if targetUser != "" && targetUser != "root" {
+		args = append(args, "--run-command", buildEnsureLinuxCloneUserCommand(params.TemplateUser, targetUser))
 	}
 
-	// 8. 用户名处理（离线）
-	if params.User != "" && params.User != "root" {
-		if templateUser != "" && templateUser != "root" && params.User != templateUser {
-			// 8a. 模板有非root用户 → 重命名为目标用户名
-			renameCmd := fmt.Sprintf(
-				`OLD=%s; NEW=%s; `+
-					`if id "$OLD" >/dev/null 2>&1 && ! id "$NEW" >/dev/null 2>&1; then `+
-					`usermod -l "$NEW" "$OLD" 2>/dev/null; `+
-					`usermod -d /home/"$NEW" -m "$NEW" 2>/dev/null; `+
-					`groupmod -n "$NEW" "$OLD" 2>/dev/null; `+
-					`find /etc/sudoers.d/ -type f -exec sed -i "s/$OLD/$NEW/g" {} \; 2>/dev/null || true; `+
-					`fi`,
-				utils.ShellSingleQuote(templateUser),
-				utils.ShellSingleQuote(params.User),
-			)
-			args = append(args, "--run-command", renameCmd)
-		} else if templateUser == "" || templateUser == "root" {
-			// 8b. 模板无非root用户（仅有root）→ 创建新用户
-			createCmd := fmt.Sprintf(
-				`NEW=%s; `+
-					`if ! id "$NEW" >/dev/null 2>&1; then `+
-					`useradd -m -s /bin/bash "$NEW" 2>/dev/null; `+
-					// 尝试加入 sudo/wheel 组（不同发行版组名不同）
-					`if getent group sudo >/dev/null 2>&1; then usermod -aG sudo "$NEW" 2>/dev/null; `+
-					`elif getent group wheel >/dev/null 2>&1; then usermod -aG wheel "$NEW" 2>/dev/null; fi; `+
-					`fi`,
-				utils.ShellSingleQuote(params.User),
-			)
-			args = append(args, "--run-command", createCmd)
+	// 8. 非 root 场景锁定 root，仅为目标用户设置密码；显式选择 root 时才启用 root 密码。
+	if targetUser == "root" {
+		if params.Password != "" {
+			args = append(args, "--password", "root:password:"+params.Password)
 		}
-		// 为新/重命名后的用户设置密码（若与 templateUser 相同则已在上方设置过，跳过避免 virt-customize 报重复错误）
-		if params.Password != "" && params.User != templateUser {
-			args = append(args, "--password", params.User+":password:"+params.Password)
+	} else {
+		args = append(args, "--run-command", "usermod -L root")
+		if params.Password != "" && targetUser != "" {
+			args = append(args, "--password", targetUser+":password:"+params.Password)
 		}
 	}
 
@@ -181,20 +136,20 @@ func buildNoCloudMetaData(params *CloneParams) string {
 // 负责 hostname 确认 + 用户密码解锁 + 磁盘自动扩容；密码/用户名已在 virt-customize 阶段离线写入 /etc/shadow
 func buildNoCloudUserData(params *CloneParams) string {
 	var sb strings.Builder
+	targetUser := resolveLinuxCloneTargetUser(params.User, params.TemplateUser)
+	permitRoot := linuxPermitRootLoginValue(targetUser)
+	rootLoginAllowed := targetUser == "root"
+
 	sb.WriteString("#cloud-config\n\n")
 	sb.WriteString(fmt.Sprintf("hostname: %s\n", params.Hostname))
 	sb.WriteString("manage_etc_hosts: true\n\n")
 	sb.WriteString("ssh_pwauth: true\n")
-	sb.WriteString("disable_root: false\n\n")
+	sb.WriteString(fmt.Sprintf("disable_root: %t\n\n", !rootLoginAllowed))
 
 	// 防止 cloud-init 重新锁定用户密码
 	// Ubuntu 等发行版 cloud.cfg 中 default_user 设置 lock_passwd: true，
 	// 首次启动时 cloud-init 会在 /etc/shadow 密码哈希前添加 '!' 导致无法登录
 	// 此处显式声明 lock_passwd: false，确保 virt-customize 离线设置的密码不被覆盖
-	targetUser := params.User
-	if targetUser == "" || targetUser == "root" {
-		targetUser = params.TemplateUser
-	}
 	if targetUser != "" && targetUser != "root" {
 		sb.WriteString("users:\n")
 		sb.WriteString(fmt.Sprintf("  - name: %s\n", targetUser))
@@ -211,9 +166,9 @@ func buildNoCloudUserData(params *CloneParams) string {
 	sb.WriteString(fmt.Sprintf("  - hostnamectl set-hostname %s 2>/dev/null || true\n", params.Hostname))
 	// 确保 cloud-init 执行后 SSH 配置不被覆盖（部分发行版 cloud-init 会重置 sshd_config）
 	sb.WriteString("  - |\n")
-	sb.WriteString("    sed -i 's/^\\s*#\\?\\s*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config 2>/dev/null || true\n")
+	sb.WriteString(fmt.Sprintf("    sed -i 's/^\\s*#\\?\\s*PermitRootLogin.*/PermitRootLogin %s/' /etc/ssh/sshd_config 2>/dev/null || true\n", permitRoot))
 	sb.WriteString("    sed -i 's/^\\s*#\\?\\s*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config 2>/dev/null || true\n")
-	sb.WriteString("    if [ -d /etc/ssh/sshd_config.d ]; then for f in /etc/ssh/sshd_config.d/*.conf; do [ -f \"$f\" ] || continue; sed -i 's/^\\s*PermitRootLogin.*/PermitRootLogin yes/' \"$f\"; sed -i 's/^\\s*PasswordAuthentication.*/PasswordAuthentication yes/' \"$f\"; done; fi\n")
+	sb.WriteString(fmt.Sprintf("    if [ -d /etc/ssh/sshd_config.d ]; then for f in /etc/ssh/sshd_config.d/*.conf; do [ -f \"$f\" ] || continue; sed -i 's/^\\s*PermitRootLogin.*/PermitRootLogin %s/' \"$f\"; sed -i 's/^\\s*PasswordAuthentication.*/PasswordAuthentication yes/' \"$f\"; done; fi\n", permitRoot))
 	sb.WriteString("    systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null || true\n")
 	// LVM 感知磁盘扩容脚本：自动检测根分区是否为 LVM，并执行 pvresize + lvextend
 	// 使用 /sys/class/block 获取父磁盘和分区号，比 lsblk pkname/partn 更可靠
