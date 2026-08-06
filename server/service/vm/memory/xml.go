@@ -19,22 +19,28 @@ func ApplyDynamicMemoryConfigToDomainXML(xmlStr string, initialMB, maxMB int, en
 	}
 	maxKiB := maxMB * 1024
 	initialKiB := initialMB * 1024
-	memRe := regexp.MustCompile(`(?s)<memory\b[^>]*>.*?</memory>`)
-	currentRe := regexp.MustCompile(`(?s)<currentMemory\b[^>]*>.*?</currentMemory>`)
 	memoryTag := fmt.Sprintf("<memory unit='KiB'>%d</memory>", maxKiB)
 	currentTag := fmt.Sprintf("<currentMemory unit='KiB'>%d</currentMemory>", initialKiB)
 
-	if memRe.MatchString(xmlStr) {
-		xmlStr = memRe.ReplaceAllString(xmlStr, memoryTag)
-	} else {
+	hadVirtioMemArtifacts := hasVirtioMemDomainDevice(xmlStr) || hasMemoryDeviceWithoutModel(xmlStr)
+	xmlStr = removeVirtioMemDomainDevices(xmlStr)
+	xmlStr = removeMemoryDevicesWithoutModel(xmlStr)
+	if hadVirtioMemArtifacts {
+		xmlStr = removeDomainMaxMemoryElement(xmlStr)
+		xmlStr = removeVirtioMemNumaConfig(xmlStr)
+	}
+	var replaced bool
+	xmlStr, replaced = replaceTopLevelMemoryElement(xmlStr, "memory", memoryTag)
+	if !replaced {
 		xmlStr = strings.Replace(xmlStr, "<vcpu", memoryTag+"\n  <vcpu", 1)
 	}
-	if currentRe.MatchString(xmlStr) {
-		xmlStr = currentRe.ReplaceAllString(xmlStr, currentTag)
-	} else {
+	xmlStr, replaced = replaceTopLevelMemoryElement(xmlStr, "currentMemory", currentTag)
+	if !replaced {
 		xmlStr = strings.Replace(xmlStr, memoryTag, memoryTag+"\n  "+currentTag, 1)
 	}
-	xmlStr = HookMemoryInjectMemballoonConfig(xmlStr, enableFPR)
+	if HookMemoryInjectMemballoonConfig != nil {
+		xmlStr = HookMemoryInjectMemballoonConfig(xmlStr, enableFPR)
+	}
 	return xmlStr, nil
 }
 
@@ -61,26 +67,27 @@ func ApplyVirtioMemConfigToDomainXML(xmlStr string, initialMB, maxMB int) (strin
 	maxKiB := maxMB * 1024
 	expandKiB := maxKiB - initialKiB
 
-	memRe := regexp.MustCompile(`(?s)<memory\b[^>]*>.*?</memory>`)
-	currentRe := regexp.MustCompile(`(?s)<currentMemory\b[^>]*>.*?</currentMemory>`)
 	maxMemoryRe := regexp.MustCompile(`(?s)\s*<maxMemory\b[^>]*>.*?</maxMemory>\n?`)
-	virtioMemRe := regexp.MustCompile(`(?s)\s*<memory\s+model=['"]virtio-mem['"][^>]*>.*?</memory>\n?`)
 
-	xmlStr = virtioMemRe.ReplaceAllString(xmlStr, "")
+	xmlStr = removeVirtioMemDomainDevices(xmlStr)
+	xmlStr = removeMemoryDevicesWithoutModel(xmlStr)
 	xmlStr = maxMemoryRe.ReplaceAllString(xmlStr, "\n")
-	if memRe.MatchString(xmlStr) {
-		xmlStr = memRe.ReplaceAllString(xmlStr, fmt.Sprintf("<memory unit='KiB'>%d</memory>", initialKiB))
-	} else {
-		xmlStr = strings.Replace(xmlStr, "<vcpu", fmt.Sprintf("<memory unit='KiB'>%d</memory>\n  <vcpu", initialKiB), 1)
+	memoryTag := fmt.Sprintf("<memory unit='KiB'>%d</memory>", initialKiB)
+	var replaced bool
+	xmlStr, replaced = replaceTopLevelMemoryElement(xmlStr, "memory", memoryTag)
+	if !replaced {
+		xmlStr = strings.Replace(xmlStr, "<vcpu", memoryTag+"\n  <vcpu", 1)
 	}
-	if currentRe.MatchString(xmlStr) {
-		xmlStr = currentRe.ReplaceAllString(xmlStr, fmt.Sprintf("<currentMemory unit='KiB'>%d</currentMemory>", initialKiB))
-	} else {
-		xmlStr = strings.Replace(xmlStr, fmt.Sprintf("<memory unit='KiB'>%d</memory>", initialKiB), fmt.Sprintf("<memory unit='KiB'>%d</memory>\n  <currentMemory unit='KiB'>%d</currentMemory>", initialKiB, initialKiB), 1)
+	currentTag := fmt.Sprintf("<currentMemory unit='KiB'>%d</currentMemory>", initialKiB)
+	xmlStr, replaced = replaceTopLevelMemoryElement(xmlStr, "currentMemory", currentTag)
+	if !replaced {
+		xmlStr = strings.Replace(xmlStr, memoryTag, memoryTag+"\n  "+currentTag, 1)
 	}
-	xmlStr = strings.Replace(xmlStr, fmt.Sprintf("<memory unit='KiB'>%d</memory>", initialKiB), fmt.Sprintf("<maxMemory slots='16' unit='KiB'>%d</maxMemory>\n  <memory unit='KiB'>%d</memory>", maxKiB, initialKiB), 1)
+	xmlStr = strings.Replace(xmlStr, memoryTag, fmt.Sprintf("<maxMemory slots='16' unit='KiB'>%d</maxMemory>\n  %s", maxKiB, memoryTag), 1)
 	xmlStr = ensureVirtioMemNumaCell(xmlStr, initialKiB)
-	xmlStr = HookMemoryInjectMemballoonConfig(xmlStr, false)
+	if HookMemoryInjectMemballoonConfig != nil {
+		xmlStr = HookMemoryInjectMemballoonConfig(xmlStr, false)
+	}
 
 	memoryDevice := fmt.Sprintf(`    <memory model='virtio-mem'>
       <target>
@@ -117,6 +124,98 @@ func ensureVirtioMemNumaCell(xmlStr string, memoryKiB int) string {
 	})
 }
 
+func replaceTopLevelMemoryElement(xmlStr, tag, replacement string) (string, bool) {
+	limit := strings.Index(xmlStr, "<vcpu")
+	if limit < 0 {
+		limit = strings.Index(xmlStr, "<devices")
+	}
+	if limit < 0 {
+		limit = len(xmlStr)
+	}
+	head := xmlStr[:limit]
+	tail := xmlStr[limit:]
+	re := regexp.MustCompile(fmt.Sprintf(`(?s)<%s\b[^>]*>.*?</%s>`, tag, tag))
+	if !re.MatchString(head) {
+		return xmlStr, false
+	}
+	return re.ReplaceAllString(head, replacement) + tail, true
+}
+
+func rewriteDevicesMemoryElements(xmlStr string, rewrite func(string) string) string {
+	devicesRe := regexp.MustCompile(`(?s)<devices\b[^>]*>.*?</devices>`)
+	return devicesRe.ReplaceAllStringFunc(xmlStr, rewrite)
+}
+
+func removeVirtioMemDomainDevices(xmlStr string) string {
+	modelRe := regexp.MustCompile(`\bmodel=['"]virtio-mem['"]`)
+	return removeMemoryDevicesByAttrs(xmlStr, func(attrs string) bool {
+		return modelRe.MatchString(attrs)
+	})
+}
+
+func hasVirtioMemDomainDevice(xmlStr string) bool {
+	modelRe := regexp.MustCompile(`\bmodel=['"]virtio-mem['"]`)
+	return hasMemoryDeviceByAttrs(xmlStr, func(attrs string) bool {
+		return modelRe.MatchString(attrs)
+	})
+}
+
+func removeMemoryDevicesWithoutModel(xmlStr string) string {
+	modelRe := regexp.MustCompile(`\bmodel=['"][^'"]+['"]`)
+	return removeMemoryDevicesByAttrs(xmlStr, func(attrs string) bool {
+		return !modelRe.MatchString(attrs)
+	})
+}
+
+func hasMemoryDeviceWithoutModel(xmlStr string) bool {
+	modelRe := regexp.MustCompile(`\bmodel=['"][^'"]+['"]`)
+	return hasMemoryDeviceByAttrs(xmlStr, func(attrs string) bool {
+		return !modelRe.MatchString(attrs)
+	})
+}
+
+func removeMemoryDevicesByAttrs(xmlStr string, shouldRemove func(string) bool) string {
+	memoryDeviceRe := regexp.MustCompile(`(?s)\s*<memory\b([^>]*)>.*?</memory>\n?`)
+	return rewriteDevicesMemoryElements(xmlStr, func(devicesBlock string) string {
+		return memoryDeviceRe.ReplaceAllStringFunc(devicesBlock, func(memoryBlock string) string {
+			matches := memoryDeviceRe.FindStringSubmatch(memoryBlock)
+			if len(matches) < 2 || !shouldRemove(matches[1]) {
+				return memoryBlock
+			}
+			return ""
+		})
+	})
+}
+
+func hasMemoryDeviceByAttrs(xmlStr string, match func(string) bool) bool {
+	found := false
+	memoryDeviceRe := regexp.MustCompile(`(?s)<memory\b([^>]*)>.*?</memory>`)
+	rewriteDevicesMemoryElements(xmlStr, func(devicesBlock string) string {
+		matches := memoryDeviceRe.FindAllStringSubmatch(devicesBlock, -1)
+		for _, item := range matches {
+			if len(item) > 1 && match(item[1]) {
+				found = true
+				break
+			}
+		}
+		return devicesBlock
+	})
+	return found
+}
+
+func removeVirtioMemNumaConfig(xmlStr string) string {
+	cpuBlockRe := regexp.MustCompile(`(?s)<cpu\b[^>]*>.*?</cpu>`)
+	numaRe := regexp.MustCompile(`(?s)\s*<numa>.*?</numa>\n?`)
+	return cpuBlockRe.ReplaceAllStringFunc(xmlStr, func(cpuBlock string) string {
+		return numaRe.ReplaceAllString(cpuBlock, "")
+	})
+}
+
+func removeDomainMaxMemoryElement(xmlStr string) string {
+	maxMemoryRe := regexp.MustCompile(`(?s)\s*<maxMemory\b[^>]*>.*?</maxMemory>\n?`)
+	return maxMemoryRe.ReplaceAllString(xmlStr, "\n")
+}
+
 // ParseVCPUCount 从 XML 中解析 vCPU 数量。
 func ParseVCPUCount(xmlStr string) int {
 	re := regexp.MustCompile(`(?s)<vcpu\b[^>]*>(.*?)</vcpu>`)
@@ -137,10 +236,9 @@ func ApplyStaticMemoryConfigToDomainXML(xmlStr string, memoryMB int) (string, er
 	if err != nil {
 		return "", err
 	}
-	maxMemoryRe := regexp.MustCompile(`(?s)\s*<maxMemory\b[^>]*>.*?</maxMemory>\n?`)
-	virtioMemRe := regexp.MustCompile(`(?s)\s*<memory\s+model=['"]virtio-mem['"][^>]*>.*?</memory>\n?`)
-	got = maxMemoryRe.ReplaceAllString(got, "\n")
-	got = virtioMemRe.ReplaceAllString(got, "")
+	got = removeDomainMaxMemoryElement(got)
+	got = removeVirtioMemDomainDevices(got)
+	got = removeMemoryDevicesWithoutModel(got)
 	return got, nil
 }
 
@@ -153,6 +251,15 @@ func ParseDomainMemoryXML(xmlStr string) VMMemoryXMLValues {
 }
 
 func parseMemoryTagMB(xmlStr, tag string) int {
+	if tag == "memory" || tag == "currentMemory" {
+		limit := strings.Index(xmlStr, "<vcpu")
+		if limit < 0 {
+			limit = strings.Index(xmlStr, "<devices")
+		}
+		if limit > 0 {
+			xmlStr = xmlStr[:limit]
+		}
+	}
 	re := regexp.MustCompile(fmt.Sprintf(`(?s)<%s\b([^>]*)>(.*?)</%s>`, tag, tag))
 	m := re.FindStringSubmatch(xmlStr)
 	if len(m) < 3 {
