@@ -308,6 +308,204 @@ func ParseQemuInfoGB(output, key string) string {
 	return fmt.Sprintf("%.2f", float64(bytes)/1024/1024/1024)
 }
 
+// xmlAttributeValue 读取 libvirt XML 行中的属性，兼容单引号和双引号。
+func xmlAttributeValue(line, name string) (string, bool) {
+	for _, quote := range []byte{'\'', '"'} {
+		needle := name + "=" + string(quote)
+		start := strings.Index(line, needle)
+		if start < 0 {
+			continue
+		}
+		start += len(needle)
+		end := strings.IndexByte(line[start:], quote)
+		if end >= 0 {
+			return line[start : start+end], true
+		}
+	}
+	return "", false
+}
+
+func decimalXMLAttribute(line, name string) (int, bool) {
+	value, ok := xmlAttributeValue(line, name)
+	if !ok {
+		return 0, false
+	}
+	parsed, err := strconv.Atoi(value)
+	return parsed, err == nil
+}
+
+// driveAddressTargetDev 将 drive 地址换算为无显式地址时 libvirt 会使用的设备名。
+// SATA/SCSI 默认按 unit 排列，IDE 则按 bus 与 unit 的组合排列。
+func driveAddressTargetDev(bus, prefix, addressLine string) string {
+	if addressLine == "" {
+		return ""
+	}
+	addressType, _ := xmlAttributeValue(addressLine, "type")
+	controller, controllerOK := decimalXMLAttribute(addressLine, "controller")
+	addressBus, busOK := decimalXMLAttribute(addressLine, "bus")
+	target, targetOK := decimalXMLAttribute(addressLine, "target")
+	unit, unitOK := decimalXMLAttribute(addressLine, "unit")
+	if addressType != "drive" || !controllerOK || !busOK || !targetOK || !unitOK || controller != 0 || target != 0 {
+		return ""
+	}
+
+	index := -1
+	switch bus {
+	case "sata", "scsi":
+		if addressBus == 0 {
+			index = unit
+		}
+	case "ide":
+		if addressBus >= 0 && addressBus <= 1 && unit >= 0 && unit <= 1 {
+			index = addressBus*2 + unit
+		}
+	}
+	if index < 0 || index >= 26 {
+		return ""
+	}
+	return prefix + string(rune('a'+index))
+}
+
+// planDiskTargetDevice 同时避让设备名与目标总线上的实际 drive 地址。
+// 某些历史 XML 中 target 名称与 unit 并不一致，仅检查 sda/sdb 会漏掉地址冲突。
+func planDiskTargetDevice(xmlStr, device, newBus string) (string, error) {
+	if len(device) < 3 {
+		return "", fmt.Errorf("无效的磁盘设备名: %s", device)
+	}
+
+	prefix := GetDevPrefix(newBus)
+	reserved := make(map[string]bool)
+	lines := strings.Split(xmlStr, "\n")
+	inDisk := false
+	targetDev := ""
+	targetBus := ""
+	addressLine := ""
+	foundTarget := false
+
+	flushDisk := func() {
+		if targetDev == "" {
+			return
+		}
+		if targetDev == device {
+			foundTarget = true
+			return
+		}
+		reserved[targetDev] = true
+		if targetBus == newBus {
+			if impliedDev := driveAddressTargetDev(newBus, prefix, addressLine); impliedDev != "" {
+				reserved[impliedDev] = true
+			}
+		}
+	}
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "<disk ") {
+			inDisk = true
+			targetDev = ""
+			targetBus = ""
+			addressLine = ""
+			continue
+		}
+		if !inDisk {
+			continue
+		}
+		if strings.HasPrefix(trimmed, "<target ") {
+			targetDev, _ = xmlAttributeValue(trimmed, "dev")
+			targetBus, _ = xmlAttributeValue(trimmed, "bus")
+		}
+		if strings.HasPrefix(trimmed, "<address ") {
+			addressLine = trimmed
+		}
+		if strings.Contains(trimmed, "</disk>") {
+			flushDisk()
+			inDisk = false
+		}
+	}
+
+	if !foundTarget {
+		return "", fmt.Errorf("未找到设备 %s", device)
+	}
+
+	preferred := prefix + device[2:]
+	if !reserved[preferred] {
+		return preferred, nil
+	}
+	for letter := 'a'; letter <= 'z'; letter++ {
+		candidate := prefix + string(letter)
+		if !reserved[candidate] {
+			return candidate, nil
+		}
+	}
+	return "", fmt.Errorf("没有可用的设备名（所有 %s* 均已被占用）", prefix)
+}
+
+func rewriteDiskBusXML(xmlStr, device, newDev, newBus string) (string, bool) {
+	lines := strings.Split(xmlStr, "\n")
+	result := make([]string, 0, len(lines))
+	for index := 0; index < len(lines); {
+		trimmed := strings.TrimSpace(lines[index])
+		if !strings.HasPrefix(trimmed, "<disk ") {
+			result = append(result, lines[index])
+			index++
+			continue
+		}
+
+		end := index
+		for end < len(lines) && !strings.Contains(strings.TrimSpace(lines[end]), "</disk>") {
+			end++
+		}
+		if end >= len(lines) {
+			result = append(result, lines[index:]...)
+			break
+		}
+
+		block := lines[index : end+1]
+		isTargetDisk := false
+		for _, line := range block {
+			lineTrimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(lineTrimmed, "<target ") {
+				targetDev, _ := xmlAttributeValue(lineTrimmed, "dev")
+				if targetDev == device {
+					isTargetDisk = true
+					break
+				}
+			}
+		}
+		if !isTargetDisk {
+			result = append(result, block...)
+			index = end + 1
+			continue
+		}
+
+		for _, line := range block {
+			lineTrimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(lineTrimmed, "<address ") {
+				continue
+			}
+			if strings.HasPrefix(lineTrimmed, "<target ") {
+				indent := line[:len(line)-len(strings.TrimLeft(line, " \t"))]
+				line = fmt.Sprintf("%s<target dev='%s' bus='%s'/>", indent, newDev, newBus)
+			}
+			result = append(result, line)
+		}
+		index = end + 1
+		return strings.Join(append(result, lines[index:]...), "\n"), true
+	}
+	return strings.Join(result, "\n"), false
+}
+
+func domainMachineType(xmlStr string) string {
+	for _, line := range strings.Split(xmlStr, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "<type ") {
+			machine, _ := xmlAttributeValue(trimmed, "machine")
+			return strings.ToLower(machine)
+		}
+	}
+	return ""
+}
+
 // SetDiskBus changes the drive type of an existing disk (requires shutdown).
 func SetDiskBus(vmName, device, newBus string) error {
 	if err := EnsureNotMigrating(vmName, "修改磁盘驱动类型"); err != nil {
@@ -318,87 +516,31 @@ func SetDiskBus(vmName, device, newBus string) error {
 		return fmt.Errorf("修改磁盘驱动类型需要先关机")
 	}
 
+	newBus = strings.ToLower(strings.TrimSpace(newBus))
+	switch newBus {
+	case "virtio", "scsi", "sata", "ide":
+	default:
+		return fmt.Errorf("不支持的磁盘驱动类型: %s", newBus)
+	}
+
 	// get current XML
 	xmlResult, err := libvirt_rpc.GetDomainXMLRPC(vmName, libvirt.DomainXMLInactive)
 	if err != nil {
 		return fmt.Errorf("获取虚拟机 XML 失败: %w", err)
 	}
-
-	// compute new device name: keep letter suffix, replace prefix
-	_ = device[:2]       // oldPrefix: vd/sd/hd
-	letter := device[2:] // a/b/c...
-	newPrefix := GetDevPrefix(newBus)
-	newDev := newPrefix + letter
-
-	// check if the new device name conflicts with existing disks (e.g. CDROMs on sata bus)
-	existingDisks, listErr := ListDisks(vmName)
-	if listErr == nil {
-		usedDevs := make(map[string]bool)
-		for _, d := range existingDisks {
-			// skip the device being changed (it will be renamed)
-			if d.Device == device {
-				continue
-			}
-			usedDevs[d.Device] = true
-		}
-		if usedDevs[newDev] {
-			// find next available letter
-			found := false
-			for _, l := range "bcdefghijklmnopqrstuvwxyz" {
-				candidate := newPrefix + string(l)
-				if !usedDevs[candidate] {
-					newDev = candidate
-					found = true
-					break
-				}
-			}
-			if !found {
-				return fmt.Errorf("没有可用的设备名（所有 %s* 均已被占用）", newPrefix)
-			}
-		}
+	if newBus == "ide" && strings.Contains(domainMachineType(xmlResult), "q35") {
+		return fmt.Errorf("当前 Q35 机型不支持 IDE 磁盘驱动，请使用 VirtIO、SCSI 或 SATA")
 	}
 
-	// parse and modify XML
-	xmlStr := xmlResult
-	lines := strings.Split(xmlStr, "\n")
-	var newLines []string
-	inTargetDisk := false
-	foundTarget := false
-
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-
-		// detect entering <disk> block
-		if strings.HasPrefix(trimmed, "<disk ") {
-			inTargetDisk = false
-		}
-
-		// detect target device
-		if strings.Contains(trimmed, "<target") && strings.Contains(trimmed, "dev='"+device+"'") {
-			inTargetDisk = true
-			foundTarget = true
-			// replace dev and bus
-			indent := line[:len(line)-len(strings.TrimLeft(line, " \t"))]
-			line = fmt.Sprintf("%s<target dev='%s' bus='%s'/>", indent, newDev, newBus)
-		}
-
-		// if inside target disk block, remove old address (let libvirt auto-assign)
-		if inTargetDisk && strings.Contains(trimmed, "<address ") {
-			continue
-		}
-
-		if inTargetDisk && strings.Contains(trimmed, "</disk>") {
-			inTargetDisk = false
-		}
-
-		newLines = append(newLines, line)
+	newDev, err := planDiskTargetDevice(xmlResult, device, newBus)
+	if err != nil {
+		return err
 	}
 
+	newXML, foundTarget := rewriteDiskBusXML(xmlResult, device, newDev, newBus)
 	if !foundTarget {
 		return fmt.Errorf("未找到设备 %s", device)
 	}
-
-	newXML := strings.Join(newLines, "\n")
 	if _, err := libvirt_rpc.DefineDomainXMLRPC(newXML); err != nil {
 		return fmt.Errorf("修改磁盘驱动失败: %w", err)
 	}
