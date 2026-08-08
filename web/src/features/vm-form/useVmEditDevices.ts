@@ -9,6 +9,7 @@ import {
   attachDisk,
   adminImportDiskForVM,
   changeCDROM,
+  changeCDROMBus,
   changeDiskBus,
   changeFloppy,
   ejectCDROM,
@@ -29,6 +30,7 @@ import type { EditBootDevice } from './types'
 export interface MediaDevice {
   device: string
   path: string
+  bus: string
 }
 
 export function useVmEditDevices(vmName: string) {
@@ -52,9 +54,9 @@ export function useVmEditDevices(vmName: string) {
           (d.path && (d.path.endsWith('.img') || d.path.endsWith('.vfd') || d.path.endsWith('.flp')))
         const isCdrom = d.device_type === 'cdrom' || (d.path && d.path.endsWith('.iso'))
         if (isFloppy) {
-          floppys.push({ device: d.device, path: d.path && d.path !== '-' ? d.path : '' })
+          floppys.push({ device: d.device, path: d.path && d.path !== '-' ? d.path : '', bus: d.bus || '' })
         } else if (isCdrom) {
-          cdroms.push({ device: d.device, path: d.path && d.path !== '-' ? d.path : '' })
+          cdroms.push({ device: d.device, path: d.path && d.path !== '-' ? d.path : '', bus: d.bus || '' })
         } else {
           normalDisks.push(d)
         }
@@ -155,10 +157,29 @@ export function useVmEditDevices(vmName: string) {
 
   /** 插入光驱（替换已有设备）或新增光驱（forceNew） */
   const insertCDROMAction = useCallback(
-    async (isoPath: string, device = '', forceNew = false) => {
-      await changeCDROM(vmName, { iso_path: isoPath, device, force_new: forceNew || undefined })
+    async (isoPath: string, device = '', forceNew = false, bus = '') => {
+      await changeCDROM(vmName, {
+        iso_path: isoPath,
+        device,
+        force_new: forceNew || undefined,
+        bus: forceNew && bus ? bus : undefined,
+      })
       Toast.success(forceNew ? '光驱已添加' : '光盘已插入')
       await refreshEditDisks()
+    },
+    [vmName, refreshEditDisks],
+  )
+
+  /** 修改光驱驱动类型（失败自动回滚 UI） */
+  const changeCDROMBusAction = useCallback(
+    async (device: string, bus: string) => {
+      try {
+        await changeCDROMBus(vmName, device, bus)
+        Toast.success(`光驱 ${device} 驱动已修改为 ${bus.toUpperCase()}`)
+        await refreshEditDisks()
+      } catch {
+        await refreshEditDisks()
+      }
     },
     [vmName, refreshEditDisks],
   )
@@ -226,6 +247,7 @@ export function useVmEditDevices(vmName: string) {
     guestMountDiskAction,
     guestGrowDiskAction,
     insertCDROMAction,
+    changeCDROMBusAction,
     ejectCDROMAction,
     removeCDROMAction,
     insertFloppyAction,

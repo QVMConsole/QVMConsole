@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-02T07:54:25.005Z",
-  "count": 317,
+  "generated_at": "2026-08-08T09:57:12.283Z",
+  "count": 318,
   "endpoints": [
     {
       "method": "POST",
@@ -2377,6 +2377,17 @@
       "vmAccess": true,
       "highRisk": "",
       "comment": ""
+    },
+    {
+      "method": "PUT",
+      "path": "/vm/:name/cdrom/:dev/bus",
+      "handler": "ChangeCDROMBus",
+      "auth": "jwt",
+      "admin": false,
+      "elasticOnly": true,
+      "vmAccess": true,
+      "highRisk": "",
+      "comment": "修改光驱驱动类型"
     },
     {
       "method": "POST",

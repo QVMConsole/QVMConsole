@@ -1245,9 +1245,17 @@ export function retryGuestDiskGrow(name: string, dev: string) {
 
 // ==================== 光驱 / 软盘管理（编辑模式） ====================
 
-/** 插入/更换光驱 ISO（force_new=true 新增光驱设备） */
-export function changeCDROM(name: string, data: { iso_path: string; device?: string; force_new?: boolean }) {
+/** 插入/更换光驱 ISO（force_new=true 新增光驱设备，bus 指定新增设备总线） */
+export function changeCDROM(name: string, data: { iso_path: string; device?: string; force_new?: boolean; bus?: string }) {
   return service.post<unknown, ApiResponse<null>>(`/vm/${encodeURIComponent(name)}/cdrom`, data)
+}
+
+/** 修改现有光驱的驱动类型（需要关机） */
+export function changeCDROMBus(name: string, dev: string, bus: string) {
+  return service.put<unknown, ApiResponse<null>>(
+    `/vm/${encodeURIComponent(name)}/cdrom/${encodeURIComponent(dev)}/bus`,
+    { bus },
+  )
 }
 
 /** 弹出光驱 */

@@ -575,6 +575,7 @@ type ChangeCDROMRequest struct {
 	ISOPath  string `json:"iso_path" binding:"required"`
 	Device   string `json:"device"`    // 可选，不填自动查找
 	ForceNew bool   `json:"force_new"` // 为 true 时强制新增光驱设备
+	Bus      string `json:"bus"`       // 新增光驱时使用的总线: scsi/sata/ide/usb
 }
 
 // ChangeCDROM 更换/插入 CD/DVD
@@ -600,7 +601,7 @@ func ChangeCDROM(c *gin.Context) {
 		}
 	}
 
-	if err := service.ChangeCDROM(name, req.ISOPath, req.Device, req.ForceNew); err != nil {
+	if err := service.ChangeCDROM(name, req.ISOPath, req.Device, req.ForceNew, req.Bus); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"code":    500,
 			"message": err.Error(),
@@ -611,6 +612,43 @@ func ChangeCDROM(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"code":    200,
 		"message": "光盘已插入",
+	})
+}
+
+// ChangeCDROMBusRequest 修改光驱驱动类型请求
+type ChangeCDROMBusRequest struct {
+	Bus string `json:"bus" binding:"required"` // 新的总线类型: scsi/sata/ide/usb
+}
+
+// ChangeCDROMBus 修改光驱驱动类型
+func ChangeCDROMBus(c *gin.Context) {
+	name := c.Param("name")
+	dev := c.Param("dev")
+	if err := service.EnsureVMNotMigrating(name, "修改光驱驱动类型"); err != nil {
+		c.JSON(http.StatusConflict, gin.H{"code": 409, "message": err.Error()})
+		return
+	}
+
+	var req ChangeCDROMBusRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "请指定光驱驱动类型",
+		})
+		return
+	}
+
+	if err := service.SetCDROMBus(name, dev, req.Bus); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    500,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": "光驱驱动类型修改成功",
 	})
 }
 

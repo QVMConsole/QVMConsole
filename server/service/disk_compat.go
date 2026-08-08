@@ -25,6 +25,10 @@ func SetDiskBus(vmName, device, newBus string) error {
 	return disk.SetDiskBus(vmName, device, newBus)
 }
 
+func SetCDROMBus(vmName, device, newBus string) error {
+	return disk.SetCDROMBus(vmName, device, newBus)
+}
+
 func ResizeDisk(vmName, device string, newSizeGB int) error {
 	return disk.ResizeDisk(vmName, device, newSizeGB)
 }
@@ -53,8 +57,8 @@ func AttachExistingDisk(vmName, diskPath, bus string) (string, error) {
 	return disk.AttachExistingDisk(vmName, diskPath, bus)
 }
 
-func ChangeCDROM(vmName, isoPath, device string, forceNew bool) error {
-	return disk.ChangeCDROM(vmName, isoPath, device, forceNew)
+func ChangeCDROM(vmName, isoPath, device string, forceNew bool, requestedBus ...string) error {
+	return disk.ChangeCDROM(vmName, isoPath, device, forceNew, requestedBus...)
 }
 
 func EjectCDROM(vmName, device string) error {

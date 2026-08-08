@@ -17,6 +17,14 @@ export const DISK_BUS_OPTIONS = [
   { value: 'ide', label: 'IDE' },
 ] as const
 
+/** 光驱总线选项 */
+export const CDROM_BUS_OPTIONS = [
+  { value: 'scsi', label: 'SCSI' },
+  { value: 'sata', label: 'SATA' },
+  { value: 'ide', label: 'IDE' },
+  { value: 'usb', label: 'USB' },
+] as const
+
 /** 磁盘格式选项 */
 export const DISK_FORMAT_OPTIONS = [
   { value: 'qcow2', label: 'QCOW2（推荐）' },

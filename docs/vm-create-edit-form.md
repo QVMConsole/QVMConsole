@@ -177,8 +177,9 @@ web/src/features/vm-form/
 - 创建：`POST /vm/create`、`POST /self/vm/create`、`POST /vm/clone`、`POST /self/vm/clone`、`POST /vm/batch-clone`、`POST /self/vm/import`、`POST /vm/import-disk`
 - 选项：`GET /vm/os-variants`、`GET /template/list`、`GET /storage-pool/vm-targets`、`GET /storage-pool/all-isos`、`GET /self/storage/isos`、`GET /self/storage/files/:category`、`GET /vpc/switches`、`GET /vpc/security-groups`、`GET /host/cpus`、`GET /system-info`、`GET /settings`、`GET /cpu-affinity-presets`、`GET /public/settings`
 - 编辑：`PUT /vm/:name`、`GET /vm/:name`、`GET /vm/:name/disks`、`GET /vm/:name/xml`、`PUT /vm/:name/xml`、`GET /vm/:name/passthrough`、`GET /host/passthrough`、`POST /host/passthrough/bind`
-- 磁盘/光驱/软盘：`POST /vm/:name/disk/:dev/resize`、`DELETE /vm/:name/disk/:dev`、`PUT /vm/:name/disk/:dev/bus`、`POST /vm/:name/disk/attach`、`POST /vm/:name/disk/import`、`POST /vm/:name/cdrom(/eject)`、`DELETE /vm/:name/cdrom`、`POST /vm/:name/floppy(/eject)`、`DELETE /vm/:name/floppy`
+- 磁盘/光驱/软盘：`POST /vm/:name/disk/:dev/resize`、`DELETE /vm/:name/disk/:dev`、`PUT /vm/:name/disk/:dev/bus`、`POST /vm/:name/disk/attach`、`POST /vm/:name/disk/import`、`POST /vm/:name/cdrom(/eject)`、`PUT /vm/:name/cdrom/:dev/bus`、`DELETE /vm/:name/cdrom`、`POST /vm/:name/floppy(/eject)`、`DELETE /vm/:name/floppy`
 - 修改磁盘总线时会同时检查设备名和目标控制器的实际 `drive` 地址；历史 XML 即使出现盘符与 `unit` 不一致，也会自动避让磁盘或光驱已占用的槽位，再由 libvirt 重新分配合法地址。Q35 机型不支持 IDE，总线修改会直接返回中文兼容性提示，可使用 VirtIO、SCSI 或 SATA。
+- 现有光驱支持在关机状态下通过下拉框切换 SCSI、SATA、IDE 或 USB 驱动类型；新增光驱同样可选择驱动类型，运行中的虚拟机固定使用可热插拔的 SCSI 总线并禁用选择器。修改时会自动避让磁盘和其他光驱已经占用的设备名及控制器槽位；Q35 机型会在前端隐藏 IDE，并由后端在新增与修改两条链路中再次校验，避免将 libvirt 的底层不兼容错误直接暴露给用户。
 - SPICE：`GET /vm/:name/spice/status`、`POST /vm/:name/spice/enable|disable`
 - 网口：`GET /vm/:name/vpc`、`PUT /vm/:name/vpc`、`PUT /vm/:name/security-group`、`GET|POST /vm/:name/interfaces`、`PUT|DELETE /vm/:name/interfaces/:order`、`GET /vm/:name/network/status`
 

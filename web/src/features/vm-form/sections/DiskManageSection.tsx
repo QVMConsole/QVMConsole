@@ -11,7 +11,7 @@ import SectionCard from './SectionCard'
 import FormField from './FormField'
 import { useVmFormScope } from '../scopeContext'
 import type { VmEditDevices } from '../useVmEditDevices'
-import { DISK_BUS_OPTIONS } from '../constants'
+import { CDROM_BUS_OPTIONS, DISK_BUS_OPTIONS } from '../constants'
 import { storageTargetLabel } from './storageTargetUtils'
 import DiskIopsDialog from '../dialogs/DiskIopsDialog'
 import AttachDiskDialog from '../dialogs/AttachDiskDialog'
@@ -30,6 +30,7 @@ export default function DiskManageSection({ devices }: DiskManageSectionProps) {
   const running = ctx.vmStatus === 'running'
 
   const [cdromIsoPath, setCdromIsoPath] = useState('')
+  const [cdromBus, setCdromBus] = useState(() => (f.arch === 'aarch64' || ctx.hostArch === 'aarch64' ? 'usb' : 'sata'))
   const [floppyImagePath, setFloppyImagePath] = useState('')
   const [attachVisible, setAttachVisible] = useState(false)
   const [resizeDisk, setResizeDisk] = useState<VmDiskItem | null>(null)
@@ -51,6 +52,9 @@ export default function DiskManageSection({ devices }: DiskManageSectionProps) {
     value: file.path,
     label: `${file.name}（${file.size_text || '-'}）`,
   }))
+  const cdromBusOptions = CDROM_BUS_OPTIONS
+    .filter((item) => item.value !== 'ide' || !f.machine_type.toLowerCase().includes('q35'))
+    .map((item) => ({ value: item.value, label: item.label }))
 
   const addNewDisk = () => {
     const defaultTarget = options.storageTargets.find((t) => t.is_default)
@@ -161,7 +165,7 @@ export default function DiskManageSection({ devices }: DiskManageSectionProps) {
   const handleAddCdrom = async () => {
     if (!cdromIsoPath) return
     try {
-      await devices.insertCDROMAction(cdromIsoPath, '', true)
+      await devices.insertCDROMAction(cdromIsoPath, '', true, running ? 'scsi' : cdromBus)
       setCdromIsoPath('')
     } catch {
       // 错误由请求层统一提示
@@ -312,6 +316,15 @@ export default function DiskManageSection({ devices }: DiskManageSectionProps) {
           editCdroms.map((cdrom) => (
             <div key={cdrom.device} className="qvm-vf-media-row">
               <Tag size="small" color="blue">{cdrom.device}</Tag>
+              <Select
+                size="small"
+                style={{ width: 100 }}
+                value={cdrom.bus || undefined}
+                placeholder="驱动类型"
+                disabled={running}
+                onChange={(v) => void devices.changeCDROMBusAction(cdrom.device, v as string)}
+                optionList={cdromBusOptions}
+              />
               <span className="qvm-vf-media-path">{cdrom.path || '（空光驱）'}</span>
               {!cdrom.path && (
                 <Button size="small" type="primary" theme="light" disabled={!cdromIsoPath} onClick={() => void handleInsertCdrom(cdrom.device)}>
@@ -356,6 +369,13 @@ export default function DiskManageSection({ devices }: DiskManageSectionProps) {
             onChange={(v) => setCdromIsoPath((v as string) || '')}
             optionList={isoOptions}
           />
+          <Select
+            style={{ width: 112 }}
+            value={running ? 'scsi' : cdromBus}
+            disabled={running}
+            onChange={(v) => setCdromBus(v as string)}
+            optionList={cdromBusOptions}
+          />
           <Button type="primary" theme="solid" disabled={!cdromIsoPath} onClick={() => void handleAddCdrom()}>
             添加光驱
           </Button>
@@ -363,6 +383,11 @@ export default function DiskManageSection({ devices }: DiskManageSectionProps) {
         {running && (
           <div className="qvm-vf-tip" style={{ marginTop: 6 }}>
             运行中新增光驱会自动改用支持热插的 SCSI 总线；已有光驱插入 ISO 仍复用原设备
+          </div>
+        )}
+        {!running && f.machine_type.toLowerCase().includes('q35') && (
+          <div className="qvm-vf-tip" style={{ marginTop: 6 }}>
+            当前 Q35 机型不支持 IDE 光驱，已从驱动类型选项中隐藏
           </div>
         )}
       </SectionCard>

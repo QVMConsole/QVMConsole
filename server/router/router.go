@@ -231,6 +231,7 @@ func Setup() *gin.Engine {
 
 				// CD/DVD 管理
 				vm.POST("/:name/cdrom", middleware.ElasticCloudOnlyMiddleware(), handler.ChangeCDROM)
+				vm.PUT("/:name/cdrom/:dev/bus", middleware.ElasticCloudOnlyMiddleware(), handler.ChangeCDROMBus) // 修改光驱驱动类型
 				vm.POST("/:name/cdrom/eject", middleware.ElasticCloudOnlyMiddleware(), handler.EjectCDROM)
 				vm.DELETE("/:name/cdrom", middleware.ElasticCloudOnlyMiddleware(), handler.RemoveCDROMHandler)
 

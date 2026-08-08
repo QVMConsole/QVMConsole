@@ -495,6 +495,28 @@ func rewriteDiskBusXML(xmlStr, device, newDev, newBus string) (string, bool) {
 	return strings.Join(result, "\n"), false
 }
 
+func blockDeviceType(xmlStr, device string) string {
+	lines := strings.Split(xmlStr, "\n")
+	for index := 0; index < len(lines); index++ {
+		trimmed := strings.TrimSpace(lines[index])
+		if !strings.HasPrefix(trimmed, "<disk ") {
+			continue
+		}
+		deviceType, _ := xmlAttributeValue(trimmed, "device")
+		for index < len(lines) && !strings.Contains(strings.TrimSpace(lines[index]), "</disk>") {
+			targetLine := strings.TrimSpace(lines[index])
+			if strings.HasPrefix(targetLine, "<target ") {
+				targetDev, _ := xmlAttributeValue(targetLine, "dev")
+				if targetDev == device {
+					return deviceType
+				}
+			}
+			index++
+		}
+	}
+	return ""
+}
+
 func domainMachineType(xmlStr string) string {
 	for _, line := range strings.Split(xmlStr, "\n") {
 		trimmed := strings.TrimSpace(line)
@@ -506,21 +528,33 @@ func domainMachineType(xmlStr string) string {
 	return ""
 }
 
-// SetDiskBus changes the drive type of an existing disk (requires shutdown).
-func SetDiskBus(vmName, device, newBus string) error {
-	if err := EnsureNotMigrating(vmName, "修改磁盘驱动类型"); err != nil {
+func setBlockDeviceBus(vmName, device, newBus, expectedType string) error {
+	deviceLabel := "磁盘"
+	if expectedType == "cdrom" {
+		deviceLabel = "光驱"
+	}
+	if err := EnsureNotMigrating(vmName, "修改"+deviceLabel+"驱动类型"); err != nil {
 		return err
 	}
 	state, _ := libvirt_rpc.GetDomainStateRPC(vmName)
 	if state == "running" {
-		return fmt.Errorf("修改磁盘驱动类型需要先关机")
+		return fmt.Errorf("修改%s驱动类型需要先关机", deviceLabel)
 	}
 
 	newBus = strings.ToLower(strings.TrimSpace(newBus))
-	switch newBus {
-	case "virtio", "scsi", "sata", "ide":
-	default:
-		return fmt.Errorf("不支持的磁盘驱动类型: %s", newBus)
+	if expectedType == "cdrom" {
+		if newBus == "" {
+			return fmt.Errorf("请指定光驱驱动类型")
+		}
+		if _, err := normalizeCDROMBus(newBus); err != nil {
+			return err
+		}
+	} else {
+		switch newBus {
+		case "virtio", "scsi", "sata", "ide":
+		default:
+			return fmt.Errorf("不支持的磁盘驱动类型: %s", newBus)
+		}
 	}
 
 	// get current XML
@@ -528,7 +562,17 @@ func SetDiskBus(vmName, device, newBus string) error {
 	if err != nil {
 		return fmt.Errorf("获取虚拟机 XML 失败: %w", err)
 	}
+	actualType := blockDeviceType(xmlResult, device)
+	if actualType == "" {
+		return fmt.Errorf("未找到设备 %s", device)
+	}
+	if actualType != expectedType {
+		return fmt.Errorf("设备 %s 不是%s设备", device, deviceLabel)
+	}
 	if newBus == "ide" && strings.Contains(domainMachineType(xmlResult), "q35") {
+		if expectedType == "cdrom" {
+			return fmt.Errorf("当前 Q35 机型不支持 IDE 光驱，请使用 SCSI、SATA 或 USB")
+		}
 		return fmt.Errorf("当前 Q35 机型不支持 IDE 磁盘驱动，请使用 VirtIO、SCSI 或 SATA")
 	}
 
@@ -542,10 +586,20 @@ func SetDiskBus(vmName, device, newBus string) error {
 		return fmt.Errorf("未找到设备 %s", device)
 	}
 	if _, err := libvirt_rpc.DefineDomainXMLRPC(newXML); err != nil {
-		return fmt.Errorf("修改磁盘驱动失败: %w", err)
+		return fmt.Errorf("修改%s驱动失败: %w", deviceLabel, err)
 	}
 
 	return nil
+}
+
+// SetDiskBus changes the drive type of an existing disk (requires shutdown).
+func SetDiskBus(vmName, device, newBus string) error {
+	return setBlockDeviceBus(vmName, device, newBus, "disk")
+}
+
+// SetCDROMBus changes the drive type of an existing CDROM device (requires shutdown).
+func SetCDROMBus(vmName, device, newBus string) error {
+	return setBlockDeviceBus(vmName, device, newBus, "cdrom")
 }
 
 // ResizeDisk expands a disk to the specified size in GB.

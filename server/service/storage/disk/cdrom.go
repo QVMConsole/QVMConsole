@@ -12,7 +12,8 @@ import (
 
 // ChangeCDROM changes/inserts a CD/DVD disc.
 // forceNew: when true, force-add a new CDROM device instead of replacing existing.
-func ChangeCDROM(vmName, isoPath, device string, forceNew bool) error {
+// requestedBus: optional bus used only when a new CDROM device is created.
+func ChangeCDROM(vmName, isoPath, device string, forceNew bool, requestedBus ...string) error {
 	if err := EnsureNotMigrating(vmName, "更换光盘"); err != nil {
 		return err
 	}
@@ -20,7 +21,7 @@ func ChangeCDROM(vmName, isoPath, device string, forceNew bool) error {
 
 	// force new mode: add a new CDROM device directly
 	if forceNew {
-		return attachNewCDROM(vmName, isoPath, vmState)
+		return attachNewCDROM(vmName, isoPath, vmState, firstRequestedCDROMBus(requestedBus))
 	}
 
 	if device == "" {
@@ -28,7 +29,7 @@ func ChangeCDROM(vmName, isoPath, device string, forceNew bool) error {
 		device = findCDROMDevice(vmName)
 		if device == "" {
 			// no existing cdrom device, add a new one
-			return attachNewCDROM(vmName, isoPath, vmState)
+			return attachNewCDROM(vmName, isoPath, vmState, firstRequestedCDROMBus(requestedBus))
 		}
 	}
 
@@ -213,9 +214,15 @@ func findAllCDROMDevices(vmName string) []string {
 }
 
 // attachNewCDROM attaches a new cdrom device.
-func attachNewCDROM(vmName, isoPath, vmState string) error {
+func attachNewCDROM(vmName, isoPath, vmState, requestedBus string) error {
 	existingDisks, _ := ListDisks(vmName)
-	bus := selectNewCDROMBus(vmState, existingDisks)
+	bus, err := selectNewCDROMBus(vmState, existingDisks, requestedBus)
+	if err != nil {
+		return err
+	}
+	if err := validateCDROMBusForVM(vmName, bus); err != nil {
+		return err
+	}
 	if vmState == "running" {
 		if err := ensureHotplugCDROMController(vmName); err != nil {
 			return err
@@ -262,6 +269,20 @@ func attachNewCDROM(vmName, isoPath, vmState string) error {
 	return nil
 }
 
+func validateCDROMBusForVM(vmName, bus string) error {
+	if bus != "ide" {
+		return nil
+	}
+	xmlStr, err := libvirt_rpc.GetDomainXMLRPC(vmName, libvirt.DomainXMLInactive)
+	if err != nil {
+		return fmt.Errorf("获取虚拟机 XML 失败: %w", err)
+	}
+	if strings.Contains(domainMachineType(xmlStr), "q35") {
+		return fmt.Errorf("当前 Q35 机型不支持 IDE 光驱，请使用 SCSI、SATA 或 USB")
+	}
+	return nil
+}
+
 // ensureHotplugCDROMController ensures the running VM has a controller for hot-adding CDROM.
 func ensureHotplugCDROMController(vmName string) error {
 	liveXMLStr, err := libvirt_rpc.GetDomainXMLRPC(vmName, 0)
@@ -303,16 +324,43 @@ func ensureHotplugCDROMController(vmName string) error {
 	return nil
 }
 
-func selectNewCDROMBus(vmState string, existingDisks []DiskInfo) string {
+func firstRequestedCDROMBus(requestedBus []string) string {
+	if len(requestedBus) == 0 {
+		return ""
+	}
+	return requestedBus[0]
+}
+
+func normalizeCDROMBus(bus string) (string, error) {
+	bus = strings.ToLower(strings.TrimSpace(bus))
+	if bus == "" {
+		return "", nil
+	}
+	switch bus {
+	case "scsi", "sata", "ide", "usb":
+		return bus, nil
+	default:
+		return "", fmt.Errorf("不支持的光驱驱动类型: %s", bus)
+	}
+}
+
+func selectNewCDROMBus(vmState string, existingDisks []DiskInfo, requestedBus string) (string, error) {
 	if vmState == "running" {
-		return "scsi"
+		return "scsi", nil
+	}
+	bus, err := normalizeCDROMBus(requestedBus)
+	if err != nil {
+		return "", err
+	}
+	if bus != "" {
+		return bus, nil
 	}
 	for _, disk := range existingDisks {
 		if disk.DeviceType == "cdrom" && strings.TrimSpace(disk.Bus) != "" {
-			return strings.TrimSpace(disk.Bus)
+			return strings.TrimSpace(disk.Bus), nil
 		}
 	}
-	return arch.GetProfile(arch.DetectHostArch()).GetCDROMBus()
+	return arch.GetProfile(arch.DetectHostArch()).GetCDROMBus(), nil
 }
 
 // getExistingCDROMBus 从域 XML 中获取指定 CDROM 设备的实际总线类型

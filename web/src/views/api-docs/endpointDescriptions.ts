@@ -518,6 +518,7 @@ export const endpointDescriptions: Record<string, EndpointDescription> = {
     body: 'JSON: iops_total, iops_read, iops_write, mbps_* 等限速字段',
   },
   'POST /vm/:name/cdrom': { summary: '插入或更换 CD/DVD', body: 'JSON: iso_path, device, bus' },
+  'PUT /vm/:name/cdrom/:dev/bus': { summary: '修改 CD/DVD 光驱驱动类型', body: 'JSON: bus(scsi/sata/ide/usb)，需先关机' },
   'POST /vm/:name/cdrom/eject': { summary: '弹出 CD/DVD', query: ['device'] },
   'DELETE /vm/:name/cdrom': { summary: '移除 CD/DVD 光驱', query: ['device'] },
   'POST /vm/:name/floppy': { summary: '插入或更换软盘镜像', body: 'JSON: vfd_path' },
