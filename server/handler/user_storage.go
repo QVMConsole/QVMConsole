@@ -442,6 +442,7 @@ type SelfCreateVmRequest struct {
 	Name            string                            `json:"name" binding:"required"`
 	Remark          string                            `json:"remark"`
 	VCPU            int                               `json:"vcpu" binding:"required"`
+	MaxVCPU         int                               `json:"max_vcpu"`
 	RAM             int                               `json:"ram" binding:"required"`
 	DiskSize        int                               `json:"disk_size" binding:"required"`
 	DiskFormat      string                            `json:"disk_format"`
@@ -449,6 +450,7 @@ type SelfCreateVmRequest struct {
 	OSVariant       string                            `json:"os_variant"`
 	ISOPath         string                            `json:"iso_path"`
 	ISOPaths        []string                          `json:"iso_paths"`
+	FloppyImage     string                            `json:"floppy_image"`
 	NicModel        string                            `json:"nic_model"`
 	Autostart       bool                              `json:"autostart"`
 	Freeze          bool                              `json:"freeze"`
@@ -529,6 +531,35 @@ func SelfCreateVm(c *gin.Context) {
 			}
 		}
 	}
+	if strings.TrimSpace(req.FloppyImage) != "" {
+		floppyPath, pathErr := filepath.Abs(filepath.Clean(req.FloppyImage))
+		userDiskDir, dirErr := filepath.Abs(filepath.Clean(service.GetUserDiskDir(usernameStr)))
+		if pathErr == nil {
+			floppyPath, pathErr = filepath.EvalSymlinks(floppyPath)
+		}
+		if dirErr == nil {
+			userDiskDir, dirErr = filepath.EvalSymlinks(userDiskDir)
+		}
+		relativePath := ""
+		if pathErr == nil && dirErr == nil {
+			relativePath, pathErr = filepath.Rel(userDiskDir, floppyPath)
+		}
+		if pathErr != nil || dirErr != nil || relativePath == ".." || strings.HasPrefix(relativePath, ".."+string(filepath.Separator)) {
+			c.JSON(http.StatusForbidden, gin.H{
+				"code":    403,
+				"message": "只能使用自己存储池中的软盘镜像",
+			})
+			return
+		}
+		if info, statErr := os.Stat(floppyPath); statErr != nil || !info.Mode().IsRegular() {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"code":    400,
+				"message": "软盘镜像不存在或不是普通文件",
+			})
+			return
+		}
+		req.FloppyImage = floppyPath
+	}
 
 	// 配额检查：系统盘和额外磁盘都计入普通用户硬盘总容量。
 	totalDiskGB := req.DiskSize
@@ -562,6 +593,7 @@ func SelfCreateVm(c *gin.Context) {
 		Name:            req.Name,
 		Remark:          req.Remark,
 		VCPU:            req.VCPU,
+		MaxVCPU:         req.MaxVCPU,
 		RAM:             req.RAM,
 		DiskSize:        req.DiskSize,
 		DiskFormat:      req.DiskFormat,
@@ -569,6 +601,7 @@ func SelfCreateVm(c *gin.Context) {
 		OSVariant:       req.OSVariant,
 		ISOPath:         req.ISOPath,
 		ISOPaths:        req.ISOPaths,
+		FloppyImage:     req.FloppyImage,
 		NicModel:        req.NicModel,
 		Autostart:       req.Autostart,
 		Freeze:          req.Freeze,

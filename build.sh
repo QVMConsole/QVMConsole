@@ -361,6 +361,10 @@ cp -r "$WEB_DIR/dist" "$RELEASE_DIR/${OUTPUT_NAME}/web-dist"
 cp "$SCRIPT_DIR/install.sh" "$RELEASE_DIR/${OUTPUT_NAME}/"
 chmod +x "$RELEASE_DIR/${OUTPUT_NAME}/install.sh"
 
+# 复制首次安装兼容性实机测试脚本到发行包根目录
+cp "$SCRIPT_DIR/scripts/check-system-compatibility.sh" "$RELEASE_DIR/${OUTPUT_NAME}/"
+chmod +x "$RELEASE_DIR/${OUTPUT_NAME}/check-system-compatibility.sh"
+
 # 设置后端二进制可执行权限
 if [ -f "$RELEASE_DIR/${OUTPUT_NAME}/kvm-console" ]; then
     chmod +x "$RELEASE_DIR/${OUTPUT_NAME}/kvm-console"
@@ -439,6 +443,7 @@ if [ -f "$RELEASE_DIR/${OUTPUT_NAME}/kvm-console-native" ]; then
 fi
 echo -e "${CYAN}║${NC}    - web-dist/          前端静态文件"
 echo -e "${CYAN}║${NC}    - install.sh         安装脚本"
+echo -e "${CYAN}║${NC}    - check-system-compatibility.sh  首次安装兼容性实机测试"
 echo -e "${CYAN}║${NC}    - bundled/           捆绑的 RPM 包（用于缺失的系统包）"
 echo -e "${CYAN}╚══════════════════════════════════════════════════╝${NC}"
 echo ""

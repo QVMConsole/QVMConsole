@@ -18,6 +18,7 @@ type CreateVmRequest struct {
 	Name            string                            `json:"name" binding:"required"`
 	Remark          string                            `json:"remark"`
 	VCPU            int                               `json:"vcpu" binding:"required"`
+	MaxVCPU         int                               `json:"max_vcpu"`
 	RAM             int                               `json:"ram" binding:"required"`
 	DiskSize        int                               `json:"disk_size" binding:"required"`
 	DiskFormat      string                            `json:"disk_format"`
@@ -25,6 +26,7 @@ type CreateVmRequest struct {
 	OSVariant       string                            `json:"os_variant"`
 	ISOPath         string                            `json:"iso_path"`
 	ISOPaths        []string                          `json:"iso_paths"`
+	FloppyImage     string                            `json:"floppy_image"`
 	NicModel        string                            `json:"nic_model"` // 网卡类型: virtio/e1000e/rtl8139
 	Autostart       bool                              `json:"autostart"`
 	Freeze          bool                              `json:"freeze"`
@@ -114,6 +116,7 @@ func CreateVm(c *gin.Context) {
 		Name:            req.Name,
 		Remark:          req.Remark,
 		VCPU:            req.VCPU,
+		MaxVCPU:         req.MaxVCPU,
 		RAM:             req.RAM,
 		DiskSize:        req.DiskSize,
 		DiskFormat:      req.DiskFormat,
@@ -121,6 +124,7 @@ func CreateVm(c *gin.Context) {
 		OSVariant:       req.OSVariant,
 		ISOPath:         req.ISOPath,
 		ISOPaths:        req.ISOPaths,
+		FloppyImage:     req.FloppyImage,
 		NicModel:        req.NicModel,
 		Autostart:       req.Autostart,
 		Freeze:          req.Freeze,

@@ -21,6 +21,16 @@ INSTALL_DIR="/opt/kvm-console"
 SERVICE_NAME="kvm-console"
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 ENV_FILE="${INSTALL_DIR}/.env"
+INSTALL_LAUNCH_DIR="$PWD"
+COMPATIBILITY_CHECK_SCRIPT="check-system-compatibility.sh"
+# 首次安装兼容性脚本下载地址，发布前填入正式地址。
+COMPATIBILITY_CHECK_URL="https://download.xiaozhuhouses.asia/download/v1/links/qhnoBKgQhgqxdXFxnZIW95hjerBS3L7HBUAo0GNg8Do"
+COMPATIBILITY_REPORT_DIR="${INSTALL_DIR}/logs/compatibility"
+COMPATIBILITY_SCRIPT_PATH=""
+COMPATIBILITY_DOWNLOAD_TMP=""
+COMPATIBILITY_WARNING=0
+COMPATIBILITY_SKIPPED=0
+COMPATIBILITY_FAILURE_STAGE=""
 # 开源版官方下载源（按架构区分）
 DOWNLOAD_URL_AMD64="https://download.xiaozhuhouses.asia/download/v1/links/YsxWkWgFPiZFrc8I0r2F8SpdLbhBA_O7PMnD0TDS0wM"
 DOWNLOAD_URL_ARM64="https://download.xiaozhuhouses.asia/download/v1/links/SSr8OGj6KLbxHHKK746R_-CvpoFj1Skh9XIkjkNNzZ0"
@@ -313,6 +323,9 @@ COMMAND_CHECKS=(
 cleanup_tmp() {
     if [ -n "${TMP_RELEASE_DIR:-}" ] && [ -d "$TMP_RELEASE_DIR" ]; then
         rm -rf "$TMP_RELEASE_DIR"
+    fi
+    if [ -n "${COMPATIBILITY_DOWNLOAD_TMP:-}" ] && [ -f "$COMPATIBILITY_DOWNLOAD_TMP" ]; then
+        rm -f "$COMPATIBILITY_DOWNLOAD_TMP"
     fi
 }
 trap cleanup_tmp EXIT
@@ -1759,7 +1772,181 @@ install_files() {
     info "安装前端静态文件..."
     rm -rf "${INSTALL_DIR}/web-dist"
     cp -r "${RELEASE_SOURCE_DIR}/web-dist" "${INSTALL_DIR}/web-dist"
+
+    # 发行包内脚本始终部署，首次安装选择执行时仍按“当前目录 → 下载”流程取得待运行版本。
+    if [ -f "${RELEASE_SOURCE_DIR}/${COMPATIBILITY_CHECK_SCRIPT}" ]; then
+        mkdir -p "${INSTALL_DIR}/scripts"
+        install -m 700 "${RELEASE_SOURCE_DIR}/${COMPATIBILITY_CHECK_SCRIPT}" \
+            "${INSTALL_DIR}/scripts/${COMPATIBILITY_CHECK_SCRIPT}"
+    fi
     success "程序文件已安装"
+}
+
+validate_compatibility_script() {
+    local script_path="$1"
+    [ -f "$script_path" ] || return 1
+    [ -s "$script_path" ] || return 1
+    [ -r "$script_path" ] || return 1
+    bash -n "$script_path" >/dev/null 2>&1
+}
+
+download_compatibility_script() {
+    local target_path="${INSTALL_LAUNCH_DIR}/${COMPATIBILITY_CHECK_SCRIPT}"
+    local downloaded=0
+
+    if [ -z "$COMPATIBILITY_CHECK_URL" ]; then
+        COMPATIBILITY_FAILURE_STAGE="兼容性测试脚本获取"
+        warn "兼容性测试脚本下载地址尚未配置: COMPATIBILITY_CHECK_URL"
+        return 1
+    fi
+    if [ -d "$target_path" ]; then
+        COMPATIBILITY_FAILURE_STAGE="兼容性测试脚本下载"
+        warn "目标路径是目录，不能原子替换为兼容性测试脚本: $target_path"
+        return 1
+    fi
+
+    COMPATIBILITY_DOWNLOAD_TMP="${target_path}.download.$$"
+    rm -f "$COMPATIBILITY_DOWNLOAD_TMP"
+    info "正在下载兼容性测试脚本到当前目录..."
+
+    if command -v curl >/dev/null 2>&1; then
+        if curl -fL --progress-bar -o "$COMPATIBILITY_DOWNLOAD_TMP" "$COMPATIBILITY_CHECK_URL"; then
+            downloaded=1
+        else
+            warn "curl 下载兼容性测试脚本失败，尝试使用 wget"
+        fi
+    fi
+    if [ "$downloaded" -eq 0 ] && command -v wget >/dev/null 2>&1; then
+        if wget -O "$COMPATIBILITY_DOWNLOAD_TMP" "$COMPATIBILITY_CHECK_URL"; then
+            downloaded=1
+        fi
+    fi
+    if [ "$downloaded" -eq 0 ]; then
+        rm -f "$COMPATIBILITY_DOWNLOAD_TMP"
+        COMPATIBILITY_DOWNLOAD_TMP=""
+        COMPATIBILITY_FAILURE_STAGE="兼容性测试脚本下载"
+        warn "下载兼容性测试脚本失败"
+        return 1
+    fi
+
+    if ! validate_compatibility_script "$COMPATIBILITY_DOWNLOAD_TMP"; then
+        rm -f "$COMPATIBILITY_DOWNLOAD_TMP"
+        COMPATIBILITY_DOWNLOAD_TMP=""
+        COMPATIBILITY_FAILURE_STAGE="兼容性测试脚本校验"
+        warn "下载的兼容性测试脚本为空、不可读或语法校验失败"
+        return 1
+    fi
+
+    chmod 700 "$COMPATIBILITY_DOWNLOAD_TMP"
+    mv -f "$COMPATIBILITY_DOWNLOAD_TMP" "$target_path"
+    COMPATIBILITY_DOWNLOAD_TMP=""
+    chmod 700 "$target_path"
+    COMPATIBILITY_SCRIPT_PATH="$target_path"
+    success "兼容性测试脚本下载并校验完成"
+}
+
+obtain_compatibility_script() {
+    local local_script="${INSTALL_LAUNCH_DIR}/${COMPATIBILITY_CHECK_SCRIPT}"
+    COMPATIBILITY_SCRIPT_PATH=""
+
+    if [ -e "$local_script" ]; then
+        info "检测当前目录中的兼容性测试脚本: $local_script"
+        if validate_compatibility_script "$local_script"; then
+            COMPATIBILITY_SCRIPT_PATH="$local_script"
+            success "本地兼容性测试脚本校验通过"
+            return 0
+        fi
+        warn "本地兼容性测试脚本校验失败，将通过网络重新下载"
+    else
+        info "当前目录未找到 ${COMPATIBILITY_CHECK_SCRIPT}，将通过网络获取"
+    fi
+
+    download_compatibility_script
+}
+
+deploy_compatibility_script() {
+    local source_path="$1"
+    mkdir -p "${INSTALL_DIR}/scripts"
+    install -m 700 "$source_path" "${INSTALL_DIR}/scripts/${COMPATIBILITY_CHECK_SCRIPT}"
+    success "兼容性测试脚本已部署到 ${INSTALL_DIR}/scripts/${COMPATIBILITY_CHECK_SCRIPT}"
+}
+
+rollback_first_install_program_files() {
+    warn "正在撤回本次复制的程序文件；依赖、网络地基、配置和诊断报告将保留"
+    rm -f \
+        "${INSTALL_DIR}/kvm-console" \
+        "${INSTALL_DIR}/kvm-console-native" \
+        "${INSTALL_DIR}/kvm-console-compat" \
+        "${INSTALL_DIR}/scripts/${COMPATIBILITY_CHECK_SCRIPT}"
+    rm -rf "${INSTALL_DIR}/web-dist"
+    rmdir "${INSTALL_DIR}/scripts" 2>/dev/null || true
+    success "程序文件已撤回；重新运行安装脚本仍会进入首次安装"
+}
+
+confirm_continue_after_compatibility_failure() {
+    local continue_install
+    echo ""
+    warn "兼容性测试未通过"
+    warn "失败阶段: ${COMPATIBILITY_FAILURE_STAGE:-兼容性测试执行}"
+    warn "报告目录: ${COMPATIBILITY_REPORT_DIR}"
+    read -rp "兼容性测试未通过，是否仍继续安装面板？[y/N]: " continue_install
+    continue_install=${continue_install:-N}
+    if [[ "$continue_install" =~ ^[Yy]$ ]]; then
+        COMPATIBILITY_WARNING=1
+        warn "用户选择继续安装，安装完成信息将保留兼容性警告"
+        return 0
+    fi
+
+    rollback_first_install_program_files
+    exit 1
+}
+
+run_first_install_compatibility_check() {
+    [ "$MODE" = "install" ] || return 0
+
+    local run_check
+    local check_status
+    local compatibility_interrupted=0
+    echo ""
+    read -rp "是否运行系统兼容性测试？首次安装强烈推荐 [Y/n]: " run_check
+    run_check=${run_check:-Y}
+    if [[ ! "$run_check" =~ ^[Yy]$ ]]; then
+        COMPATIBILITY_SKIPPED=1
+        warn "已跳过兼容性测试，宿主机尚未完成实际虚拟机创建与 OVS 接入验证"
+        return 0
+    fi
+
+    if ! obtain_compatibility_script; then
+        warn "兼容性测试未执行：未取得有效的测试脚本"
+        confirm_continue_after_compatibility_failure
+        return 0
+    fi
+
+    deploy_compatibility_script "$COMPATIBILITY_SCRIPT_PATH"
+    info "开始创建 1 vCPU / 1GB 内存 / 1GB 磁盘的临时测试虚拟机..."
+    trap 'compatibility_interrupted=1; warn "收到中断信号，正在等待兼容性测试清理临时资源"' INT TERM
+    set +e
+    bash "$COMPATIBILITY_SCRIPT_PATH" \
+        --binary "${INSTALL_DIR}/kvm-console" \
+        --report-dir "$COMPATIBILITY_REPORT_DIR" \
+        --vcpu 1 \
+        --ram-gb 1 \
+        --disk-gb 1
+    check_status=$?
+    set -e
+    trap - INT TERM
+
+    if [ "$check_status" -eq 0 ] && [ "$compatibility_interrupted" -eq 0 ]; then
+        success "宿主机虚拟机创建与基础 OVS 网络兼容性测试通过"
+        return 0
+    fi
+
+    if [ "$compatibility_interrupted" -eq 1 ] || [ "$check_status" -eq 130 ]; then
+        COMPATIBILITY_FAILURE_STAGE="用户中断"
+    else
+        COMPATIBILITY_FAILURE_STAGE="虚拟机创建、启动或 OVS 联合验证"
+    fi
+    confirm_continue_after_compatibility_failure
 }
 
 setup_service() {
@@ -1831,6 +2018,9 @@ uninstall_app() {
         success "安装目录已删除"
     else
         rm -f "${INSTALL_DIR}/kvm-console"
+        rm -f "${INSTALL_DIR}/kvm-console-native" "${INSTALL_DIR}/kvm-console-compat"
+        rm -f "${INSTALL_DIR}/scripts/${COMPATIBILITY_CHECK_SCRIPT}"
+        rmdir "${INSTALL_DIR}/scripts" 2>/dev/null || true
         rm -rf "${INSTALL_DIR}/web-dist"
         warn "已保留 ${INSTALL_DIR}/data 与 ${ENV_FILE}"
     fi
@@ -1957,6 +2147,14 @@ show_info() {
 
     echo -e "$bot_border"
     echo ""
+
+    if [ "$COMPATIBILITY_WARNING" -eq 1 ]; then
+        warn "兼容性警告：实机测试未通过，面板虽已启动，但虚拟机创建或 OVS 网络可能异常"
+        warn "诊断报告目录: ${COMPATIBILITY_REPORT_DIR}"
+    elif [ "$COMPATIBILITY_SKIPPED" -eq 1 ]; then
+        warn "兼容性警告：已跳过实机测试，宿主机尚未验证虚拟机创建与 OVS 网络"
+        info "安装后可手动执行: sudo ${INSTALL_DIR}/scripts/${COMPATIBILITY_CHECK_SCRIPT}"
+    fi
 }
 
 run_install_or_update() {
@@ -1974,6 +2172,7 @@ run_install_or_update() {
     ensure_apparmor_storage_access
     ensure_sysctl_network
     setup_ovs_foundation
+    run_first_install_compatibility_check
     setup_sshd_foundation
     setup_service
     start_service
