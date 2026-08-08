@@ -77,7 +77,8 @@ func cloneOpenWrtExt4(params *CloneParams, cloneDisk, hostname, staticIP string,
 		args = append(args, "--password", "root:password:"+params.Password)
 	}
 
-	result := utils.ExecCommandLongRunning("virt-customize", args...)
+	// virt-customize 需要读写整个磁盘镜像，属于大 IO 操作，不设置自动超时
+	result := utils.ExecCommandNoTimeout("virt-customize", args...)
 	if result.Error != nil {
 		return fmt.Errorf("OpenWrt 克隆初始化失败: %s", D.FirstNonEmpty(result.Stderr, result.Error.Error()))
 	}
@@ -140,8 +141,8 @@ upload %s /upper/etc/config/system
 		return fmt.Errorf("写入 guestfish 脚本失败: %w", err)
 	}
 
-	// 执行 guestfish
-	result := utils.ExecCommandLongRunning("guestfish", "--file", scriptPath)
+	// 执行 guestfish（读写磁盘镜像，属于大 IO 操作，不设置自动超时）
+	result := utils.ExecCommandNoTimeout("guestfish", "--file", scriptPath)
 	if result.Error != nil {
 		return fmt.Errorf("OpenWrt squashfs 克隆初始化失败: %s", D.FirstNonEmpty(result.Stderr, result.Error.Error()))
 	}

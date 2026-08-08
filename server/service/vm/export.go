@@ -178,7 +178,8 @@ func exportVMQCOW2(ctx context.Context, params *ExportVMParams, progressFn func(
 		if useSudo {
 			args = append([]string{"sudo", "-u", params.Username}, args...)
 		}
-		result := utils.ExecCommandContextWithTimeout(ctx, args[0], 2*time.Hour, args[1:]...)
+		// 展平磁盘需要复制整个磁盘数据，属于大 IO 操作，不设置自动超时
+		result := utils.ExecCommandContextWithTimeout(ctx, args[0], 0, args[1:]...)
 		if result.Error != nil {
 			_ = os.Remove(exportPath)
 			return nil, fmt.Errorf("展平系统盘失败: %s", strings.TrimSpace(result.Stderr))
@@ -189,7 +190,8 @@ func exportVMQCOW2(ctx context.Context, params *ExportVMParams, progressFn func(
 		if useSudo {
 			args = append([]string{"sudo", "-u", params.Username}, args...)
 		}
-		result := utils.ExecCommandContextWithTimeout(ctx, args[0], 2*time.Hour, args[1:]...)
+		// 复制系统盘属于大 IO 操作，不设置自动超时
+		result := utils.ExecCommandContextWithTimeout(ctx, args[0], 0, args[1:]...)
 		if result.Error != nil {
 			_ = os.Remove(exportPath)
 			return nil, fmt.Errorf("复制系统盘失败: %s", strings.TrimSpace(result.Stderr))
@@ -242,7 +244,8 @@ func exportVMOVA(ctx context.Context, params *ExportVMParams, progressFn func(in
 		progressFn(progress, fmt.Sprintf("正在转换磁盘 %s（%d/%d）...", disk.Device, i+1, len(selected)))
 		fileName := fmt.Sprintf("disk-%02d-%s.vmdk", i+1, disk.Device)
 		target := filepath.Join(workDir, fileName)
-		result := utils.ExecCommandContextWithTimeout(ctx, "qemu-img", 4*time.Hour,
+		// 转换磁盘为 VMDK 需要复制整个磁盘数据，属于大 IO 操作，不设置自动超时
+		result := utils.ExecCommandContextWithTimeout(ctx, "qemu-img", 0,
 			"convert", "-O", "vmdk", "-o", "subformat=streamOptimized", disk.path, target)
 		if result.Error != nil {
 			return nil, fmt.Errorf("转换磁盘 %s 为 VMDK 失败: %s", disk.Device, strings.TrimSpace(result.Stderr))
@@ -294,7 +297,8 @@ func exportVMOVA(ctx context.Context, params *ExportVMParams, progressFn func(in
 	if writeUser != "" {
 		args = append([]string{"sudo", "-u", writeUser}, args...)
 	}
-	copyResult := utils.ExecCommandContextWithTimeout(ctx, args[0], 4*time.Hour, args[1:]...)
+	// 写入 OVA 文件属于大 IO 操作，不设置自动超时
+	copyResult := utils.ExecCommandContextWithTimeout(ctx, args[0], 0, args[1:]...)
 	if copyResult.Error != nil {
 		return nil, fmt.Errorf("写入我的存储失败，请检查存储配额: %s", strings.TrimSpace(copyResult.Stderr))
 	}

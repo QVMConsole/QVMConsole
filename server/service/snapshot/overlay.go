@@ -14,7 +14,8 @@ func commitActiveExternalOverlay(vmName, target, overlayPath string) error {
 	if err := ensureSnapshotDiskAccessForPaths([]string{overlayPath}); err != nil {
 		return err
 	}
-	result := utils.ExecCommandLongRunning(
+	// virsh blockcommit 需要合并整个磁盘链数据，属于大 IO 操作，不设置自动超时
+	result := utils.ExecCommandNoTimeout(
 		"virsh",
 		"blockcommit",
 		vmName,
@@ -46,7 +47,8 @@ func copyActiveExternalOverlayToStandalone(vmName, target, overlayPath string) e
 	if err := ensureSnapshotDiskAccessForPaths([]string{overlayPath, destPath}); err != nil {
 		return err
 	}
-	result := utils.ExecCommandLongRunning(
+	// virsh blockcopy 需要复制整个活动磁盘数据，属于大 IO 操作，不设置自动超时
+	result := utils.ExecCommandNoTimeout(
 		"virsh",
 		"blockcopy",
 		vmName,
@@ -94,7 +96,8 @@ func commitInactiveExternalOverlay(vmName, overlayPath, backingPath string) erro
 	if err := ensureSnapshotDiskAccessForPaths([]string{overlayPath, backingPath}); err != nil {
 		return err
 	}
-	commitResult := utils.ExecCommandLongRunning("qemu-img", "commit", overlayPath)
+	// qemu-img commit 需要合并整个 overlay 数据，属于大 IO 操作，不设置自动超时
+	commitResult := utils.ExecCommandNoTimeout("qemu-img", "commit", overlayPath)
 	if commitResult.Error != nil {
 		return fmt.Errorf("qemu-img commit 失败: %s", commitResult.Stderr)
 	}

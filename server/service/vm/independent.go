@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"kvm_console/logger"
 	"kvm_console/service/libvirt_rpc"
@@ -85,10 +84,10 @@ func MakeVMIndependent(ctx context.Context, params *MakeVMIndependentParams, pro
 	progressFn(20, "开始合并磁盘链（将 backing 数据合并到当前层）...")
 
 	// 5. 使用 qemu-img convert 创建独立副本（会自动拉平 backing chain）
-	// 大容量磁盘转换可能非常耗时，使用 2 小时超时并支持任务取消
+	// 大容量磁盘转换可能非常耗时，不设置自动超时，仅响应任务取消
 	convertCmd := fmt.Sprintf("qemu-img convert -f qcow2 -O qcow2 %s %s",
 		utils.ShellSingleQuote(diskPath), utils.ShellSingleQuote(tempPath))
-	result := utils.ExecShellContextWithTimeout(ctx, convertCmd, 2*time.Hour)
+	result := utils.ExecShellContext(ctx, convertCmd)
 	if result.Error != nil {
 		// 清理临时文件
 		os.Remove(tempPath)

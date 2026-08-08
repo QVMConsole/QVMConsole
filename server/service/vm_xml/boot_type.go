@@ -706,15 +706,15 @@ func ExtractKernelFromISO(vmName, isoPath string) (kernel, initrd string, err er
 		return "", "", fmt.Errorf("创建内核提取目录失败: %w", err)
 	}
 
-	// 挂载 ISO
+	// 挂载 ISO（读取 ISO 属于 IO 操作，不设置自动超时）
 	mountPoint := fmt.Sprintf("/tmp/iso-mount-%s", vmName)
 	_ = os.MkdirAll(mountPoint, 0755)
-	result := utils.ExecCommand("mount", "-o", "loop,ro", isoPath, mountPoint)
+	result := utils.ExecCommandNoTimeout("mount", "-o", "loop,ro", isoPath, mountPoint)
 	if result.Error != nil {
 		return "", "", fmt.Errorf("挂载 ISO 失败: %s", firstNonEmpty(result.Stderr, result.Error.Error()))
 	}
 	defer func() {
-		_ = utils.ExecCommand("umount", mountPoint).Error
+		_ = utils.ExecCommandNoTimeout("umount", mountPoint).Error
 		_ = os.Remove(mountPoint)
 	}()
 
@@ -739,9 +739,9 @@ func ExtractKernelFromISO(vmName, isoPath string) (kernel, initrd string, err er
 		return "", "", fmt.Errorf("在 ISO 中未找到 vmlinuz")
 	}
 
-	// 复制内核
+	// 复制内核（从 ISO 读取并写入属于 IO 操作，不设置自动超时）
 	kernel = filepath.Join(extractDir, "vmlinuz")
-	cpResult := utils.ExecCommand("cp", kernelSrc, kernel)
+	cpResult := utils.ExecCommandNoTimeout("cp", kernelSrc, kernel)
 	if cpResult.Error != nil {
 		return "", "", fmt.Errorf("复制内核失败: %s", firstNonEmpty(cpResult.Stderr, cpResult.Error.Error()))
 	}
@@ -749,7 +749,7 @@ func ExtractKernelFromISO(vmName, isoPath string) (kernel, initrd string, err er
 	// 复制 initrd
 	if initrdSrc != "" {
 		initrd = filepath.Join(extractDir, "initrd.img")
-		cpResult = utils.ExecCommand("cp", initrdSrc, initrd)
+		cpResult = utils.ExecCommandNoTimeout("cp", initrdSrc, initrd)
 		if cpResult.Error != nil {
 			return "", "", fmt.Errorf("复制 initrd 失败: %s", firstNonEmpty(cpResult.Stderr, cpResult.Error.Error()))
 		}

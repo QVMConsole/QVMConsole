@@ -137,7 +137,8 @@ func ResetLinuxPassword(ctx context.Context, params *ResetLinuxPasswordParams, p
 		} else {
 			progressFn(25, "正在离线修改虚拟机密码...")
 			passwordArg := fmt.Sprintf("%s:password:%s", strings.TrimSpace(params.Username), params.Password)
-			result := utils.ExecCommandSensitiveLongRunning("virt-customize", "-a", vm.DiskPath, "--password", passwordArg, "--selinux-relabel")
+			// virt-customize 需要读写整个磁盘镜像，属于大 IO 操作，不设置自动超时
+			result := utils.ExecCommandSensitiveNoTimeout("virt-customize", "-a", vm.DiskPath, "--password", passwordArg, "--selinux-relabel")
 			if result.Error != nil {
 				return fmt.Errorf("离线重置密码失败: %s", strings.TrimSpace(result.Stderr))
 			}
@@ -179,7 +180,8 @@ func SubmitResetLinuxPasswordTask(params *ResetLinuxPasswordParams, operator str
 
 func stageWindowsPasswordReset(diskPath, username, password string) error {
 	scriptContent := buildWindowsPasswordResetScript(username, password)
-	writeResult := utils.ExecCommandSensitiveLongRunning(
+	// virt-customize 需要读写整个磁盘镜像，属于大 IO 操作，不设置自动超时
+	writeResult := utils.ExecCommandSensitiveNoTimeout(
 		"virt-customize",
 		"-a", diskPath,
 		"--mkdir", "/ProgramData/kvm-console",
@@ -205,7 +207,8 @@ func stageWindowsPasswordReset(diskPath, username, password string) error {
 		return fmt.Errorf("关闭 Windows 注册表文件失败: %w", err)
 	}
 
-	mergeResult := utils.ExecCommandLongRunning("virt-win-reg", "--merge", diskPath, regPath)
+	// virt-win-reg 需要读写整个磁盘镜像，属于大 IO 操作，不设置自动超时
+	mergeResult := utils.ExecCommandNoTimeout("virt-win-reg", "--merge", diskPath, regPath)
 	if mergeResult.Error != nil {
 		return fmt.Errorf("写入 Windows 注册表失败: %s", strings.TrimSpace(mergeResult.Stderr))
 	}

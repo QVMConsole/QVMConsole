@@ -86,7 +86,8 @@ func PreinstallLinuxCloudInitDeps(templatePath string) error {
 		"--quiet",
 	}
 
-	result := utils.ExecCommandLongRunning("virt-customize", args...)
+	// virt-customize 需要读写整个磁盘镜像并可能在来宾系统内安装依赖，属于大 IO 操作，不设置自动超时
+	result := utils.ExecCommandNoTimeout("virt-customize", args...)
 	if result.Error != nil {
 		logger.App.Warn("Linux 依赖预装失败（不影响模板制作）", "error", result.Stderr)
 		return fmt.Errorf("Linux 克隆依赖预装失败: %s", strings.TrimSpace(result.Stderr))
@@ -99,7 +100,8 @@ func PreinstallLinuxCloudInitDeps(templatePath string) error {
 // HasLinuxCloudInitDeps 以无网络方式检查模板中是否已经具备离线克隆依赖。
 // 返回 false, nil 表示镜像可访问但依赖尚未安装；其余错误表示 guestfs 或镜像访问异常。
 func HasLinuxCloudInitDeps(templatePath string) (bool, error) {
-	statusResult := utils.ExecCommandLongRunning("virt-cat", "-a", templatePath, "/var/lib/dpkg/status")
+	// virt-cat 需要读取整个磁盘镜像，属于大 IO 操作，不设置自动超时
+	statusResult := utils.ExecCommandNoTimeout("virt-cat", "-a", templatePath, "/var/lib/dpkg/status")
 	if statusResult.Error == nil {
 		return debianCloneDepsInstalled(statusResult.Stdout), nil
 	}
@@ -131,7 +133,8 @@ func rpmCloneDepsInstalled(templatePath string) (bool, error) {
 	}
 
 	for _, directory := range directories {
-		result := utils.ExecCommandLongRunning("virt-ls", "-a", templatePath, directory.path)
+		// virt-ls 需要读取整个磁盘镜像，属于大 IO 操作，不设置自动超时
+		result := utils.ExecCommandNoTimeout("virt-ls", "-a", templatePath, directory.path)
 		if result.Error != nil {
 			checkError := commandResultText(result.Error, result.Stderr)
 			return false, fmt.Errorf("读取 RPM 模板目录 %s 失败: %s", directory.path, checkError)

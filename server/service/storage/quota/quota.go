@@ -359,8 +359,8 @@ func InitStorageFilesystem(sizeGB int) error {
 			return fmt.Errorf("创建存储镜像文件失败: %s", result.Stderr)
 		}
 
-		// 格式化为 ext4，启用 project 和 quota 特性
-		result = utils.ExecShell(fmt.Sprintf("mkfs.ext4 -O project,quota %s", utils.ShellSingleQuote(imgPath)))
+		// 格式化为 ext4，启用 project 和 quota 特性（格式化大容量镜像属于 IO 操作，不设置自动超时）
+		result = utils.ExecShellNoTimeout(fmt.Sprintf("mkfs.ext4 -O project,quota %s", utils.ShellSingleQuote(imgPath)))
 		if result.Error != nil {
 			return fmt.Errorf("格式化存储文件系统失败: %s", result.Stderr)
 		}

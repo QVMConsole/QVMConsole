@@ -35,3 +35,4 @@
 29.项目中所有 Switch 组件允许且应使用 checkedText/uncheckedText 内嵌状态文字；checkedText 与 uncheckedText 必须各为一个显示字符。通用状态使用“开/关”，语义特殊时可使用对应的单字符，禁止使用开关外部状态文字。
 30. 前端开发前端开发前请务必阅读 semi-ui-skills 技能文档，确保对 Semi 组件库的使用规范有充分了解。
 31. 所有 Semi Modal 弹窗关闭时必须保留缩小离场动画。父组件按条件挂载弹窗时，必须使用 `web/src/hooks/useMountModalLifecycle.ts`：关闭时先调用 `requestClose` 将 `visible` 切换为 `false`，通过 `afterClose={afterModalClose}` 等待动画结束后再清理父组件状态或跳转页面；禁止在 `onCancel`、提交成功回调或刷新回调中直接卸载弹窗。父组件始终挂载的受控弹窗可继续直接切换 `visible`，但不得在关闭时同步卸载组件。
+32. 异步任务如果涉及IO相关操作（如复制文件 网络传输）等。不要设置超时时间。

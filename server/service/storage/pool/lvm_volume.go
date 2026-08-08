@@ -291,7 +291,8 @@ func formatLV(ctx context.Context, lvPath, fsType string) error {
 
 	mkfsCmd := "mkfs." + fsType
 	mkfsArgs := buildMkfsArgs(fsType, lvPath)
-	result := utils.ExecCommandContextWithTimeout(ctx, mkfsCmd, 10*time.Minute, mkfsArgs...)
+	// 格式化大容量逻辑卷属于 IO 操作，不设置自动超时
+	result := utils.ExecCommandContextWithTimeout(ctx, mkfsCmd, 0, mkfsArgs...)
 	if result.Error != nil {
 		return fmt.Errorf("mkfs.%s 失败: %s", fsType, result.Stderr)
 	}

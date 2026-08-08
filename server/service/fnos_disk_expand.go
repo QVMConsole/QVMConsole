@@ -44,7 +44,6 @@ func prepareFnOSSystemDiskExpansion(ctx context.Context, cloneDisk string, progr
 		buildFnOSSystemDiskExpansionCommands(layout, *systemPart, lastUsableSector),
 		nil,
 		"FnOS 系统分区扩容",
-		"FnOS 系统分区扩容超时，请确认模板已正常关机且 ext 文件系统无错误",
 	); err != nil {
 		return fmt.Errorf("FnOS 系统分区扩容失败: %v", err)
 	}

@@ -443,7 +443,6 @@ var templateNamePatternForTransfer = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 
 const (
 	templateTransferRetention = 24 * time.Hour
-	templateCopyTimeout       = 2 * time.Hour
 )
 
 // maxInt returns the larger of two ints.

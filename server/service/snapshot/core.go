@@ -11,8 +11,6 @@ import (
 	"kvm_console/utils"
 )
 
-const internalSnapshotOperationTimeout = 30 * time.Minute
-
 // ListSnapshots 列出快照
 func ListSnapshots(vmName string) ([]SnapshotInfo, error) {
 	result := utils.ExecCommandQuiet("virsh", "snapshot-list", vmName, "--tree")
@@ -173,8 +171,8 @@ func CreateSnapshotWithOptions(vmName, snapName, description string, includeMemo
 				}
 
 				// 暂停后创建快照（不加 --disk-only，关机/暂停状态下默认创建内部快照）。
-				// 内存快照可能耗时较长（取决于虚拟机内存大小），使用 30 分钟超时。
-				result := utils.ExecCommandWithTimeout("virsh", internalSnapshotOperationTimeout, args...)
+				// 内存快照可能耗时较长（取决于虚拟机内存大小），不设置自动超时，等待自然完成。
+				result := utils.ExecCommandNoTimeout("virsh", args...)
 
 				// 无论成功失败，都恢复 VM 运行。
 				logger.App.Info("恢复虚拟机运行", "vm", vmName)
@@ -197,9 +195,9 @@ func CreateSnapshotWithOptions(vmName, snapName, description string, includeMemo
 				// 注意：即使是"不主动暂停"模式，libvirt/QEMU 在保存内存状态时仍会
 				// 将 VM 置于 paused (saving) 状态，这不是面板行为，而是 QEMU savevm 的固有行为。
 				// 该模式可能缩短面板层面的暂停窗口，但不同宿主机/libvirt 版本的行为可能不同。
-				// 内存快照可能耗时较长（取决于虚拟机内存大小），使用 30 分钟超时。
+				// 内存快照可能耗时较长（取决于虚拟机内存大小），不设置自动超时，等待自然完成。
 				logger.App.Info("不主动暂停虚拟机，由 libvirt/QEMU 自行管理内存快照创建", "vm", vmName)
-				result := utils.ExecCommandWithTimeout("virsh", internalSnapshotOperationTimeout, args...)
+				result := utils.ExecCommandNoTimeout("virsh", args...)
 				if result.Error != nil {
 					// 即使 virsh 命令报错，也可能快照已创建（如超时后 libvirt 后台继续完成）。
 					// 检查快照是否实际已存在。
@@ -290,8 +288,8 @@ func RevertSnapshot(vmName, snapName string) error {
 	}
 
 	// 内部内存快照恢复需要重新加载虚拟机内存，耗时会随内存大小增长。
-	// 使用专用长超时，避免 virsh 客户端提前退出而 libvirt 仍在后台恢复。
-	result := utils.ExecCommandWithTimeout("virsh", internalSnapshotOperationTimeout, "snapshot-revert", vmName, snapName)
+	// 不设置自动超时，避免 virsh 客户端提前退出而 libvirt 仍在后台恢复。
+	result := utils.ExecCommandNoTimeout("virsh", "snapshot-revert", vmName, snapName)
 	if result.Error != nil {
 		return fmt.Errorf("恢复快照失败: %s", result.Stderr)
 	}

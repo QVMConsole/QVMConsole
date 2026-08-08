@@ -81,7 +81,8 @@ func deleteExternalSnapshot(vmName, snapName string, preserveOtherSnapshots bool
 				logger.App.Info("删除 overlay 文件避免污染", "file", f)
 				_ = os.Remove(f)
 			} else {
-				commitResult := utils.ExecCommandLongRunning("qemu-img", "commit", f)
+				// qemu-img commit 需要合并整个 overlay 数据，属于大 IO 操作，不设置自动超时
+				commitResult := utils.ExecCommandNoTimeout("qemu-img", "commit", f)
 				if commitResult.Error != nil {
 					logger.App.Warn("合并overlay文件失败", "file", f, "stderr", commitResult.Stderr)
 				} else {

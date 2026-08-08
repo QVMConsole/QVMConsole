@@ -201,7 +201,8 @@ func createWindowsConfigDriveISO(vmName, hostname, password string) (string, err
 		if _, err := lookPathTool(tool.name); err != nil {
 			continue
 		}
-		result := utils.ExecCommandLongRunning(tool.name, tool.args...)
+		// ISO 创建工具写入整个镜像文件，属于 IO 操作，不设置自动超时
+		result := utils.ExecCommandNoTimeout(tool.name, tool.args...)
 		if result.Error == nil {
 			goto isoCreated
 		}

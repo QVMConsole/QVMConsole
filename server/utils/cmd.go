@@ -156,6 +156,21 @@ func ExecCommandSensitiveLongRunning(name string, args ...string) *CmdResult {
 	return execCommandContextWithTimeout(context.Background(), name, 10*time.Minute, true, args...)
 }
 
+// ExecCommandNoTimeout 执行命令，不设置自动超时（如文件复制、网络传输等大 IO 操作，等待自然完成）。
+func ExecCommandNoTimeout(name string, args ...string) *CmdResult {
+	return execCommandContextWithTimeout(context.Background(), name, 0, false, args...)
+}
+
+// ExecCommandSensitiveNoTimeout 执行包含密码、令牌等敏感参数的 IO 操作，不设置自动超时，日志不记录参数正文。
+func ExecCommandSensitiveNoTimeout(name string, args ...string) *CmdResult {
+	return execCommandContextWithTimeout(context.Background(), name, 0, true, args...)
+}
+
+// ExecShellNoTimeout 执行 Shell 命令，不设置自动超时（如文件复制、网络传输等大 IO 操作）。
+func ExecShellNoTimeout(command string) *CmdResult {
+	return ExecCommandNoTimeout("bash", "-c", command)
+}
+
 // ExecShell 执行 Shell 命令（通过 bash -c）
 func ExecShell(command string) *CmdResult {
 	return ExecCommand("bash", "-c", command)

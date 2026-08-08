@@ -153,14 +153,16 @@ func compareRemoteBacking(node model.HostNode, backing service.QemuImgInfo, skip
 		}
 		return check
 	}
-	sourceHash := utils.ExecCommandWithTimeout("sha256sum", 10*time.Minute, path)
+	// 计算大文件 hash 属于 IO 操作，不设置自动超时
+	sourceHash := utils.ExecCommandNoTimeout("sha256sum", path)
 	if sourceHash.Error != nil {
 		check.Message = "源 backing hash 失败: " + sourceHash.Stderr
 		return check
 	}
 	check.SourceSHA256 = strings.Fields(sourceHash.Stdout)[0]
 	remoteCmd := "set -e; qemu-img info -U --output=json " + utils.ShellSingleQuote(path) + "; sha256sum " + utils.ShellSingleQuote(path)
-	out, err := service.RemoteSSHCommand(context.Background(), node, remoteCmd, 12*time.Minute)
+	// 远程 sha256sum 计算大文件 hash 属于 IO 操作，不设置自动超时
+	out, err := service.RemoteSSHCommand(context.Background(), node, remoteCmd, 0)
 	if err != nil {
 		check.Message = "目标 backing 不存在或不可读: " + err.Error()
 		return check

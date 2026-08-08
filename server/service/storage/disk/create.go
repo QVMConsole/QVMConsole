@@ -283,7 +283,8 @@ func moveDiskFile(source, destination string) error {
 	} else if !errors.Is(err, syscall.EXDEV) {
 		return err
 	}
-	copyResult := utils.ExecCommandLongRunning("cp", "--sparse=always", "--preserve=mode,timestamps", "--", source, destination)
+	// 跨文件系统复制磁盘属于大 IO 操作，不设置自动超时
+	copyResult := utils.ExecCommandNoTimeout("cp", "--sparse=always", "--preserve=mode,timestamps", "--", source, destination)
 	if copyResult.Error != nil {
 		_ = os.Remove(destination)
 		return fmt.Errorf("跨文件系统复制磁盘失败: %s", strings.TrimSpace(copyResult.Stderr))

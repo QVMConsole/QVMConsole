@@ -164,7 +164,8 @@ func cleanupExpiredTransferFiles(dir string) {
 }
 
 func copyFileSparseWithContext(ctx context.Context, sourcePath, targetPath string) error {
-	result := utils.ExecCommandContextWithTimeout(ctx, "cp", templateCopyTimeout, "--sparse=always", sourcePath, targetPath)
+	// 文件复制属于大 IO 操作，不设置自动超时，仅响应任务取消
+	result := utils.ExecCommandContextWithTimeout(ctx, "cp", 0, "--sparse=always", sourcePath, targetPath)
 	if result.Error != nil {
 		return fmt.Errorf("复制文件失败: %s", result.Stderr)
 	}
@@ -172,7 +173,8 @@ func copyFileSparseWithContext(ctx context.Context, sourcePath, targetPath strin
 }
 
 func copyFileWithContext(ctx context.Context, sourcePath, targetPath string) error {
-	result := utils.ExecCommandContextWithTimeout(ctx, "cp", 10*time.Minute, sourcePath, targetPath)
+	// 文件复制属于大 IO 操作，不设置自动超时，仅响应任务取消
+	result := utils.ExecCommandContextWithTimeout(ctx, "cp", 0, sourcePath, targetPath)
 	if result.Error != nil {
 		return fmt.Errorf("复制文件失败: %s", result.Stderr)
 	}
@@ -212,7 +214,8 @@ func validateTemplateDiskFormat(ctx context.Context, diskPath string) (string, f
 	}
 	tmpPath := tmpFile.Name()
 	tmpFile.Close()
-	convertResult := utils.ExecCommandContextWithTimeout(ctx, "qemu-img", templateCopyTimeout,
+	// 磁盘格式转换属于大 IO 操作，不设置自动超时，仅响应任务取消
+	convertResult := utils.ExecCommandContextWithTimeout(ctx, "qemu-img", 0,
 		"convert", "-f", srcFormat, "-O", "qcow2", diskPath, tmpPath)
 	if convertResult.Error != nil {
 		_ = os.Remove(tmpPath)
@@ -338,7 +341,8 @@ func ExportTemplate(ctx context.Context, params *ExportTemplateParams, progressF
 		} else if srcFormat != "" {
 			// 非 qcow2 源模板，转换为 qcow2 再导出
 			progressFn(15+(i*60/maxInt(len(manifest.Nodes), 1)), fmt.Sprintf("正在转换节点 %s 为 qcow2 ...", node.Meta.AdminName))
-			convertResult := utils.ExecCommandContextWithTimeout(ctx, "qemu-img", templateCopyTimeout,
+			// 磁盘格式转换属于大 IO 操作，不设置自动超时，仅响应任务取消
+			convertResult := utils.ExecCommandContextWithTimeout(ctx, "qemu-img", 0,
 				"convert", "-f", srcFormat, "-O", "qcow2", srcTemplatePath, srcStagePath)
 			if convertResult.Error != nil {
 				return nil, fmt.Errorf("导出节点 %s 时转换 qcow2 失败: %s", node.Meta.AdminName, convertResult.Stderr)
@@ -378,7 +382,8 @@ func ExportTemplate(ctx context.Context, params *ExportTemplateParams, progressF
 	exportPath := filepath.Join(exportDir, exportFileName)
 	tempExportPath := buildTempExportPath(exportPath)
 	progressFn(82, "正在压缩模板导出包...")
-	result := utils.ExecCommandContextWithTimeout(ctx, "tar", templateCopyTimeout, "-czf", tempExportPath, "-C", stageDir, ".")
+	// 压缩打包属于大 IO 操作，不设置自动超时，仅响应任务取消
+	result := utils.ExecCommandContextWithTimeout(ctx, "tar", 0, "-czf", tempExportPath, "-C", stageDir, ".")
 	if result.Error != nil {
 		_ = os.Remove(tempExportPath)
 		return nil, fmt.Errorf("压缩模板导出包失败: %s", result.Stderr)
@@ -407,7 +412,8 @@ func readTemplatePackageManifest(ctx context.Context, archivePath string) (*Temp
 	if err != nil {
 		return nil, "", fmt.Errorf("创建预览目录失败: %w", err)
 	}
-	result := utils.ExecCommandContextWithTimeout(ctx, "tar", templateCopyTimeout, getTarArgsForExtract(archivePath, extractDir)...)
+	// 解压模板包属于大 IO 操作，不设置自动超时，仅响应任务取消
+	result := utils.ExecCommandContextWithTimeout(ctx, "tar", 0, getTarArgsForExtract(archivePath, extractDir)...)
 	if result.Error != nil {
 		_ = os.RemoveAll(extractDir)
 		return nil, "", fmt.Errorf("解压模板包失败: %s", result.Stderr)

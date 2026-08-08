@@ -39,7 +39,8 @@ func PrepareTemplate(params *PrepareTemplateParams, progressFn func(int, string)
 	if _, err := os.Stat(destPath); err == nil {
 		return fmt.Errorf("模板已存在: %s", params.TemplateName)
 	}
-	result := utils.ExecCommandLongRunning("cp", "--sparse=always", diskInfo.Path, destPath)
+	// 制作模板复制磁盘属于大 IO 操作，不设置自动超时
+	result := utils.ExecCommandNoTimeout("cp", "--sparse=always", diskInfo.Path, destPath)
 	if result.Error != nil {
 		return fmt.Errorf("复制磁盘失败: %s", result.Stderr)
 	}

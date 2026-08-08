@@ -205,7 +205,8 @@ func CloneVM(ctx context.Context, params *CloneParams, progressFn func(int, stri
 			convertCmd = fmt.Sprintf("qemu-img convert -f %s -O qcow2 %s %s",
 				templateFormat, utils.ShellSingleQuote(templatePath), utils.ShellSingleQuote(cloneDisk))
 		}
-		result := utils.ExecShellWithTimeout(convertCmd, 2*time.Hour)
+		// 完整克隆需要复制整个磁盘数据，属于大 IO 操作，不设置自动超时，仅响应任务取消
+		result := utils.ExecShellContext(ctx, convertCmd)
 		if result.Error != nil {
 			return nil, fmt.Errorf("创建完整克隆磁盘失败: %s", result.Stderr)
 		}

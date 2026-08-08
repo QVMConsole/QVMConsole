@@ -453,9 +453,9 @@ func rebaseQcow2BackingToParent(diskPath, oldParentPath, newParentPath string) e
 	if err := ensureDiskCanLeaveOldBacking(diskPath, oldParentPath); err != nil {
 		return err
 	}
-	result := utils.ExecCommandWithTimeout(
+	// qemu-img rebase 需要读写大量磁盘数据，不设置自动超时，仅依赖调用方的取消信号
+	result := utils.ExecCommandNoTimeout(
 		"qemu-img",
-		6*time.Hour,
 		"rebase",
 		"-f", "qcow2",
 		"-F", "qcow2",
@@ -631,7 +631,7 @@ func pivotRunningVMToTemplateBacking(vmName, backingPath string) error {
 		return err
 	}
 	createCmd := "qemu-img create -f qcow2 -F qcow2 -b " + utils.ShellSingleQuote(backingPath) + " " + utils.ShellSingleQuote(targetPath) + " " + strconv.FormatInt(chain[0].VirtualSize, 10)
-	createResult := utils.ExecShellContextWithTimeout(context.Background(), createCmd, 10*time.Minute)
+	createResult := utils.ExecShellNoTimeout(createCmd)
 	if createResult.Error != nil {
 		return fmt.Errorf("创建热切换目标 overlay 失败: %s", HookFirstNonEmpty(createResult.Stderr, createResult.Error.Error()))
 	}
@@ -644,7 +644,8 @@ func pivotRunningVMToTemplateBacking(vmName, backingPath string) error {
 		"--format qcow2",
 		"--wait --verbose --pivot --transient-job --shallow --reuse-external",
 	}, " ")
-	result := utils.ExecShellContextWithTimeout(context.Background(), cmd, 8*time.Hour)
+	// virsh blockcopy 会复制整块磁盘数据，属于大 IO 操作，不设置自动超时
+	result := utils.ExecShellNoTimeout(cmd)
 	if result.Error != nil {
 		_ = utils.ExecCommand("virsh", "blockjob", vmName, diskInfo.Device, "--abort", "--async")
 		_ = os.Remove(targetPath)
@@ -667,7 +668,8 @@ func blockPullRunningVMToBase(vmName, device, diskPath, basePath string) error {
 		"--base", utils.ShellSingleQuote(basePath),
 		"--wait --verbose",
 	}, " ")
-	result := utils.ExecShellContextWithTimeout(context.Background(), cmd, 8*time.Hour)
+	// virsh blockpull 会复制整块磁盘数据，属于大 IO 操作，不设置自动超时
+	result := utils.ExecShellNoTimeout(cmd)
 	if result.Error != nil {
 		return fmt.Errorf("运行中 VM 在线拉平到上级模板失败: %s", HookFirstNonEmpty(result.Stderr, result.Error.Error()))
 	}

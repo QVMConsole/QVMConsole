@@ -77,7 +77,8 @@ func FormatAndMountStoragePool(ctx context.Context, id string, fstype string, pr
 	mkfsCmd := "mkfs." + fstype
 	mkfsArgs := buildMkfsArgs(fstype, devicePath)
 	progress(30, fmt.Sprintf("正在格式化为 %s...", fstype))
-	mkfs := utils.ExecCommandContextWithTimeout(ctx, mkfsCmd, 10*time.Minute, mkfsArgs...)
+	// 格式化大容量硬盘属于 IO 操作，不设置自动超时
+	mkfs := utils.ExecCommandContextWithTimeout(ctx, mkfsCmd, 0, mkfsArgs...)
 	if mkfs.Error != nil {
 		return fmt.Errorf("格式化硬盘失败: %s", mkfs.Stderr)
 	}

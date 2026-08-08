@@ -99,7 +99,8 @@ echo __FILESYSTEMS__
 list-filesystems
 GUESTFISH`, utils.ShellSingleQuote(diskPath), device, device, device, device)
 
-	result := utils.ExecShellWithTimeout(script, 2*time.Minute)
+	// guestfish 检测磁盘属于 IO 操作，不设置自动超时
+	result := utils.ExecShellNoTimeout(script)
 	if result.Error != nil {
 		return nil, fmt.Errorf("%s", result.Stderr)
 	}
@@ -116,7 +117,8 @@ GUESTFISH`, utils.ShellSingleQuote(diskPath), device, device, device, device)
 	}
 
 	metaScript := buildGuestfishPartitionMetaScript(diskPath, device, layout.Partitions)
-	metaResult := utils.ExecShellWithTimeout(metaScript, 2*time.Minute)
+	// guestfish 检测磁盘属于 IO 操作，不设置自动超时
+	metaResult := utils.ExecShellNoTimeout(metaScript)
 	if metaResult.Error != nil {
 		return nil, fmt.Errorf("%s", metaResult.Stderr)
 	}
@@ -392,11 +394,10 @@ func runWritableGuestfish(ctx context.Context, diskPath string, commands []strin
 		commands,
 		cleanupPaths,
 		"Windows 磁盘扩容",
-		"Windows 磁盘扩容超时，请确认模板已正常关机且 NTFS 文件系统无错误",
 	)
 }
 
-func runWritableGuestfishOperation(ctx context.Context, diskPath string, commands []string, cleanupPaths []string, operationName, timeoutMessage string) error {
+func runWritableGuestfishOperation(ctx context.Context, diskPath string, commands []string, cleanupPaths []string, operationName string) error {
 	var b strings.Builder
 	b.WriteString("set +e\n")
 	b.WriteString(fmt.Sprintf("guestfish -a %s <<'GUESTFISH'\n", utils.ShellSingleQuote(diskPath)))
@@ -411,16 +412,14 @@ func runWritableGuestfishOperation(ctx context.Context, diskPath string, command
 	}
 	b.WriteString("exit $guestfish_status\n")
 
-	result := utils.ExecShellContextWithTimeout(ctx, b.String(), 10*time.Minute)
+	// guestfish 磁盘扩容属于大 IO 操作，不设置自动超时，仅响应任务取消
+	result := utils.ExecShellContext(ctx, b.String())
 	if result.Error != nil {
 		for _, cleanupPath := range cleanupPaths {
 			_ = os.Remove(cleanupPath)
 		}
 		if ctx != nil && ctx.Err() != nil {
 			return fmt.Errorf("%s已取消", operationName)
-		}
-		if strings.TrimSpace(result.Stderr) == "命令执行超时" {
-			return fmt.Errorf("%s", timeoutMessage)
 		}
 		return fmt.Errorf("%s", result.Stderr)
 	}

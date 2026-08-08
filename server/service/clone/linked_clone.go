@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"kvm_console/config"
 	"kvm_console/logger"
@@ -180,7 +179,8 @@ func LinkedCloneVM(ctx context.Context, params *LinkedCloneParams, progressFn fu
 			convertCmd = fmt.Sprintf("qemu-img convert -f qcow2 -O qcow2 %s %s",
 				utils.ShellSingleQuote(templatePath), utils.ShellSingleQuote(cloneDisk))
 		}
-		result := utils.ExecShellWithTimeout(convertCmd, 2*time.Hour)
+		// 完整克隆需要复制整个磁盘数据，属于大 IO 操作，不设置自动超时，仅响应任务取消
+		result := utils.ExecShellContext(ctx, convertCmd)
 		if result.Error != nil {
 			return nil, fmt.Errorf("创建完整克隆磁盘失败: %s", result.Stderr)
 		}
