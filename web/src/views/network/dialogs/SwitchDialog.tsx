@@ -75,7 +75,7 @@ function SecuritySwitchRow({
           <div className="qvm-form-tip">{tip}</div>
         </div>
         <div className="net-switch-control">
-          <Switch checked={checked} onChange={onChange} size="small" checkedText="允" uncheckedText="拒" />
+          <Switch checked={checked} onChange={onChange} checkedText="允" uncheckedText="拒" />
         </div>
       </div>
     </div>
