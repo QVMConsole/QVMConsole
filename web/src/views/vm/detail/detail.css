@@ -634,6 +634,31 @@ body[theme-mode='dark'] .qvm-action-item.lock {
   align-items: center;
   gap: 6px;
 }
+.qvm-ip-empty {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--qvm-text-2);
+}
+.qvm-ip-detail {
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  color: var(--qvm-text-1);
+  font-size: 12px;
+  line-height: 1.65;
+}
+.qvm-ip-detail-link {
+  color: var(--qvm-acc-ink);
+  text-decoration: none;
+}
+.qvm-ip-detail-link:hover {
+  text-decoration: underline;
+}
+body[theme-mode='dark'] .qvm-ip-detail {
+  color: #b8c1cf;
+}
 
 .qvm-remark-text {
   max-width: 260px;
