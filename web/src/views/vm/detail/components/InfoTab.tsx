@@ -1,9 +1,9 @@
 /**
  * 系统信息 Tab（详情页默认标签）
  * - 基本配置 / 登录凭证 / 网络与连接 / 高级设置 / 磁盘 IOPS 限制
- * - 挂载后自加载：PCIe 热插槽用量、磁盘 IOPS 列表、全部网口 IP
+ * - 由详情 SSE 持续同步：PCIe 热插槽用量、磁盘 IOPS 列表、全部网口 IP
  */
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Popover, Spin, Tag, Toast, Tooltip } from '@douyinfe/semi-ui'
 import { IconBolt, IconCopy, IconEyeClosedSolid, IconEyeOpened, IconInfoCircle, IconRefresh } from '@douyinfe/semi-icons'
 import type { VmDetailInfo, VmDiskItem, VmNetworkIPAddress, VmNetworkInterface, VmPCIEInfo } from '@/api/vm'
@@ -20,6 +20,8 @@ import {
 interface InfoTabProps {
   vm: VmDetailInfo | null
   isLightweight: boolean
+  live: boolean
+  liveTick: number
   onResetPassword: () => void
   onReinstall: () => void
   onRemark: () => void
@@ -66,7 +68,15 @@ function EmptyIPDetail({ status }: { status: VmDetailInfo['guest_agent_status'] 
   return <div className="qvm-ip-detail">暂时未获取到 QEMU Guest Agent 状态，请稍后刷新详情。</div>
 }
 
-export default function InfoTab({ vm, isLightweight, onResetPassword, onReinstall, onRemark }: InfoTabProps) {
+export default function InfoTab({
+  vm,
+  isLightweight,
+  live,
+  liveTick,
+  onResetPassword,
+  onReinstall,
+  onRemark,
+}: InfoTabProps) {
   const [pcieInfo, setPcieInfo] = useState<VmPCIEInfo | null>(null)
   const [disks, setDisks] = useState<VmDiskItem[]>([])
   const [disksLoading, setDisksLoading] = useState(false)
@@ -75,6 +85,8 @@ export default function InfoTab({ vm, isLightweight, onResetPassword, onReinstal
   const [credentialPasswordVisible, setCredentialPasswordVisible] = useState(false)
   const [guestAgentEnableLoading, setGuestAgentEnableLoading] = useState(false)
   const [guestAgentEnableRequested, setGuestAgentEnableRequested] = useState(false)
+  const supplementalRequestRef = useRef(0)
+  const supplementalLoadedRef = useRef(false)
 
   const vmName = vm?.name || ''
   const canResetPassword = canResetVmPassword(vm)
@@ -103,65 +115,72 @@ export default function InfoTab({ vm, isLightweight, onResetPassword, onReinstal
     setCredentialPasswordVisible(false)
   }, [vmName, vm?.credential?.password])
 
-  // 加载 PCIe 热插槽信息
+  // SSE 每次推送后同步详情页附属配置；后台更新不切换 loading，避免卡片闪烁。
   useEffect(() => {
-    if (!vmName) return
-    let cancelled = false
-    getVmPCIEInfo(vmName)
-      .then((res) => !cancelled && setPcieInfo(res.data || null))
-      .catch(() => !cancelled && setPcieInfo(null))
-    return () => {
-      cancelled = true
-    }
-  }, [vmName])
+    if (!vmName || !live) return
+    const requestId = ++supplementalRequestRef.current
+    const showLoading = !supplementalLoadedRef.current && !isLightweight
+    if (showLoading) setDisksLoading(true)
 
-  // 加载磁盘 IOPS 列表
-  const loadDisks = useCallback(async () => {
-    if (!vmName || isLightweight) return
-    setDisksLoading(true)
-    try {
-      const res = await getDiskList(vmName)
-      setDisks((res.data || []).filter((d) => d.device_type !== 'cdrom'))
-    } catch {
-      setDisks([])
-    } finally {
-      setDisksLoading(false)
-    }
-  }, [vmName, isLightweight])
+    const tasks: Promise<void>[] = [
+      getVmPCIEInfo(vmName)
+        .then((res) => {
+          if (requestId === supplementalRequestRef.current) setPcieInfo(res.data || null)
+        })
+        .catch(() => {
+          if (requestId === supplementalRequestRef.current && showLoading) setPcieInfo(null)
+        }),
+      getVMNetworkStatus(vmName)
+        .then((res) => {
+          if (requestId !== supplementalRequestRef.current) return
+          const ifaces: VmNetworkInterface[] = res.data?.interfaces || []
+          setNetworkInterfaceCount(ifaces.length)
+          const seen = new Set<string>()
+          setInterfaceIPs(
+            ifaces
+              .flatMap((item) => {
+                const addresses = item.ip_addresses?.length
+                  ? item.ip_addresses
+                  : item.ip
+                    ? [{ address: item.ip, source: item.ip_source }]
+                    : []
+                return addresses.filter((address) => address.address && address.address !== '0.0.0.0')
+              })
+              .filter((item) => {
+                if (seen.has(item.address)) return false
+                seen.add(item.address)
+                return true
+              }),
+          )
+        })
+        .catch(() => {
+          if (requestId === supplementalRequestRef.current && showLoading) setInterfaceIPs([])
+        }),
+    ]
 
-  // 加载全部网口 IP
-  useEffect(() => {
-    if (!vmName) return
-    let cancelled = false
-    setNetworkInterfaceCount(0)
-    setInterfaceIPs([])
-    getVMNetworkStatus(vmName)
-      .then((res) => {
-        if (cancelled) return
-        const ifaces: VmNetworkInterface[] = res.data?.interfaces || []
-        setNetworkInterfaceCount(ifaces.length)
-        const seen = new Set<string>()
-        const ips = ifaces
-          .flatMap((item) => {
-            const addresses = item.ip_addresses?.length
-              ? item.ip_addresses
-              : item.ip
-                ? [{ address: item.ip, source: item.ip_source }]
-                : []
-            return addresses.filter((address) => address.address && address.address !== '0.0.0.0')
+    if (!isLightweight) {
+      tasks.push(
+        getDiskList(vmName)
+          .then((res) => {
+            if (requestId === supplementalRequestRef.current) {
+              setDisks((res.data || []).filter((disk) => disk.device_type !== 'cdrom'))
+            }
           })
-          .filter((item) => {
-            if (seen.has(item.address)) return false
-            seen.add(item.address)
-            return true
-          })
-        setInterfaceIPs(ips)
-      })
-      .catch(() => !cancelled && setInterfaceIPs([]))
-    return () => {
-      cancelled = true
+          .catch(() => {
+            if (requestId === supplementalRequestRef.current && showLoading) setDisks([])
+          }),
+      )
     }
-  }, [vmName])
+
+    void Promise.allSettled(tasks).finally(() => {
+      if (requestId !== supplementalRequestRef.current) return
+      supplementalLoadedRef.current = true
+      if (showLoading) setDisksLoading(false)
+    })
+    return () => {
+      if (requestId === supplementalRequestRef.current) supplementalRequestRef.current += 1
+    }
+  }, [vmName, isLightweight, live, liveTick])
 
   const handleEnableGuestAgent = useCallback(async () => {
     if (!vmName || guestAgentStatus?.configured || guestAgentEnableLoading) return
@@ -176,10 +195,6 @@ export default function InfoTab({ vm, isLightweight, onResetPassword, onReinstal
       setGuestAgentEnableLoading(false)
     }
   }, [guestAgentEnableLoading, guestAgentStatus?.configured, vmName])
-
-  useEffect(() => {
-    void loadDisks()
-  }, [loadDisks])
 
   const copyField = useCallback(async (value: string, fieldName: string) => {
     if (!value) {
@@ -479,17 +494,7 @@ export default function InfoTab({ vm, isLightweight, onResetPassword, onReinstal
       {/* 磁盘 IOPS 限制 */}
       {!isLightweight && (
         <div className="qvm-info-card">
-          <div className="qvm-info-card-title">
-            磁盘 IOPS 限制
-            <Button
-              size="small"
-              theme="borderless"
-              icon={<IconRefresh size="small" spin={disksLoading} />}
-              onClick={() => void loadDisks()}
-            >
-              刷新
-            </Button>
-          </div>
+          <div className="qvm-info-card-title">磁盘 IOPS 限制</div>
           {disksLoading ? (
             <div className="qvm-tab-loading"><Spin /></div>
           ) : disks.length > 0 ? (

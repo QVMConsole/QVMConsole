@@ -8,8 +8,10 @@ import EditVmForm from '@/features/vm-form/EditVmForm'
 
 interface EditTabProps {
   vm: VmDetailInfo
+  live: boolean
+  liveTick: number
 }
 
-export default function EditTab({ vm }: EditTabProps) {
-  return <EditVmForm vmName={vm.name} vmStatus={vm.status} />
+export default function EditTab({ vm, live, liveTick }: EditTabProps) {
+  return <EditVmForm vm={vm} live={live} liveTick={liveTick} />
 }

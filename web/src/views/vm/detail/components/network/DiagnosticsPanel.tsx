@@ -35,6 +35,8 @@ import type { NetworkSharedData } from './NetworkTab'
 interface DiagnosticsPanelProps {
   vmName: string
   shared: NetworkSharedData
+  live: boolean
+  liveTick: number
 }
 
 interface CaptureFormState {
@@ -100,7 +102,7 @@ function formatFileSize(value?: number): string {
   return `${(size / 1024 / 1024).toFixed(2)} MB`
 }
 
-export default function DiagnosticsPanel({ vmName }: DiagnosticsPanelProps) {
+export default function DiagnosticsPanel({ vmName, live, liveTick }: DiagnosticsPanelProps) {
   const [diagnostics, setDiagnostics] = useState<VmNetworkDiagnostics | null>(null)
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState<CaptureFormState>(INITIAL_CAPTURE_FORM)
@@ -108,26 +110,35 @@ export default function DiagnosticsPanel({ vmName }: DiagnosticsPanelProps) {
   const [taskId, setTaskId] = useState<number | null>(null)
   const [session, setSession] = useState<NetworkCaptureSession | null>(null)
   const pollTimerRef = useRef<number | null>(null)
+  const defaultInterfaceInitializedRef = useRef(false)
+
+  useEffect(() => {
+    defaultInterfaceInitializedRef.current = false
+  }, [vmName])
 
   // ============ 诊断信息 ============
-  const fetchDiagnostics = useCallback(async () => {
-    setLoading(true)
+  const fetchDiagnostics = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
     try {
       const res = await getVMNetworkDiagnostics(vmName)
       setDiagnostics(res.data || null)
-      setForm((f) =>
-        f.interface_name ? f : { ...f, interface_name: res.data?.default_interface || '' },
-      )
+      if (!defaultInterfaceInitializedRef.current) {
+        defaultInterfaceInitializedRef.current = true
+        setForm((current) => ({
+          ...current,
+          interface_name: current.interface_name || res.data?.default_interface || '',
+        }))
+      }
     } catch {
-      setDiagnostics(null)
+      if (!silent) setDiagnostics(null)
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [vmName])
 
   useEffect(() => {
-    void fetchDiagnostics()
-  }, [fetchDiagnostics])
+    if (live) void fetchDiagnostics(liveTick > 0)
+  }, [fetchDiagnostics, live, liveTick])
 
   // ============ 抓包会话轮询 ============
   const stopPolling = useCallback(() => {

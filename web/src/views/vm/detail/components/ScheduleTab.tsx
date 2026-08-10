@@ -34,6 +34,8 @@ import TextSwitch from '@/features/vm-form/sections/TextSwitch'
 
 interface ScheduleTabProps {
   vm: VmDetailInfo | null
+  live: boolean
+  liveTick: number
 }
 
 const WEEKDAY_OPTIONS = [
@@ -114,7 +116,7 @@ function formatDateTime(value?: string, tz?: string): string {
   return date.toLocaleString('zh-CN', options)
 }
 
-export default function ScheduleTab({ vm }: ScheduleTabProps) {
+export default function ScheduleTab({ vm, live, liveTick }: ScheduleTabProps) {
   const vmName = vm?.name || ''
   const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
 
@@ -126,20 +128,22 @@ export default function ScheduleTab({ vm }: ScheduleTabProps) {
   const [form, setForm] = useState<ScheduleFormState>(INITIAL_FORM)
   const [switchLoading, setSwitchLoading] = useState<Record<number, boolean>>({})
 
-  const fetchList = useCallback(async () => {
+  const fetchList = useCallback(async (silent = false) => {
     if (!vmName) return
-    setLoading(true)
+    if (!silent) setLoading(true)
     try {
       const res = await getVmSchedules(vmName)
       setList(Array.isArray(res.data) ? res.data : [])
+    } catch {
+      if (!silent) setList([])
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [vmName])
 
   useEffect(() => {
-    void fetchList()
-  }, [fetchList])
+    if (live) void fetchList(liveTick > 0)
+  }, [fetchList, live, liveTick])
 
   // 动作选项联动
   const actionOptions = useMemo(() => {

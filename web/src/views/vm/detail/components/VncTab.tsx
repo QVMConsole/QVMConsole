@@ -26,10 +26,12 @@ import { confirmModal } from '@/utils/confirm'
 
 interface VncTabProps {
   vm: VmDetailInfo | null
+  live: boolean
+  liveTick: number
   onOpenWindow: () => void
 }
 
-export default function VncTab({ vm, onOpenWindow }: VncTabProps) {
+export default function VncTab({ vm, live, liveTick, onOpenWindow }: VncTabProps) {
   const vmName = vm?.name || ''
   const running = vm?.status === 'running'
   const paused = vm?.status === 'paused'
@@ -46,22 +48,22 @@ export default function VncTab({ vm, onOpenWindow }: VncTabProps) {
   const [newPassword, setNewPassword] = useState('')
   const [pwdLoading, setPwdLoading] = useState(false)
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (silent = false) => {
     if (!vmName) return
-    setLoading(true)
+    if (!silent) setLoading(true)
     try {
       const res = await getVncStatus(vmName)
       setStatus(res.data || null)
     } catch {
-      setStatus(null)
+      if (!silent) setStatus(null)
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [vmName])
 
   useEffect(() => {
-    void refresh()
-  }, [refresh])
+    if (live) void refresh(liveTick > 0)
+  }, [refresh, live, liveTick])
 
   // ============ 开启 ============
   const handleEnable = async () => {

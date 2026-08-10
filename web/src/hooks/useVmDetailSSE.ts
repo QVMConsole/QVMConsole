@@ -23,6 +23,8 @@ export function useVmDetailSSE(vmName: string) {
   const token = useUserStore((s) => s.token)
   const [vmData, setVmData] = useState<VmDetailInfo | null>(null)
   const [sseStatus, setSseStatus] = useState<SseStatus>('connecting')
+  /** 每次收到有效详情事件时递增，供详情页各配置面板同步附属数据。 */
+  const [liveTick, setLiveTick] = useState(0)
   /** 状态变化信号（用于操作按钮 loading 复位） */
   const [statusTick, setStatusTick] = useState(0)
   const prevStatusRef = useRef<string>('')
@@ -77,6 +79,7 @@ export function useVmDetailSSE(vmName: string) {
           prevStatusRef.current = data.status
 
           setVmData(data)
+          setLiveTick((tick) => tick + 1)
           setSseStatus('connected')
         } catch (err) {
           console.error('解析 SSE 详情数据失败', err)
@@ -102,5 +105,5 @@ export function useVmDetailSSE(vmName: string) {
     }
   }, [vmName, token])
 
-  return { vmData, sseStatus, statusTick }
+  return { vmData, sseStatus, statusTick, liveTick }
 }

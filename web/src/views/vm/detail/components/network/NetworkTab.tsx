@@ -25,6 +25,8 @@ import DiagnosticsPanel from './DiagnosticsPanel'
 
 interface NetworkTabProps {
   vm: VmDetailInfo | null
+  live: boolean
+  liveTick: number
 }
 
 /** 共享数据（各子面板复用） */
@@ -48,7 +50,7 @@ export interface NetworkSharedData {
   refreshManualIPs: () => Promise<void>
 }
 
-export default function NetworkTab({ vm }: NetworkTabProps) {
+export default function NetworkTab({ vm, live, liveTick }: NetworkTabProps) {
   const role = useUserStore((s) => s.role)
   const cloudType = useUserStore((s) => s.cloudType)
   const isAdmin = role === ROLES.admin
@@ -114,6 +116,7 @@ export default function NetworkTab({ vm }: NetworkTabProps) {
   }, [vmName])
 
   useEffect(() => {
+    if (!live) return
     void refreshVPCBinding()
     void refreshSelfQuota()
     void refreshStaticIPs()
@@ -125,6 +128,8 @@ export default function NetworkTab({ vm }: NetworkTabProps) {
     refreshStaticIPs,
     refreshRuntimeStatus,
     refreshManualIPs,
+    live,
+    liveTick,
   ])
 
   // ============ 可见性计算 ============
@@ -200,7 +205,12 @@ export default function NetworkTab({ vm }: NetworkTabProps) {
       <Tabs activeKey={activeTab} onChange={setActiveTab} type="button" size="small" lazyRender>
         {portForwardTabVisible && (
           <TabPane itemKey="forward" tab="端口转发">
-            <PortForwardPanel vmName={vmName} shared={shared} />
+            <PortForwardPanel
+              vmName={vmName}
+              shared={shared}
+              live={live && activeTab === 'forward'}
+              liveTick={liveTick}
+            />
           </TabPane>
         )}
         {staticIpTabVisible && (
@@ -215,7 +225,12 @@ export default function NetworkTab({ vm }: NetworkTabProps) {
         )}
         {isAdmin && (
           <TabPane itemKey="diagnostics" tab="网络诊断">
-            <DiagnosticsPanel vmName={vmName} shared={shared} />
+            <DiagnosticsPanel
+              vmName={vmName}
+              shared={shared}
+              live={live && activeTab === 'diagnostics'}
+              liveTick={liveTick}
+            />
           </TabPane>
         )}
       </Tabs>

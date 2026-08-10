@@ -3,7 +3,7 @@
  * 主网口 VPC 绑定切换（交换机/安全组）+ 多网口列表（增删改，仅管理员）。
  * 轻量云用户禁止切换（VPC 由管理员分配）。
  */
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Banner, Button, Modal, Select, Table, Tag, Toast } from '@douyinfe/semi-ui'
 import { IconGlobe, IconPlus, IconRefresh } from '@douyinfe/semi-icons'
 import {
@@ -30,9 +30,11 @@ import NicEditDialog from '../dialogs/NicEditDialog'
 interface NicManageSectionProps {
   vmName: string
   vmStatus: string
+  live: boolean
+  liveTick: number
 }
 
-export default function NicManageSection({ vmName, vmStatus }: NicManageSectionProps) {
+export default function NicManageSection({ vmName, vmStatus, live, liveTick }: NicManageSectionProps) {
   const { options } = useVmFormScope()
   const role = useUserStore((s) => s.role)
   const username = useUserStore((s) => s.username)
@@ -51,6 +53,7 @@ export default function NicManageSection({ vmName, vmStatus }: NicManageSectionP
     open: false,
     editing: null,
   })
+  const bindingSignatureRef = useRef('')
 
   const ownerUsername = useMemo(
     () => vpcInfo?.owner_username || vpcInfo?.binding?.username || username || '',
@@ -67,17 +70,25 @@ export default function NicManageSection({ vmName, vmStatus }: NicManageSectionP
 
   // ==================== 数据加载 ====================
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (silent = false) => {
     if (!vmName) return
-    setLoading(true)
+    if (!silent) setLoading(true)
     try {
       const res = await getVMVPCBinding(vmName)
       const info = res.data || {}
       setVpcInfo(info)
       await options.loadVPCOptions()
-      // 主绑定表单回填
-      setBindSwitchId(info.binding?.switch_id || info.switch?.id || null)
-      setBindGroupId(info.binding?.security_group_id || info.security_group?.id || null)
+      // 服务端绑定确实变化时才回填，避免 SSE 心跳覆盖用户尚未保存的选择。
+      const bindingSignature = JSON.stringify({
+        binding: info.binding || null,
+        switch: info.switch || null,
+        securityGroup: info.security_group || null,
+      })
+      if (bindingSignatureRef.current !== bindingSignature) {
+        bindingSignatureRef.current = bindingSignature
+        setBindSwitchId(info.binding?.switch_id || info.switch?.id || null)
+        setBindGroupId(info.binding?.security_group_id || info.security_group?.id || null)
+      }
       // 多网口列表：管理员走专用接口；普通用户由 bindings 构建
       if (isAdmin) {
         try {
@@ -106,14 +117,14 @@ export default function NicManageSection({ vmName, vmStatus }: NicManageSectionP
         setRuntimeStatus(null)
       }
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vmName, isAdmin])
 
   useEffect(() => {
-    void refresh()
-  }, [refresh])
+    if (live) void refresh(liveTick > 0)
+  }, [refresh, live, liveTick])
 
   // ==================== 主网口 VPC 绑定 ====================
 

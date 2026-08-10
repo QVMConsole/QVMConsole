@@ -21,9 +21,11 @@ import { confirmModal } from '@/utils/confirm'
 
 interface SpiceTabProps {
   vm: VmDetailInfo | null
+  live: boolean
+  liveTick: number
 }
 
-export default function SpiceTab({ vm }: SpiceTabProps) {
+export default function SpiceTab({ vm, live, liveTick }: SpiceTabProps) {
   const vmName = vm?.name || ''
   const connReady = vm?.status === 'running' || vm?.status === 'paused'
 
@@ -34,30 +36,31 @@ export default function SpiceTab({ vm }: SpiceTabProps) {
   const [newPassword, setNewPassword] = useState('')
   const [pwdLoading, setPwdLoading] = useState(false)
 
-  const refreshStatus = useCallback(async () => {
+  const refreshStatus = useCallback(async (silent = false) => {
     if (!vmName) return
     try {
       const res = await getSpiceStatus(vmName)
       setStatus(res.data || null)
     } catch {
-      setStatus(null)
+      if (!silent) setStatus(null)
     }
   }, [vmName])
 
-  const refreshConnInfo = useCallback(async () => {
+  const refreshConnInfo = useCallback(async (silent = false) => {
     if (!vmName) return
     try {
       const res = await getSpiceConnInfo(vmName)
       setConnInfo(res.data || null)
     } catch {
-      setConnInfo(null)
+      if (!silent) setConnInfo(null)
     }
   }, [vmName])
 
   useEffect(() => {
-    void refreshStatus()
-    void refreshConnInfo()
-  }, [refreshStatus, refreshConnInfo])
+    if (!live) return
+    void refreshStatus(liveTick > 0)
+    void refreshConnInfo(liveTick > 0)
+  }, [refreshStatus, refreshConnInfo, live, liveTick])
 
   // ============ 开启 / 关闭 ============
   const handleEnable = async () => {

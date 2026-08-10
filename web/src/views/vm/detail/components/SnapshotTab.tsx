@@ -30,6 +30,8 @@ import { confirmModal } from '@/utils/confirm'
 
 interface SnapshotTabProps {
   vm: VmDetailInfo | null
+  live: boolean
+  liveTick: number
   onQuotaChange?: (quota: SnapshotQuota | null) => void
 }
 
@@ -44,7 +46,7 @@ function stateLabel(state: string): string {
   return map[state] || state
 }
 
-export default function SnapshotTab({ vm, onQuotaChange }: SnapshotTabProps) {
+export default function SnapshotTab({ vm, live, liveTick, onQuotaChange }: SnapshotTabProps) {
   const vmName = vm?.name || ''
   const vmIsRunning = vm?.status === 'running'
 
@@ -65,9 +67,9 @@ export default function SnapshotTab({ vm, onQuotaChange }: SnapshotTabProps) {
     return max > 0 ? `快照配额：${used} / ${max}` : `快照配额：已用 ${used} / 不限`
   }, [quota])
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (silent = false) => {
     if (!vmName) return
-    setLoading(true)
+    if (!silent) setLoading(true)
     try {
       const res = await getSnapshots(vmName)
       setList(res.data || [])
@@ -75,16 +77,18 @@ export default function SnapshotTab({ vm, onQuotaChange }: SnapshotTabProps) {
       setQuota(q)
       onQuotaChange?.(q)
     } catch {
-      setQuota(null)
-      onQuotaChange?.(null)
+      if (!silent) {
+        setQuota(null)
+        onQuotaChange?.(null)
+      }
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [vmName, onQuotaChange])
 
   useEffect(() => {
-    void fetchData()
-  }, [fetchData])
+    if (live) void fetchData(liveTick > 0)
+  }, [fetchData, live, liveTick])
 
   // ============ 创建 ============
   const openCreate = () => {

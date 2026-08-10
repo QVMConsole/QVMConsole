@@ -40,7 +40,7 @@ export function useVmEditDevices(vmName: string) {
   const [editBootDevices, setEditBootDevices] = useState<EditBootDevice[]>([])
 
   /** 刷新磁盘列表（分离普通磁盘 / 光驱 / 软盘），返回普通磁盘供快照 */
-  const refreshEditDisks = useCallback(async (): Promise<VmDiskItem[]> => {
+  const refreshEditDisks = useCallback(async (throwOnError = false): Promise<VmDiskItem[]> => {
     if (!vmName) return []
     try {
       const res = await getDiskList(vmName)
@@ -63,9 +63,27 @@ export function useVmEditDevices(vmName: string) {
       }
       setEditCdroms(cdroms)
       setEditFloppys(floppys)
-      setEditDisks(normalDisks)
+      // SSE 后台同步时保留尚未点击“保存修改”的本地 IOPS 草稿。
+      setEditDisks((current) =>
+        normalDisks.map((disk) => {
+          const pending = current.find((item) => item.device === disk.device) as
+            | (VmDiskItem & { _iops_total?: number; _iops_read?: number; _iops_write?: number })
+            | undefined
+          if (!pending || pending._iops_total === undefined) return disk
+          return {
+            ...disk,
+            _iops_total: pending._iops_total,
+            _iops_read: pending._iops_read,
+            _iops_write: pending._iops_write,
+            iops_total: { value: pending._iops_total, is_set: pending._iops_total > 0 },
+            iops_read: { value: pending._iops_read || 0, is_set: (pending._iops_read || 0) > 0 },
+            iops_write: { value: pending._iops_write || 0, is_set: (pending._iops_write || 0) > 0 },
+          }
+        }),
+      )
       return normalDisks
-    } catch {
+    } catch (error) {
+      if (throwOnError) throw error
       return []
     }
   }, [vmName])

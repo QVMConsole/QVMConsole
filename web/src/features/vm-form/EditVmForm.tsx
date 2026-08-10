@@ -52,9 +52,10 @@ import VmXmlDialog from './dialogs/VmXmlDialog'
 import './vm-form.css'
 
 interface EditVmFormProps {
-  vmName: string
-  /** 虚拟机实时状态（来自详情页 SSE） */
-  vmStatus: string
+  /** 详情页 SSE 推送的最新虚拟机配置。 */
+  vm: VmDetailInfo
+  live: boolean
+  liveTick: number
   /** 保存成功后回调（详情页用于刷新） */
   onSaved?: () => void
 }
@@ -65,7 +66,9 @@ const NOOP_REGISTRATION = {
   dedicated_vpc_label: '',
 }
 
-export default function EditVmForm({ vmName, vmStatus, onSaved }: EditVmFormProps) {
+export default function EditVmForm({ vm, live, liveTick, onSaved }: EditVmFormProps) {
+  const vmName = vm.name
+  const vmStatus = vm.status
   const role = useUserStore((s) => s.role)
   const isAdmin = role === ROLES.admin
   const options = useVmFormOptions({ isAdmin })
@@ -90,21 +93,18 @@ export default function EditVmForm({ vmName, vmStatus, onSaved }: EditVmFormProp
   const [loadedStatus, setLoadedStatus] = useState(vmStatus)
   const [loadedGuestType, setLoadedGuestType] = useState('')
   const [guestAgentConnected, setGuestAgentConnected] = useState(false)
+  /** 最近一次服务端配置签名；资源统计变化不会重置用户正在编辑的字段。 */
+  const serverConfigSignatureRef = useRef('')
 
   // ==================== 详情加载 ====================
-  const loadDetail = useCallback(async () => {
+  const loadDetail = useCallback(async (silent = false, forceHTTP = false) => {
     if (!vmName) return
-    setLoading(true)
+    if (!silent) setLoading(true)
     try {
       const base = await options.ensureBaseLoaded()
-      const res = await getVmDetail(vmName)
-      const detail: Partial<VmDetailInfo> = res.data || {}
-      // 由默认值 + 详情同步构建完整表单（避免 setState 时序差导致快照失真）
-      const initialForm = {
-        ...createDefaultVmForm({ hostArch: base.hostArch }),
-        name: detail.name || vmName,
-        vcpu: detail.vcpu || 1,
-      }
+      const detail: Partial<VmDetailInfo> = forceHTTP
+        ? (await getVmDetail(vmName)).data || {}
+        : vm
       // 引导设备（启用优先，按 order 排序）
       let bootDevices: typeof devices.editBootDevices = []
       if (detail.boot_devices && detail.boot_devices.length > 0) {
@@ -115,15 +115,17 @@ export default function EditVmForm({ vmName, vmStatus, onSaved }: EditVmFormProp
           return 0
         })
       }
-      devices.setEditBootDevices(bootDevices)
       // 直通设备（仅管理员，异步加载不阻塞快照）
       let hostDevices: { pci_address: string }[] = []
       if (isAdmin) {
         try {
           const passRes = await getVmPassthroughDevices(vmName)
-          hostDevices = (passRes.data || []).map((d) => ({ pci_address: d.pci_address }))
+          hostDevices = (passRes.data || [])
+            .map((d) => ({ pci_address: d.pci_address }))
+            .sort((a, b) => a.pci_address.localeCompare(b.pci_address))
           void options.loadPassthroughDevices()
         } catch {
+          if (serverConfigSignatureRef.current) return
           hostDevices = []
         }
       }
@@ -133,39 +135,113 @@ export default function EditVmForm({ vmName, vmStatus, onSaved }: EditVmFormProp
         const spiceRes = await getSpiceStatus(vmName)
         spiceEnabled = !!spiceRes?.data?.enabled
       } catch {
+        if (serverConfigSignatureRef.current) return
         spiceEnabled = false
       }
-      // 一次性构建并替换表单
+      const normalDisks = await devices.refreshEditDisks(true)
+      setLoadedStatus(detail.status || vmStatus)
+      setGuestAgentConnected(!!detail.guest_agent_status?.connected)
+      form.patch({
+        memory_virtio_mem_current: Math.max(
+          0,
+          Math.round(Number(detail.memory_virtio_mem_current || 0) / 1024),
+        ),
+        memory_balloon_supported: !!detail.memory_balloon_supported,
+        memory_balloon_status: detail.memory_balloon_status || 'not_running',
+      })
+
+      const detailConfig = {
+        name: detail.name,
+        vcpu: detail.vcpu,
+        memory: detail.memory_dynamic_enabled ? undefined : detail.memory,
+        max_memory: detail.max_memory,
+        autostart: detail.autostart,
+        freeze: detail.freeze,
+        apic: detail.apic,
+        pae: detail.pae,
+        rtc_offset: detail.rtc_offset,
+        rtc_startdate: detail.rtc_startdate,
+        os_type: detail.os_type,
+        guest_agent: detail.guest_agent,
+        smbios1: detail.smbios1,
+        memory_dynamic_enabled: detail.memory_dynamic_enabled,
+        memory_backend: detail.memory_backend,
+        memory_initial: detail.memory_initial,
+        memory_min: detail.memory_min,
+        memory_max_dynamic: detail.memory_max_dynamic,
+        memory_auto_balloon: detail.memory_auto_balloon,
+        memory_pending_apply: detail.memory_pending_apply,
+        memory_compat_mode: detail.memory_compat_mode,
+        cpu_limit_percent: detail.cpu_limit_percent,
+        cpu_affinity: detail.cpu_affinity,
+        nic_model: detail.nic_model,
+        arch: detail.arch,
+        machine_type: detail.machine_type,
+        pcie_root_ports: detail.pcie_root_ports,
+        boot_type: detail.boot_type,
+        firmware_compat: detail.firmware_compat,
+        direct_boot: detail.direct_boot,
+        kvm_hidden: detail.kvm_hidden,
+        vendor_id: detail.vendor_id,
+        nested_virt: detail.nested_virt,
+        video_model: detail.video_model,
+        cpu_topology_mode: detail.cpu_topology_mode,
+        boot_order: detail.boot_order,
+        boot_devices: detail.boot_devices,
+      }
+      const diskConfig = normalDisks.map((disk) => ({
+        device: disk.device,
+        device_type: disk.device_type,
+        path: disk.path,
+        capacity_gb: disk.capacity_gb,
+        format: disk.format,
+        bus: disk.bus,
+        backing_path: disk.backing_path,
+        iops_total: disk.iops_total,
+        iops_read: disk.iops_read,
+        iops_write: disk.iops_write,
+        is_system: disk.is_system,
+        serial: disk.serial,
+      }))
+      const serverSignature = JSON.stringify({ detail: detailConfig, hostDevices, spiceEnabled, diskConfig })
+      if (serverConfigSignatureRef.current === serverSignature) return
+      serverConfigSignatureRef.current = serverSignature
+
+      // 由默认值 + SSE 详情同步构建完整表单（避免无变化推送覆盖本地输入）
+      const initialForm = {
+        ...createDefaultVmForm({ hostArch: base.hostArch }),
+        name: detail.name || vmName,
+        vcpu: detail.vcpu || 1,
+      }
       const nextForm = buildEditFormState(initialForm, detail)
       nextForm.host_devices = hostDevices
       nextForm.host_devices_touched = false
       nextForm.spice_enabled = spiceEnabled
       form.replaceForm(nextForm)
+      devices.setEditBootDevices(bootDevices)
       setOrigSpiceEnabled(spiceEnabled)
       setCurrentVmUUID(detail.uuid || '')
-      setLoadedStatus(detail.status || vmStatus)
       setLoadedGuestType(detail.os_type || '')
-      setGuestAgentConnected(!!detail.guest_agent_status?.connected)
       origNicModelRef.current = detail.nic_model || 'virtio'
       origBootTypeRef.current = detail.boot_type || 'bios'
       origPcieRootPortsRef.current = detail.pcie_root_ports || 6
       origVcpuRef.current = detail.vcpu || 1
       origMemoryRef.current = nextForm.memory || 1
-      // 磁盘列表与 IOPS 快照
-      const normalDisks = await devices.refreshEditDisks()
       diskIopsSnapshotRef.current = captureEditDiskIopsSnapshot(normalDisks, isAdmin)
       // 表单快照（表单与引导设备均已就绪）
       snapshotRef.current = captureEditFormSnapshot(nextForm, base.hostCores, isAdmin, bootDevices)
       void options.loadStorageTargets()
+    } catch {
+      // SSE 后台同步失败时保留上一份可用配置，下一次事件会继续尝试。
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vmName, isAdmin])
+  }, [vmName, vm, vmStatus, isAdmin])
 
   useEffect(() => {
-    void loadDetail()
-  }, [loadDetail])
+    if (live) void loadDetail(serverConfigSignatureRef.current !== '')
+  }, [loadDetail, live, liveTick])
 
   // ==================== 保存 ====================
   const handleSave = useCallback(async () => {
@@ -206,7 +282,7 @@ export default function EditVmForm({ vmName, vmStatus, onSaved }: EditVmFormProp
         }
       }
       Toast.success('配置修改成功' + spiceNote)
-      await loadDetail()
+      await loadDetail(false, true)
       onSaved?.()
     } catch {
       // 错误提示由请求层统一处理
@@ -303,7 +379,12 @@ export default function EditVmForm({ vmName, vmStatus, onSaved }: EditVmFormProp
             }
             itemKey="nics"
           >
-            <NicManageSection vmName={vmName} vmStatus={loadedStatus} />
+            <NicManageSection
+              vmName={vmName}
+              vmStatus={loadedStatus}
+              live={live && activeTab === 'nics'}
+              liveTick={liveTick}
+            />
           </TabPane>
 
           {isAdmin && (

@@ -37,6 +37,8 @@ import type { NetworkSharedData } from './NetworkTab'
 interface PortForwardPanelProps {
   vmName: string
   shared: NetworkSharedData
+  live: boolean
+  liveTick: number
 }
 
 interface ForwardFormState {
@@ -49,7 +51,7 @@ interface ForwardFormState {
 
 const EMPTY_FORM: ForwardFormState = { id: null, vm_ip: '', host_port: '', vm_port: '', protocol: 'tcp' }
 
-export default function PortForwardPanel({ vmName, shared }: PortForwardPanelProps) {
+export default function PortForwardPanel({ vmName, shared, live, liveTick }: PortForwardPanelProps) {
   const username = useUserStore((s) => s.username)
   const {
     isAdmin,
@@ -147,21 +149,21 @@ export default function PortForwardPanel({ vmName, shared }: PortForwardPanelPro
   }, [currentVmBindings.length, introStorageKey])
 
   // ============ 数据加载 ============
-  const fetchRules = useCallback(async () => {
-    setLoading(true)
+  const fetchRules = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
     try {
       const res = await getPortForwardList()
       setRules(res.data || [])
     } catch {
-      setRules([])
+      if (!silent) setRules([])
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [])
 
   useEffect(() => {
-    void fetchRules()
-  }, [fetchRules])
+    if (live) void fetchRules(liveTick > 0)
+  }, [fetchRules, live, liveTick])
 
   const refreshQuotaAfterChange = useCallback(async () => {
     if (isLightweight || isLightweightVM) {

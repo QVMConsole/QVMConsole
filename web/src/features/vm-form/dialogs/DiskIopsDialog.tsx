@@ -22,10 +22,11 @@ interface DiskIopsDialogProps {
 
 export default function DiskIopsDialog({ visible, subtitle, initial, onApply, onClose }: DiskIopsDialogProps) {
   const [values, setValues] = useState<DiskIopsValues>(initial)
+  const { total: initialTotal, read: initialRead, write: initialWrite } = initial
 
   useEffect(() => {
-    if (visible) setValues(initial)
-  }, [visible, initial])
+    if (visible) setValues({ total: initialTotal, read: initialRead, write: initialWrite })
+  }, [visible, initialTotal, initialRead, initialWrite])
 
   const handleOk = () => {
     onApply(values)
