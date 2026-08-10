@@ -153,7 +153,8 @@ func importVMLinuxDefine(params *ImportVMParams, destDiskPath, format string, ra
 		}
 	}
 
-	return importVMPostDefine(params.Name, srcDiskPath, destDiskPath, params.CopyDisk, memoryMeta, params.Remark, params.Freeze, params.StartAfterImport)
+	return importVMPostDefine(params.Name, srcDiskPath, destDiskPath, params.CopyDisk, memoryMeta, params.Remark, params.Freeze, params.StartAfterImport,
+		params.Username, params.SwitchID, params.SecurityGroupID, params.AllowedIPv4Addresses, params.AllowedIPv6Addresses)
 }
 
 // importDiskByPathLinuxDefine handles Linux/Other VM XML construction and define for ImportDiskByPath
@@ -314,5 +315,6 @@ func importDiskByPathLinuxDefine(params *ImportDiskByPathParams, destDiskPath, f
 		}
 	}
 
-	return importVMPostDefine(params.Name, mainDiskSrc, destDiskPath, params.CopyDisk, memoryMeta, params.Remark, params.Freeze, params.StartAfterImport)
+	return importVMPostDefine(params.Name, mainDiskSrc, destDiskPath, params.CopyDisk, memoryMeta, params.Remark, params.Freeze, params.StartAfterImport,
+		params.Username, params.SwitchID, params.SecurityGroupID, params.AllowedIPv4Addresses, params.AllowedIPv6Addresses)
 }

@@ -6,6 +6,7 @@ import (
 
 	"github.com/digitalocean/go-libvirt"
 
+	"kvm_console/config"
 	"kvm_console/logger"
 	"kvm_console/model"
 	"kvm_console/service/ip_resolver"
@@ -32,17 +33,6 @@ func GetOVSInterfaceOfPort(vnetIF string) string {
 }
 
 func getVMBandwidthIP(vmName, mac string) string {
-	if host, ok := HookGetOVSStaticHostByVMName(vmName); ok {
-		return host.IP
-	}
-	// 补充查询所有 VPC 交换机的静态主机绑定（VM 名称匹配）
-	if allVpcHosts, err := HookListAllVPCStaticHosts(); err == nil {
-		for _, host := range allVpcHosts {
-			if strings.TrimSpace(host.VMName) == strings.TrimSpace(vmName) {
-				return host.IP
-			}
-		}
-	}
 	if strings.TrimSpace(mac) != "" {
 		if ip := HookGetOVSStaticIPByMAC(mac); ip != "" {
 			return ip
@@ -57,6 +47,20 @@ func getVMBandwidthIP(vmName, mac string) string {
 		}
 		if ip := HookGetOVSLeaseIPByMAC(mac); ip != "" {
 			return ip
+		}
+	}
+	if host, ok := HookGetOVSStaticHostByVMName(vmName); ok {
+		if strings.TrimSpace(host.MAC) == "" || strings.EqualFold(host.MAC, mac) {
+			return host.IP
+		}
+	}
+	// 仅在缺少 MAC 精确记录时回退 VM 名称，兼容旧版主网卡静态绑定。
+	if allVpcHosts, err := HookListAllVPCStaticHosts(); err == nil {
+		for _, host := range allVpcHosts {
+			if strings.TrimSpace(host.VMName) == strings.TrimSpace(vmName) &&
+				(strings.TrimSpace(host.MAC) == "" || strings.EqualFold(host.MAC, mac)) {
+				return host.IP
+			}
 		}
 	}
 	return ""
@@ -129,41 +133,50 @@ func getVMBandwidthConfigRaw(vmName string) (VmBandwidthConfigRaw, error) {
 }
 
 func buildOVSBandwidthFlows(cookie, ofport, vmIP, subnetCIDR string, downQueueID, upMeterID uint32, downRateBps, upRateKbit int) []string {
+	table := ovsBandwidthFlowTable()
 	var flows []string
 	if upRateKbit > 0 {
 		flows = append(flows,
-			fmt.Sprintf("cookie=%s,priority=220,in_port=%s,ip,nw_src=%s,nw_dst=%s,actions=NORMAL", cookie, ofport, vmIP, subnetCIDR),
-			fmt.Sprintf("cookie=%s,priority=120,in_port=%s,ip,nw_src=%s,actions=meter:%d,output:LOCAL", cookie, ofport, vmIP, upMeterID),
+			fmt.Sprintf("cookie=%s,%spriority=220,in_port=%s,ip,nw_src=%s,nw_dst=%s,actions=NORMAL", cookie, table, ofport, vmIP, subnetCIDR),
+			fmt.Sprintf("cookie=%s,%spriority=120,in_port=%s,ip,nw_src=%s,actions=meter:%d,output:LOCAL", cookie, table, ofport, vmIP, upMeterID),
 		)
 	}
 	if downRateBps > 0 {
 		flows = append(flows,
-			fmt.Sprintf("cookie=%s,priority=220,in_port=LOCAL,ip,nw_src=%s,nw_dst=%s,actions=NORMAL", cookie, subnetCIDR, vmIP),
-			fmt.Sprintf("cookie=%s,priority=120,in_port=LOCAL,ip,nw_dst=%s,actions=set_queue:%d,output:%s,pop_queue", cookie, vmIP, downQueueID, ofport),
+			fmt.Sprintf("cookie=%s,%spriority=220,in_port=LOCAL,ip,nw_src=%s,nw_dst=%s,actions=NORMAL", cookie, table, subnetCIDR, vmIP),
+			fmt.Sprintf("cookie=%s,%spriority=120,in_port=LOCAL,ip,nw_dst=%s,actions=set_queue:%d,output:%s,pop_queue", cookie, table, vmIP, downQueueID, ofport),
 		)
 	}
 	return flows
 }
 
 func buildOVSVPCBandwidthFlows(cookie, vmOfport, gatewayOfport, vmIP, switchCIDR string, downQueueID, upMeterID uint32, downRateBps, upRateKbit int) []string {
+	table := ovsBandwidthFlowTable()
 	var flows []string
 	if upRateKbit > 0 || downRateBps > 0 {
 		flows = append(flows,
-			fmt.Sprintf("cookie=%s,priority=220,in_port=%s,ip,nw_src=%s,nw_dst=%s,actions=NORMAL", cookie, vmOfport, switchCIDR, switchCIDR),
-			fmt.Sprintf("cookie=%s,priority=220,in_port=%s,ip,nw_src=%s,nw_dst=%s,actions=NORMAL", cookie, gatewayOfport, switchCIDR, switchCIDR),
+			fmt.Sprintf("cookie=%s,%spriority=220,in_port=%s,ip,nw_src=%s,nw_dst=%s,actions=NORMAL", cookie, table, vmOfport, switchCIDR, switchCIDR),
+			fmt.Sprintf("cookie=%s,%spriority=220,in_port=%s,ip,nw_src=%s,nw_dst=%s,actions=NORMAL", cookie, table, gatewayOfport, switchCIDR, switchCIDR),
 		)
 	}
 	if upRateKbit > 0 {
 		flows = append(flows,
-			fmt.Sprintf("cookie=%s,priority=120,in_port=%s,ip,nw_src=%s,actions=meter:%d,output:%s", cookie, vmOfport, vmIP, upMeterID, gatewayOfport),
+			fmt.Sprintf("cookie=%s,%spriority=120,in_port=%s,ip,nw_src=%s,actions=meter:%d,output:%s", cookie, table, vmOfport, vmIP, upMeterID, gatewayOfport),
 		)
 	}
 	if downRateBps > 0 {
 		flows = append(flows,
-			fmt.Sprintf("cookie=%s,priority=120,in_port=%s,ip,nw_dst=%s,actions=set_queue:%d,output:%s,pop_queue", cookie, gatewayOfport, vmIP, downQueueID, vmOfport),
+			fmt.Sprintf("cookie=%s,%spriority=120,in_port=%s,ip,nw_dst=%s,actions=set_queue:%d,output:%s,pop_queue", cookie, table, gatewayOfport, vmIP, downQueueID, vmOfport),
 		)
 	}
 	return flows
+}
+
+func ovsBandwidthFlowTable() string {
+	if config.GlobalConfig != nil && config.GlobalConfig.PortSecurityEnabled {
+		return "table=30,"
+	}
+	return ""
 }
 
 // GetVPCSwitchForVM 获取 VM 所属的 VPC 交换机。
@@ -213,18 +226,28 @@ func destroyOVSRecords(table string, uuids []string) {
 }
 
 func clearOVSBandwidthLimit(vmName, vnetIF string) {
-	bridge := HookOvsBridgeName()
 	cookie := OvsBandwidthCookie(vmName)
-	utils.ExecCommand("ovs-ofctl", "-O", "OpenFlow13", "del-flows", bridge, "cookie="+cookie+"/0xffffffffffffffff")
+	interfaces := listVMBandwidthInterfaces(vmName)
+	bridges := map[string]bool{HookOvsBridgeName(): true}
+	ports := map[string]bool{}
 	if strings.TrimSpace(vnetIF) != "" {
-		utils.ExecCommand("ovs-vsctl", "clear", "Port", strings.TrimSpace(vnetIF), "qos")
+		ports[strings.TrimSpace(vnetIF)] = true
 	}
-	bridgeQoS := strings.TrimSpace(utils.ExecCommand("ovs-vsctl", "get", "Port", bridge, "qos").Stdout)
-	if bridgeQoS != "" && bridgeQoS != "[]" {
-		utils.ExecCommand("ovs-vsctl", "--if-exists", "remove", "QoS", bridgeQoS, "queues", OvsBandwidthQueueKey(OvsBandwidthQueueID(vmName, "up")))
+	for _, iface := range interfaces {
+		ports[iface.Name] = true
+		bridges[iface.Source] = true
 	}
-	utils.ExecCommand("ovs-ofctl", "-O", "OpenFlow13", "del-meter", bridge, OvsBandwidthMeterArg(OvsBandwidthMeterID(vmName, "down")))
-	utils.ExecCommand("ovs-ofctl", "-O", "OpenFlow13", "del-meter", bridge, OvsBandwidthMeterArg(OvsBandwidthMeterID(vmName, "up")))
+	for bridge := range bridges {
+		if strings.TrimSpace(bridge) == "" {
+			continue
+		}
+		utils.ExecCommand("ovs-ofctl", "-O", "OpenFlow13", "del-flows", bridge, "cookie="+cookie+"/0xffffffffffffffff")
+		utils.ExecCommand("ovs-ofctl", "-O", "OpenFlow13", "del-meter", bridge, OvsBandwidthMeterArg(OvsBandwidthMeterID(vmName, "down")))
+		utils.ExecCommand("ovs-ofctl", "-O", "OpenFlow13", "del-meter", bridge, OvsBandwidthMeterArg(OvsBandwidthMeterID(vmName, "up")))
+	}
+	for port := range ports {
+		utils.ExecCommand("ovs-vsctl", "--if-exists", "clear", "Port", port, "qos")
+	}
 	destroyOVSRecords("QoS", FindOVSUUIDs("QoS", vmName, "down"))
 	destroyOVSRecords("Queue", FindOVSUUIDs("Queue", vmName, "down"))
 	destroyOVSRecords("Queue", FindOVSUUIDs("Queue", vmName, "up"))
@@ -271,8 +294,9 @@ func AddOVSBandwidthMeter(bridge string, meterID uint32, rateKbit int) error {
 	return nil
 }
 
-func applyOVSBandwidthLimit(vmName, mac, vnetIF string, downAvg, upAvg int) error {
-	clearOVSBandwidthLimit(vmName, vnetIF)
+func applyOVSBandwidthLimit(vmName string, iface vmBandwidthInterface, downAvg, upAvg int) error {
+	mac := iface.MAC
+	vnetIF := iface.Name
 	clearTCBandwidthLimit(vnetIF)
 
 	downRateBps := OvsBandwidthMaxRateBps(downAvg)
@@ -281,16 +305,22 @@ func applyOVSBandwidthLimit(vmName, mac, vnetIF string, downAvg, upAvg int) erro
 		return nil
 	}
 
-	vmIP := getVMBandwidthIP(vmName, mac)
-	if vmIP == "" {
-		return fmt.Errorf("无法获取虚拟机 %s 的 OVS 内网 IP，暂不能应用外网限速", vmName)
-	}
 	vmOfport := GetOVSInterfaceOfPort(vnetIF)
 	if vmOfport == "" {
 		return fmt.Errorf("无法获取虚拟机 %s 的 OVS 端口号", vmName)
 	}
 
-	bridge := HookOvsBridgeName()
+	bridge := strings.TrimSpace(iface.Source)
+	if bridge == "" {
+		bridge = HookOvsBridgeName()
+	}
+	sw, hasSwitch := getVPCSwitchForVMInterface(vmName, iface.Order)
+	directBridge := hasSwitch && strings.TrimSpace(sw.CIDR) == ""
+	vmIP := ""
+	if !directBridge {
+		vmIP = getVMBandwidthIP(vmName, mac)
+	}
+	macOnlyMatch := directBridge || vmIP == ""
 	downQueueID := OvsBandwidthQueueID(vmName, "down")
 	upMeterID := OvsBandwidthMeterID(vmName, "up")
 	if err := setOVSPortQueue(vnetIF, vmName, "down", downQueueID, downRateBps); err != nil {
@@ -301,14 +331,21 @@ func applyOVSBandwidthLimit(vmName, mac, vnetIF string, downAvg, upAvg int) erro
 	}
 
 	var flows []string
-	if sw, ok := GetVPCSwitchForVM(vmName); ok {
+	if hasSwitch && !directBridge && !macOnlyMatch {
 		gatewayOfport := GetOVSInterfaceOfPort(HookVPCGatewayPortName(sw.ID))
 		if gatewayOfport == "" {
 			return fmt.Errorf("无法获取虚拟机 %s 的 VPC 网关端口号", vmName)
 		}
 		flows = buildOVSVPCBandwidthFlows(OvsBandwidthCookie(vmName), vmOfport, gatewayOfport, vmIP, sw.CIDR, downQueueID, upMeterID, downRateBps, upRateKbit)
-	} else {
+	} else if bridge == HookOvsBridgeName() && !macOnlyMatch {
 		flows = buildOVSBandwidthFlows(OvsBandwidthCookie(vmName), vmOfport, vmIP, HookOvsSubnetCIDR(), downQueueID, upMeterID, downRateBps, upRateKbit)
+	} else {
+		if upRateKbit > 0 {
+			flows = append(flows, fmt.Sprintf("cookie=%s,%spriority=120,in_port=%s,dl_src=%s,actions=meter:%d,NORMAL", OvsBandwidthCookie(vmName), ovsBandwidthFlowTable(), vmOfport, mac, upMeterID))
+		}
+		if downRateBps > 0 {
+			flows = append(flows, fmt.Sprintf("cookie=%s,%spriority=120,dl_dst=%s,actions=set_queue:%d,NORMAL,pop_queue", OvsBandwidthCookie(vmName), ovsBandwidthFlowTable(), mac, downQueueID))
+		}
 	}
 	for _, flow := range flows {
 		result := utils.ExecCommand("ovs-ofctl", "-O", "OpenFlow13", "add-flow", bridge, flow)
@@ -319,33 +356,50 @@ func applyOVSBandwidthLimit(vmName, mac, vnetIF string, downAvg, upAvg int) erro
 	return nil
 }
 
+func getVPCSwitchForVMInterface(vmName string, interfaceOrder int) (*model.VPCSwitch, bool) {
+	if model.DB == nil {
+		return GetVPCSwitchForVM(vmName)
+	}
+	var binding model.VPCVMBinding
+	if err := model.DB.Where("vm_name = ? AND interface_order = ?", vmName, interfaceOrder).First(&binding).Error; err != nil {
+		return GetVPCSwitchForVM(vmName)
+	}
+	var sw model.VPCSwitch
+	if err := model.DB.First(&sw, binding.SwitchID).Error; err != nil {
+		return GetVPCSwitchForVM(vmName)
+	}
+	return &sw, true
+}
+
 // ApplyVMNICBandwidth 设置单台 VM 的网卡口径速率限制。
 // 该路径用于轻量云：不依赖 VPC 网关、IP 租约或 OVS 流表命中，直接在 VM 的 vnet 口限制上下行。
 // domiftune 只保存 config，运行态使用 TC/IFB；低速惩罚时叠加 live domiftune 容易因为大 burst 产生卡顿。
 func ApplyVMNICBandwidth(vmName string, downAvg, downPeak, downBurst, upAvg, upPeak, upBurst int) error {
-	mac := ip_resolver.GetFirstVMMAC(vmName)
-	if mac == "" {
+	interfaces := listVMBandwidthInterfaces(vmName)
+	if len(interfaces) == 0 {
 		return fmt.Errorf("无法获取虚拟机 %s 的网卡 MAC 地址", vmName)
 	}
 
 	configParams := BuildBandwidthParams(downAvg, downPeak, downBurst, upAvg, upPeak, upBurst)
 
-	if err := libvirt_rpc.SetInterfaceParametersRPC(vmName, mac, configParams, uint32(libvirt.DomainAffectConfig)); err != nil {
-		return fmt.Errorf("设置速率限制失败(config): %w", err)
+	for _, iface := range interfaces {
+		if err := libvirt_rpc.SetInterfaceParametersRPC(vmName, iface.MAC, configParams, uint32(libvirt.DomainAffectConfig)); err != nil {
+			return fmt.Errorf("设置第 %d 张网卡速率限制失败(config): %w", iface.Order+1, err)
+		}
 	}
 
 	state, _ := libvirt_rpc.GetDomainStateRPC(vmName)
 	if state == "running" {
 		zeroParams := BuildBandwidthParams(0, 0, 0, 0, 0, 0)
-		if err := libvirt_rpc.SetInterfaceParametersRPC(vmName, mac, zeroParams, uint32(libvirt.DomainAffectLive)); err != nil {
-			logger.App.Warn("清理实时domiftune速率限制失败", "vm", vmName, "error", err)
-		}
-
-		vnetIF := ip_resolver.GetVMVnetIF(vmName)
-		if vnetIF != "" {
-			clearOVSBandwidthLimit(vmName, vnetIF)
-			applyTCDownloadLimit(vnetIF, downAvg, downPeak, downBurst)
-			applyTCUploadLimit(vnetIF, upAvg)
+		clearOVSBandwidthLimit(vmName, "")
+		for _, iface := range interfaces {
+			if err := libvirt_rpc.SetInterfaceParametersRPC(vmName, iface.MAC, zeroParams, uint32(libvirt.DomainAffectLive)); err != nil {
+				logger.App.Warn("清理实时domiftune速率限制失败", "vm", vmName, "order", iface.Order, "error", err)
+			}
+			if iface.Name != "" {
+				applyTCDownloadLimit(iface.Name, downAvg, downPeak, downBurst)
+				applyTCUploadLimit(iface.Name, upAvg)
+			}
 		}
 	}
 

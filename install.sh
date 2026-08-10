@@ -300,6 +300,7 @@ COMMAND_CHECKS=(
     "sshpass"
     "ovs-vsctl"
     "ovs-ofctl"
+    "ovsdb-client"
     "dnsmasq"
     "nft"
     "ip"
@@ -1264,6 +1265,14 @@ write_env() {
         env_default "KVM_EXTERNAL_NIC" ""
         env_default "KVM_MAX_BURST_INBOUND" "0"
         env_default "KVM_MAX_BURST_OUTBOUND" "0"
+        env_default "KVM_PORT_SECURITY_ENABLED" "false"
+        env_default "KVM_PORT_SECURITY_TOTAL_KPPS" "50"
+        env_default "KVM_PORT_SECURITY_TOTAL_BURST_KPACKETS" "40"
+        env_default "KVM_PORT_SECURITY_NEIGHBOR_PPS" "200"
+        env_default "KVM_PORT_SECURITY_NEIGHBOR_BURST_PACKETS" "400"
+        env_default "KVM_PORT_SECURITY_BROADCAST_PPS" "1000"
+        env_default "KVM_PORT_SECURITY_BROADCAST_BURST_PACKETS" "2000"
+        env_default "KVM_PORT_SECURITY_RECONCILE_INTERVAL_SECONDS" "60"
         env_default "KVM_RESCUE_ISO" ""
         env_default "KVM_PUBLIC_BASE_URL" ""
         env_default "KVM_SITE_TITLE" "QVMConsole"
@@ -1447,7 +1456,30 @@ ensure_apparmor_storage_access() {
 }
 
 detect_default_uplink() {
-    ip route show default 2>/dev/null | awk '{print $5; exit}'
+    ip -4 route get 223.5.5.5 2>/dev/null | awk '{for (i=1; i<=NF; i++) if ($i == "dev") {print $(i+1); exit}}'
+}
+
+resolve_nat_uplink() {
+    local configured="$1"
+    local bridge=""
+
+    if [ -z "$configured" ]; then
+        configured=$(detect_default_uplink)
+    fi
+    if [ -z "$configured" ]; then
+        return 0
+    fi
+
+    # 物理口加入 OVS 网桥且默认路由已迁移后，Netfilter 的实际出口是网桥。
+    if command -v ovs-vsctl >/dev/null 2>&1; then
+        bridge=$(ovs-vsctl --timeout=5 port-to-br "$configured" 2>/dev/null || true)
+        if [ -n "$bridge" ] && [ "$bridge" != "$configured" ] && \
+            ip -4 route show default dev "$bridge" 2>/dev/null | grep -q '^default '; then
+            printf '%s\n' "$bridge"
+            return 0
+        fi
+    fi
+    printf '%s\n' "$configured"
 }
 
 ensure_sysctl_network() {
@@ -1520,6 +1552,28 @@ setup_ovs_foundation() {
     success "OVS 网络地基已准备"
 }
 
+check_ovs_port_security_prerequisites() {
+    local bridge="$1"
+    info "检查端口安全所需的 OVS 基础能力（总开关保持关闭）..."
+    if ! ovs-ofctl -O OpenFlow13 dump-flows "$bridge" >/dev/null 2>&1; then
+        warn "当前网桥未通过 OpenFlow13 协商，端口安全预检将阻止开启"
+        return 0
+    fi
+    local columns
+    columns=$(ovsdb-client list-columns Open_vSwitch Interface 2>/dev/null || true)
+    if [[ "$columns" != *"ingress_policing_kpkts_rate"* ]] || [[ "$columns" != *"ingress_policing_kpkts_burst"* ]]; then
+        warn "当前 OVS 缺少包速率 policing 字段，端口安全预检将阻止开启"
+        return 0
+    fi
+    local meter_features
+    meter_features=$(ovs-ofctl -O OpenFlow13 meter-features "$bridge" 2>/dev/null || true)
+    if [[ "${meter_features,,}" != *"pktps"* ]] || [[ "${meter_features,,}" != *"burst"* ]]; then
+        warn "当前 OVS 缺少 pktps/burst meter 能力，端口安全预检将阻止开启"
+        return 0
+    fi
+    success "端口安全 OVS 基础能力可用；实际规则落地与清理由兼容性实机测试验证"
+}
+
 _setup_ovs_inner() {
     load_env_file
     local bridge="${KVM_OVS_BRIDGE:-br-ovs}"
@@ -1527,14 +1581,7 @@ _setup_ovs_inner() {
     local gateway="${subnet}.1"
     local dhcp_start="${KVM_OVS_DHCP_START:-${subnet}.2}"
     local dhcp_end="${KVM_OVS_DHCP_END:-${subnet}.254}"
-    local uplink="${KVM_OVS_UPLINK:-}"
-
-    if [ -z "$uplink" ]; then
-        uplink=$(detect_default_uplink)
-    fi
-    if [ -z "$uplink" ]; then
-        warn "未检测到默认出口网卡，OVS NAT 将在面板网络修复时再次尝试。也可在 $ENV_FILE 配置 KVM_OVS_UPLINK"
-    fi
+    local uplink=""
 
     systemctl enable --now openvswitch-switch 2>/dev/null || \
         systemctl enable --now openvswitch 2>/dev/null || true
@@ -1543,6 +1590,10 @@ _setup_ovs_inner() {
         ovs-vsctl --no-wait show 2>/dev/null && break
         sleep 1
     done
+    uplink=$(resolve_nat_uplink "${KVM_OVS_UPLINK:-}")
+    if [ -z "$uplink" ]; then
+        warn "未检测到默认出口网卡，OVS NAT 将在面板网络修复时再次尝试。也可在 $ENV_FILE 配置 KVM_OVS_UPLINK"
+    fi
     if ! ovs-vsctl --timeout=5 --may-exist add-br "$bridge" 2>/dev/null; then
         warn "创建 OVS 网桥失败，跳过 OVS 网络配置"
         return 0
@@ -1638,6 +1689,7 @@ EOF
         virsh net-destroy default >/dev/null 2>&1 || true
         virsh net-autostart default --disable >/dev/null 2>&1 || true
     fi
+    check_ovs_port_security_prerequisites "$bridge"
 }
 
 setup_sshd_foundation() {

@@ -5,19 +5,31 @@
  * - 基础状态 + 服务状态信息卡
  * - 宿主机网桥表、物理网卡表、OVS 端口表
  */
-import { Button, Table, Tag } from '@douyinfe/semi-ui'
+import { Button, Collapse, Switch, Table, Tag, Tooltip } from '@douyinfe/semi-ui'
 import {
   IconBranch,
   IconCheckCircleStroked,
   IconDesktop,
+  IconDelete,
+  IconEditStroked,
   IconGlobeStroke,
   IconLink,
   IconPlus,
   IconRefresh,
+  IconLock,
+  IconSafeStroked,
+  IconUnlock,
   IconWrench,
 } from '@douyinfe/semi-icons'
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table'
-import type { OvsPort, OvsPortList, OvsStatus } from '@/api/ovs'
+import type {
+  OvsPort,
+  OvsPortList,
+  OvsStatus,
+  PortSecurityPort,
+  PortSecurityPreflight,
+  PortSecurityStatus,
+} from '@/api/ovs'
 import type { HostInterface, NetworkBridge } from '@/api/network'
 import { bridgeModeText, yesNo } from '../utils'
 
@@ -28,11 +40,18 @@ interface OverviewTabProps {
   hostInterfaces: HostInterface[]
   checking: boolean
   repairing: boolean
+  portSecurity: PortSecurityStatus | null
+  portSecurityPreflight: PortSecurityPreflight | null
+  portSecurityAction: string
   onCheck: () => void
   onRepair: () => void
   onCreateBridge: () => void
   onDeleteBridge: (row: NetworkBridge) => void
   onConfigInterface: (name: string) => void
+  onPortSecurityPreflight: () => void
+  onPortSecurityToggle: (enabled: boolean) => void
+  onPortSecurityReconcile: () => void
+  onPortSecurityPortAction: (port: string, release: boolean) => void
 }
 
 /** 布尔状态 Tag（绿/红） */
@@ -51,11 +70,18 @@ export default function OverviewTab({
   hostInterfaces,
   checking,
   repairing,
+  portSecurity,
+  portSecurityPreflight,
+  portSecurityAction,
   onCheck,
   onRepair,
   onCreateBridge,
   onDeleteBridge,
   onConfigInterface,
+  onPortSecurityPreflight,
+  onPortSecurityToggle,
+  onPortSecurityReconcile,
+  onPortSecurityPortAction,
 }: OverviewTabProps) {
   const healthy = !!status?.healthy
   const portCount = ports?.ports?.length || 0
@@ -124,14 +150,18 @@ export default function OverviewTab({
       render: (_text, row) => (
         <div className="net-row-actions">
           {row.migrate_host_ip && !row.is_default && (
-            <Button size="small" theme="borderless" type="primary" onClick={() => onConfigInterface(row.name)}>
-              配置IP
-            </Button>
+            <Tooltip content="配置 IP" position="top">
+              <span className="qvm-act-ic" onClick={() => onConfigInterface(row.name)}>
+                <IconEditStroked />
+              </span>
+            </Tooltip>
           )}
           {!row.is_default ? (
-            <Button size="small" theme="borderless" type="danger" onClick={() => onDeleteBridge(row)}>
-              删除
-            </Button>
+            <Tooltip content="删除网桥" position="top">
+              <span className="qvm-act-ic danger" onClick={() => onDeleteBridge(row)}>
+                <IconDelete />
+              </span>
+            </Tooltip>
           ) : (
             <span className="net-text-muted">—</span>
           )}
@@ -192,9 +222,11 @@ export default function OverviewTab({
       width: 100,
       render: (_text, row) =>
         !row.ovs_port && !row.managed_bridge ? (
-          <Button size="small" theme="borderless" type="primary" onClick={() => onConfigInterface(row.name)}>
-            配置IP
-          </Button>
+          <Tooltip content="配置 IP" position="top">
+            <span className="qvm-act-ic" onClick={() => onConfigInterface(row.name)}>
+              <IconEditStroked />
+            </span>
+          </Tooltip>
         ) : (
           <span className="net-text-muted">—</span>
         ),
@@ -247,8 +279,156 @@ export default function OverviewTab({
     },
   ]
 
+  const securityPortColumns: ColumnProps<PortSecurityPort>[] = [
+    {
+      title: '虚拟机 / 网卡',
+      dataIndex: 'vm_name',
+      render: (_text, row) => (
+        <div>
+          <div>{row.vm_name || '残留端口'}</div>
+          <div className="qvm-mono net-text-muted">#{row.interface_order + 1} · {row.mac || '—'}</div>
+        </div>
+      ),
+    },
+    {
+      title: 'OVS 端口',
+      dataIndex: 'port',
+      render: (_text, row) => <span className="qvm-mono">{row.bridge} / {row.port} ({row.ofport})</span>,
+    },
+    {
+      title: '策略',
+      dataIndex: 'mode',
+      width: 110,
+      render: (_text, row) => {
+        const labels = { strict: '严格', compatible: '兼容', quarantined: '隔离', disabled: '关闭' }
+        const colors = { strict: 'green', compatible: 'orange', quarantined: 'red', disabled: 'grey' } as const
+        return <Tag size="small" color={colors[row.mode]}>{labels[row.mode]}</Tag>
+      },
+    },
+    {
+      title: '允许地址',
+      dataIndex: 'allowed_ipv4_addresses',
+      render: (_text, row) => (
+        <div className="qvm-mono net-port-addresses">
+          <div>IPv4: {row.allowed_ipv4_addresses?.join(', ') || (row.mode === 'compatible' ? '兼容未知地址' : '仅 DHCP')}</div>
+          {row.ipv6_enabled && <div>IPv6: {row.allowed_ipv6_addresses?.join(', ') || '—'}</div>}
+        </div>
+      ),
+    },
+    {
+      title: '速率 / 丢弃',
+      dataIndex: 'drop_packets',
+      render: (_text, row) => (
+        <div className="qvm-mono net-port-addresses">
+          <div>{row.policing_kpps} kpps / {row.policing_burst_kpackets} kpackets</div>
+          <div>身份 {row.drop_packets || 0} · 邻居 {row.neighbor_drop_packets || 0} · 广播 {row.broadcast_drop_packets || 0}</div>
+        </div>
+      ),
+    },
+    {
+      title: '操作',
+      dataIndex: 'actions',
+      width: 70,
+      align: 'center',
+      render: (_text, row) => {
+        const release = row.isolated
+        const pending = portSecurityAction === `${release ? 'release' : 'isolate'}:${row.port}`
+        return (
+          <Tooltip content={release ? '释放端口' : '隔离端口'} position="top">
+            <span
+              className={`qvm-act-ic ${release ? '' : 'danger'} ${pending ? 'disabled' : ''}`}
+              onClick={() => !pending && onPortSecurityPortAction(row.port, release)}
+            >
+              {pending ? <IconRefresh spin /> : release ? <IconUnlock /> : <IconLock />}
+            </span>
+          </Tooltip>
+        )
+      },
+    },
+  ]
+
   return (
     <div>
+      <div className="net-card net-port-security-card">
+        <div className="net-card-header">
+          <IconSafeStroked />
+          <span>端口安全防护</span>
+          <div className="net-card-extra">
+            <Tag size="small" color={portSecurity?.healthy ? 'green' : 'orange'}>
+              {portSecurity?.healthy ? '状态正常' : '需要处理'}
+            </Tag>
+            <Switch
+              checked={!!portSecurity?.enabled}
+              checkedText="开"
+              uncheckedText="关"
+              loading={portSecurityAction === 'enable' || portSecurityAction === 'disable'}
+              onChange={onPortSecurityToggle}
+            />
+          </div>
+        </div>
+        <div className="net-card-body">
+          <div className="net-port-security-summary">
+            <div>
+              <div className="net-port-security-title">
+                {portSecurity?.enabled ? '身份校验、ARP/ND 与广播抑制正在运行' : '防护默认关闭，当前网络行为保持不变'}
+              </div>
+              <div className="net-text-muted">
+                已应用 {portSecurity?.applied_ports || 0} 个端口，兼容保护 {portSecurity?.compatible_ports || 0} 个，隔离 {portSecurity?.isolated_ports || 0} 个
+                {portSecurity?.last_reconciled ? ` · 最近协调 ${new Date(portSecurity.last_reconciled).toLocaleString()}` : ''}
+              </div>
+            </div>
+            <div className="net-toolbar-left">
+              <Button loading={portSecurityAction === 'preflight'} onClick={onPortSecurityPreflight}>预检</Button>
+              <Button
+                icon={<IconRefresh />}
+                loading={portSecurityAction === 'reconcile'}
+                disabled={!portSecurity?.enabled}
+                onClick={onPortSecurityReconcile}
+              >协调</Button>
+            </div>
+          </div>
+          {portSecurityPreflight && (
+            <div className={`net-preflight ${portSecurityPreflight.ready ? 'ready' : 'blocked'}`}>
+              <div className="net-preflight-head">
+                <strong>{portSecurityPreflight.ready ? '预检通过' : '预检发现阻断项'}</strong>
+                <span>{portSecurityPreflight.capabilities?.length || 0} 个网桥 · {portSecurityPreflight.ports?.length || 0} 个活动端口</span>
+              </div>
+              {(portSecurityPreflight.issues?.length || 0) > 0 && (
+                <div className="net-preflight-issues">
+                  {(portSecurityPreflight.issues || []).map((issue, index) => (
+                    <div key={`${issue.code}-${issue.vm_name}-${issue.port}-${index}`}>
+                      <Tag size="small" color={issue.blocking ? 'red' : 'orange'}>{issue.blocking ? '阻断' : '提示'}</Tag>
+                      <span>{issue.vm_name ? `${issue.vm_name} / 网卡 ${(issue.interface_order || 0) + 1}：` : issue.bridge ? `${issue.bridge}：` : ''}{issue.message}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        {portSecurity?.ports?.length ? (
+          <Collapse className="net-port-security-collapse" keepDOM={false}>
+            <Collapse.Panel
+              itemKey="protected-ports"
+              header={(
+                <span className="net-port-security-collapse-title">
+                  <span>端口策略明细</span>
+                  <Tag size="small" type="ghost">{portSecurity.ports.length} 个</Tag>
+                </span>
+              )}
+            >
+              <Table<PortSecurityPort>
+                rowKey="port"
+                columns={securityPortColumns}
+                dataSource={portSecurity.ports}
+                pagination={false}
+                size="small"
+              />
+            </Collapse.Panel>
+          </Collapse>
+        ) : null}
+      </div>
+
       {/* 统计卡 */}
       <div className="net-stat-grid">
         <div className={`net-stat-card ${healthy ? 'healthy' : 'warning'}`}>

@@ -44,6 +44,14 @@ export interface SettingsForm {
   external_nic: string
   max_burst_inbound: number
   max_burst_outbound: number
+  port_security_enabled: boolean
+  port_security_total_kpps: number
+  port_security_total_burst_kpackets: number
+  port_security_neighbor_pps: number
+  port_security_neighbor_burst_packets: number
+  port_security_broadcast_pps: number
+  port_security_broadcast_burst_packets: number
+  port_security_reconcile_interval_seconds: number
   default_disk_iops_total: number
   default_disk_iops_read: number
   default_disk_iops_write: number
@@ -112,6 +120,14 @@ export const DEFAULT_SETTINGS_FORM: SettingsForm = {
   external_nic: '',
   max_burst_inbound: 0,
   max_burst_outbound: 0,
+  port_security_enabled: false,
+  port_security_total_kpps: 50,
+  port_security_total_burst_kpackets: 40,
+  port_security_neighbor_pps: 200,
+  port_security_neighbor_burst_packets: 400,
+  port_security_broadcast_pps: 1000,
+  port_security_broadcast_burst_packets: 2000,
+  port_security_reconcile_interval_seconds: 60,
   default_disk_iops_total: 0,
   default_disk_iops_read: 0,
   default_disk_iops_write: 0,
@@ -182,6 +198,24 @@ export function validateSettingsForm(form: SettingsForm): string | null {
     return '观察期需在 0 - 168 小时之间'
   if (form.scheduler_event_retention_hours < 1 || form.scheduler_event_retention_hours > 2160)
     return '调度事件保留时长需在 1 - 2160 小时之间'
+  if (form.port_security_enabled) {
+    if (form.port_security_total_kpps < 1) return '端口总包速率需大于 0'
+    if (form.port_security_total_burst_kpackets * 5 < form.port_security_total_kpps * 4)
+      return '端口总包突发值至少应达到速率的 80%'
+    if (form.port_security_neighbor_pps < 1 || form.port_security_neighbor_burst_packets < 1)
+      return 'ARP/ND 速率与突发值需大于 0'
+    if (form.port_security_neighbor_burst_packets * 5 < form.port_security_neighbor_pps * 4)
+      return 'ARP/ND 突发值至少应达到速率的 80%'
+    if (form.port_security_broadcast_pps < 1 || form.port_security_broadcast_burst_packets < 1)
+      return '广播/组播速率与突发值需大于 0'
+    if (form.port_security_broadcast_burst_packets * 5 < form.port_security_broadcast_pps * 4)
+      return '广播/组播突发值至少应达到速率的 80%'
+    if (
+      form.port_security_reconcile_interval_seconds < 10 ||
+      form.port_security_reconcile_interval_seconds > 3600
+    )
+      return '端口安全协调周期需在 10 - 3600 秒之间'
+  }
   if (
     form.maintenance_vm_shutdown_timeout_seconds < 5 ||
     form.maintenance_vm_shutdown_timeout_seconds > 3600
@@ -212,6 +246,18 @@ export function buildSettingsPayload(form: SettingsForm): Record<string, unknown
     external_nic: form.external_nic,
     max_burst_inbound: form.max_burst_inbound,
     max_burst_outbound: form.max_burst_outbound,
+    ...(form.port_security_enabled
+      ? {
+          port_security_total_kpps: form.port_security_total_kpps,
+          port_security_total_burst_kpackets: form.port_security_total_burst_kpackets,
+          port_security_neighbor_pps: form.port_security_neighbor_pps,
+          port_security_neighbor_burst_packets: form.port_security_neighbor_burst_packets,
+          port_security_broadcast_pps: form.port_security_broadcast_pps,
+          port_security_broadcast_burst_packets: form.port_security_broadcast_burst_packets,
+          port_security_reconcile_interval_seconds:
+            form.port_security_reconcile_interval_seconds,
+        }
+      : {}),
     default_disk_iops_total: form.default_disk_iops_total,
     default_disk_iops_read: form.default_disk_iops_read,
     default_disk_iops_write: form.default_disk_iops_write,

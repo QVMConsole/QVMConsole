@@ -95,13 +95,49 @@ func OvsDHCPEnd() string {
 	return OvsSubnetPrefix() + ".254"
 }
 
-// OvsUplink returns the OVS NAT uplink interface name.
+// OvsUplink 返回 OVS NAT 实际使用的三层出口接口。
 func OvsUplink() string {
-	if config.GlobalConfig != nil && strings.TrimSpace(config.GlobalConfig.OVSUplink) != "" {
-		return strings.TrimSpace(config.GlobalConfig.OVSUplink)
+	configured := ""
+	if config.GlobalConfig != nil {
+		configured = strings.TrimSpace(config.GlobalConfig.OVSUplink)
 	}
-	result := utils.ExecShell("ip route show default 2>/dev/null | awk '{print $5}' | head -n1")
-	return strings.TrimSpace(result.Stdout)
+	if configured == "" {
+		return detectDefaultRouteInterface()
+	}
+
+	// 宿主机地址迁移到 OVS 网桥后，配置中可能仍保存原物理口。
+	// 此时 Netfilter 看到的出口是三层网桥，NAT/FORWARD 规则必须匹配网桥。
+	bridgeResult := utils.ExecCommandQuiet("ovs-vsctl", "--timeout=5", "port-to-br", configured)
+	bridge := strings.TrimSpace(bridgeResult.Stdout)
+	if bridgeResult.Error == nil && bridge != "" && bridge != configured && interfaceHasDefaultRoute(bridge) {
+		return bridge
+	}
+	return configured
+}
+
+func detectDefaultRouteInterface() string {
+	if result := utils.ExecCommandQuiet("ip", "-4", "route", "get", "1.1.1.1"); result.Error == nil {
+		if iface := routeOutputInterface(result.Stdout); iface != "" {
+			return iface
+		}
+	}
+	result := utils.ExecCommandQuiet("ip", "-4", "route", "show", "default")
+	return routeOutputInterface(result.Stdout)
+}
+
+func interfaceHasDefaultRoute(iface string) bool {
+	result := utils.ExecCommandQuiet("ip", "-4", "route", "show", "default", "dev", iface)
+	return result.Error == nil && strings.TrimSpace(result.Stdout) != ""
+}
+
+func routeOutputInterface(output string) string {
+	fields := strings.Fields(output)
+	for i := 0; i+1 < len(fields); i++ {
+		if fields[i] == "dev" {
+			return fields[i+1]
+		}
+	}
+	return ""
 }
 
 // BuildOVSVirtInstallNetworkArg builds the --network argument for virt-install using the default bridge.
@@ -140,10 +176,6 @@ func EnsureOVSNetworkReady() error {
 	}
 
 	bridge := OvsBridgeName()
-	uplink := OvsUplink()
-	if uplink == "" {
-		return fmt.Errorf("无法检测 OVS NAT 出口网卡，请配置 KVM_OVS_UPLINK")
-	}
 	if err := os.MkdirAll(OVSConfigDir, 0755); err != nil {
 		return fmt.Errorf("创建 OVS 配置目录失败: %w", err)
 	}
@@ -167,6 +199,10 @@ func EnsureOVSNetworkReady() error {
 	}
 	if result := utils.ExecCommand("ip", "link", "set", bridge, "up"); result.Error != nil {
 		return fmt.Errorf("启动 OVS 网桥失败: %s", result.Stderr)
+	}
+	uplink := OvsUplink()
+	if uplink == "" {
+		return fmt.Errorf("无法检测 OVS NAT 出口网卡，请配置 KVM_OVS_UPLINK")
 	}
 	addrResult := utils.ExecShellQuiet(fmt.Sprintf("ip -4 addr show dev %s | grep -q '%s/24'", utils.ShellSingleQuote(bridge), OvsGatewayIP()))
 	if addrResult.Error != nil {

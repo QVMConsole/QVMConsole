@@ -142,7 +142,7 @@ func importApplianceHandler(c *gin.Context, admin bool) {
 		return
 	}
 	if !admin {
-		if req.SwitchID != 0 {
+		if req.SwitchID != 0 || service.IsPortSecurityEnabled() {
 			switchID, securityGroupID, err := service.ResolveVPCForVMCreate(usernameStr, req.SwitchID, req.SecurityGroupID)
 			if err != nil {
 				c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": err.Error()})
@@ -200,6 +200,7 @@ func buildImportApplianceParams(req ImportApplianceRequest, username string, adm
 			CPULimitPercent: req.CPULimitPercent, CPUAffinity: req.CPUAffinity,
 			TemplateRootPass: req.TemplateRootPass, TemplateUser: req.TemplateUser,
 			MemoryDynamic: req.MemoryDynamic, SwitchID: req.SwitchID, SecurityGroupID: req.SecurityGroupID,
+			AllowedIPv4Addresses: req.AllowedIPv4Addresses, AllowedIPv6Addresses: req.AllowedIPv6Addresses,
 			ExtraNics: req.ExtraNics, SystemDiskIOPS: req.SystemDiskIOPS,
 			StartAfterImport: startAfterImport, KVMHidden: req.KVMHidden, VendorID: req.VendorID,
 			Username: username,

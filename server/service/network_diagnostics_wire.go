@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 
-	ovspkg "kvm_console/service/ovs"
 	diag "kvm_console/service/network/diagnostics"
+	ovspkg "kvm_console/service/ovs"
 	"kvm_console/utils"
 )
 
@@ -103,10 +103,11 @@ func convertOVSStatusToDiag(status *ovspkg.VMNetworkRuntimeStatus) *diag.VMNetwo
 		return nil
 	}
 	result := &diag.VMNetworkRuntimeStatus{
-		VMName: status.VMName,
-		State:  status.State,
-		Bridge: status.Bridge,
-		Issues: append([]string{}, status.Issues...),
+		VMName:              status.VMName,
+		State:               status.State,
+		Bridge:              status.Bridge,
+		PortSecurityEnabled: status.PortSecurityEnabled,
+		Issues:              append([]string{}, status.Issues...),
 	}
 	result.Interfaces = make([]diag.VMNetworkInterface, len(status.Interfaces))
 	for i, iface := range status.Interfaces {
@@ -122,6 +123,23 @@ func convertOVSStatusToDiag(status *ovspkg.VMNetworkRuntimeStatus) *diag.VMNetwo
 			IP:              iface.IP,
 			IPSource:        iface.IPSource,
 			Issues:          append([]string{}, iface.Issues...),
+		}
+		if iface.PortSecurity != nil {
+			result.Interfaces[i].PortSecurity = &diag.VMPortSecurityStatus{
+				Mode:                  iface.PortSecurity.Mode,
+				AllowedIPv4Addresses:  append([]string{}, iface.PortSecurity.AllowedIPv4Addresses...),
+				AllowedIPv6Addresses:  append([]string{}, iface.PortSecurity.AllowedIPv6Addresses...),
+				NeighborMeterID:       iface.PortSecurity.NeighborMeterID,
+				BroadcastMeterID:      iface.PortSecurity.BroadcastMeterID,
+				PolicingKpps:          iface.PortSecurity.PolicingKpps,
+				PolicingBurstKPackets: iface.PortSecurity.PolicingBurstKPackets,
+				DropPackets:           iface.PortSecurity.DropPackets,
+				NeighborDropPackets:   iface.PortSecurity.NeighborDropPackets,
+				BroadcastDropPackets:  iface.PortSecurity.BroadcastDropPackets,
+				Applied:               iface.PortSecurity.Applied,
+				Isolated:              iface.PortSecurity.Isolated,
+				LastError:             iface.PortSecurity.LastError,
+			}
 		}
 	}
 	return result

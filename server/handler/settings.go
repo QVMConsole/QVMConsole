@@ -44,6 +44,14 @@ type SettingsResponse struct {
 	ExternalNIC                           string `json:"external_nic"`
 	MaxBurstInbound                       int    `json:"max_burst_inbound"`
 	MaxBurstOutbound                      int    `json:"max_burst_outbound"`
+	PortSecurityEnabled                   bool   `json:"port_security_enabled"`
+	PortSecurityTotalKpps                 int    `json:"port_security_total_kpps"`
+	PortSecurityTotalBurstKPackets        int    `json:"port_security_total_burst_kpackets"`
+	PortSecurityNeighborPPS               int    `json:"port_security_neighbor_pps"`
+	PortSecurityNeighborBurstPackets      int    `json:"port_security_neighbor_burst_packets"`
+	PortSecurityBroadcastPPS              int    `json:"port_security_broadcast_pps"`
+	PortSecurityBroadcastBurstPackets     int    `json:"port_security_broadcast_burst_packets"`
+	PortSecurityReconcileIntervalSeconds  int    `json:"port_security_reconcile_interval_seconds"`
 	RescueISO                             string `json:"rescue_iso"`
 	SpiceEnabledByDefault                 bool   `json:"spice_enabled_by_default"`
 	PublicBaseURL                         string `json:"public_base_url"`
@@ -113,6 +121,13 @@ type UpdateSettingsRequest struct {
 	ExternalNIC                           *string `json:"external_nic"`
 	MaxBurstInbound                       *int    `json:"max_burst_inbound"`
 	MaxBurstOutbound                      *int    `json:"max_burst_outbound"`
+	PortSecurityTotalKpps                 *int    `json:"port_security_total_kpps"`
+	PortSecurityTotalBurstKPackets        *int    `json:"port_security_total_burst_kpackets"`
+	PortSecurityNeighborPPS               *int    `json:"port_security_neighbor_pps"`
+	PortSecurityNeighborBurstPackets      *int    `json:"port_security_neighbor_burst_packets"`
+	PortSecurityBroadcastPPS              *int    `json:"port_security_broadcast_pps"`
+	PortSecurityBroadcastBurstPackets     *int    `json:"port_security_broadcast_burst_packets"`
+	PortSecurityReconcileIntervalSeconds  *int    `json:"port_security_reconcile_interval_seconds"`
 	RescueISO                             *string `json:"rescue_iso"`
 	SpiceEnabledByDefault                 *bool   `json:"spice_enabled_by_default"`
 	PublicBaseURL                         *string `json:"public_base_url"`
@@ -231,6 +246,14 @@ func GetSettings(c *gin.Context) {
 			ExternalNIC:                           cfg.ExternalNIC,
 			MaxBurstInbound:                       cfg.MaxBurstInbound,
 			MaxBurstOutbound:                      cfg.MaxBurstOutbound,
+			PortSecurityEnabled:                   cfg.PortSecurityEnabled,
+			PortSecurityTotalKpps:                 cfg.PortSecurityTotalKpps,
+			PortSecurityTotalBurstKPackets:        cfg.PortSecurityTotalBurstKPackets,
+			PortSecurityNeighborPPS:               cfg.PortSecurityNeighborPPS,
+			PortSecurityNeighborBurstPackets:      cfg.PortSecurityNeighborBurstPackets,
+			PortSecurityBroadcastPPS:              cfg.PortSecurityBroadcastPPS,
+			PortSecurityBroadcastBurstPackets:     cfg.PortSecurityBroadcastBurstPackets,
+			PortSecurityReconcileIntervalSeconds:  cfg.PortSecurityReconcileIntervalSeconds,
 			RescueISO:                             cfg.RescueISO,
 			SpiceEnabledByDefault:                 cfg.SpiceEnabledByDefault,
 			PublicBaseURL:                         cfg.PublicBaseURL,
@@ -285,6 +308,10 @@ func UpdateSettings(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
 		return
 	}
+	portSecuritySettingsChanged := req.PortSecurityTotalKpps != nil || req.PortSecurityTotalBurstKPackets != nil ||
+		req.PortSecurityNeighborPPS != nil || req.PortSecurityNeighborBurstPackets != nil ||
+		req.PortSecurityBroadcastPPS != nil || req.PortSecurityBroadcastBurstPackets != nil ||
+		req.PortSecurityReconcileIntervalSeconds != nil
 
 	maintenanceChanged := req.MaintenanceMode != nil && *req.MaintenanceMode != previousMaintenanceMode
 	if maintenanceChanged {
@@ -377,6 +404,61 @@ func UpdateSettings(c *gin.Context) {
 			return
 		}
 		cfg.MaxBurstOutbound = *req.MaxBurstOutbound
+	}
+	if req.PortSecurityTotalKpps != nil {
+		if *req.PortSecurityTotalKpps < 1 || *req.PortSecurityTotalKpps > 1000000 {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "端口总包速率需在 1 - 1000000 kpps 之间"})
+			return
+		}
+		cfg.PortSecurityTotalKpps = *req.PortSecurityTotalKpps
+	}
+	if req.PortSecurityTotalBurstKPackets != nil {
+		if *req.PortSecurityTotalBurstKPackets < 1 || *req.PortSecurityTotalBurstKPackets > 1000000 {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "端口总包突发值需在 1 - 1000000 kpackets 之间"})
+			return
+		}
+		cfg.PortSecurityTotalBurstKPackets = *req.PortSecurityTotalBurstKPackets
+	}
+	if req.PortSecurityNeighborPPS != nil {
+		if *req.PortSecurityNeighborPPS < 1 || *req.PortSecurityNeighborPPS > 1000000 {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "ARP/ND 速率需在 1 - 1000000 pps 之间"})
+			return
+		}
+		cfg.PortSecurityNeighborPPS = *req.PortSecurityNeighborPPS
+	}
+	if req.PortSecurityNeighborBurstPackets != nil {
+		if *req.PortSecurityNeighborBurstPackets < 1 || *req.PortSecurityNeighborBurstPackets > 2000000 {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "ARP/ND 突发值需在 1 - 2000000 packets 之间"})
+			return
+		}
+		cfg.PortSecurityNeighborBurstPackets = *req.PortSecurityNeighborBurstPackets
+	}
+	if req.PortSecurityBroadcastPPS != nil {
+		if *req.PortSecurityBroadcastPPS < 1 || *req.PortSecurityBroadcastPPS > 1000000 {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "广播/组播速率需在 1 - 1000000 pps 之间"})
+			return
+		}
+		cfg.PortSecurityBroadcastPPS = *req.PortSecurityBroadcastPPS
+	}
+	if req.PortSecurityBroadcastBurstPackets != nil {
+		if *req.PortSecurityBroadcastBurstPackets < 1 || *req.PortSecurityBroadcastBurstPackets > 2000000 {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "广播/组播突发值需在 1 - 2000000 packets 之间"})
+			return
+		}
+		cfg.PortSecurityBroadcastBurstPackets = *req.PortSecurityBroadcastBurstPackets
+	}
+	if req.PortSecurityReconcileIntervalSeconds != nil {
+		if *req.PortSecurityReconcileIntervalSeconds < 10 || *req.PortSecurityReconcileIntervalSeconds > 3600 {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "端口安全协调周期需在 10 - 3600 秒之间"})
+			return
+		}
+		cfg.PortSecurityReconcileIntervalSeconds = *req.PortSecurityReconcileIntervalSeconds
+	}
+	if portSecuritySettingsChanged && (cfg.PortSecurityTotalBurstKPackets*5 < cfg.PortSecurityTotalKpps*4 ||
+		cfg.PortSecurityNeighborBurstPackets*5 < cfg.PortSecurityNeighborPPS*4 ||
+		cfg.PortSecurityBroadcastBurstPackets*5 < cfg.PortSecurityBroadcastPPS*4) {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "端口安全突发值至少应达到对应速率的 80%"})
+		return
 	}
 	if req.RescueISO != nil {
 		cfg.RescueISO = *req.RescueISO
@@ -593,6 +675,9 @@ func UpdateSettings(c *gin.Context) {
 				logger.App.Warn("应用全局带宽限制失败", "component", "全局带宽", "error", err)
 			}
 		}()
+	}
+	if portSecuritySettingsChanged {
+		service.TriggerPortSecurityReconcile()
 	}
 
 	// 网络等待就绪检测设置变更后执行 systemctl 操作

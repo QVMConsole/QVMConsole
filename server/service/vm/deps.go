@@ -66,6 +66,9 @@ type Deps struct {
 	StripRuntimeOnlyInterfaceElements func(block string) string
 	BridgeNameForSwitch               func(sw model.VPCSwitch) string
 	SwitchUsesDirectBridge            func(sw model.VPCSwitch) bool
+	IsPortSecurityEnabled             func() bool
+	ReconcileVMPortSecurity           func(vmName string) error
+	PrepareVMPortSecurityBinding      func(owner, vmName string, switchID, securityGroupID uint, allowedIPv4, allowedIPv6 string) error
 
 	// ---- Storage pool ----
 	GetAllISOs           func() ([]ISOFileInfo, error)

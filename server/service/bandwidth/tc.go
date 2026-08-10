@@ -6,7 +6,6 @@ import (
 	"github.com/digitalocean/go-libvirt"
 
 	"kvm_console/logger"
-	"kvm_console/service/ip_resolver"
 	"kvm_console/service/libvirt_rpc"
 	"kvm_console/utils"
 )
@@ -199,8 +198,8 @@ func applyTCUploadLimit(vnetIF string, avgKBps int) {
 // 单位：average/peak 为 KB/s，burst 为 KB
 // 所有值为 0 时清除限制
 func ApplyVMBandwidth(vmName string, downAvg, downPeak, downBurst, upAvg, upPeak, upBurst int) error {
-	mac := ip_resolver.GetFirstVMMAC(vmName)
-	if mac == "" {
+	interfaces := listVMBandwidthInterfaces(vmName)
+	if len(interfaces) == 0 {
 		return fmt.Errorf("无法获取虚拟机 %s 的网卡 MAC 地址", vmName)
 	}
 
@@ -208,32 +207,38 @@ func ApplyVMBandwidth(vmName string, downAvg, downPeak, downBurst, upAvg, upPeak
 	configParams := BuildBandwidthParams(downAvg, downPeak, downBurst, upAvg, upPeak, upBurst)
 
 	// 应用到 config（持久化）
-	if err := libvirt_rpc.SetInterfaceParametersRPC(vmName, mac, configParams, uint32(libvirt.DomainAffectConfig)); err != nil {
-		return fmt.Errorf("设置速率限制失败(config): %w", err)
+	for _, iface := range interfaces {
+		if err := libvirt_rpc.SetInterfaceParametersRPC(vmName, iface.MAC, configParams, uint32(libvirt.DomainAffectConfig)); err != nil {
+			return fmt.Errorf("设置第 %d 张网卡速率限制失败(config): %w", iface.Order+1, err)
+		}
 	}
 
 	// 如果 VM 正在运行，同时应用到 live
 	state, _ := libvirt_rpc.GetDomainStateRPC(vmName)
 	if state == "running" {
-		vnetIF := ip_resolver.GetVMVnetIF(vmName)
 		if HookUseOVSNetwork() {
 			// OVS 运行态由 queue/meter 接管；保留 live domiftune 会把上传变成端口 policing，导致低速率时抖动明显。
 			zeroParams := BuildBandwidthParams(0, 0, 0, 0, 0, 0)
-			if err := libvirt_rpc.SetInterfaceParametersRPC(vmName, mac, zeroParams, uint32(libvirt.DomainAffectLive)); err != nil {
-				logger.App.Warn("清理实时domiftune速率限制失败", "vm", vmName, "error", err)
-			}
-			if vnetIF != "" {
-				if err := applyOVSBandwidthLimit(vmName, mac, vnetIF, downAvg, upAvg); err != nil {
-					return err
+			clearOVSBandwidthLimit(vmName, "")
+			for _, iface := range interfaces {
+				if err := libvirt_rpc.SetInterfaceParametersRPC(vmName, iface.MAC, zeroParams, uint32(libvirt.DomainAffectLive)); err != nil {
+					logger.App.Warn("清理实时domiftune速率限制失败", "vm", vmName, "order", iface.Order, "error", err)
+				}
+				if iface.Name != "" {
+					if err := applyOVSBandwidthLimit(vmName, iface, downAvg, upAvg); err != nil {
+						return err
+					}
 				}
 			}
 		} else {
-			if err := libvirt_rpc.SetInterfaceParametersRPC(vmName, mac, configParams, uint32(libvirt.DomainAffectLive)); err != nil {
-				logger.App.Warn("实时应用速率限制失败", "vm", vmName, "error", err)
-			}
-			if vnetIF != "" {
-				// 非 OVS 环境保留旧的下行 tc 兜底。
-				applyTCDownloadLimit(vnetIF, downAvg, downPeak, downBurst)
+			for _, iface := range interfaces {
+				if err := libvirt_rpc.SetInterfaceParametersRPC(vmName, iface.MAC, configParams, uint32(libvirt.DomainAffectLive)); err != nil {
+					logger.App.Warn("实时应用速率限制失败", "vm", vmName, "order", iface.Order, "error", err)
+				}
+				if iface.Name != "" {
+					// 非 OVS 环境保留旧的下行 tc 兜底。
+					applyTCDownloadLimit(iface.Name, downAvg, downPeak, downBurst)
+				}
 			}
 		}
 	}
@@ -243,10 +248,11 @@ func ApplyVMBandwidth(vmName string, downAvg, downPeak, downBurst, upAvg, upPeak
 
 // ClearVMBandwidth 清除 VM 的速率限制
 func ClearVMBandwidth(vmName string) error {
-	vnetIF := ip_resolver.GetVMVnetIF(vmName)
-	clearOVSBandwidthLimit(vmName, vnetIF)
-	if vnetIF != "" {
-		clearTCBandwidthLimit(vnetIF)
+	clearOVSBandwidthLimit(vmName, "")
+	for _, iface := range listVMBandwidthInterfaces(vmName) {
+		if iface.Name != "" {
+			clearTCBandwidthLimit(iface.Name)
+		}
 	}
 	return ApplyVMBandwidth(vmName, 0, 0, 0, 0, 0, 0)
 }

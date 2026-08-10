@@ -127,6 +127,7 @@ func main() {
 	if err := service.RestorePublicIPRules(); err != nil {
 		logger.App.Warn("恢复公网 IP 规则失败", "error", err)
 	}
+	service.StartPortSecurityReconciler()
 
 	// 设置路由
 	r := router.Setup()
@@ -148,11 +149,12 @@ func registerTaskHandlers() {
 		if err != nil {
 			return "", fmt.Errorf("解析参数失败: %w", err)
 		}
+		params.Owner = task.CreatedBy
 		result, err := service.CloneVM(ctx, params, progress)
 		if err != nil {
 			return "", err
 		}
-		if err := bindTaskVMToVPC(task.CreatedBy, params.Name, params.SwitchID, params.SecurityGroupID); err != nil {
+		if err := bindTaskVMToVPC(task.CreatedBy, params.Name, params.SwitchID, params.SecurityGroupID, params.AllowedIPv4Addresses, params.AllowedIPv6Addresses); err != nil {
 			return "", fmt.Errorf("克隆完成，但绑定 VPC 网络失败: %w", err)
 		}
 		if err := service.AttachExtraNICs(params.Name, params.ExtraNics); err != nil {
@@ -190,11 +192,12 @@ func registerTaskHandlers() {
 		if err != nil {
 			return "", fmt.Errorf("解析参数失败: %w", err)
 		}
+		params.Owner = task.CreatedBy
 		result, err := service.LinkedCloneVM(ctx, params, progress)
 		if err != nil {
 			return "", err
 		}
-		if err := bindTaskVMToVPC(task.CreatedBy, params.Name, params.SwitchID, params.SecurityGroupID); err != nil {
+		if err := bindTaskVMToVPC(task.CreatedBy, params.Name, params.SwitchID, params.SecurityGroupID, params.AllowedIPv4Addresses, params.AllowedIPv6Addresses); err != nil {
 			return "", fmt.Errorf("原生链式克隆完成，但绑定 VPC 网络失败: %w", err)
 		}
 		if err := service.AttachExtraNICs(params.Name, params.ExtraNics); err != nil {
@@ -233,6 +236,7 @@ func registerTaskHandlers() {
 		if err != nil {
 			return "", fmt.Errorf("解析参数失败: %w", err)
 		}
+		params.Owner = task.CreatedBy
 		results, err := service.BatchCloneVM(ctx, params, progress)
 		if err != nil {
 			return "", err
@@ -242,7 +246,7 @@ func registerTaskHandlers() {
 			if result.Error != "" {
 				continue
 			}
-			if err := bindTaskVMToVPC(task.CreatedBy, result.VMName, params.SwitchID, params.SecurityGroupID); err != nil {
+			if err := bindTaskVMToVPC(task.CreatedBy, result.VMName, params.SwitchID, params.SecurityGroupID, params.AllowedIPv4Addresses, params.AllowedIPv6Addresses); err != nil {
 				logger.App.Warn("批量克隆绑定 VPC 失败", "vm", result.VMName, "error", err)
 			}
 			if err := service.AttachExtraNICs(result.VMName, params.ExtraNics); err != nil {
@@ -367,11 +371,12 @@ func registerTaskHandlers() {
 		if err != nil {
 			return "", fmt.Errorf("解析参数失败: %w", err)
 		}
+		params.Owner = task.CreatedBy
 		diskPath, err := service.CreateVM(params, progress)
 		if err != nil {
 			return "", err
 		}
-		if err := bindTaskVMToVPC(task.CreatedBy, params.Name, params.SwitchID, params.SecurityGroupID); err != nil {
+		if err := bindTaskVMToVPC(task.CreatedBy, params.Name, params.SwitchID, params.SecurityGroupID, params.AllowedIPv4Addresses, params.AllowedIPv6Addresses); err != nil {
 			return "", fmt.Errorf("虚拟机创建完成，但绑定 VPC 网络失败: %w", err)
 		}
 		if err := service.AttachExtraNICs(params.Name, params.ExtraNics); err != nil {
@@ -745,7 +750,7 @@ func registerTaskHandlers() {
 		if err != nil {
 			return "", err
 		}
-		if err := bindTaskVMToVPC(params.Username, params.Name, params.SwitchID, params.SecurityGroupID); err != nil {
+		if err := bindTaskVMToVPC(params.Username, params.Name, params.SwitchID, params.SecurityGroupID, params.AllowedIPv4Addresses, params.AllowedIPv6Addresses); err != nil {
 			return "", fmt.Errorf("导入完成，但绑定 VPC 网络失败: %w", err)
 		}
 		if err := service.AttachExtraNICs(params.Name, params.ExtraNics); err != nil {
@@ -774,7 +779,7 @@ func registerTaskHandlers() {
 			_ = service.RemoveVMFromUser(params.Username, params.Name)
 			return "", cause
 		}
-		if err := bindTaskVMToVPC(params.Username, params.Name, params.SwitchID, params.SecurityGroupID); err != nil {
+		if err := bindTaskVMToVPC(params.Username, params.Name, params.SwitchID, params.SecurityGroupID, params.AllowedIPv4Addresses, params.AllowedIPv6Addresses); err != nil {
 			return rollback(fmt.Errorf("虚拟机已创建，但绑定 VPC 网络失败: %w", err))
 		}
 		if err := service.AttachExtraNICs(params.Name, params.ExtraNics); err != nil {
@@ -808,7 +813,7 @@ func registerTaskHandlers() {
 		if err != nil {
 			return "", err
 		}
-		if err := bindTaskVMToVPC(params.Username, params.Name, params.SwitchID, params.SecurityGroupID); err != nil {
+		if err := bindTaskVMToVPC(params.Username, params.Name, params.SwitchID, params.SecurityGroupID, params.AllowedIPv4Addresses, params.AllowedIPv6Addresses); err != nil {
 			return "", fmt.Errorf("导入完成，但绑定 VPC 网络失败: %w", err)
 		}
 		if err := service.AttachExtraNICs(params.Name, params.ExtraNics); err != nil {
@@ -982,7 +987,33 @@ func registerTaskHandlers() {
 		if err != nil {
 			return "", fmt.Errorf("解析参数失败: %w", err)
 		}
-		return service.ExecutePublicIPOperation(ctx, params, progress)
+		result, err := service.ExecutePublicIPOperation(ctx, params, progress)
+		if err == nil && config.GlobalConfig.PortSecurityEnabled {
+			if _, reconcileErr := service.ReconcilePortSecurity(); reconcileErr != nil {
+				return result, fmt.Errorf("公网 IP 已更新，但端口安全策略协调失败: %w", reconcileErr)
+			}
+		}
+		return result, err
+	})
+	taskqueue.RegisterHandler(model.TaskTypePortSecurity, func(ctx context.Context, task *model.Task, progress func(int, string)) (string, error) {
+		var params service.PortSecurityTaskParams
+		if err := json.Unmarshal([]byte(task.Params), &params); err != nil {
+			return "", fmt.Errorf("解析参数失败: %w", err)
+		}
+		result, err := service.ExecutePortSecurityTask(ctx, params, progress)
+		if err != nil {
+			return result, err
+		}
+		if strings.EqualFold(params.Action, "enable") || strings.EqualFold(params.Action, "disable") {
+			if err := refreshPortSecurityDependentFlows(); err != nil {
+				if strings.EqualFold(params.Action, "enable") {
+					_, _ = service.ExecutePortSecurityTask(ctx, service.PortSecurityTaskParams{Action: "disable"}, nil)
+					_ = refreshPortSecurityDependentFlows()
+				}
+				return result, fmt.Errorf("刷新现有网络策略失败: %w", err)
+			}
+		}
+		return result, nil
 	})
 	taskqueue.RegisterHandler(model.TaskTypeEnterMaintenanceMode, func(ctx context.Context, task *model.Task, progress func(int, string)) (string, error) {
 		var params service.MaintenanceModeTaskParams
@@ -1113,10 +1144,53 @@ func guestautomationTimeoutForMain() time.Duration {
 	return 15 * time.Second
 }
 
-func bindTaskVMToVPC(owner, vmName string, switchID, securityGroupID uint) error {
-	if owner == "admin" && switchID > 0 {
+// refreshPortSecurityDependentFlows 在总开关切换后将现有带宽和公网规则迁移到正确表级。
+func refreshPortSecurityDependentFlows() error {
+	var lastErr error
+	result := utils.ExecCommand("virsh", "list", "--name")
+	if result.Error == nil {
+		for _, vmName := range strings.Split(result.Stdout, "\n") {
+			if vmName = strings.TrimSpace(vmName); vmName == "" || service.IsLightweightCloudVM(vmName) {
+				continue
+			}
+			if err := service.ReapplyConfiguredVMBandwidth(vmName); err != nil {
+				lastErr = err
+				logger.App.Warn("刷新 VM 带宽流表失败", "vm", vmName, "error", err)
+			}
+		}
+	}
+	if err := service.ReapplyAllVPCSwitchBandwidth(); err != nil {
+		lastErr = err
+		logger.App.Warn("刷新 VPC 交换机带宽流表失败", "error", err)
+	}
+	if err := service.ApplyGlobalBandwidthLimit(); err != nil {
+		lastErr = err
+		logger.App.Warn("刷新全局带宽流表失败", "error", err)
+	}
+	if err := service.ApplyPublicIPRules(); err != nil {
+		lastErr = err
+		logger.App.Warn("刷新公网 IP 流表失败", "error", err)
+	}
+	return lastErr
+}
+
+func bindTaskVMToVPC(owner, vmName string, switchID, securityGroupID uint, allowedAddresses ...string) error {
+	persistAllowedAddresses := func() error {
+		allowedIPv4, allowedIPv6 := "", ""
+		if len(allowedAddresses) > 0 {
+			allowedIPv4 = allowedAddresses[0]
+		}
+		if len(allowedAddresses) > 1 {
+			allowedIPv6 = allowedAddresses[1]
+		}
+		return service.UpdateVMInterfaceAllowedAddresses(vmName, 0, allowedIPv4, allowedIPv6)
+	}
+	if service.IsAdministratorAccount(owner) && switchID > 0 {
 		if err := service.BindVMToVPCAsAdmin(vmName, switchID, securityGroupID); err != nil {
 			return err
+		}
+		if err := persistAllowedAddresses(); err != nil {
+			return fmt.Errorf("保存主网卡允许地址失败: %w", err)
 		}
 		logger.App.Info("管理员 VM 绑定 VPC", "vm", vmName, "switch", switchID, "sg", securityGroupID)
 		return nil
@@ -1135,6 +1209,9 @@ func bindTaskVMToVPC(owner, vmName string, switchID, securityGroupID uint) error
 	}
 	if err := service.BindVMToVPC(owner, vmName, switchID, securityGroupID); err != nil {
 		return err
+	}
+	if err := persistAllowedAddresses(); err != nil {
+		return fmt.Errorf("保存主网卡允许地址失败: %w", err)
 	}
 	logger.App.Info("VM 自动绑定 VPC", "vm", vmName, "user", owner, "switch", switchID, "sg", securityGroupID)
 	return nil
@@ -1283,6 +1360,7 @@ func initCloneDeps() {
 		ListAllVPCStaticHosts:         service.ListAllVPCStaticHostsForClone,
 		GetOVSLeaseIPByMAC:            service.GetOVSLeaseIPByMAC,
 		ApplyVPCBindingToDomainXML:    service.ApplyVPCBindingToDomainXML,
+		PrepareVMPortSecurityBinding:  service.PrepareVMPortSecurityBinding,
 
 		// XML modification helpers
 		ApplyRTCConfigToDomainXML:           service.ApplyRTCConfigToDomainXML,

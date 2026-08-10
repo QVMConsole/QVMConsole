@@ -174,6 +174,8 @@ export const fieldDescriptions: Record<string, string> = {
   scope: '作用范围，例如 node 或 all。',
   security: '账户安全状态对象。',
   security_group_id: 'VPC 安全组 ID。',
+  allowed_ipv4_addresses: '端口安全允许的精确 IPv4 地址清单，可用换行或逗号分隔。',
+  allowed_ipv6_addresses: '端口安全允许的精确 IPv6 地址清单，可用换行或逗号分隔。',
   selection_token: '忘记密码选择账号阶段令牌。',
   serial: 'SMBIOS serial 序列号字段。',
   site_title: '站点标题。',

@@ -11,22 +11,24 @@ const (
 )
 
 type VPCSwitchRequest struct {
-	Username          string  `json:"username"`
-	Name              string  `json:"name"`
-	BridgeName        string  `json:"bridge_name"`
-	BridgeVLANID      int     `json:"bridge_vlan_id"`
-	AllowPromiscuous  bool    `json:"allow_promiscuous"`
-	AllowMACChange    bool    `json:"allow_mac_change"`
-	AllowForgedTx     bool    `json:"allow_forged_transmits"`
-	CIDR              string  `json:"cidr"`       // 自定义网段（如 10.0.1.0/24），留空则自动分配
-	GatewayIP         string  `json:"gateway_ip"` // 自定义网关地址，留空则自动计算（CIDR 内第一个可用 IP）
-	DHCPStart         string  `json:"dhcp_start"` // DHCP 起始地址，留空则自动计算
-	DHCPEnd           string  `json:"dhcp_end"`   // DHCP 结束地址，留空则自动计算
-	TrafficDownGB     float64 `json:"traffic_down_gb"`
-	TrafficUpGB       float64 `json:"traffic_up_gb"`
-	BandwidthMbps     int     `json:"bandwidth_mbps"` // 兼容旧版字段，传入时同时作为上下行默认值
-	BandwidthDownMbps int     `json:"bandwidth_down_mbps"`
-	BandwidthUpMbps   int     `json:"bandwidth_up_mbps"`
+	Username            string  `json:"username"`
+	Name                string  `json:"name"`
+	BridgeName          string  `json:"bridge_name"`
+	BridgeVLANID        int     `json:"bridge_vlan_id"`
+	AllowPromiscuous    bool    `json:"allow_promiscuous"`
+	AllowMACChange      bool    `json:"allow_mac_change"`
+	AllowForgedTx       bool    `json:"allow_forged_transmits"`
+	IPv6SecurityEnabled bool    `json:"ipv6_security_enabled"`
+	TrustedIPv6Prefixes string  `json:"trusted_ipv6_prefixes"`
+	CIDR                string  `json:"cidr"`       // 自定义网段（如 10.0.1.0/24），留空则自动分配
+	GatewayIP           string  `json:"gateway_ip"` // 自定义网关地址，留空则自动计算（CIDR 内第一个可用 IP）
+	DHCPStart           string  `json:"dhcp_start"` // DHCP 起始地址，留空则自动计算
+	DHCPEnd             string  `json:"dhcp_end"`   // DHCP 结束地址，留空则自动计算
+	TrafficDownGB       float64 `json:"traffic_down_gb"`
+	TrafficUpGB         float64 `json:"traffic_up_gb"`
+	BandwidthMbps       int     `json:"bandwidth_mbps"` // 兼容旧版字段，传入时同时作为上下行默认值
+	BandwidthDownMbps   int     `json:"bandwidth_down_mbps"`
+	BandwidthUpMbps     int     `json:"bandwidth_up_mbps"`
 }
 
 type VPCSecurityGroupRequest struct {
@@ -79,6 +81,8 @@ type AddVMInterfaceRequest struct {
 	NicModel             string `json:"nic_model"`
 	BandwidthInboundAvg  int    `json:"bandwidth_inbound_avg"`
 	BandwidthOutboundAvg int    `json:"bandwidth_outbound_avg"`
+	AllowedIPv4Addresses string `json:"allowed_ipv4_addresses"`
+	AllowedIPv6Addresses string `json:"allowed_ipv6_addresses"`
 }
 
 // VMInterfaceInfo 网口信息

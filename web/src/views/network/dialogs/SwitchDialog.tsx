@@ -5,7 +5,7 @@
  * - 流量/带宽配额按用户剩余配额动态限制上下限（编辑时可为负表示归还配额）
  */
 import { useEffect, useMemo, useState } from 'react'
-import { Input, InputNumber, Modal, Select, Switch, Toast } from '@douyinfe/semi-ui'
+import { Input, InputNumber, Modal, Select, Switch, TextArea, Toast } from '@douyinfe/semi-ui'
 import type { NetworkBridge } from '@/api/network'
 import { createVPCSwitch, updateVPCSwitch, type VpcQuota, type VpcSwitch } from '@/api/vpc'
 import { getUserList, type UserListItem } from '@/api/user'
@@ -18,6 +18,7 @@ interface SwitchDialogProps {
   bridges: NetworkBridge[]
   quota: VpcQuota | null
   defaultUsername: string
+  portSecurityEnabled: boolean
   onClose: () => void
   onSaved: () => void
 }
@@ -30,6 +31,8 @@ interface SwitchFormState {
   allow_promiscuous: boolean
   allow_mac_change: boolean
   allow_forged_transmits: boolean
+  ipv6_security_enabled: boolean
+  trusted_ipv6_prefixes: string
   cidr: string
   gateway_ip: string
   dhcp_start: string
@@ -85,6 +88,7 @@ export default function SwitchDialog({
   bridges,
   quota,
   defaultUsername,
+  portSecurityEnabled,
   onClose,
   onSaved,
 }: SwitchDialogProps) {
@@ -109,6 +113,8 @@ export default function SwitchDialog({
       allow_promiscuous: !!row?.allow_promiscuous,
       allow_mac_change: !!row?.allow_mac_change,
       allow_forged_transmits: !!row?.allow_forged_transmits,
+      ipv6_security_enabled: !!row?.ipv6_security_enabled,
+      trusted_ipv6_prefixes: row?.trusted_ipv6_prefixes || '',
       cidr: row?.cidr || '',
       gateway_ip: row?.gateway_ip || '',
       dhcp_start: row?.dhcp_start || '',
@@ -142,6 +148,10 @@ export default function SwitchDialog({
   const handleSubmit = async () => {
     if (!form.name.trim()) {
       Toast.warning('请输入交换机名称')
+      return
+    }
+    if (portSecurityEnabled && isBridgeMode && form.ipv6_security_enabled && !form.trusted_ipv6_prefixes.trim()) {
+      Toast.warning('启用 IPv6 防护时请填写可信 IPv6 前缀')
       return
     }
     setSubmitting(true)
@@ -278,6 +288,40 @@ export default function SwitchDialog({
             checked={form.allow_forged_transmits}
             onChange={(v) => patch({ allow_forged_transmits: v })}
           />
+          {portSecurityEnabled && (
+            <>
+              <div className="qvm-form-divider">IPv6 端口防护</div>
+              <div className="qvm-form-item">
+                <div className="net-switch-row">
+                  <div>
+                    <div className="qvm-form-label">IPv6 防护</div>
+                    <div className="qvm-form-tip">开启后仅允许可信前缀内、且登记到网卡的精确 IPv6 地址。</div>
+                  </div>
+                  <div className="net-switch-control">
+                    <Switch
+                      checked={form.ipv6_security_enabled}
+                      onChange={(v) => patch({ ipv6_security_enabled: v })}
+                      size="small"
+                      checkedText="开"
+                      uncheckedText="关"
+                    />
+                  </div>
+                </div>
+              </div>
+              {form.ipv6_security_enabled && (
+                <div className="qvm-form-item">
+                  <div className="qvm-form-label required">可信 IPv6 前缀</div>
+                  <TextArea
+                    value={form.trusted_ipv6_prefixes}
+                    onChange={(v) => patch({ trusted_ipv6_prefixes: v })}
+                    placeholder={'每行一个 CIDR，例如：\n2001:db8:100::/64'}
+                    autosize={{ minRows: 2, maxRows: 5 }}
+                  />
+                  <div className="qvm-form-tip">可使用换行或逗号分隔；网卡精确地址还需单独登记。</div>
+                </div>
+              )}
+            </>
+          )}
         </>
       )}
 

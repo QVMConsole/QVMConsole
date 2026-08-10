@@ -42,6 +42,8 @@ export interface CreateExtraNic {
   nic_model: string
   switch_id: number | null
   security_group_id: number | null
+  allowed_ipv4_addresses: string
+  allowed_ipv6_addresses: string
 }
 
 /** 统一表单模型（创建 + 编辑字段全集） */

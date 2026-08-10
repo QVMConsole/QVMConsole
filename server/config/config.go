@@ -131,6 +131,15 @@ type Config struct {
 	VPCVLANEnd      int    `json:"vpc_vlan_end"`
 	VPCDNS          string `json:"vpc_dns"`
 	VPCACLTable     string `json:"vpc_acl_table"`
+	// OVS 端口安全配置（默认关闭，开启前由预检确认运行环境与端口身份资料）
+	PortSecurityEnabled                  bool `json:"port_security_enabled"`
+	PortSecurityTotalKpps                int  `json:"port_security_total_kpps"`
+	PortSecurityTotalBurstKPackets       int  `json:"port_security_total_burst_kpackets"`
+	PortSecurityNeighborPPS              int  `json:"port_security_neighbor_pps"`
+	PortSecurityNeighborBurstPackets     int  `json:"port_security_neighbor_burst_packets"`
+	PortSecurityBroadcastPPS             int  `json:"port_security_broadcast_pps"`
+	PortSecurityBroadcastBurstPackets    int  `json:"port_security_broadcast_burst_packets"`
+	PortSecurityReconcileIntervalSeconds int  `json:"port_security_reconcile_interval_seconds"`
 	// 网络抓包配置
 	NetworkCaptureDir            string `json:"network_capture_dir"`
 	NetworkCaptureDefaultSeconds int    `json:"network_capture_default_seconds"`
@@ -272,6 +281,14 @@ func Init() {
 		VPCVLANEnd:                            getEnvInt("KVM_VPC_VLAN_END", 4094),
 		VPCDNS:                                getEnv("KVM_VPC_DNS", "223.5.5.5,223.6.6.6"),
 		VPCACLTable:                           getEnv("KVM_VPC_ACL_TABLE", "kvm_console_vpc_acl"),
+		PortSecurityEnabled:                   getEnvBool("KVM_PORT_SECURITY_ENABLED", false),
+		PortSecurityTotalKpps:                 getEnvInt("KVM_PORT_SECURITY_TOTAL_KPPS", 50),
+		PortSecurityTotalBurstKPackets:        getEnvInt("KVM_PORT_SECURITY_TOTAL_BURST_KPACKETS", 40),
+		PortSecurityNeighborPPS:               getEnvInt("KVM_PORT_SECURITY_NEIGHBOR_PPS", 200),
+		PortSecurityNeighborBurstPackets:      getEnvInt("KVM_PORT_SECURITY_NEIGHBOR_BURST_PACKETS", 400),
+		PortSecurityBroadcastPPS:              getEnvInt("KVM_PORT_SECURITY_BROADCAST_PPS", 1000),
+		PortSecurityBroadcastBurstPackets:     getEnvInt("KVM_PORT_SECURITY_BROADCAST_BURST_PACKETS", 2000),
+		PortSecurityReconcileIntervalSeconds:  getEnvInt("KVM_PORT_SECURITY_RECONCILE_INTERVAL_SECONDS", 60),
 		NetworkCaptureDir:                     getEnv("KVM_NETWORK_CAPTURE_DIR", "/var/lib/kvm-console/captures"),
 		NetworkCaptureDefaultSeconds:          getEnvInt("KVM_NETWORK_CAPTURE_DEFAULT_SECONDS", 30),
 		NetworkCaptureMaxSeconds:              getEnvInt("KVM_NETWORK_CAPTURE_MAX_SECONDS", 120),
@@ -512,6 +529,14 @@ var PersistableKeys = []string{
 	"vpc_vlan_end",
 	"vpc_dns",
 	"vpc_acl_table",
+	"port_security_enabled",
+	"port_security_total_kpps",
+	"port_security_total_burst_kpackets",
+	"port_security_neighbor_pps",
+	"port_security_neighbor_burst_packets",
+	"port_security_broadcast_pps",
+	"port_security_broadcast_burst_packets",
+	"port_security_reconcile_interval_seconds",
 	"default_disk_iops_total",
 	"default_disk_iops_read",
 	"default_disk_iops_write",
@@ -589,6 +614,14 @@ var keyToEnvVar = map[string]string{
 	"vpc_vlan_end":                              "KVM_VPC_VLAN_END",
 	"vpc_dns":                                   "KVM_VPC_DNS",
 	"vpc_acl_table":                             "KVM_VPC_ACL_TABLE",
+	"port_security_enabled":                     "KVM_PORT_SECURITY_ENABLED",
+	"port_security_total_kpps":                  "KVM_PORT_SECURITY_TOTAL_KPPS",
+	"port_security_total_burst_kpackets":        "KVM_PORT_SECURITY_TOTAL_BURST_KPACKETS",
+	"port_security_neighbor_pps":                "KVM_PORT_SECURITY_NEIGHBOR_PPS",
+	"port_security_neighbor_burst_packets":      "KVM_PORT_SECURITY_NEIGHBOR_BURST_PACKETS",
+	"port_security_broadcast_pps":               "KVM_PORT_SECURITY_BROADCAST_PPS",
+	"port_security_broadcast_burst_packets":     "KVM_PORT_SECURITY_BROADCAST_BURST_PACKETS",
+	"port_security_reconcile_interval_seconds":  "KVM_PORT_SECURITY_RECONCILE_INTERVAL_SECONDS",
 	"default_disk_iops_total":                   "KVM_DEFAULT_DISK_IOPS_TOTAL",
 	"default_disk_iops_read":                    "KVM_DEFAULT_DISK_IOPS_READ",
 	"default_disk_iops_write":                   "KVM_DEFAULT_DISK_IOPS_WRITE",
@@ -768,6 +801,38 @@ func (c *Config) LoadFromDB(settings map[string]string) {
 			c.VPCDNS = value
 		case "vpc_acl_table":
 			c.VPCACLTable = value
+		case "port_security_enabled":
+			if v, err := strconv.ParseBool(value); err == nil {
+				c.PortSecurityEnabled = v
+			}
+		case "port_security_total_kpps":
+			if v, err := strconv.Atoi(value); err == nil {
+				c.PortSecurityTotalKpps = v
+			}
+		case "port_security_total_burst_kpackets":
+			if v, err := strconv.Atoi(value); err == nil {
+				c.PortSecurityTotalBurstKPackets = v
+			}
+		case "port_security_neighbor_pps":
+			if v, err := strconv.Atoi(value); err == nil {
+				c.PortSecurityNeighborPPS = v
+			}
+		case "port_security_neighbor_burst_packets":
+			if v, err := strconv.Atoi(value); err == nil {
+				c.PortSecurityNeighborBurstPackets = v
+			}
+		case "port_security_broadcast_pps":
+			if v, err := strconv.Atoi(value); err == nil {
+				c.PortSecurityBroadcastPPS = v
+			}
+		case "port_security_broadcast_burst_packets":
+			if v, err := strconv.Atoi(value); err == nil {
+				c.PortSecurityBroadcastBurstPackets = v
+			}
+		case "port_security_reconcile_interval_seconds":
+			if v, err := strconv.Atoi(value); err == nil {
+				c.PortSecurityReconcileIntervalSeconds = v
+			}
 		case "default_disk_iops_total":
 			if v, err := strconv.Atoi(value); err == nil {
 				c.DefaultDiskIOPSTotal = v
@@ -896,6 +961,14 @@ func (c *Config) ToSettingsMap() map[string]string {
 		"vpc_vlan_end":                              strconv.Itoa(c.VPCVLANEnd),
 		"vpc_dns":                                   c.VPCDNS,
 		"vpc_acl_table":                             c.VPCACLTable,
+		"port_security_enabled":                     strconv.FormatBool(c.PortSecurityEnabled),
+		"port_security_total_kpps":                  strconv.Itoa(c.PortSecurityTotalKpps),
+		"port_security_total_burst_kpackets":        strconv.Itoa(c.PortSecurityTotalBurstKPackets),
+		"port_security_neighbor_pps":                strconv.Itoa(c.PortSecurityNeighborPPS),
+		"port_security_neighbor_burst_packets":      strconv.Itoa(c.PortSecurityNeighborBurstPackets),
+		"port_security_broadcast_pps":               strconv.Itoa(c.PortSecurityBroadcastPPS),
+		"port_security_broadcast_burst_packets":     strconv.Itoa(c.PortSecurityBroadcastBurstPackets),
+		"port_security_reconcile_interval_seconds":  strconv.Itoa(c.PortSecurityReconcileIntervalSeconds),
 		"default_disk_iops_total":                   strconv.Itoa(c.DefaultDiskIOPSTotal),
 		"default_disk_iops_read":                    strconv.Itoa(c.DefaultDiskIOPSRead),
 		"default_disk_iops_write":                   strconv.Itoa(c.DefaultDiskIOPSWrite),

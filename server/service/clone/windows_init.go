@@ -519,6 +519,11 @@ func cloneWindows(ctx context.Context, params *CloneParams, cloneDisk string, ra
 			return fmt.Errorf("挂载额外磁盘失败: %w", err)
 		}
 	}
+	if D.PrepareVMPortSecurityBinding != nil {
+		if err := D.PrepareVMPortSecurityBinding(params.Owner, params.Name, params.SwitchID, params.SecurityGroupID, params.AllowedIPv4Addresses, params.AllowedIPv6Addresses); err != nil {
+			return fmt.Errorf("启动前准备端口安全绑定失败: %w", err)
+		}
+	}
 
 	startFn := D.StartVM
 	if firstBootColdReboot {

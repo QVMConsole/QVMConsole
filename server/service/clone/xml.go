@@ -278,6 +278,11 @@ func defineAndStartNonWindowsClone(params *CloneParams, cloneDisk string, ramMB 
 			return fmt.Errorf("挂载额外磁盘失败: %w", err)
 		}
 	}
+	if D.PrepareVMPortSecurityBinding != nil {
+		if err := D.PrepareVMPortSecurityBinding(params.Owner, params.Name, params.SwitchID, params.SecurityGroupID, params.AllowedIPv4Addresses, params.AllowedIPv6Addresses); err != nil {
+			return fmt.Errorf("启动前准备端口安全绑定失败: %w", err)
+		}
+	}
 
 	if err := D.StartVM(params.Name); err != nil {
 		return err

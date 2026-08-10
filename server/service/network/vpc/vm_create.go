@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"kvm_console/config"
 	"kvm_console/model"
 	"kvm_console/service/ip_resolver"
 )
@@ -111,6 +112,16 @@ func ResolveVPCForVMCreate(username string, switchID, securityGroupID uint) (uin
 }
 
 func resolveDefaultVPCSwitchIDForVMCreate(username string) (uint, error) {
+	// 防护开启后，普通用户新建 VM 默认进入自己的独立 VPC；显式传入系统网络仍按原逻辑支持。
+	if config.GlobalConfig != nil && config.GlobalConfig.PortSecurityEnabled {
+		var userSwitch model.VPCSwitch
+		if err := model.DB.Where("username = ? AND name = ?", username, DefaultVPCSwitchName).Order("id ASC").First(&userSwitch).Error; err == nil {
+			return userSwitch.ID, nil
+		}
+		if err := model.DB.Where("username = ?", username).Order("id ASC").First(&userSwitch).Error; err == nil {
+			return userSwitch.ID, nil
+		}
+	}
 	// 优先使用系统基础网络交换机
 	var sysSwitch model.VPCSwitch
 	if err := model.DB.Where("is_system = ?", true).First(&sysSwitch).Error; err == nil {

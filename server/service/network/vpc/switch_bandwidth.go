@@ -7,9 +7,9 @@ import (
 	"strings"
 	"sync"
 
-	bw "kvm_console/service/bandwidth"
+	"kvm_console/config"
 	"kvm_console/model"
-	"kvm_console/service/ip_resolver"
+	bw "kvm_console/service/bandwidth"
 	"kvm_console/utils"
 )
 
@@ -22,7 +22,8 @@ func vpcSwitchCookie(switchID uint) string {
 func vpcSwitchMeterID(switchID uint, direction string) uint32 {
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(fmt.Sprintf("kvm-console-vpc-switch:%d:%s", switchID, direction)))
-	return 200000 + h.Sum32()%800000000
+	// 与端口安全和 VM 级带宽 meter 使用不同的有界区间。
+	return 150000 + h.Sum32()%40000
 }
 
 func clearVPCSwitchBandwidth(sw model.VPCSwitch) {
@@ -120,6 +121,24 @@ func ApplyVPCSwitchBandwidth(sw model.VPCSwitch) error {
 	return nil
 }
 
+// ReapplyAllVPCSwitchBandwidth 仅重建交换机带宽流表，不改动网桥、网关或虚拟机绑定。
+func ReapplyAllVPCSwitchBandwidth() error {
+	if model.DB == nil {
+		return nil
+	}
+	var switches []model.VPCSwitch
+	if err := model.DB.Order("id ASC").Find(&switches).Error; err != nil {
+		return err
+	}
+	var lastErr error
+	for _, sw := range switches {
+		if err := ApplyVPCSwitchBandwidth(sw); err != nil {
+			lastErr = err
+		}
+	}
+	return lastErr
+}
+
 type vpcSwitchVMPortMatch struct {
 	PortName string
 	OFPort   string
@@ -134,12 +153,17 @@ func listVPCSwitchVMOfports(switchID uint) []string {
 	model.DB.Where("switch_id = ?", switchID).Order("vm_name ASC").Find(&bindings)
 	seen := map[string]bool{}
 	ofports := make([]string, 0, len(bindings))
+	interfacesByVM := map[string][]RuntimeInterface{}
 	for _, binding := range bindings {
-		vnetIF := ip_resolver.GetVMVnetIF(binding.VMName)
-		if vnetIF == "" {
+		ifaces, ok := interfacesByVM[binding.VMName]
+		if !ok {
+			ifaces = HookParseVirshDomiflist(utils.ExecCommand("virsh", "domiflist", binding.VMName).Stdout)
+			interfacesByVM[binding.VMName] = ifaces
+		}
+		if binding.InterfaceOrder < 0 || binding.InterfaceOrder >= len(ifaces) {
 			continue
 		}
-		ofport := HookGetOVSInterfaceOfPort(vnetIF)
+		ofport := HookGetOVSInterfaceOfPort(ifaces[binding.InterfaceOrder].Name)
 		if ofport == "" || seen[ofport] {
 			continue
 		}
@@ -156,15 +180,38 @@ func listVPCSwitchVMPortMatches(sw model.VPCSwitch) []vpcSwitchVMPortMatch {
 	}
 	seen := map[string]bool{}
 	var matches []vpcSwitchVMPortMatch
-	for _, vmName := range listVPCSwitchVMNames(sw) {
-		vnetIF := ip_resolver.GetVMVnetIF(vmName)
-		mac := strings.ToLower(strings.TrimSpace(ip_resolver.GetFirstVMMAC(vmName)))
+	var bindings []model.VPCVMBinding
+	model.DB.Where("switch_id = ?", sw.ID).Order("vm_name ASC, interface_order ASC").Find(&bindings)
+	interfacesByVM := map[string][]RuntimeInterface{}
+	appendInterface := func(iface RuntimeInterface) {
+		vnetIF := strings.TrimSpace(iface.Name)
+		mac := strings.ToLower(strings.TrimSpace(iface.MAC))
 		ofport := HookGetOVSInterfaceOfPort(vnetIF)
 		if ofport == "" || mac == "" || seen[ofport+"/"+mac] {
-			continue
+			return
 		}
 		seen[ofport+"/"+mac] = true
 		matches = append(matches, vpcSwitchVMPortMatch{PortName: vnetIF, OFPort: ofport, MAC: mac})
+	}
+	for _, binding := range bindings {
+		ifaces, ok := interfacesByVM[binding.VMName]
+		if !ok {
+			ifaces = HookParseVirshDomiflist(utils.ExecCommand("virsh", "domiflist", binding.VMName).Stdout)
+			interfacesByVM[binding.VMName] = ifaces
+		}
+		if binding.InterfaceOrder >= 0 && binding.InterfaceOrder < len(ifaces) {
+			appendInterface(ifaces[binding.InterfaceOrder])
+		}
+	}
+	// 单一直通交换机允许纳管未落库的既有网卡，但按运行态网桥逐口匹配。
+	if HookSwitchUsesDirectBridge(sw) && directBridgeSwitchCount(HookBridgeNameForSwitch(sw)) == 1 {
+		for _, vmName := range HookListAllVMNames() {
+			for _, iface := range HookParseVirshDomiflist(utils.ExecCommand("virsh", "domiflist", vmName).Stdout) {
+				if iface.Source == HookBridgeNameForSwitch(sw) {
+					appendInterface(iface)
+				}
+			}
+		}
 	}
 	sort.Slice(matches, func(i, j int) bool {
 		if matches[i].OFPort == matches[j].OFPort {
@@ -242,6 +289,7 @@ func vmUsesOVSBridge(vmName, bridgeName string) bool {
 
 func buildVPCSwitchBandwidthFlows(sw model.VPCSwitch, gatewayOfport string, vmOfports []string, upMeter uint32, downRateKbit, upRateKbit int) []string {
 	cookie := vpcSwitchCookie(sw.ID)
+	table := vpcBandwidthFlowTable()
 	if upRateKbit > 0 {
 		sort.Strings(vmOfports)
 	}
@@ -252,19 +300,20 @@ func buildVPCSwitchBandwidthFlows(sw model.VPCSwitch, gatewayOfport string, vmOf
 				continue
 			}
 			flows = append(flows,
-				fmt.Sprintf("cookie=%s,priority=90,in_port=%s,ip,nw_src=%s,nw_dst=%s,actions=NORMAL", cookie, vmOfport, sw.CIDR, sw.CIDR),
-				fmt.Sprintf("cookie=%s,priority=80,in_port=%s,ip,nw_src=%s,actions=meter:%d,NORMAL", cookie, vmOfport, sw.CIDR, upMeter),
+				fmt.Sprintf("cookie=%s,%spriority=90,in_port=%s,ip,nw_src=%s,nw_dst=%s,actions=NORMAL", cookie, table, vmOfport, sw.CIDR, sw.CIDR),
+				fmt.Sprintf("cookie=%s,%spriority=80,in_port=%s,ip,nw_src=%s,actions=meter:%d,NORMAL", cookie, table, vmOfport, sw.CIDR, upMeter),
 			)
 		}
 	}
 	if downRateKbit > 0 {
-		flows = append(flows, fmt.Sprintf("cookie=%s,priority=80,in_port=%s,ip,nw_dst=%s,actions=NORMAL", cookie, gatewayOfport, sw.CIDR))
+		flows = append(flows, fmt.Sprintf("cookie=%s,%spriority=80,in_port=%s,ip,nw_dst=%s,actions=NORMAL", cookie, table, gatewayOfport, sw.CIDR))
 	}
 	return flows
 }
 
 func buildDirectBridgeSwitchBandwidthFlows(sw model.VPCSwitch, vmPorts []vpcSwitchVMPortMatch, downMeter, upMeter uint32, downRateKbit, upRateKbit int) []string {
 	cookie := vpcSwitchCookie(sw.ID)
+	table := vpcBandwidthFlowTable()
 	var flows []string
 	restrictSourceMAC := !sw.AllowMACChange || !sw.AllowForgedTransmits
 	for _, item := range vmPorts {
@@ -274,17 +323,24 @@ func buildDirectBridgeSwitchBandwidthFlows(sw model.VPCSwitch, vmPorts []vpcSwit
 				if upRateKbit > 0 {
 					action = fmt.Sprintf("meter:%d,NORMAL", upMeter)
 				}
-				flows = append(flows, fmt.Sprintf("cookie=%s,priority=90,in_port=%s,dl_src=%s,actions=%s", cookie, item.OFPort, item.MAC, action))
-				flows = append(flows, fmt.Sprintf("cookie=%s,priority=85,in_port=%s,actions=drop", cookie, item.OFPort))
+				flows = append(flows, fmt.Sprintf("cookie=%s,%spriority=90,in_port=%s,dl_src=%s,actions=%s", cookie, table, item.OFPort, item.MAC, action))
+				flows = append(flows, fmt.Sprintf("cookie=%s,%spriority=85,in_port=%s,actions=drop", cookie, table, item.OFPort))
 			} else if upRateKbit > 0 {
-				flows = append(flows, fmt.Sprintf("cookie=%s,priority=80,in_port=%s,actions=meter:%d,NORMAL", cookie, item.OFPort, upMeter))
+				flows = append(flows, fmt.Sprintf("cookie=%s,%spriority=80,in_port=%s,actions=meter:%d,NORMAL", cookie, table, item.OFPort, upMeter))
 			}
 		}
 		if downRateKbit > 0 && strings.TrimSpace(item.MAC) != "" {
-			flows = append(flows, fmt.Sprintf("cookie=%s,priority=80,dl_dst=%s,actions=meter:%d,NORMAL", cookie, item.MAC, downMeter))
+			flows = append(flows, fmt.Sprintf("cookie=%s,%spriority=80,dl_dst=%s,actions=meter:%d,NORMAL", cookie, table, item.MAC, downMeter))
 		}
 	}
 	return flows
+}
+
+func vpcBandwidthFlowTable() string {
+	if config.GlobalConfig != nil && config.GlobalConfig.PortSecurityEnabled {
+		return "table=30,"
+	}
+	return ""
 }
 
 func applyDirectBridgePortSecurity(bridge string, vmPorts []vpcSwitchVMPortMatch, allowPromiscuous bool) error {

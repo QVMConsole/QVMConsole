@@ -326,7 +326,7 @@ func stopVPCDNSMasq(id uint) {
 }
 
 func cleanupStaleManagedNATRules(cidr, gatewayPort, uplink string) {
-	// Best-effort cleanup of any stale NAT rules that might conflict.
-	// This is a no-op placeholder — the original logic relies on ensureIPTablesRule
-	// idempotency; explicit stale cleanup is handled by the OVS network layer.
+	if HookCleanupStaleNATRules != nil {
+		HookCleanupStaleNATRules(cidr, gatewayPort, uplink)
+	}
 }

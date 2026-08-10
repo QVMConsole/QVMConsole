@@ -74,11 +74,15 @@ var (
 	HookClearTCVPCSwitchDownlink func(gwPort string)
 
 	HookEnsureIPTablesRule      func(checkCmd, addCmd, label string) error
+	HookCleanupStaleNATRules    func(cidr, internalIF, currentUplink string)
 	HookEnsureLocalDNSMasqInput func(iface string) error
 	HookRemoveLocalDNSMasqInput func(iface string)
 	HookWriteFileIfChanged      func(path string, content []byte, perm os.FileMode) (bool, error)
 
-	HookParseVirshDomiflist func(text string) []RuntimeInterface
+	HookParseVirshDomiflist          func(text string) []RuntimeInterface
+	HookIsPortSecurityEnabled        func() bool
+	HookTriggerPortSecurityReconcile func()
+	HookReconcileVMPortSecurity      func(vmName string) error
 )
 
 // ── OVS Static Host / DHCP hooks ──

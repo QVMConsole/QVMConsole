@@ -231,7 +231,8 @@ func importVMWindowsDefine(params *ImportVMParams, destDiskPath, format string, 
 	}
 	preserveNVRAM = true
 
-	return importVMPostDefine(params.Name, srcDiskPath, destDiskPath, params.CopyDisk, memoryMeta, params.Remark, params.Freeze, params.StartAfterImport)
+	return importVMPostDefine(params.Name, srcDiskPath, destDiskPath, params.CopyDisk, memoryMeta, params.Remark, params.Freeze, params.StartAfterImport,
+		params.Username, params.SwitchID, params.SecurityGroupID, params.AllowedIPv4Addresses, params.AllowedIPv6Addresses)
 }
 
 // importDiskByPathWindowsDefine handles Windows VM XML construction and define for ImportDiskByPath
@@ -447,7 +448,8 @@ func importDiskByPathWindowsDefine(params *ImportDiskByPathParams, destDiskPath,
 	}
 	preserveNVRAM = true
 
-	return importVMPostDefine(params.Name, mainDiskSrc, destDiskPath, params.CopyDisk, memoryMeta, params.Remark, params.Freeze, params.StartAfterImport)
+	return importVMPostDefine(params.Name, mainDiskSrc, destDiskPath, params.CopyDisk, memoryMeta, params.Remark, params.Freeze, params.StartAfterImport,
+		params.Username, params.SwitchID, params.SecurityGroupID, params.AllowedIPv4Addresses, params.AllowedIPv6Addresses)
 }
 
 // validateWindowsImportDomainXML 在交给 libvirt 前校验生成结果，避免格式化参数错位产生残缺 XML。

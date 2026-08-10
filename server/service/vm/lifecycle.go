@@ -33,10 +33,15 @@ func applyVMRuntimeNetworkState(name string) error {
 		if err := D.ApplyLightweightVMBandwidth(name); err != nil {
 			return fmt.Errorf("应用轻量云带宽失败: %w", err)
 		}
-		return nil
+	} else {
+		if err := D.ReapplyConfiguredVMBandwidth(name); err != nil {
+			return fmt.Errorf("刷新虚拟机带宽失败: %w", err)
+		}
 	}
-	if err := D.ReapplyConfiguredVMBandwidth(name); err != nil {
-		return fmt.Errorf("刷新虚拟机带宽失败: %w", err)
+	if D.IsPortSecurityEnabled != nil && D.IsPortSecurityEnabled() && D.ReconcileVMPortSecurity != nil {
+		if err := D.ReconcileVMPortSecurity(name); err != nil {
+			return fmt.Errorf("应用端口安全策略失败: %w", err)
+		}
 	}
 	return nil
 }
@@ -101,6 +106,12 @@ func startVM(name string, fixOnReboot bool) error {
 			if isQEMUInternalErrorPaused(name) {
 				return fmt.Errorf("虚拟机处于 QEMU 内部错误暂停，当前状态不能继续启动；请先执行重置或强制断电后重新开机。如果重置后仍反复进入该状态，请检查宿主机 KVM/嵌套虚拟化能力和 QEMU 日志")
 			}
+			// 防护开启时先在暂停状态完成策略安装，避免恢复瞬间出现未保护端口。
+			if D.IsPortSecurityEnabled != nil && D.IsPortSecurityEnabled() {
+				if err := applyVMRuntimeNetworkState(name); err != nil {
+					return fmt.Errorf("虚拟机保持暂停，%w", err)
+				}
+			}
 			if libvirt_rpc.IsLibvirtRPCAvailable() {
 				err := libvirt_rpc.ResumeDomainRPC(name)
 				if err == nil {
@@ -155,9 +166,11 @@ func startVM(name string, fixOnReboot bool) error {
 		return err
 	}
 
+	protectedStart := D.IsPortSecurityEnabled != nil && D.IsPortSecurityEnabled()
+	startPaused := freeze || protectedStart
 	startArgs := []string{"start", name}
 	statusAfterStart := "running"
-	if freeze {
+	if startPaused {
 		startArgs = append(startArgs, "--paused")
 		statusAfterStart = "paused"
 	}
@@ -165,7 +178,7 @@ func startVM(name string, fixOnReboot bool) error {
 	started := false
 	if libvirt_rpc.IsLibvirtRPCAvailable() {
 		var startErr error
-		if freeze {
+		if startPaused {
 			startErr = libvirt_rpc.StartDomainPausedRPC(name)
 		} else {
 			startErr = libvirt_rpc.StartDomainRPC(name)
@@ -193,7 +206,23 @@ func startVM(name string, fixOnReboot bool) error {
 	}
 	UpdateVMRuntimeState(name, statusAfterStart, time.Now())
 	if err := applyVMRuntimeNetworkState(name); err != nil {
+		if protectedStart {
+			return fmt.Errorf("虚拟机已暂停启动，%w", err)
+		}
 		return fmt.Errorf("启动成功，但%w", err)
+	}
+	if protectedStart && !freeze {
+		if libvirt_rpc.IsLibvirtRPCAvailable() {
+			if err := libvirt_rpc.ResumeDomainRPC(name); err != nil {
+				return fmt.Errorf("端口安全策略已安装，但恢复虚拟机运行失败: %w", err)
+			}
+		} else {
+			result := utils.ExecCommand("virsh", "resume", name)
+			if result.Error != nil {
+				return formatResumeError(name, result.Stderr)
+			}
+		}
+		UpdateVMRuntimeState(name, "running", time.Now())
 	}
 	return nil
 }
@@ -277,6 +306,9 @@ func RebootVM(name string) error {
 		return fmt.Errorf("重启失败: %w", err)
 	}
 	ResetVMContinuousRuntime(name, time.Now())
+	if err := applyVMRuntimeNetworkState(name); err != nil {
+		return fmt.Errorf("重启成功，但%w", err)
+	}
 	return nil
 }
 
@@ -293,8 +325,8 @@ func ResetVM(name string) error {
 		return fmt.Errorf("重置失败: %w", err)
 	}
 	ResetVMContinuousRuntime(name, time.Now())
-	if err := D.ApplyVPCBindingRuntime(name); err != nil {
-		return fmt.Errorf("重置成功，但应用 VPC 网络失败: %w", err)
+	if err := applyVMRuntimeNetworkState(name); err != nil {
+		return fmt.Errorf("重置成功，但%w", err)
 	}
 	return nil
 }

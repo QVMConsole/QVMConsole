@@ -116,20 +116,36 @@ export const buildSystemDiskIopsPayload = (
 /** 网口载荷：第一个网口作为主网口，其余为额外网口 */
 export const buildAllNicsPayload = (
   extraNics: CreateExtraNic[],
-): { primarySwitchId: number; primarySecurityGroupId: number; extraNics: ExtraNicPayload[] } => {
+): {
+  primarySwitchId: number
+  primarySecurityGroupId: number
+  primaryAllowedIPv4Addresses: string
+  primaryAllowedIPv6Addresses: string
+  extraNics: ExtraNicPayload[]
+} => {
   const validNics = extraNics.filter((n) => n.switch_id)
   if (validNics.length === 0) {
-    return { primarySwitchId: 0, primarySecurityGroupId: 0, extraNics: [] }
+    return {
+      primarySwitchId: 0,
+      primarySecurityGroupId: 0,
+      primaryAllowedIPv4Addresses: '',
+      primaryAllowedIPv6Addresses: '',
+      extraNics: [],
+    }
   }
   const first = validNics[0]
   const rest = validNics.slice(1).map((n) => ({
     switch_id: n.switch_id as number,
     security_group_id: n.security_group_id || 0,
     nic_model: n.nic_model || 'virtio',
+    allowed_ipv4_addresses: (n.allowed_ipv4_addresses || '').trim(),
+    allowed_ipv6_addresses: (n.allowed_ipv6_addresses || '').trim(),
   }))
   return {
     primarySwitchId: first.switch_id as number,
     primarySecurityGroupId: first.security_group_id || 0,
+    primaryAllowedIPv4Addresses: (first.allowed_ipv4_addresses || '').trim(),
+    primaryAllowedIPv6Addresses: (first.allowed_ipv6_addresses || '').trim(),
     extraNics: rest,
   }
 }
@@ -180,6 +196,8 @@ export const buildCreatePayload = (
     floppy_image: form.floppy_image || '',
     switch_id: nics.primarySwitchId,
     security_group_id: nics.primarySecurityGroupId,
+    allowed_ipv4_addresses: nics.primaryAllowedIPv4Addresses,
+    allowed_ipv6_addresses: nics.primaryAllowedIPv6Addresses,
     storage_pool_id: form.storage_pool_id,
     nic_model: form.nic_model,
     autostart: form.autostart,
@@ -268,6 +286,8 @@ const buildCloneSharedFields = (form: VmFormModel, ctx: CloneBuildContext) => {
       first_boot_reboot_mode: form.first_boot_reboot_mode,
       switch_id: nics.primarySwitchId,
       security_group_id: nics.primarySecurityGroupId,
+      allowed_ipv4_addresses: nics.primaryAllowedIPv4Addresses,
+      allowed_ipv6_addresses: nics.primaryAllowedIPv6Addresses,
       extra_nics: nics.extraNics,
       static_ip: ctx.isOpenWrtTemplate ? form.static_ip : undefined,
       gateway: ctx.isOpenWrtTemplate ? form.gateway : undefined,
@@ -337,6 +357,8 @@ export const buildImportPayload = (form: VmFormModel, ctx: CreateBuildContext): 
     ram: form.ram,
     switch_id: nics.primarySwitchId,
     security_group_id: nics.primarySecurityGroupId,
+    allowed_ipv4_addresses: nics.primaryAllowedIPv4Addresses,
+    allowed_ipv6_addresses: nics.primaryAllowedIPv6Addresses,
     copy_disk: form.copy_disk,
     hostname: form.system_init_enabled ? form.hostname || form.name : '',
     user: form.system_init_enabled ? form.import_user : '',

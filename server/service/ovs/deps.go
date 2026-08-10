@@ -12,4 +12,7 @@ var (
 
 	// HookBuildOVSInterfaceXMLForBridge builds a <interface> XML snippet for the given bridge.
 	HookBuildOVSInterfaceXMLForBridge func(mac, modelName, bridge string) string
+
+	// HookGetVMPortSecurityStatus 获取虚拟机逐端口防护状态。
+	HookGetVMPortSecurityStatus func(vmName string) (bool, map[string]VMPortSecurityStatus, error)
 )

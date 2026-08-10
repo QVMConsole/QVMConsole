@@ -221,6 +221,16 @@ func GetVMNetworkRuntimeStatus(vmName string) (*VMNetworkRuntimeStatus, error) {
 			}
 		}
 	}
+	portSecurityByPort := map[string]VMPortSecurityStatus{}
+	if HookGetVMPortSecurityStatus != nil {
+		enabled, portStatuses, err := HookGetVMPortSecurityStatus(vmName)
+		status.PortSecurityEnabled = enabled
+		if err != nil {
+			status.Issues = append(status.Issues, "读取端口安全状态失败: "+err.Error())
+		} else {
+			portSecurityByPort = portStatuses
+		}
+	}
 
 	for _, iface := range xmlIfaces {
 		item := VMNetworkInterface{
@@ -245,6 +255,13 @@ func GetVMNetworkRuntimeStatus(vmName string) (*VMNetworkRuntimeStatus, error) {
 		}
 		if item.Target != "" && item.Target != "-" {
 			item.OFPort = bwpkg.GetOVSInterfaceOfPort(item.Target)
+			if portStatus, ok := portSecurityByPort[item.Target]; ok {
+				value := portStatus
+				item.PortSecurity = &value
+				if status.PortSecurityEnabled && (!value.Applied || value.LastError != "") {
+					item.Issues = append(item.Issues, "端口安全策略未正常应用")
+				}
+			}
 		}
 		if agentIPs := agentIPsByMAC[item.MAC]; len(agentIPs) > 0 {
 			item.IPSource = "guest_agent"

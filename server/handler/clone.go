@@ -60,6 +60,8 @@ type CloneVmRequest struct {
 	MemoryDynamic        *vm_memory.VMMemoryDynamicRequest `json:"memory_dynamic"`
 	SwitchID             uint                              `json:"switch_id"`
 	SecurityGroupID      uint                              `json:"security_group_id"`
+	AllowedIPv4Addresses string                            `json:"allowed_ipv4_addresses"`
+	AllowedIPv6Addresses string                            `json:"allowed_ipv6_addresses"`
 	ExtraNics            []service.AddVMInterfaceRequest   `json:"extra_nics"`
 	StoragePoolID        string                            `json:"storage_pool_id"`
 	ExtraDisks           []service.ExtraDiskParam          `json:"extra_disks"`
@@ -80,51 +82,53 @@ type CloneVmRequest struct {
 
 // BatchCloneRequest 批量克隆请求
 type BatchCloneRequest struct {
-	Prefix              string                          `json:"prefix" binding:"required"`
-	StartNum            int                             `json:"start_num"`
-	Count               int                             `json:"count" binding:"required"`
-	Template            string                          `json:"template" binding:"required"`
-	TemplateType        string                          `json:"template_type"`
-	CloneMode           string                          `json:"clone_mode"` // 克隆模式: linked / full
-	VCPU                int                             `json:"vcpu" binding:"required"`
-	RAM                 int                             `json:"ram" binding:"required"`
-	DiskSize            int                             `json:"disk_size"`
-	Hostname            string                          `json:"hostname"` // 主机名（空则由系统自动生成）
-	User                string                          `json:"user"`     // 新用户名
-	Password            string                          `json:"password"`
-	Autostart           bool                            `json:"autostart"`
-	Freeze              bool                            `json:"freeze"`
-	APIC                *bool                           `json:"apic"`
-	PAE                 *bool                           `json:"pae"`
-	RTCOffset           string                          `json:"rtc_offset"`
-	RTCStartDate        string                          `json:"rtc_startdate"`
-	GuestAgent          *vm_xml.VMGuestAgentConfig      `json:"guest_agent"`
-	SMBIOS1             *vm_xml.VMSMBIOS1Config         `json:"smbios1"`
-	UEFI                *bool                           `json:"uefi"`
-	TemplateRootPass    string                          `json:"template_root_pass"`
-	TemplateUser        string                          `json:"template_user"`
-	VideoModel          string                          `json:"video_model"`
-	SpiceEnabled        *bool                           `json:"spice_enabled"`   // 是否启用 SPICE 显示协议（不传=回退全局默认）
-	DiskBus             string                          `json:"disk_bus"`        // 系统盘总线类型
-	NicModel            string                          `json:"nic_model"`       // 网卡模型
-	StoragePoolID       string                          `json:"storage_pool_id"` // 存储池
-	CPUTopologyMode     string                          `json:"cpu_topology_mode"`
-	CPULimitPercent     int                             `json:"cpu_limit_percent"`
-	CPUAffinity         string                          `json:"cpu_affinity"` // CPU 亲和性，如 "0,2,4"
-	FirstBootRebootMode string                          `json:"first_boot_reboot_mode"`
-	SwitchID            uint                            `json:"switch_id"`         // VPC 交换机 ID
-	SecurityGroupID     uint                            `json:"security_group_id"` // 安全组 ID
-	ExtraNics           []service.AddVMInterfaceRequest `json:"extra_nics"`
-	ExtraDisks          []service.ExtraDiskParam        `json:"extra_disks"`
-	HostDevices         []service.HostDeviceParam       `json:"host_devices"`              // count > 1 时不允许
-	DisableSystemInit   bool                            `json:"disable_system_init"`       // 禁用系统初始化
-	StaticIP            string                          `json:"static_ip"`                 // OpenWrt 静态 IP（CIDR 格式）
-	Gateway             string                          `json:"gateway"`                   // OpenWrt 网关
-	DNS                 string                          `json:"dns"`                       // OpenWrt DNS
-	PCIERootPorts       int                             `json:"pcie_root_ports,omitempty"` // q35 预留 pcie-root-port 数量
-	NestedVirt          *bool                           `json:"nested_virt,omitempty"`     // 嵌套虚拟化开关
-	KVMHidden           *bool                           `json:"kvm_hidden,omitempty"`      // 隐藏 KVM 标志
-	VendorID            string                          `json:"vendor_id,omitempty"`       // Hyper-V vendor_id 伪装
+	Prefix               string                          `json:"prefix" binding:"required"`
+	StartNum             int                             `json:"start_num"`
+	Count                int                             `json:"count" binding:"required"`
+	Template             string                          `json:"template" binding:"required"`
+	TemplateType         string                          `json:"template_type"`
+	CloneMode            string                          `json:"clone_mode"` // 克隆模式: linked / full
+	VCPU                 int                             `json:"vcpu" binding:"required"`
+	RAM                  int                             `json:"ram" binding:"required"`
+	DiskSize             int                             `json:"disk_size"`
+	Hostname             string                          `json:"hostname"` // 主机名（空则由系统自动生成）
+	User                 string                          `json:"user"`     // 新用户名
+	Password             string                          `json:"password"`
+	Autostart            bool                            `json:"autostart"`
+	Freeze               bool                            `json:"freeze"`
+	APIC                 *bool                           `json:"apic"`
+	PAE                  *bool                           `json:"pae"`
+	RTCOffset            string                          `json:"rtc_offset"`
+	RTCStartDate         string                          `json:"rtc_startdate"`
+	GuestAgent           *vm_xml.VMGuestAgentConfig      `json:"guest_agent"`
+	SMBIOS1              *vm_xml.VMSMBIOS1Config         `json:"smbios1"`
+	UEFI                 *bool                           `json:"uefi"`
+	TemplateRootPass     string                          `json:"template_root_pass"`
+	TemplateUser         string                          `json:"template_user"`
+	VideoModel           string                          `json:"video_model"`
+	SpiceEnabled         *bool                           `json:"spice_enabled"`   // 是否启用 SPICE 显示协议（不传=回退全局默认）
+	DiskBus              string                          `json:"disk_bus"`        // 系统盘总线类型
+	NicModel             string                          `json:"nic_model"`       // 网卡模型
+	StoragePoolID        string                          `json:"storage_pool_id"` // 存储池
+	CPUTopologyMode      string                          `json:"cpu_topology_mode"`
+	CPULimitPercent      int                             `json:"cpu_limit_percent"`
+	CPUAffinity          string                          `json:"cpu_affinity"` // CPU 亲和性，如 "0,2,4"
+	FirstBootRebootMode  string                          `json:"first_boot_reboot_mode"`
+	SwitchID             uint                            `json:"switch_id"`         // VPC 交换机 ID
+	SecurityGroupID      uint                            `json:"security_group_id"` // 安全组 ID
+	AllowedIPv4Addresses string                          `json:"allowed_ipv4_addresses"`
+	AllowedIPv6Addresses string                          `json:"allowed_ipv6_addresses"`
+	ExtraNics            []service.AddVMInterfaceRequest `json:"extra_nics"`
+	ExtraDisks           []service.ExtraDiskParam        `json:"extra_disks"`
+	HostDevices          []service.HostDeviceParam       `json:"host_devices"`              // count > 1 时不允许
+	DisableSystemInit    bool                            `json:"disable_system_init"`       // 禁用系统初始化
+	StaticIP             string                          `json:"static_ip"`                 // OpenWrt 静态 IP（CIDR 格式）
+	Gateway              string                          `json:"gateway"`                   // OpenWrt 网关
+	DNS                  string                          `json:"dns"`                       // OpenWrt DNS
+	PCIERootPorts        int                             `json:"pcie_root_ports,omitempty"` // q35 预留 pcie-root-port 数量
+	NestedVirt           *bool                           `json:"nested_virt,omitempty"`     // 嵌套虚拟化开关
+	KVMHidden            *bool                           `json:"kvm_hidden,omitempty"`      // 隐藏 KVM 标志
+	VendorID             string                          `json:"vendor_id,omitempty"`       // Hyper-V vendor_id 伪装
 }
 
 // ReinstallRequest 重装系统请求
@@ -276,6 +280,8 @@ func CloneVm(c *gin.Context) {
 		MemoryDynamic:        req.MemoryDynamic,
 		SwitchID:             req.SwitchID,
 		SecurityGroupID:      req.SecurityGroupID,
+		AllowedIPv4Addresses: req.AllowedIPv4Addresses,
+		AllowedIPv6Addresses: req.AllowedIPv6Addresses,
 		ExtraNics:            req.ExtraNics,
 		StoragePoolID:        req.StoragePoolID,
 		ExtraDisks:           req.ExtraDisks,
@@ -319,7 +325,7 @@ func CloneVm(c *gin.Context) {
 			return
 		}
 		// 仅当用户指定了交换机时才解析 VPC
-		if req.SwitchID != 0 {
+		if req.SwitchID != 0 || service.IsPortSecurityEnabled() {
 			switchID, securityGroupID, err := service.ResolveVPCForVMCreate(usernameStr, req.SwitchID, req.SecurityGroupID)
 			if err != nil {
 				c.JSON(http.StatusForbidden, gin.H{
@@ -418,52 +424,54 @@ func BatchCloneVm(c *gin.Context) {
 	}
 
 	params := &clonepkg.BatchCloneParams{
-		Prefix:              req.Prefix,
-		StartNum:            req.StartNum,
-		Count:               req.Count,
-		Template:            req.Template,
-		TemplateType:        req.TemplateType,
-		CloneMode:           req.CloneMode,
-		VCPU:                req.VCPU,
-		RAM:                 req.RAM,
-		DiskSize:            diskSize,
-		Hostname:            req.Hostname,
-		User:                req.User,
-		Password:            req.Password,
-		Autostart:           req.Autostart,
-		Freeze:              req.Freeze,
-		APIC:                req.APIC,
-		PAE:                 req.PAE,
-		RTCOffset:           req.RTCOffset,
-		RTCStartDate:        req.RTCStartDate,
-		GuestAgent:          req.GuestAgent,
-		SMBIOS1:             req.SMBIOS1,
-		UEFI:                req.UEFI,
-		TemplateRootPass:    req.TemplateRootPass,
-		TemplateUser:        req.TemplateUser,
-		VideoModel:          req.VideoModel,
-		SpiceEnabled:        req.SpiceEnabled,
-		DiskBus:             req.DiskBus,
-		NicModel:            req.NicModel,
-		StoragePoolID:       req.StoragePoolID,
-		CPUTopologyMode:     req.CPUTopologyMode,
-		CPULimitPercent:     req.CPULimitPercent,
-		CPUAffinity:         req.CPUAffinity,
-		FirstBootRebootMode: req.FirstBootRebootMode,
-		SwitchID:            req.SwitchID,
-		SecurityGroupID:     req.SecurityGroupID,
-		ExtraNics:           req.ExtraNics,
-		ExtraDisks:          req.ExtraDisks,
-		HostDevices:         req.HostDevices,
-		IsAdmin:             isAdmin,
-		DisableSystemInit:   req.DisableSystemInit,
-		StaticIP:            req.StaticIP,
-		Gateway:             req.Gateway,
-		DNS:                 req.DNS,
-		PCIERootPorts:       req.PCIERootPorts,
-		NestedVirt:          req.NestedVirt,
-		KVMHidden:           req.KVMHidden,
-		VendorID:            req.VendorID,
+		Prefix:               req.Prefix,
+		StartNum:             req.StartNum,
+		Count:                req.Count,
+		Template:             req.Template,
+		TemplateType:         req.TemplateType,
+		CloneMode:            req.CloneMode,
+		VCPU:                 req.VCPU,
+		RAM:                  req.RAM,
+		DiskSize:             diskSize,
+		Hostname:             req.Hostname,
+		User:                 req.User,
+		Password:             req.Password,
+		Autostart:            req.Autostart,
+		Freeze:               req.Freeze,
+		APIC:                 req.APIC,
+		PAE:                  req.PAE,
+		RTCOffset:            req.RTCOffset,
+		RTCStartDate:         req.RTCStartDate,
+		GuestAgent:           req.GuestAgent,
+		SMBIOS1:              req.SMBIOS1,
+		UEFI:                 req.UEFI,
+		TemplateRootPass:     req.TemplateRootPass,
+		TemplateUser:         req.TemplateUser,
+		VideoModel:           req.VideoModel,
+		SpiceEnabled:         req.SpiceEnabled,
+		DiskBus:              req.DiskBus,
+		NicModel:             req.NicModel,
+		StoragePoolID:        req.StoragePoolID,
+		CPUTopologyMode:      req.CPUTopologyMode,
+		CPULimitPercent:      req.CPULimitPercent,
+		CPUAffinity:          req.CPUAffinity,
+		FirstBootRebootMode:  req.FirstBootRebootMode,
+		SwitchID:             req.SwitchID,
+		SecurityGroupID:      req.SecurityGroupID,
+		AllowedIPv4Addresses: req.AllowedIPv4Addresses,
+		AllowedIPv6Addresses: req.AllowedIPv6Addresses,
+		ExtraNics:            req.ExtraNics,
+		ExtraDisks:           req.ExtraDisks,
+		HostDevices:          req.HostDevices,
+		IsAdmin:              isAdmin,
+		DisableSystemInit:    req.DisableSystemInit,
+		StaticIP:             req.StaticIP,
+		Gateway:              req.Gateway,
+		DNS:                  req.DNS,
+		PCIERootPorts:        req.PCIERootPorts,
+		NestedVirt:           req.NestedVirt,
+		KVMHidden:            req.KVMHidden,
+		VendorID:             req.VendorID,
 	}
 
 	username, _ := c.Get("username")
@@ -487,7 +495,7 @@ func BatchCloneVm(c *gin.Context) {
 			return
 		}
 		// 仅当用户指定了交换机时才解析 VPC
-		if req.SwitchID != 0 {
+		if req.SwitchID != 0 || service.IsPortSecurityEnabled() {
 			switchID, securityGroupID, err := service.ResolveVPCForVMCreate(usernameStr, req.SwitchID, req.SecurityGroupID)
 			if err != nil {
 				c.JSON(http.StatusForbidden, gin.H{

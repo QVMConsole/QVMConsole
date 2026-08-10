@@ -152,38 +152,40 @@ func ExportVMHandler(c *gin.Context) {
 
 // ImportVMRequest 导入虚拟机请求
 type ImportVMRequest struct {
-	Name             string                            `json:"name" binding:"required"`
-	Remark           string                            `json:"remark"`
-	DiskFile         string                            `json:"disk_file" binding:"required"`
-	VCPU             int                               `json:"vcpu" binding:"required"`
-	RAM              int                               `json:"ram" binding:"required"`
-	CopyDisk         bool                              `json:"copy_disk"`
-	InitType         string                            `json:"init_type"`
-	Hostname         string                            `json:"hostname"`
-	User             string                            `json:"user"`
-	Password         string                            `json:"password"`
-	Autostart        bool                              `json:"autostart"`
-	Freeze           bool                              `json:"freeze"`
-	APIC             *bool                             `json:"apic"`
-	PAE              *bool                             `json:"pae"`
-	RTCOffset        string                            `json:"rtc_offset"`
-	RTCStartDate     string                            `json:"rtc_startdate"`
-	GuestAgent       *vm_xml.VMGuestAgentConfig        `json:"guest_agent"`
-	SMBIOS1          *vm_xml.VMSMBIOS1Config           `json:"smbios1"`
-	BootType         string                            `json:"boot_type"`
-	MachineType      string                            `json:"machine_type"`
-	NicModel         string                            `json:"nic_model"`
-	VideoModel       string                            `json:"video_model"`
-	SpiceEnabled     *bool                             `json:"spice_enabled"` // 是否启用 SPICE 显示协议（不传=回退全局默认）
-	CPUTopologyMode  string                            `json:"cpu_topology_mode"`
-	CPULimitPercent  int                               `json:"cpu_limit_percent"`
-	CPUAffinity      string                            `json:"cpu_affinity"` // CPU 亲和性，如 "0,2,4"
-	TemplateRootPass string                            `json:"template_root_pass"`
-	TemplateUser     string                            `json:"template_user"`
-	MemoryDynamic    *vm_memory.VMMemoryDynamicRequest `json:"memory_dynamic"`
-	SwitchID         uint                              `json:"switch_id"`
-	SecurityGroupID  uint                              `json:"security_group_id"`
-	StartAfterImport *bool                             `json:"start_after_import"` // 导入完成后是否开启虚拟机，不传默认 true
+	Name                 string                            `json:"name" binding:"required"`
+	Remark               string                            `json:"remark"`
+	DiskFile             string                            `json:"disk_file" binding:"required"`
+	VCPU                 int                               `json:"vcpu" binding:"required"`
+	RAM                  int                               `json:"ram" binding:"required"`
+	CopyDisk             bool                              `json:"copy_disk"`
+	InitType             string                            `json:"init_type"`
+	Hostname             string                            `json:"hostname"`
+	User                 string                            `json:"user"`
+	Password             string                            `json:"password"`
+	Autostart            bool                              `json:"autostart"`
+	Freeze               bool                              `json:"freeze"`
+	APIC                 *bool                             `json:"apic"`
+	PAE                  *bool                             `json:"pae"`
+	RTCOffset            string                            `json:"rtc_offset"`
+	RTCStartDate         string                            `json:"rtc_startdate"`
+	GuestAgent           *vm_xml.VMGuestAgentConfig        `json:"guest_agent"`
+	SMBIOS1              *vm_xml.VMSMBIOS1Config           `json:"smbios1"`
+	BootType             string                            `json:"boot_type"`
+	MachineType          string                            `json:"machine_type"`
+	NicModel             string                            `json:"nic_model"`
+	VideoModel           string                            `json:"video_model"`
+	SpiceEnabled         *bool                             `json:"spice_enabled"` // 是否启用 SPICE 显示协议（不传=回退全局默认）
+	CPUTopologyMode      string                            `json:"cpu_topology_mode"`
+	CPULimitPercent      int                               `json:"cpu_limit_percent"`
+	CPUAffinity          string                            `json:"cpu_affinity"` // CPU 亲和性，如 "0,2,4"
+	TemplateRootPass     string                            `json:"template_root_pass"`
+	TemplateUser         string                            `json:"template_user"`
+	MemoryDynamic        *vm_memory.VMMemoryDynamicRequest `json:"memory_dynamic"`
+	SwitchID             uint                              `json:"switch_id"`
+	SecurityGroupID      uint                              `json:"security_group_id"`
+	AllowedIPv4Addresses string                            `json:"allowed_ipv4_addresses"`
+	AllowedIPv6Addresses string                            `json:"allowed_ipv6_addresses"`
+	StartAfterImport     *bool                             `json:"start_after_import"` // 导入完成后是否开启虚拟机，不传默认 true
 }
 
 // ImportVMHandler 导入虚拟机（用户自助）
@@ -243,7 +245,7 @@ func ImportVMHandler(c *gin.Context) {
 	}
 	if role != "admin" {
 		// 仅当用户指定了交换机时才解析 VPC
-		if req.SwitchID != 0 {
+		if req.SwitchID != 0 || service.IsPortSecurityEnabled() {
 			switchID, securityGroupID, err := service.ResolveVPCForVMCreate(usernameStr, req.SwitchID, req.SecurityGroupID)
 			if err != nil {
 				c.JSON(http.StatusForbidden, gin.H{
@@ -258,39 +260,41 @@ func ImportVMHandler(c *gin.Context) {
 	}
 
 	params := &vmimport.ImportVMParams{
-		Name:             req.Name,
-		Remark:           req.Remark,
-		DiskFile:         req.DiskFile,
-		Username:         usernameStr,
-		CopyDisk:         req.CopyDisk,
-		VCPU:             req.VCPU,
-		RAM:              req.RAM,
-		InitType:         req.InitType,
-		Hostname:         req.Hostname,
-		User:             req.User,
-		Password:         req.Password,
-		Autostart:        req.Autostart,
-		Freeze:           req.Freeze,
-		APIC:             req.APIC,
-		PAE:              req.PAE,
-		RTCOffset:        req.RTCOffset,
-		RTCStartDate:     req.RTCStartDate,
-		GuestAgent:       req.GuestAgent,
-		SMBIOS1:          req.SMBIOS1,
-		BootType:         req.BootType,
-		MachineType:      req.MachineType,
-		NicModel:         req.NicModel,
-		VideoModel:       req.VideoModel,
-		SpiceEnabled:     req.SpiceEnabled,
-		CPUTopologyMode:  req.CPUTopologyMode,
-		CPULimitPercent:  req.CPULimitPercent,
-		CPUAffinity:      req.CPUAffinity,
-		TemplateRootPass: req.TemplateRootPass,
-		TemplateUser:     req.TemplateUser,
-		MemoryDynamic:    req.MemoryDynamic,
-		SwitchID:         req.SwitchID,
-		SecurityGroupID:  req.SecurityGroupID,
-		IsAdmin:          role == "admin",
+		Name:                 req.Name,
+		Remark:               req.Remark,
+		DiskFile:             req.DiskFile,
+		Username:             usernameStr,
+		CopyDisk:             req.CopyDisk,
+		VCPU:                 req.VCPU,
+		RAM:                  req.RAM,
+		InitType:             req.InitType,
+		Hostname:             req.Hostname,
+		User:                 req.User,
+		Password:             req.Password,
+		Autostart:            req.Autostart,
+		Freeze:               req.Freeze,
+		APIC:                 req.APIC,
+		PAE:                  req.PAE,
+		RTCOffset:            req.RTCOffset,
+		RTCStartDate:         req.RTCStartDate,
+		GuestAgent:           req.GuestAgent,
+		SMBIOS1:              req.SMBIOS1,
+		BootType:             req.BootType,
+		MachineType:          req.MachineType,
+		NicModel:             req.NicModel,
+		VideoModel:           req.VideoModel,
+		SpiceEnabled:         req.SpiceEnabled,
+		CPUTopologyMode:      req.CPUTopologyMode,
+		CPULimitPercent:      req.CPULimitPercent,
+		CPUAffinity:          req.CPUAffinity,
+		TemplateRootPass:     req.TemplateRootPass,
+		TemplateUser:         req.TemplateUser,
+		MemoryDynamic:        req.MemoryDynamic,
+		SwitchID:             req.SwitchID,
+		SecurityGroupID:      req.SecurityGroupID,
+		AllowedIPv4Addresses: req.AllowedIPv4Addresses,
+		AllowedIPv6Addresses: req.AllowedIPv6Addresses,
+		IsAdmin:              role == "admin",
 	}
 	// 默认导入后开启虚拟机（向后兼容）
 	if req.StartAfterImport != nil {

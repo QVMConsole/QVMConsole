@@ -3,7 +3,7 @@
  */
 import { useState } from 'react'
 import { Banner, Button, Input, Toast } from '@douyinfe/semi-ui'
-import { IconBranch, IconFolder, IconPulse, IconSetting } from '@douyinfe/semi-icons'
+import { IconBranch, IconFolder, IconPulse, IconSafeStroked, IconSetting } from '@douyinfe/semi-icons'
 import { getUserStorageISOPath } from '@/api/settings'
 import { SectionHead, SettingRow } from './SettingRow'
 import NumField from './NumField'
@@ -191,6 +191,84 @@ export default function StorageNetworkTab({ form, patch }: SettingsTabProps) {
           placeholder="留空自动检测，也可手动填写固定公网 IP"
         />
       </SettingRow>
+
+      <SectionHead icon={<IconSafeStroked />} title="端口安全参数" />
+
+      {!form.port_security_enabled ? (
+        <Banner
+          type="info"
+          closeIcon={null}
+          className="stg-banner"
+          description="端口安全总开关当前关闭。请在“网络中心 → 网络概览”完成预检并启用；关闭时这些高级阈值不参与校验。"
+        />
+      ) : (
+        <>
+          <Banner
+            type="warning"
+            closeIcon={null}
+            className="stg-banner"
+            description="保存后会触发后台协调。总包速率使用 OVS Interface packet policing，ARP/ND 与广播/组播使用独立 packet meter。"
+          />
+          <div className="stg-field-grid">
+            <NumField
+              label="端口总包速率"
+              suffix="kpps"
+              value={form.port_security_total_kpps}
+              onChange={(v) => patch({ port_security_total_kpps: v })}
+              min={1}
+              max={1000000}
+            />
+            <NumField
+              label="端口总包突发"
+              suffix="kpackets"
+              value={form.port_security_total_burst_kpackets}
+              onChange={(v) => patch({ port_security_total_burst_kpackets: v })}
+              min={1}
+              max={1000000}
+            />
+            <NumField
+              label="ARP / ND 速率"
+              suffix="pps"
+              value={form.port_security_neighbor_pps}
+              onChange={(v) => patch({ port_security_neighbor_pps: v })}
+              min={1}
+              max={1000000}
+            />
+            <NumField
+              label="ARP / ND 突发"
+              suffix="packets"
+              value={form.port_security_neighbor_burst_packets}
+              onChange={(v) => patch({ port_security_neighbor_burst_packets: v })}
+              min={1}
+              max={2000000}
+            />
+            <NumField
+              label="广播 / 组播速率"
+              suffix="pps"
+              value={form.port_security_broadcast_pps}
+              onChange={(v) => patch({ port_security_broadcast_pps: v })}
+              min={1}
+              max={1000000}
+            />
+            <NumField
+              label="广播 / 组播突发"
+              suffix="packets"
+              value={form.port_security_broadcast_burst_packets}
+              onChange={(v) => patch({ port_security_broadcast_burst_packets: v })}
+              min={1}
+              max={2000000}
+            />
+            <NumField
+              label="全量协调周期"
+              suffix="秒"
+              value={form.port_security_reconcile_interval_seconds}
+              onChange={(v) => patch({ port_security_reconcile_interval_seconds: v })}
+              min={10}
+              max={3600}
+            />
+          </div>
+        </>
+      )}
 
       <SectionHead icon={<IconPulse />} title="全局带宽限制" />
 

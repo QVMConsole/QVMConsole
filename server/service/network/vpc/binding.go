@@ -130,7 +130,13 @@ func bindVMToVPCWithSecurityGroupOwner(username, vmName string, switchID, securi
 		return err
 	}
 	if HookSwitchUsesDirectBridge(sw) {
+		if HookTriggerPortSecurityReconcile != nil {
+			HookTriggerPortSecurityReconcile()
+		}
 		return nil
+	}
+	if HookTriggerPortSecurityReconcile != nil {
+		HookTriggerPortSecurityReconcile()
 	}
 	return ApplyVPCACLRules()
 }

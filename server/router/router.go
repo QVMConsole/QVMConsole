@@ -386,6 +386,13 @@ func Setup() *gin.Engine {
 				ovs.GET("/leases", handler.GetOVSLeases)
 				ovs.POST("/check", handler.CheckOVSNetwork)
 				ovs.POST("/repair", handler.RepairOVSNetwork)
+				ovs.GET("/port-security/status", handler.GetPortSecurityStatus)                 // 获取端口安全状态与端口诊断
+				ovs.POST("/port-security/preflight", handler.PreflightPortSecurity)             // 只读预检端口安全能力和配置
+				ovs.POST("/port-security/enable", handler.EnablePortSecurity)                   // 异步启用端口安全
+				ovs.POST("/port-security/disable", handler.DisablePortSecurity)                 // 异步停用端口安全
+				ovs.POST("/port-security/reconcile", handler.ReconcilePortSecurity)             // 异步协调全部端口策略
+				ovs.POST("/port-security/ports/:port/isolate", handler.IsolatePortSecurityPort) // 异步隔离指定 OVS 端口
+				ovs.POST("/port-security/ports/:port/release", handler.ReleasePortSecurityPort) // 异步释放指定 OVS 端口
 			}
 
 			// ==================== 存储池管理 ====================

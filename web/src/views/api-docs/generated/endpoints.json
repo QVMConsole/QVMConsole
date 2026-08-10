@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-08T09:57:12.283Z",
-  "count": 318,
+  "generated_at": "2026-08-10T11:50:34.187Z",
+  "count": 325,
   "endpoints": [
     {
       "method": "POST",
@@ -1178,6 +1178,83 @@
       "vmAccess": false,
       "highRisk": "",
       "comment": ""
+    },
+    {
+      "method": "POST",
+      "path": "/ovs/port-security/disable",
+      "handler": "DisablePortSecurity",
+      "auth": "jwt",
+      "admin": true,
+      "elasticOnly": false,
+      "vmAccess": false,
+      "highRisk": "",
+      "comment": "异步停用端口安全"
+    },
+    {
+      "method": "POST",
+      "path": "/ovs/port-security/enable",
+      "handler": "EnablePortSecurity",
+      "auth": "jwt",
+      "admin": true,
+      "elasticOnly": false,
+      "vmAccess": false,
+      "highRisk": "",
+      "comment": "异步启用端口安全"
+    },
+    {
+      "method": "POST",
+      "path": "/ovs/port-security/ports/:port/isolate",
+      "handler": "IsolatePortSecurityPort",
+      "auth": "jwt",
+      "admin": true,
+      "elasticOnly": false,
+      "vmAccess": false,
+      "highRisk": "",
+      "comment": "异步隔离指定 OVS 端口"
+    },
+    {
+      "method": "POST",
+      "path": "/ovs/port-security/ports/:port/release",
+      "handler": "ReleasePortSecurityPort",
+      "auth": "jwt",
+      "admin": true,
+      "elasticOnly": false,
+      "vmAccess": false,
+      "highRisk": "",
+      "comment": "异步释放指定 OVS 端口"
+    },
+    {
+      "method": "POST",
+      "path": "/ovs/port-security/preflight",
+      "handler": "PreflightPortSecurity",
+      "auth": "jwt",
+      "admin": true,
+      "elasticOnly": false,
+      "vmAccess": false,
+      "highRisk": "",
+      "comment": "只读预检端口安全能力和配置"
+    },
+    {
+      "method": "POST",
+      "path": "/ovs/port-security/reconcile",
+      "handler": "ReconcilePortSecurity",
+      "auth": "jwt",
+      "admin": true,
+      "elasticOnly": false,
+      "vmAccess": false,
+      "highRisk": "",
+      "comment": "异步协调全部端口策略"
+    },
+    {
+      "method": "GET",
+      "path": "/ovs/port-security/status",
+      "handler": "GetPortSecurityStatus",
+      "auth": "jwt",
+      "admin": true,
+      "elasticOnly": false,
+      "vmAccess": false,
+      "highRisk": "",
+      "comment": "获取端口安全状态与端口诊断"
     },
     {
       "method": "GET",

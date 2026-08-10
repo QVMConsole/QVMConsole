@@ -229,7 +229,7 @@ func importVMInitByType(_ context.Context, params *ImportVMParams, _ string, _ s
 }
 
 // importVMPostDefine handles post-define steps shared by Windows and Linux import paths
-func importVMPostDefine(vmName, srcDiskPath, destDiskPath string, copyDisk bool, memoryMeta *vm_memory.VMMemoryMetadata, remark string, freeze, startAfterImport bool) error {
+func importVMPostDefine(vmName, srcDiskPath, destDiskPath string, copyDisk bool, memoryMeta *vm_memory.VMMemoryMetadata, remark string, freeze, startAfterImport bool, owner string, switchID, securityGroupID uint, allowedIPv4, allowedIPv6 string) error {
 	if !copyDisk {
 		_ = os.Remove(srcDiskPath)
 	}
@@ -247,6 +247,9 @@ func importVMPostDefine(vmName, srcDiskPath, destDiskPath string, copyDisk bool,
 	if err := service.SetVMFreeze(vmName, freeze); err != nil {
 		_ = os.Remove(destDiskPath)
 		return err
+	}
+	if err := service.PrepareVMPortSecurityBinding(owner, vmName, switchID, securityGroupID, allowedIPv4, allowedIPv6); err != nil {
+		return fmt.Errorf("启动前准备端口安全绑定失败: %w", err)
 	}
 
 	if startAfterImport {

@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -89,15 +90,17 @@ type Report struct {
 }
 
 type runner struct {
-	options      Options
-	report       *Report
-	progress     func(string)
-	vmName       string
-	diskPath     string
-	expectedDisk string
-	created      bool
-	xmlContent   string
-	activeXML    string
+	options                 Options
+	report                  *Report
+	progress                func(string)
+	vmName                  string
+	diskPath                string
+	expectedDisk            string
+	created                 bool
+	xmlContent              string
+	activeXML               string
+	portSecurityProbeBridge string
+	portSecurityProbeFile   string
 }
 
 type domainXML struct {
@@ -281,6 +284,13 @@ func (r *runner) run() error {
 		"gateway": ovsStatus.GatewayIP,
 		"uplink":  ovsStatus.Uplink,
 	})
+
+	r.progress("验证 OVS 端口安全所需的 meter、包速率 policing 与 OpenFlow 流表能力...")
+	portSecurityDetails, err := r.checkPortSecurityRuntime()
+	if err != nil {
+		return r.fail("OVS 端口安全能力", err)
+	}
+	r.pass("OVS 端口安全能力", "packet meter、包速率 policing 与策略流表均已实际落地验证", portSecurityDetails)
 	if err := r.checkInterrupted(); err != nil {
 		return r.fail("用户中断", err)
 	}
@@ -403,7 +413,7 @@ func (r *runner) checkRequiredRuntime() error {
 	if arch.DetectHostArch() == arch.ArchAarch64 {
 		qemuCandidates = []string{arch.GetProfile(arch.ArchAarch64).EmulatorPath(), "qemu-system-aarch64", "qemu-kvm", "/usr/libexec/qemu-kvm"}
 	}
-	commands := []string{"virsh", "virt-install", "qemu-img", "ovs-vsctl", "ip", "iptables", "dnsmasq"}
+	commands := []string{"virsh", "virt-install", "qemu-img", "ovs-vsctl", "ovs-ofctl", "ovsdb-client", "ip", "iptables", "dnsmasq"}
 	for _, command := range commands {
 		if _, err := exec.LookPath(command); err != nil {
 			return fmt.Errorf("未找到必要命令 %s", command)
@@ -424,6 +434,102 @@ func (r *runner) checkRequiredRuntime() error {
 		return fmt.Errorf("libvirt system 连接检查失败: %s", firstNonEmpty(result.Stderr, result.Error.Error()))
 	}
 	return nil
+}
+
+func (r *runner) checkPortSecurityRuntime() (map[string]string, error) {
+	bridge := fmt.Sprintf("qvmp%05d", os.Getpid()%100000)
+	r.portSecurityProbeBridge = bridge
+	if result := utils.ExecCommand("ovs-vsctl", "--may-exist", "add-br", bridge); result.Error != nil {
+		return nil, fmt.Errorf("创建隔离探测网桥失败: %s", firstNonEmpty(result.Stderr, result.Error.Error()))
+	}
+
+	openFlow14 := true
+	if result := utils.ExecCommandQuiet("ovs-vsctl", "set", "Bridge", bridge, "protocols=OpenFlow13,OpenFlow14"); result.Error != nil {
+		openFlow14 = false
+		if fallback := utils.ExecCommand("ovs-vsctl", "set", "Bridge", bridge, "protocols=OpenFlow13"); fallback.Error != nil {
+			return nil, fmt.Errorf("启用 OpenFlow13 失败: %s", firstNonEmpty(fallback.Stderr, fallback.Error.Error()))
+		}
+	}
+	if result := utils.ExecCommand("ovs-ofctl", "-O", "OpenFlow13", "dump-flows", bridge); result.Error != nil {
+		return nil, fmt.Errorf("OpenFlow13 协商失败: %s", firstNonEmpty(result.Stderr, result.Error.Error()))
+	}
+
+	meterFeatures := utils.ExecCommand("ovs-ofctl", "-O", "OpenFlow13", "meter-features", bridge)
+	if meterFeatures.Error != nil {
+		return nil, fmt.Errorf("读取 meter-features 失败: %s", firstNonEmpty(meterFeatures.Stderr, meterFeatures.Error.Error()))
+	}
+	lowerFeatures := strings.ToLower(meterFeatures.Stdout)
+	if !strings.Contains(lowerFeatures, "pktps") || !strings.Contains(lowerFeatures, "burst") {
+		return nil, fmt.Errorf("OVS meter-features 缺少 pktps 或 burst 能力")
+	}
+	maxMeter := ""
+	if match := regexp.MustCompile(`(?i)max_meter\s*:\s*([0-9]+)`).FindStringSubmatch(meterFeatures.Stdout); len(match) == 2 {
+		maxMeter = match[1]
+	}
+
+	columns := utils.ExecCommand("ovsdb-client", "list-columns", "Open_vSwitch", "Interface")
+	if columns.Error != nil || !strings.Contains(columns.Stdout, "ingress_policing_kpkts_rate") || !strings.Contains(columns.Stdout, "ingress_policing_kpkts_burst") {
+		return nil, fmt.Errorf("OVS Interface 缺少 ingress_policing_kpkts_rate/burst 字段")
+	}
+	if result := utils.ExecCommand("ovs-vsctl", "set", "Interface", bridge, "ingress_policing_kpkts_rate=10", "ingress_policing_kpkts_burst=20"); result.Error != nil {
+		return nil, fmt.Errorf("写入 packet policing 字段失败: %s", firstNonEmpty(result.Stderr, result.Error.Error()))
+	}
+	policing := utils.ExecCommand("ovs-vsctl", "get", "Interface", bridge, "ingress_policing_kpkts_rate", "ingress_policing_kpkts_burst")
+	if policing.Error != nil || !strings.Contains(policing.Stdout, "10") || !strings.Contains(policing.Stdout, "20") {
+		return nil, fmt.Errorf("packet policing 字段回读校验失败")
+	}
+
+	const probeMeter = "1"
+	const probeCookie = "0x51564d434f4d5001"
+	meterArg := "meter=" + probeMeter + ",pktps,burst,stats,band=type=drop,rate=10,burst_size=20"
+	if result := utils.ExecCommand("ovs-ofctl", "-O", "OpenFlow13", "add-meter", bridge, meterArg); result.Error != nil {
+		return nil, fmt.Errorf("packet meter 落地失败: %s", firstNonEmpty(result.Stderr, result.Error.Error()))
+	}
+	meterDump := utils.ExecCommand("ovs-ofctl", "-O", "OpenFlow13", "dump-meter", bridge, "meter="+probeMeter)
+	if meterDump.Error != nil || !strings.Contains(strings.ToLower(meterDump.Stdout), "meter=1") {
+		return nil, fmt.Errorf("packet meter 回读校验失败")
+	}
+
+	flowFile, err := os.CreateTemp(r.options.ReportDir, "qvm-port-security-probe-*.flows")
+	if err != nil {
+		return nil, fmt.Errorf("创建端口安全探测流表文件失败: %w", err)
+	}
+	r.portSecurityProbeFile = flowFile.Name()
+	flow := "cookie=" + probeCookie + ",table=0,priority=100,arp,actions=meter:" + probeMeter + ",drop"
+	if _, err := flowFile.WriteString("delete cookie=" + probeCookie + "/0xffffffffffffffff\nadd " + flow + "\n"); err != nil {
+		_ = flowFile.Close()
+		return nil, fmt.Errorf("写入端口安全探测流表失败: %w", err)
+	}
+	if err := flowFile.Close(); err != nil {
+		return nil, fmt.Errorf("关闭端口安全探测流表失败: %w", err)
+	}
+	_ = os.Chmod(r.portSecurityProbeFile, 0600)
+
+	bundleApplied := false
+	if openFlow14 {
+		result := utils.ExecCommandQuiet("ovs-ofctl", "-O", "OpenFlow14", "--bundle", "add-flows", bridge, r.portSecurityProbeFile)
+		bundleApplied = result.Error == nil
+	}
+	if !bundleApplied {
+		if result := utils.ExecCommand("ovs-ofctl", "-O", "OpenFlow13", "add-flow", bridge, flow); result.Error != nil {
+			return nil, fmt.Errorf("兼容模式端口安全流表落地失败: %s", firstNonEmpty(result.Stderr, result.Error.Error()))
+		}
+	}
+	flowDump := utils.ExecCommand("ovs-ofctl", "-O", "OpenFlow13", "dump-flows", bridge, "cookie="+probeCookie+"/0xffffffffffffffff")
+	if flowDump.Error != nil || !strings.Contains(strings.ToLower(flowDump.Stdout), strings.TrimPrefix(strings.ToLower(probeCookie), "0x")) || !strings.Contains(strings.ToLower(flowDump.Stdout), "meter:1") {
+		return nil, fmt.Errorf("端口安全探测流表回读校验失败")
+	}
+
+	details := map[string]string{
+		"probe_bridge":           bridge,
+		"openflow13":             "true",
+		"openflow14_bundle":      strconv.FormatBool(bundleApplied),
+		"sequential_apply_guard": strconv.FormatBool(!bundleApplied),
+		"packet_meter":           "pktps+burst",
+		"packet_policing":        "ingress_policing_kpkts_rate+burst",
+		"max_meter":              maxMeter,
+	}
+	return details, nil
 }
 
 func executableAvailable(command string) bool {
@@ -451,6 +557,7 @@ func (r *runner) buildCreateParams(hostArch string, switchID, securityGroupID ui
 
 	return &rootservice.CreateVMParams{
 		Name:            r.vmName,
+		Owner:           strings.TrimSpace(config.GlobalConfig.DefaultAdminUser),
 		Remark:          "QVMConsole 安装兼容性测试临时虚拟机",
 		VCPU:            r.options.VCPU,
 		RAM:             r.options.RAMGB,
@@ -697,6 +804,9 @@ func (r *runner) captureFailureDiagnostics() {
 func (r *runner) cleanup() error {
 	r.progress("清理兼容性测试临时资源...")
 	var firstErr error
+	if err := r.cleanupPortSecurityRuntime(); err != nil {
+		firstErr = err
+	}
 	domainPresent := r.created || utils.ExecCommandQuiet("virsh", "dominfo", r.vmName).Error == nil
 	if domainPresent {
 		state := utils.ExecCommandQuiet("virsh", "domstate", r.vmName)
@@ -771,6 +881,29 @@ func (r *runner) cleanup() error {
 		return r.fail("临时资源清理", firstErr)
 	}
 	r.pass("临时资源清理", "测试虚拟机、磁盘、NVRAM、域内存元数据、运行记录和 VPC 绑定均已清理", nil)
+	return nil
+}
+
+func (r *runner) cleanupPortSecurityRuntime() error {
+	bridge := strings.TrimSpace(r.portSecurityProbeBridge)
+	filePath := strings.TrimSpace(r.portSecurityProbeFile)
+	if filePath != "" {
+		if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("删除端口安全探测流表文件失败: %w", err)
+		}
+	}
+	if bridge == "" {
+		return nil
+	}
+	utils.ExecCommandQuiet("ovs-ofctl", "-O", "OpenFlow13", "del-flows", bridge, "cookie=0x51564d434f4d5001/0xffffffffffffffff")
+	utils.ExecCommandQuiet("ovs-ofctl", "-O", "OpenFlow13", "del-meter", bridge, "meter=1")
+	utils.ExecCommandQuiet("ovs-vsctl", "--if-exists", "set", "Interface", bridge, "ingress_policing_kpkts_rate=0", "ingress_policing_kpkts_burst=0")
+	if result := utils.ExecCommandQuiet("ovs-vsctl", "--if-exists", "del-br", bridge); result.Error != nil {
+		return fmt.Errorf("删除端口安全隔离探测网桥失败: %s", firstNonEmpty(result.Stderr, result.Error.Error()))
+	}
+	if utils.ExecCommandQuiet("ovs-vsctl", "br-exists", bridge).Error == nil {
+		return fmt.Errorf("端口安全隔离探测网桥仍然存在: %s", bridge)
+	}
 	return nil
 }
 

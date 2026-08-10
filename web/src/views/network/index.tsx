@@ -15,7 +15,21 @@ import {
   IconRefresh,
   IconSearch,
 } from '@douyinfe/semi-icons'
-import { checkOVSNetwork, repairOVSNetwork, type OvsPortList, type OvsStatus } from '@/api/ovs'
+import {
+  checkOVSNetwork,
+  disablePortSecurity,
+  enablePortSecurity,
+  getPortSecurityStatus,
+  isolatePortSecurityPort,
+  preflightPortSecurity,
+  reconcilePortSecurity,
+  releasePortSecurityPort,
+  repairOVSNetwork,
+  type OvsPortList,
+  type OvsStatus,
+  type PortSecurityPreflight,
+  type PortSecurityStatus,
+} from '@/api/ovs'
 import {
   deleteNetworkBridge,
   getHostInterfaces,
@@ -40,6 +54,7 @@ import {
   type VpcSwitch,
 } from '@/api/vpc'
 import { useUserStore } from '@/stores/user'
+import { getTaskDetail } from '@/api/task'
 import { confirmModal } from '@/utils/confirm'
 import { copyTextWithFallback } from '@/utils/clipboard'
 import { ROLES } from '@/config/constants'
@@ -85,6 +100,9 @@ export default function NetworkPage() {
   const [hostInterfaces, setHostInterfaces] = useState<HostInterface[]>([])
   const [checking, setChecking] = useState(false)
   const [repairing, setRepairing] = useState(false)
+  const [portSecurity, setPortSecurity] = useState<PortSecurityStatus | null>(null)
+  const [portSecurityPreflight, setPortSecurityPreflight] = useState<PortSecurityPreflight | null>(null)
+  const [portSecurityAction, setPortSecurityAction] = useState('')
   // ACL
   const [aclPreview, setAclPreview] = useState('')
   const [aclLoading, setAclLoading] = useState(false)
@@ -114,15 +132,17 @@ export default function NetworkPage() {
   }, [queryParams])
 
   const loadOverview = useCallback(async () => {
-    const [checkRes, bridgeRes, ifaceRes] = await Promise.all([
+    const [checkRes, bridgeRes, ifaceRes, portSecurityRes] = await Promise.all([
       checkOVSNetwork(),
       getNetworkBridges(),
       getHostInterfaces(),
+      getPortSecurityStatus(),
     ])
     setOvsStatus(checkRes.data?.status || null)
     setOvsPorts(checkRes.data?.ports || null)
     setBridges(bridgeRes.data || [])
     setHostInterfaces(ifaceRes.data || [])
+    setPortSecurity(portSecurityRes.data || null)
   }, [])
 
   const loadACLPreview = useCallback(async () => {
@@ -220,6 +240,102 @@ export default function NetworkPage() {
     },
     [loadOverview],
   )
+
+  const handlePortSecurityPreflight = useCallback(async () => {
+    setPortSecurityAction('preflight')
+    try {
+      const res = await preflightPortSecurity()
+      const data = res.data
+      setPortSecurityPreflight(data ? {
+        ...data,
+        capabilities: data.capabilities ?? [],
+        ports: data.ports ?? [],
+        issues: data.issues ?? [],
+      } : null)
+      if (res.data?.ready) Toast.success('端口安全预检通过')
+      else Toast.warning('预检完成，请先处理阻断项')
+      return !!res.data?.ready
+    } catch {
+      return false
+    } finally {
+      setPortSecurityAction('')
+    }
+  }, [])
+
+  const waitPortSecurityTask = useCallback(
+    async (taskId?: number) => {
+      if (!taskId) return
+      for (;;) {
+        await new Promise((resolve) => window.setTimeout(resolve, 1200))
+        const res = await getTaskDetail(taskId)
+        const task = res.data
+        if (!task || !['success', 'failed', 'canceled'].includes(task.status)) continue
+        if (task.status === 'success') Toast.success(task.message || '端口安全任务执行完成')
+        else Toast.error(task.message || '端口安全任务执行失败')
+        await loadOverview()
+        return
+      }
+    },
+    [loadOverview],
+  )
+
+  const handlePortSecurityToggle = useCallback(
+    async (enabled: boolean) => {
+      if (enabled) {
+        const ready = await handlePortSecurityPreflight()
+        if (!ready) return
+      }
+      const ok = await confirmModal({
+        title: enabled ? '启用端口安全防护' : '停用端口安全防护',
+        content: enabled
+          ? '系统将先隔离活动端口，再安装并校验身份、ARP/ND 与速率策略。确认提交启用任务？'
+          : '系统将移除本模块流表并恢复原有转发；异常端口会继续隔离。确认提交停用任务？',
+        okText: enabled ? '启用' : '停用',
+        danger: true,
+      })
+      if (!ok) return
+      setPortSecurityAction(enabled ? 'enable' : 'disable')
+      try {
+        const res = enabled ? await enablePortSecurity() : await disablePortSecurity()
+        Toast.success(res.message || '端口安全任务已提交')
+        await waitPortSecurityTask(res.data?.task_id)
+      } finally {
+        setPortSecurityAction('')
+      }
+    },
+    [handlePortSecurityPreflight, waitPortSecurityTask],
+  )
+
+  const handlePortSecurityReconcile = useCallback(async () => {
+    setPortSecurityAction('reconcile')
+    try {
+      const res = await reconcilePortSecurity()
+      Toast.success(res.message || '协调任务已提交')
+      await waitPortSecurityTask(res.data?.task_id)
+    } finally {
+      setPortSecurityAction('')
+    }
+  }, [waitPortSecurityTask])
+
+  const handlePortSecurityPortAction = useCallback(async (port: string, release: boolean) => {
+    const ok = await confirmModal({
+      title: release ? '释放端口' : '隔离端口',
+      content: `确定${release ? '释放' : '隔离'} OVS 端口 ${port}？`,
+      okText: release ? '释放' : '隔离',
+      danger: true,
+    })
+    if (!ok) return
+    setPortSecurityAction(`${release ? 'release' : 'isolate'}:${port}`)
+    try {
+      const res = release
+        ? await releasePortSecurityPort(port)
+        : await isolatePortSecurityPort(port)
+      Toast.success(res.message || '端口任务已提交')
+      await waitPortSecurityTask(res.data?.task_id)
+    } finally {
+      setPortSecurityAction('')
+    }
+  }, [waitPortSecurityTask])
 
   // ==================== 交换机操作 ====================
   const handleDeleteSwitch = useCallback(
@@ -396,11 +512,18 @@ export default function NetworkPage() {
               hostInterfaces={hostInterfaces}
               checking={checking}
               repairing={repairing}
+              portSecurity={portSecurity}
+              portSecurityPreflight={portSecurityPreflight}
+              portSecurityAction={portSecurityAction}
               onCheck={() => void handleCheck()}
               onRepair={() => void handleRepair()}
               onCreateBridge={() => setDialog({ type: 'bridge' })}
               onDeleteBridge={(row) => void handleDeleteBridge(row)}
               onConfigInterface={(name) => setDialog({ type: 'ifaceConfig', name })}
+              onPortSecurityPreflight={() => void handlePortSecurityPreflight()}
+              onPortSecurityToggle={(enabled) => void handlePortSecurityToggle(enabled)}
+              onPortSecurityReconcile={() => void handlePortSecurityReconcile()}
+              onPortSecurityPortAction={(port, release) => void handlePortSecurityPortAction(port, release)}
             />
           </Tabs.TabPane>
         )}
@@ -451,6 +574,7 @@ export default function NetworkPage() {
           bridges={bridges}
           quota={quota}
           defaultUsername={usernameFilter}
+          portSecurityEnabled={!!portSecurity?.enabled}
           onClose={() => setDialog(null)}
           onSaved={() => {
             void loadSwitches()

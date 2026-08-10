@@ -54,6 +54,7 @@ type Deps struct {
 	ListAllVPCStaticHosts         func() ([]OVSStaticHost, error)
 	GetOVSLeaseIPByMAC            func(mac string) string
 	ApplyVPCBindingToDomainXML    func(vmName, xml string) (string, bool, error)
+	PrepareVMPortSecurityBinding  func(owner, vmName string, switchID, securityGroupID uint, allowedIPv4, allowedIPv6 string) error
 
 	// ---- XML modification helpers ----
 	ApplyRTCConfigToDomainXML           func(xmlStr, offset, startDate, tplType string) (string, error)

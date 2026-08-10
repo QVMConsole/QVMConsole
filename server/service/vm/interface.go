@@ -261,6 +261,9 @@ func buildVMInterfaceXML(vmName, bridgeName string, sw model.VPCSwitch, nicModel
         <outbound average='0' burst='0' peak='0'/>
       </bandwidth>`, sw.VLANID)
 	}
+	if D.IsPortSecurityEnabled != nil && D.IsPortSecurityEnabled() {
+		xml += "\n      <link state='down'/>"
+	}
 
 	xml += "\n    </interface>"
 	return xml

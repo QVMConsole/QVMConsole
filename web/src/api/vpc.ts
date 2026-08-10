@@ -19,6 +19,8 @@ export interface VpcSwitch {
   allow_promiscuous?: boolean
   allow_mac_change?: boolean
   allow_forged_transmits?: boolean
+  ipv6_security_enabled?: boolean
+  trusted_ipv6_prefixes?: string
   vlan_id: number
   cidr: string
   gateway_ip: string
@@ -48,6 +50,8 @@ export interface VpcSwitchPayload {
   allow_promiscuous?: boolean
   allow_mac_change?: boolean
   allow_forged_transmits?: boolean
+  ipv6_security_enabled?: boolean
+  trusted_ipv6_prefixes?: string
   cidr?: string
   gateway_ip?: string
   dhcp_start?: string
@@ -119,6 +123,8 @@ export interface VpcVMBinding {
   nic_model: string
   bandwidth_inbound_avg: number
   bandwidth_outbound_avg: number
+  allowed_ipv4_addresses: string
+  allowed_ipv6_addresses: string
 }
 
 /** 轻量云 VM 配额（来自绑定信息） */
@@ -293,6 +299,8 @@ export interface VMInterfacePayload {
   nic_model: string
   bandwidth_inbound_avg: number
   bandwidth_outbound_avg: number
+  allowed_ipv4_addresses?: string
+  allowed_ipv6_addresses?: string
 }
 
 /** 获取虚拟机网口列表（仅管理员） */

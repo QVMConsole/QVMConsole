@@ -64,6 +64,11 @@ func init() {
 		StripRuntimeOnlyInterfaceElements: StripRuntimeOnlyInterfaceElements,
 		BridgeNameForSwitch:               BridgeNameForSwitch,
 		SwitchUsesDirectBridge:            SwitchUsesDirectBridge,
+		IsPortSecurityEnabled: func() bool {
+			return config.GlobalConfig != nil && config.GlobalConfig.PortSecurityEnabled
+		},
+		ReconcileVMPortSecurity:      ReconcileVMPortSecurity,
+		PrepareVMPortSecurityBinding: PrepareVMPortSecurityBinding,
 
 		// ---- Storage pool ----
 		GetAllISOs:           GetAllISOs,

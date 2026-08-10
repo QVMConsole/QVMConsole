@@ -141,6 +141,78 @@
 .net-card-body {
   padding: 14px 18px;
 }
+.net-port-security-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.net-port-security-title {
+  color: var(--qvm-text-1);
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+.net-port-security-collapse {
+  border-top: 1px solid var(--qvm-stroke);
+}
+.net-port-security-collapse-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--qvm-text-1);
+  font-weight: 600;
+}
+.net-port-security-collapse .semi-collapse-header {
+  padding: 11px 18px;
+}
+.net-port-security-collapse .semi-collapse-content {
+  padding: 0;
+}
+.net-preflight {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--qvm-stroke);
+  border-radius: 10px;
+  background: var(--qvm-hover-bg);
+}
+.net-preflight.ready {
+  border-color: rgba(16, 185, 129, 0.35);
+}
+.net-preflight.blocked {
+  border-color: rgba(239, 68, 68, 0.35);
+}
+.net-preflight-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--qvm-text-1);
+  font-size: 13px;
+}
+.net-preflight-head span {
+  color: var(--qvm-text-2);
+  font-weight: 400;
+}
+.net-preflight-issues {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 10px;
+  color: var(--qvm-text-1);
+  font-size: 12px;
+}
+.net-preflight-issues > div {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+}
+.net-port-addresses {
+  color: var(--qvm-text-1);
+  font-size: 11.5px;
+  line-height: 1.55;
+  word-break: break-all;
+}
 .net-info-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -399,6 +471,13 @@ body[theme-mode='dark'] .net-table-title,
 body[theme-mode='dark'] .net-name-cell,
 body[theme-mode='dark'] .net-info-value,
 body[theme-mode='dark'] .net-rule-title {
+  color: #b8c1cf;
+}
+body[theme-mode='dark'] .net-port-security-title,
+body[theme-mode='dark'] .net-port-security-collapse-title,
+body[theme-mode='dark'] .net-preflight-head,
+body[theme-mode='dark'] .net-preflight-issues,
+body[theme-mode='dark'] .net-port-addresses {
   color: #b8c1cf;
 }
 

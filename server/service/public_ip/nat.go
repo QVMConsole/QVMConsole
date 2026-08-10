@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"kvm_console/config"
 	"kvm_console/logger"
 	"kvm_console/model"
 	"kvm_console/utils"
@@ -170,6 +171,10 @@ func buildPublicIPClassicBridgeCommands(ipRow model.PublicIP, req PublicIPBindRe
 }
 
 func buildPublicIPAntiSpoofCommands(ipRow model.PublicIP, req PublicIPBindRequest) []string {
+	// 端口安全开启后，公网地址作为统一身份编译器的输入，不再写入 table 0 重叠规则。
+	if config.GlobalConfig != nil && config.GlobalConfig.PortSecurityEnabled {
+		return nil
+	}
 	if strings.TrimSpace(req.VMName) == "" {
 		return nil
 	}

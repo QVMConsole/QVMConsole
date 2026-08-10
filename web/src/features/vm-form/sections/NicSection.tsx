@@ -2,7 +2,8 @@
  * 网络分区（创建 / 编辑共用）
  * 编辑：仅网卡类型（运行中禁用）；创建：默认网卡型号 + 网口列表。
  */
-import { Button, Empty, Select, Tag } from '@douyinfe/semi-ui'
+import { Button, Empty, Select, Tag, TextArea, Tooltip } from '@douyinfe/semi-ui'
+import { useEffect, useState } from 'react'
 import { IconGlobe, IconDelete, IconPlus } from '@douyinfe/semi-icons'
 import { IllustrationNoContent, IllustrationNoContentDark } from '@douyinfe/semi-illustrations'
 import { useUserStore } from '@/stores/user'
@@ -11,6 +12,7 @@ import FormField from './FormField'
 import { useVmFormScope } from '../scopeContext'
 import { NIC_MODEL_OPTIONS } from '../constants'
 import type { VpcSwitch } from '@/api/vpc'
+import { getPortSecurityStatus } from '@/api/ovs'
 import {
   filterSecurityGroupsForSwitch,
   formatSecurityGroupOptionLabel,
@@ -32,6 +34,14 @@ export default function NicSection() {
   const { form: f, setField } = form
   const isEdit = ctx.mode === 'edit'
   const running = ctx.vmStatus === 'running'
+  const [portSecurityEnabled, setPortSecurityEnabled] = useState(false)
+
+  useEffect(() => {
+    if (isEdit || !ctx.isAdmin) return
+    void getPortSecurityStatus()
+      .then((res) => setPortSecurityEnabled(!!res.data?.enabled))
+      .catch(() => setPortSecurityEnabled(false))
+  }, [ctx.isAdmin, isEdit])
 
   const addNic = () => {
     setField('extra_nics', [
@@ -40,6 +50,8 @@ export default function NicSection() {
         nic_model: f.nic_model || 'virtio',
         switch_id: options.vpcSwitches.length > 0 ? options.vpcSwitches[0].id : null,
         security_group_id: null,
+        allowed_ipv4_addresses: '',
+        allowed_ipv6_addresses: '',
       },
     ])
   }
@@ -53,7 +65,16 @@ export default function NicSection() {
     return filterSecurityGroupsForSwitch(options.vpcSecurityGroups, sw, username)
   }
 
-  const updateNic = (index: number, key: 'nic_model' | 'switch_id' | 'security_group_id', value: unknown) => {
+  const updateNic = (
+    index: number,
+    key:
+      | 'nic_model'
+      | 'switch_id'
+      | 'security_group_id'
+      | 'allowed_ipv4_addresses'
+      | 'allowed_ipv6_addresses',
+    value: unknown,
+  ) => {
     setField(
       'extra_nics',
       f.extra_nics.map((nic, i) => {
@@ -128,7 +149,11 @@ export default function NicSection() {
               <div key={index} className="qvm-vf-nic-row">
                 <div className="qvm-vf-nic-header">
                   <Tag size="small" color="blue">网口 #{index + 1}</Tag>
-                  <Button size="small" type="danger" theme="borderless" icon={<IconDelete />} onClick={() => removeNic(index)} />
+                  <Tooltip content="删除网口" position="top">
+                    <span className="qvm-act-ic danger" onClick={() => removeNic(index)}>
+                      <IconDelete />
+                    </span>
+                  </Tooltip>
                 </div>
                 <div className="qvm-vf-grid-3">
                   <FormField label="网卡型号">
@@ -168,6 +193,35 @@ export default function NicSection() {
                     />
                   </FormField>
                 </div>
+                {portSecurityEnabled && (() => {
+                  const selectedSwitch = options.vpcSwitches.find((item) => item.id === nic.switch_id)
+                  const directBridge = selectedSwitch?.bridge_mode === 'bridge'
+                  return (
+                    <div className="qvm-vf-grid-2">
+                      <FormField
+                        label="允许的 IPv4 地址"
+                        tip={directBridge ? '可选；留空时保持兼容保护，填写后启用精确地址校验' : '静态地址可在此登记，DHCP 租约会自动加入策略'}
+                      >
+                        <TextArea
+                          value={nic.allowed_ipv4_addresses}
+                          onChange={(v) => updateNic(index, 'allowed_ipv4_addresses', v)}
+                          placeholder="每行一个精确 IPv4 地址"
+                          autosize={{ minRows: 2, maxRows: 4 }}
+                        />
+                      </FormField>
+                      {directBridge && selectedSwitch?.ipv6_security_enabled && (
+                        <FormField label="允许的 IPv6 地址" required tip="须位于交换机可信前缀内">
+                          <TextArea
+                            value={nic.allowed_ipv6_addresses}
+                            onChange={(v) => updateNic(index, 'allowed_ipv6_addresses', v)}
+                            placeholder="每行一个精确 IPv6 地址"
+                            autosize={{ minRows: 2, maxRows: 4 }}
+                          />
+                        </FormField>
+                      )}
+                    </div>
+                  )
+                })()}
               </div>
             ))
           )}

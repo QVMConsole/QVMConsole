@@ -66,14 +66,16 @@ kvm-console system-compatibility-check \
 
 - `/dev/kvm` 可打开，QEMU、`virt-install`、`qemu-img`、`virsh` 和 OVS 相关命令可用；
 - libvirt RPC 连接可用；
-- OVS 服务、基础网桥、网关、DHCP、IPv4 转发、NAT 和转发规则正常；
+- OVS 服务、基础网桥、网关、DHCP、IPv4 转发、NAT 和转发规则正常；物理上联口加入 OVS 网桥且默认路由已迁移时，NAT 检查使用该三层网桥作为实际出口；
+- 隔离探测网桥支持 OpenFlow13、`pktps+burst` meter，并通过 `ovsdb-client` 读取 OVSDB Interface schema 验证 `ingress_policing_kpkts_rate/burst`；
+- 端口安全探测 meter 与引用该 meter 的流表可以实际写入并回读；OpenFlow14 bundle 可用时验证原子事务，否则记录隔离顺序更新兼容模式；
 - 测试域状态为 `running`；
 - 持久化 XML 使用配置中的基础 OVS 网桥，并包含 `virtualport type='openvswitch'`；
 - 运行态 `vnet` 端口已加入对应 OVS 网桥，且 `ofport` 有效。
 
 ## 清理与失败处理
 
-成功、失败或收到 `SIGINT`/`SIGTERM` 后，后端都会按本次生成的唯一虚拟机名称清理域、NVRAM、系统盘、内存元数据和 VPC 绑定。清理不会按名称范围扫描，也不会操作其他虚拟机。系统基础交换机、基础 OVS 网桥和默认安全组会保留，供面板正常运行。
+成功、失败或收到 `SIGINT`/`SIGTERM` 后，后端都会按本次生成的唯一虚拟机名称清理域、NVRAM、系统盘、内存元数据和 VPC 绑定，同时删除唯一命名的端口安全隔离探测网桥、探测 meter、流表和临时文件。清理不会按名称范围扫描，也不会操作其他虚拟机。系统基础交换机、基础 OVS 网桥和默认安全组会保留，供面板正常运行。
 
 测试退出码为 `0` 时表示兼容；其他退出码表示测试阶段或清理阶段存在错误。失败后安装器会显示失败阶段和报告目录，并询问：
 

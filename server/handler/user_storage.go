@@ -439,41 +439,43 @@ func UnmountStorageFromVM(c *gin.Context) {
 
 // SelfCreateVmRequest 用户自助创建VM请求
 type SelfCreateVmRequest struct {
-	Name            string                            `json:"name" binding:"required"`
-	Remark          string                            `json:"remark"`
-	VCPU            int                               `json:"vcpu" binding:"required"`
-	MaxVCPU         int                               `json:"max_vcpu"`
-	RAM             int                               `json:"ram" binding:"required"`
-	DiskSize        int                               `json:"disk_size" binding:"required"`
-	DiskFormat      string                            `json:"disk_format"`
-	DiskBus         string                            `json:"disk_bus"`
-	OSVariant       string                            `json:"os_variant"`
-	ISOPath         string                            `json:"iso_path"`
-	ISOPaths        []string                          `json:"iso_paths"`
-	FloppyImage     string                            `json:"floppy_image"`
-	NicModel        string                            `json:"nic_model"`
-	Autostart       bool                              `json:"autostart"`
-	Freeze          bool                              `json:"freeze"`
-	APIC            *bool                             `json:"apic"`
-	PAE             *bool                             `json:"pae"`
-	RTCOffset       string                            `json:"rtc_offset"`
-	RTCStartDate    string                            `json:"rtc_startdate"`
-	GuestAgent      *vm_xml.VMGuestAgentConfig        `json:"guest_agent"`
-	SMBIOS1         *vm_xml.VMSMBIOS1Config           `json:"smbios1"`
-	OSType          string                            `json:"os_type"`
-	MachineType     string                            `json:"machine_type"`
-	BootType        string                            `json:"boot_type"`
-	BootOrder       []string                          `json:"boot_order"`
-	VideoModel      string                            `json:"video_model"`
-	SpiceEnabled    *bool                             `json:"spice_enabled"` // 是否启用 SPICE 显示协议（不传=回退全局默认）
-	CPUTopologyMode string                            `json:"cpu_topology_mode"`
-	MemoryDynamic   *vm_memory.VMMemoryDynamicRequest `json:"memory_dynamic"`
-	SwitchID        uint                              `json:"switch_id"`
-	SecurityGroupID uint                              `json:"security_group_id"`
-	ExtraNics       []service.AddVMInterfaceRequest   `json:"extra_nics"`
-	StoragePoolID   string                            `json:"storage_pool_id"`
-	PCIERootPorts   int                               `json:"pcie_root_ports,omitempty"` // q35 预留 pcie-root-port 数量
-	ExtraDisks      []struct {
+	Name                 string                            `json:"name" binding:"required"`
+	Remark               string                            `json:"remark"`
+	VCPU                 int                               `json:"vcpu" binding:"required"`
+	MaxVCPU              int                               `json:"max_vcpu"`
+	RAM                  int                               `json:"ram" binding:"required"`
+	DiskSize             int                               `json:"disk_size" binding:"required"`
+	DiskFormat           string                            `json:"disk_format"`
+	DiskBus              string                            `json:"disk_bus"`
+	OSVariant            string                            `json:"os_variant"`
+	ISOPath              string                            `json:"iso_path"`
+	ISOPaths             []string                          `json:"iso_paths"`
+	FloppyImage          string                            `json:"floppy_image"`
+	NicModel             string                            `json:"nic_model"`
+	Autostart            bool                              `json:"autostart"`
+	Freeze               bool                              `json:"freeze"`
+	APIC                 *bool                             `json:"apic"`
+	PAE                  *bool                             `json:"pae"`
+	RTCOffset            string                            `json:"rtc_offset"`
+	RTCStartDate         string                            `json:"rtc_startdate"`
+	GuestAgent           *vm_xml.VMGuestAgentConfig        `json:"guest_agent"`
+	SMBIOS1              *vm_xml.VMSMBIOS1Config           `json:"smbios1"`
+	OSType               string                            `json:"os_type"`
+	MachineType          string                            `json:"machine_type"`
+	BootType             string                            `json:"boot_type"`
+	BootOrder            []string                          `json:"boot_order"`
+	VideoModel           string                            `json:"video_model"`
+	SpiceEnabled         *bool                             `json:"spice_enabled"` // 是否启用 SPICE 显示协议（不传=回退全局默认）
+	CPUTopologyMode      string                            `json:"cpu_topology_mode"`
+	MemoryDynamic        *vm_memory.VMMemoryDynamicRequest `json:"memory_dynamic"`
+	SwitchID             uint                              `json:"switch_id"`
+	SecurityGroupID      uint                              `json:"security_group_id"`
+	AllowedIPv4Addresses string                            `json:"allowed_ipv4_addresses"`
+	AllowedIPv6Addresses string                            `json:"allowed_ipv6_addresses"`
+	ExtraNics            []service.AddVMInterfaceRequest   `json:"extra_nics"`
+	StoragePoolID        string                            `json:"storage_pool_id"`
+	PCIERootPorts        int                               `json:"pcie_root_ports,omitempty"` // q35 预留 pcie-root-port 数量
+	ExtraDisks           []struct {
 		Size          int    `json:"size"`
 		Format        string `json:"format"`
 		Bus           string `json:"bus"`
@@ -576,7 +578,7 @@ func SelfCreateVm(c *gin.Context) {
 		return
 	}
 	// 仅当用户指定了交换机时才解析 VPC
-	if req.SwitchID != 0 {
+	if req.SwitchID != 0 || service.IsPortSecurityEnabled() {
 		switchID, securityGroupID, err := service.ResolveVPCForVMCreate(usernameStr, req.SwitchID, req.SecurityGroupID)
 		if err != nil {
 			c.JSON(http.StatusForbidden, gin.H{
@@ -590,41 +592,43 @@ func SelfCreateVm(c *gin.Context) {
 	}
 
 	params := &service.CreateVMParams{
-		Name:            req.Name,
-		Remark:          req.Remark,
-		VCPU:            req.VCPU,
-		MaxVCPU:         req.MaxVCPU,
-		RAM:             req.RAM,
-		DiskSize:        req.DiskSize,
-		DiskFormat:      req.DiskFormat,
-		DiskBus:         req.DiskBus,
-		OSVariant:       req.OSVariant,
-		ISOPath:         req.ISOPath,
-		ISOPaths:        req.ISOPaths,
-		FloppyImage:     req.FloppyImage,
-		NicModel:        req.NicModel,
-		Autostart:       req.Autostart,
-		Freeze:          req.Freeze,
-		APIC:            req.APIC,
-		PAE:             req.PAE,
-		RTCOffset:       req.RTCOffset,
-		RTCStartDate:    req.RTCStartDate,
-		GuestAgent:      req.GuestAgent,
-		SMBIOS1:         req.SMBIOS1,
-		OSType:          req.OSType,
-		MachineType:     req.MachineType,
-		BootType:        req.BootType,
-		BootOrder:       req.BootOrder,
-		VideoModel:      req.VideoModel,
-		SpiceEnabled:    req.SpiceEnabled,
-		CPUTopologyMode: req.CPUTopologyMode,
-		VirtType:        "kvm",
-		SwitchID:        req.SwitchID,
-		SecurityGroupID: req.SecurityGroupID,
-		StoragePoolID:   req.StoragePoolID,
-		IsAdmin:         false,
-		ExtraNics:       req.ExtraNics,
-		PCIERootPorts:   req.PCIERootPorts,
+		Name:                 req.Name,
+		Remark:               req.Remark,
+		VCPU:                 req.VCPU,
+		MaxVCPU:              req.MaxVCPU,
+		RAM:                  req.RAM,
+		DiskSize:             req.DiskSize,
+		DiskFormat:           req.DiskFormat,
+		DiskBus:              req.DiskBus,
+		OSVariant:            req.OSVariant,
+		ISOPath:              req.ISOPath,
+		ISOPaths:             req.ISOPaths,
+		FloppyImage:          req.FloppyImage,
+		NicModel:             req.NicModel,
+		Autostart:            req.Autostart,
+		Freeze:               req.Freeze,
+		APIC:                 req.APIC,
+		PAE:                  req.PAE,
+		RTCOffset:            req.RTCOffset,
+		RTCStartDate:         req.RTCStartDate,
+		GuestAgent:           req.GuestAgent,
+		SMBIOS1:              req.SMBIOS1,
+		OSType:               req.OSType,
+		MachineType:          req.MachineType,
+		BootType:             req.BootType,
+		BootOrder:            req.BootOrder,
+		VideoModel:           req.VideoModel,
+		SpiceEnabled:         req.SpiceEnabled,
+		CPUTopologyMode:      req.CPUTopologyMode,
+		VirtType:             "kvm",
+		SwitchID:             req.SwitchID,
+		SecurityGroupID:      req.SecurityGroupID,
+		AllowedIPv4Addresses: req.AllowedIPv4Addresses,
+		AllowedIPv6Addresses: req.AllowedIPv6Addresses,
+		StoragePoolID:        req.StoragePoolID,
+		IsAdmin:              false,
+		ExtraNics:            req.ExtraNics,
+		PCIERootPorts:        req.PCIERootPorts,
 		MemoryDynamic: sanitizeUserMemoryDynamicRequest(
 			req.MemoryDynamic,
 			req.RAM,

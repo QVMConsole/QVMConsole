@@ -556,7 +556,24 @@ export interface VmNetworkInterface {
   virtualport_type?: string
   ofport?: string
   model?: string
+  port_security?: VmPortSecurityStatus
   issues?: string[]
+}
+
+export interface VmPortSecurityStatus {
+  mode: string
+  allowed_ipv4_addresses: string[]
+  allowed_ipv6_addresses: string[]
+  neighbor_meter_id?: number
+  broadcast_meter_id?: number
+  policing_kpps: number
+  policing_burst_kpackets: number
+  drop_packets: number
+  neighbor_drop_packets: number
+  broadcast_drop_packets: number
+  applied: boolean
+  isolated: boolean
+  last_error?: string
 }
 
 export interface VmNetworkStatus {
@@ -564,6 +581,7 @@ export interface VmNetworkStatus {
   state?: string
   bridge?: string
   interfaces?: VmNetworkInterface[]
+  port_security_enabled?: boolean
   issues?: string[]
   bandwidth?: {
     enabled?: boolean
@@ -876,6 +894,7 @@ export interface VmNetworkDiagnostics {
   port_forwards?: { protocol: string; host_port: string; dest_ip: string; dest_port: string }[]
   default_interface: string
   default_ip: string
+  port_security_enabled?: boolean
   issues?: string[]
 }
 
@@ -914,6 +933,8 @@ export interface ExtraNicPayload {
   switch_id: number
   security_group_id: number
   nic_model: string
+  allowed_ipv4_addresses?: string
+  allowed_ipv6_addresses?: string
 }
 
 /** 创建虚拟机（ISO 安装）提交载荷 */
@@ -934,6 +955,8 @@ export interface CreateVmPayload {
   floppy_image?: string
   switch_id?: number | null
   security_group_id?: number | null
+  allowed_ipv4_addresses?: string
+  allowed_ipv6_addresses?: string
   storage_pool_id?: string
   nic_model?: string
   autostart?: boolean
@@ -989,6 +1012,8 @@ export interface CloneVmPayload {
   disable_system_init?: boolean
   switch_id?: number | null
   security_group_id?: number | null
+  allowed_ipv4_addresses?: string
+  allowed_ipv6_addresses?: string
   storage_pool_id?: string
   autostart?: boolean
   freeze?: boolean
@@ -1063,6 +1088,8 @@ export interface BatchCloneVmPayload {
   first_boot_reboot_mode?: string
   switch_id?: number | null
   security_group_id?: number | null
+  allowed_ipv4_addresses?: string
+  allowed_ipv6_addresses?: string
   extra_nics?: ExtraNicPayload[]
   extra_disks?: ExtraDiskPayload[]
   pcie_root_ports?: number
@@ -1107,6 +1134,8 @@ export interface ImportVmPayload {
   ram: number
   switch_id?: number | null
   security_group_id?: number | null
+  allowed_ipv4_addresses?: string
+  allowed_ipv6_addresses?: string
   copy_disk?: boolean
   hostname?: string
   user?: string

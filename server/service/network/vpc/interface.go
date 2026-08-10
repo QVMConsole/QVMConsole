@@ -23,6 +23,9 @@ func AddVMInterface(vmName string, req AddVMInterfaceRequest) (*VMInterfaceInfo,
 	if err := model.DB.First(&sw, req.SwitchID).Error; err != nil {
 		return nil, fmt.Errorf("交换机不存在")
 	}
+	if err := normalizeInterfacePortSecurityFields(&req, HookSwitchUsesDirectBridge(sw) && sw.IPv6SecurityEnabled); err != nil {
+		return nil, err
+	}
 
 	// 系统交换机使用 VM 归属用户的默认安全组
 	switchOwner := sw.Username
@@ -117,8 +120,11 @@ func AddVMInterface(vmName string, req AddVMInterfaceRequest) (*VMInterfaceInfo,
 		NicModel:             nicModel,
 		BandwidthInboundAvg:  req.BandwidthInboundAvg,
 		BandwidthOutboundAvg: req.BandwidthOutboundAvg,
+		AllowedIPv4Addresses: req.AllowedIPv4Addresses,
+		AllowedIPv6Addresses: req.AllowedIPv6Addresses,
 	}
 	if err := model.DB.Create(&binding).Error; err != nil {
+		_ = HookDetachVMInterface(vmName, nextOrder)
 		return nil, fmt.Errorf("创建网口绑定记录失败: %w", err)
 	}
 
@@ -133,12 +139,44 @@ func AddVMInterface(vmName string, req AddVMInterfaceRequest) (*VMInterfaceInfo,
 	if err := applyNewInterfaceRuntime(vmName, sw, nextOrder); err != nil {
 		logger.App.Warn("为新网口应用 VPC 运行态失败", "vm", vmName, "order", nextOrder, "error", err)
 	}
+	portSecurityEnabled := HookIsPortSecurityEnabled != nil && HookIsPortSecurityEnabled()
+	if portSecurityEnabled && HookReconcileVMPortSecurity != nil {
+		if err := HookReconcileVMPortSecurity(vmName); err != nil {
+			_ = model.DB.Delete(&binding).Error
+			_ = HookDetachVMInterface(vmName, nextOrder)
+			return nil, fmt.Errorf("安装新网口端口安全策略失败，已回滚网口: %w", err)
+		}
+	}
+	// 防护开启时网口以 link-down 热插，策略确认后再同步放行运行态与持久化配置。
+	if portSecurityEnabled {
+		if vnetIF := getVMVnetIFByOrder(vmName, nextOrder); vnetIF != "" {
+			if err := setVMInterfaceLink(vmName, vnetIF, "up", false); err != nil {
+				_ = model.DB.Delete(&binding).Error
+				_ = HookDetachVMInterface(vmName, nextOrder)
+				return nil, fmt.Errorf("放行新网口运行态链路失败，已回滚网口: %w", err)
+			}
+		}
+		mac := HookGetVMMACByOrder(vmName, nextOrder)
+		if mac == "" {
+			_ = model.DB.Delete(&binding).Error
+			_ = HookDetachVMInterface(vmName, nextOrder)
+			return nil, fmt.Errorf("读取新网口 MAC 失败，已回滚网口")
+		}
+		if err := setVMInterfaceLink(vmName, mac, "up", true); err != nil {
+			_ = model.DB.Delete(&binding).Error
+			_ = HookDetachVMInterface(vmName, nextOrder)
+			return nil, fmt.Errorf("持久化新网口链路状态失败，已回滚网口: %w", err)
+		}
+	}
 	// 仅刷新交换机带宽和 ACL，不修改已有网口
 	if err := ApplyVPCSwitchBandwidth(sw); err != nil {
 		logger.App.Warn("刷新交换机带宽失败", "switch", sw.Name, "error", err)
 	}
 	if !HookSwitchUsesDirectBridge(sw) {
 		_ = ApplyVPCACLRules()
+	}
+	if HookTriggerPortSecurityReconcile != nil {
+		HookTriggerPortSecurityReconcile()
 	}
 
 	return &VMInterfaceInfo{
@@ -160,13 +198,16 @@ func UpdateVMInterface(vmName string, interfaceOrder int, req AddVMInterfaceRequ
 	if err := model.DB.Where("vm_name = ? AND interface_order = ?", vmName, interfaceOrder).First(&binding).Error; err != nil {
 		return fmt.Errorf("未找到指定的网口绑定")
 	}
-
+	previousBinding := binding
 	oldSwitchID := binding.SwitchID
 
 	// 验证交换机存在
 	var sw model.VPCSwitch
 	if err := model.DB.First(&sw, req.SwitchID).Error; err != nil {
 		return fmt.Errorf("交换机不存在")
+	}
+	if err := normalizeInterfacePortSecurityFields(&req, HookSwitchUsesDirectBridge(sw) && sw.IPv6SecurityEnabled); err != nil {
+		return err
 	}
 
 	// 系统交换机使用 VM 归属用户的默认安全组
@@ -219,6 +260,23 @@ func UpdateVMInterface(vmName string, interfaceOrder int, req AddVMInterfaceRequ
 	if nicModel == "" {
 		nicModel = binding.NicModel
 	}
+	portSecurityEnabled := HookIsPortSecurityEnabled != nil && HookIsPortSecurityEnabled()
+	vmState := strings.TrimSpace(utils.ExecCommand("virsh", "domstate", vmName).Stdout)
+	linkPort := ""
+	if portSecurityEnabled && vmState == "running" {
+		linkPort = getVMVnetIFByOrder(vmName, interfaceOrder)
+		if linkPort == "" {
+			return fmt.Errorf("读取运行态网口失败，已保持原配置")
+		}
+		if err := setVMInterfaceLink(vmName, linkPort, "down", false); err != nil {
+			return fmt.Errorf("隔离待修改网口失败: %w", err)
+		}
+	}
+	restoreLink := func() {
+		if linkPort != "" {
+			_ = setVMInterfaceLink(vmName, linkPort, "up", false)
+		}
+	}
 
 	// 更新绑定记录
 	binding.Username = sw.Username
@@ -227,7 +285,10 @@ func UpdateVMInterface(vmName string, interfaceOrder int, req AddVMInterfaceRequ
 	binding.NicModel = nicModel
 	binding.BandwidthInboundAvg = req.BandwidthInboundAvg
 	binding.BandwidthOutboundAvg = req.BandwidthOutboundAvg
+	binding.AllowedIPv4Addresses = req.AllowedIPv4Addresses
+	binding.AllowedIPv6Addresses = req.AllowedIPv6Addresses
 	if err := model.DB.Save(&binding).Error; err != nil {
+		restoreLink()
 		return fmt.Errorf("更新网口绑定记录失败: %w", err)
 	}
 
@@ -245,7 +306,6 @@ func UpdateVMInterface(vmName string, interfaceOrder int, req AddVMInterfaceRequ
 
 	// 如果交换机改变了，需要更新 VM 的 XML 配置（仅主网口 interface_order==0 支持）
 	if oldSwitchID != req.SwitchID {
-		vmState := strings.TrimSpace(utils.ExecCommand("virsh", "domstate", vmName).Stdout)
 		if vmState != "running" {
 			// 关机态：更新 inactive XML，确保下次开机时使用正确配置
 			if interfaceOrder == 0 {
@@ -289,7 +349,35 @@ func UpdateVMInterface(vmName string, interfaceOrder int, req AddVMInterfaceRequ
 	if !HookSwitchUsesDirectBridge(sw) {
 		_ = ApplyVPCACLRules()
 	}
+	if portSecurityEnabled && HookReconcileVMPortSecurity != nil {
+		if err := HookReconcileVMPortSecurity(vmName); err != nil {
+			_ = model.DB.Save(&previousBinding).Error
+			_ = HookReconcileVMPortSecurity(vmName)
+			restoreLink()
+			return fmt.Errorf("更新端口安全策略失败，已恢复原绑定: %w", err)
+		}
+		if linkPort != "" {
+			if err := setVMInterfaceLink(vmName, linkPort, "up", false); err != nil {
+				return fmt.Errorf("策略已更新，但恢复网口链路失败: %w", err)
+			}
+		}
+	} else if HookTriggerPortSecurityReconcile != nil {
+		HookTriggerPortSecurityReconcile()
+	}
 
+	return nil
+}
+
+// setVMInterfaceLink 统一切换虚拟机网口链路状态；domif-setlink 默认作用于运行态。
+func setVMInterfaceLink(vmName, interfaceRef, state string, persistent bool) error {
+	args := []string{"domif-setlink", vmName, interfaceRef, state}
+	if persistent {
+		args = append(args, "--config")
+	}
+	result := utils.ExecCommandQuiet("virsh", args...)
+	if result.Error != nil {
+		return fmt.Errorf("%s", HookFirstNonEmpty(result.Stderr, result.Error.Error()))
+	}
 	return nil
 }
 
@@ -324,18 +412,29 @@ func RemoveVMInterface(vmName string, interfaceOrder int) error {
 			_ = ApplyVPCACLRules()
 		}
 	}
+	if HookTriggerPortSecurityReconcile != nil {
+		HookTriggerPortSecurityReconcile()
+	}
 
 	return nil
 }
 
 // AttachExtraNICs 批量附加额外网口（用于创建/克隆流程）
 func AttachExtraNICs(vmName string, extraNics []AddVMInterfaceRequest) error {
+	attachedOrders := make([]int, 0, len(extraNics))
 	for i, nic := range extraNics {
 		if nic.SwitchID == 0 {
 			continue
 		}
-		if _, err := AddVMInterface(vmName, nic); err != nil {
+		info, err := AddVMInterface(vmName, nic)
+		if err != nil {
+			for rollbackIndex := len(attachedOrders) - 1; rollbackIndex >= 0; rollbackIndex-- {
+				_ = RemoveVMInterface(vmName, attachedOrders[rollbackIndex])
+			}
 			return fmt.Errorf("添加第 %d 张网卡失败: %w", i+2, err)
+		}
+		if info != nil {
+			attachedOrders = append(attachedOrders, info.Binding.InterfaceOrder)
 		}
 	}
 	return nil

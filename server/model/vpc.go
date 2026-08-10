@@ -14,6 +14,8 @@ type VPCSwitch struct {
 	AllowPromiscuous           bool      `json:"allow_promiscuous" gorm:"default:false"`
 	AllowMACChange             bool      `json:"allow_mac_change" gorm:"default:false"`
 	AllowForgedTransmits       bool      `json:"allow_forged_transmits" gorm:"default:false"`
+	IPv6SecurityEnabled        bool      `json:"ipv6_security_enabled" gorm:"default:false"`
+	TrustedIPv6Prefixes        string    `json:"trusted_ipv6_prefixes" gorm:"type:text"`
 	VLANID                     int       `json:"vlan_id" gorm:"uniqueIndex;not null"`
 	CIDR                       string    `json:"cidr" gorm:"column:cidr;size:32"`
 	GatewayIP                  string    `json:"gateway_ip" gorm:"not null;size:45"`
@@ -88,6 +90,8 @@ type VPCVMBinding struct {
 	NicModel             string    `json:"nic_model" gorm:"size:32;default:virtio"`
 	BandwidthInboundAvg  int       `json:"bandwidth_inbound_avg" gorm:"default:0"`
 	BandwidthOutboundAvg int       `json:"bandwidth_outbound_avg" gorm:"default:0"`
+	AllowedIPv4Addresses string    `json:"allowed_ipv4_addresses" gorm:"type:text"`
+	AllowedIPv6Addresses string    `json:"allowed_ipv6_addresses" gorm:"type:text"`
 	CreatedAt            time.Time `json:"created_at"`
 	UpdatedAt            time.Time `json:"updated_at"`
 }

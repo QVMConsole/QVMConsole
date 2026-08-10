@@ -1,6 +1,7 @@
 package service
 
 import (
+	"kvm_console/config"
 	"kvm_console/model"
 	fwpkg "kvm_console/service/firewall"
 	netpkg "kvm_console/service/network"
@@ -52,6 +53,10 @@ func EnsureVPCSwitchRuntime(sw model.VPCSwitch) error {
 }
 func EnsureAllVPCSwitchRuntime() error {
 	return vpcpkg.EnsureAllVPCSwitchRuntime()
+}
+
+func ReapplyAllVPCSwitchBandwidth() error {
+	return vpcpkg.ReapplyAllVPCSwitchBandwidth()
 }
 func VPCGatewayPortName(id uint) string {
 	return vpcpkg.VPCGatewayPortName(id)
@@ -119,6 +124,9 @@ func RemoveVMInterface(vmName string, interfaceOrder int) error {
 }
 func UpdateVMInterface(vmName string, interfaceOrder int, req AddVMInterfaceRequest) error {
 	return vpcpkg.UpdateVMInterface(vmName, interfaceOrder, req)
+}
+func UpdateVMInterfaceAllowedAddresses(vmName string, interfaceOrder int, allowedIPv4, allowedIPv6 string) error {
+	return vpcpkg.UpdateVMInterfaceAllowedAddresses(vmName, interfaceOrder, allowedIPv4, allowedIPv6)
 }
 func AttachExtraNICs(vmName string, extraNics []AddVMInterfaceRequest) error {
 	return vpcpkg.AttachExtraNICs(vmName, extraNics)
@@ -259,6 +267,7 @@ func init() {
 	vpcpkg.HookApplyTCVPCSwitchDownlink = applyTCVPCSwitchDownlinkLimit
 	vpcpkg.HookClearTCVPCSwitchDownlink = clearTCVPCSwitchDownlinkLimit
 	vpcpkg.HookEnsureIPTablesRule = ovspkg.EnsureIPTablesRule
+	vpcpkg.HookCleanupStaleNATRules = ovspkg.CleanupStaleManagedNATRules
 	vpcpkg.HookEnsureLocalDNSMasqInput = ovspkg.EnsureLocalDNSMasqInputRules
 	vpcpkg.HookRemoveLocalDNSMasqInput = func(iface string) {
 		ovspkg.RemoveLocalDNSMasqInputRules(iface)
@@ -278,6 +287,11 @@ func init() {
 		}
 		return result
 	}
+	vpcpkg.HookIsPortSecurityEnabled = func() bool {
+		return config.GlobalConfig != nil && config.GlobalConfig.PortSecurityEnabled
+	}
+	vpcpkg.HookTriggerPortSecurityReconcile = TriggerPortSecurityReconcile
+	vpcpkg.HookReconcileVMPortSecurity = ReconcileVMPortSecurity
 
 	// ── OVS Static Host / DHCP hooks ──
 	vpcpkg.HookGetOVSStaticHostByVMName = func(vmName string) (vpcpkg.StaticHost, bool) {

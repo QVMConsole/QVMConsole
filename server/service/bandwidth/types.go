@@ -111,8 +111,8 @@ func OvsBandwidthQueueID(vmName, direction string) uint32 {
 func OvsBandwidthMeterID(vmName, direction string) uint32 {
 	h := fnv.New32a()
 	_, _ = h.Write([]byte("kvm-console-bandwidth:" + vmName + ":" + direction))
-	// meter ID 使用较大正整数，避免和人工维护的小编号冲突。
-	return 100000 + h.Sum32()%900000000
+	// 与端口安全 meter 使用不同的有界区间，兼容常见 max_meter=200000 的宿主机。
+	return 100000 + h.Sum32()%40000
 }
 
 // OvsBandwidthMaxRateBps 将平均 KB/s 转换为 bps

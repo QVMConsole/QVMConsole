@@ -12,10 +12,11 @@ func GetVMNetworkDiagnostics(vmName string) (*VMNetworkDiagnostics, error) {
 		return nil, err
 	}
 	diag := &VMNetworkDiagnostics{
-		VMName:     status.VMName,
-		State:      status.State,
-		Interfaces: convertInterfaces(status.Interfaces),
-		Issues:     append([]string{}, status.Issues...),
+		VMName:              status.VMName,
+		State:               status.State,
+		Interfaces:          convertInterfaces(status.Interfaces),
+		PortSecurityEnabled: status.PortSecurityEnabled,
+		Issues:              append([]string{}, status.Issues...),
 	}
 	for _, iface := range diag.Interfaces {
 		if isUsableCaptureInterface(iface) {

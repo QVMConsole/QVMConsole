@@ -4,8 +4,8 @@
  * 轻量云用户禁止切换（VPC 由管理员分配）。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Banner, Button, Modal, Select, Table, Tag, Toast } from '@douyinfe/semi-ui'
-import { IconGlobe, IconPlus, IconRefresh } from '@douyinfe/semi-icons'
+import { Banner, Button, Modal, Select, Table, Tag, Toast, Tooltip } from '@douyinfe/semi-ui'
+import { IconDelete, IconEditStroked, IconGlobe, IconPlus, IconRefresh } from '@douyinfe/semi-icons'
 import {
   bindVMVPC,
   getVMVPCBinding,
@@ -335,16 +335,20 @@ export default function NicManageSection({ vmName, vmStatus, live, liveTick }: N
       ? [
           {
             title: '操作',
-            width: 140,
+            width: 100,
             align: 'center' as const,
             render: (_: unknown, row: VMInterfaceInfo) => (
-              <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
-                <Button size="small" type="primary" theme="light" onClick={() => setNicDialog({ open: true, editing: row })}>
-                  编辑
-                </Button>
-                <Button size="small" type="danger" theme="light" onClick={() => handleRemoveNic(row)}>
-                  删除
-                </Button>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                <Tooltip content="编辑网口" position="top">
+                  <span className="qvm-act-ic" onClick={() => setNicDialog({ open: true, editing: row })}>
+                    <IconEditStroked />
+                  </span>
+                </Tooltip>
+                <Tooltip content="删除网口" position="top">
+                  <span className="qvm-act-ic danger" onClick={() => handleRemoveNic(row)}>
+                    <IconDelete />
+                  </span>
+                </Tooltip>
               </div>
             ),
           },

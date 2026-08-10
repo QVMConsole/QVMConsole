@@ -9,6 +9,7 @@
 | python3-virt-firmware（可选） | `virt-fw-vars` | 在 UEFI 克隆的 NVRAM 中预置 shim 连续引导标记，避免首次登记发行版启动项时显示恢复倒计时并冷复位 | `server/service/vm_xml/boot_type.go`、`server/service/clone/` |
 | libvirt、QEMU、virtinst（既有依赖） | `virsh`、`qemu-system-*`/`qemu-kvm`、`qemu-img`、`virt-install` | 首次安装时通过正式创建链路定义并启动临时虚拟机，验证 KVM 与 libvirt 兼容性 | `scripts/check-system-compatibility.sh`、`server/service/compatibility/` |
 | Open vSwitch、dnsmasq、iproute2、iptables（既有依赖） | `ovs-vsctl`、`dnsmasq`、`ip`、`iptables` | 验证基础 OVS 网桥、DHCP、网关、NAT、转发规则和测试虚拟机运行端口 | `server/service/compatibility/` |
+| Open vSwitch（既有依赖） | `ovs-ofctl`、`ovsdb-client` | 端口安全 OpenFlow 多表、packet meter、Interface packet policing、OVSDB 端口事件与兼容性探测 | `server/service/network/portsecurity/`、`server/service/compatibility/` |
 | curl / wget（既有下载能力） | `curl`、`wget` | 首次安装当前目录缺少有效兼容性脚本时下载脚本；优先 curl，回退 wget | `install.sh` |
 
 ## Linux 来宾磁盘自动化依赖
@@ -34,4 +35,5 @@ Windows 来宾使用系统自带 PowerShell 存储命令，无额外来宾软件
 - OVF/OVA 功能复用安装脚本已有的 `qemu-utils` 与 Go 标准库归档能力，没有增加新的系统包。
 - `install.sh` 会按发行版尽力安装 `virt-fw-vars`；部分 RPM 系软件源缺少该工具时仅给出警告，不阻断安装和克隆。后端同样采用兼容降级，工具缺失或版本过旧时保留 shim 原有的一次性恢复流程。
 - 首次安装兼容性实机测试完全复用安装脚本已有的 libvirt、QEMU、virtinst、Open vSwitch、dnsmasq、iproute2、iptables 和下载工具，没有新增第三方依赖。
+- 端口安全功能复用 `openvswitch-switch` / `openvswitch` 包提供的 `ovs-vsctl`、`ovs-ofctl` 与 `ovsdb-client`，没有新增软件包；较旧 OVS 是否具有 `pktps` meter 和 `ingress_policing_kpkts_*` 字段由启用预检与兼容性实机测试判定。
 - 部分 ARM 设备与虚拟机的 SMBIOS 不提供内存设备数据，此时后端返回中文说明，前端正常降级展示，不影响其他功能。
