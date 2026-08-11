@@ -20,6 +20,7 @@ interface MakeTemplateDialogProps {
 }
 
 type TemplateType = 'linux' | 'windows' | 'fnos' | 'openwrt' | 'other'
+type TransferMode = 'copy' | 'move'
 
 /** 各系统类型的初始化方式选项 */
 const INIT_MODE_OPTIONS: Record<TemplateType, Array<{ value: string; label: string; tip: string }>> = {
@@ -99,6 +100,8 @@ export default function MakeTemplateDialog({ vmName, onClose }: MakeTemplateDial
   const [templateUser, setTemplateUser] = useState('')
   const [postBootCommand, setPostBootCommand] = useState('')
   const [postBootBlocking, setPostBootBlocking] = useState(false)
+  const [compress, setCompress] = useState(false)
+  const [transferMode, setTransferMode] = useState<TransferMode>('copy')
   const [loading, setLoading] = useState(false)
 
   const showCategory = ['linux', 'windows', 'openwrt'].includes(type)
@@ -140,6 +143,17 @@ export default function MakeTemplateDialog({ vmName, onClose }: MakeTemplateDial
       Toast.warning('模板名称只能包含字母、数字、点、下划线和短横线')
       return
     }
+    if (transferMode === 'move') {
+      const confirmed = await confirmModal({
+        title: '确认移动磁盘并删除源虚拟机',
+        content:
+          `系统盘将直接移动到模板目录，模板制作成功后会立即删除虚拟机“${vmName}”。` +
+          '\n\n删除范围包含该虚拟机定义、快照及其它附加磁盘，此操作提交后需要二次验证，请确认已备份所需数据。',
+        okText: '确认移动并删除',
+        danger: true,
+      })
+      if (!confirmed) return
+    }
     setLoading(true)
     try {
       await prepareTemplate({
@@ -147,6 +161,8 @@ export default function MakeTemplateDialog({ vmName, onClose }: MakeTemplateDial
         template_name: name,
         display_name: displayName || name,
         type,
+        compress,
+        transfer_mode: compress ? 'copy' : transferMode,
         category: showCategory ? normalizeTemplateCategory(type, category) : undefined,
         cloud_init_mode: initMode === 'none' ? 'none' : initMode || undefined,
         template_user: templateUser || undefined,
@@ -179,6 +195,53 @@ export default function MakeTemplateDialog({ vmName, onClose }: MakeTemplateDial
         <div className="qvm-form-label">源虚拟机</div>
         <Input value={vmName} disabled />
       </div>
+      <div className="qvm-form-item">
+        <div className="qvm-form-label">模板压缩</div>
+        <Radio.Group
+          type="button"
+          value={compress ? 'compressed' : 'uncompressed'}
+          onChange={(event) => {
+            const nextCompressed = event.target.value === 'compressed'
+            setCompress(nextCompressed)
+            if (nextCompressed) setTransferMode('copy')
+          }}
+          options={[
+            { value: 'uncompressed', label: '不压缩' },
+            { value: 'compressed', label: '压缩' },
+          ]}
+        />
+        <div className="qvm-form-tip">
+          {compress
+            ? '使用 qemu-img 压缩输出，耗时更长；链式克隆来源会继续保留父模板 backing 与子模板层级。'
+            : '不重新编码磁盘，制作速度更快，并保留稀疏文件与现有模板链。'}
+        </div>
+      </div>
+      {!compress && (
+        <div className="qvm-form-item">
+          <div className="qvm-form-label">磁盘处理</div>
+          <Radio.Group
+            type="button"
+            value={transferMode}
+            onChange={(event) => setTransferMode(event.target.value as TransferMode)}
+            options={[
+              { value: 'copy', label: '复制' },
+              { value: 'move', label: '移动' },
+            ]}
+          />
+          <div className="qvm-form-tip">
+            {transferMode === 'move'
+              ? '直接移动系统盘；模板成功后删除源虚拟机，适合无需保留源虚拟机的场景。'
+              : '保留源虚拟机及其磁盘，复制系统盘制作模板。'}
+          </div>
+        </div>
+      )}
+      {transferMode === 'move' && !compress && (
+        <Banner
+          type="warning"
+          closeIcon={null}
+          description="移动固定为不压缩。模板保存并校验成功后，源虚拟机及其快照、其它附加磁盘会被删除。"
+        />
+      )}
       <div className="qvm-form-item">
         <div className="qvm-form-label required">模板名称</div>
         <Input

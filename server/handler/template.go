@@ -45,6 +45,8 @@ type PrepareTemplateRequest struct {
 	VMName           string `json:"vm_name" binding:"required"`
 	TemplateName     string `json:"template_name" binding:"required"`
 	DisplayName      string `json:"display_name"`
+	Compress         bool   `json:"compress"`                     // 是否压缩模板磁盘
+	TransferMode     string `json:"transfer_mode"`                // copy/move；move 固定不压缩并在成功后删除源虚拟机
 	Type             string `json:"type"`                         // linux/windows/fnos
 	Category         string `json:"category"`                     // 二级分类，当前用于 Linux 发行版和 Windows 版本
 	RootPassword     string `json:"root_password"`                // 模板 root 密码
@@ -63,6 +65,27 @@ func PrepareTemplate(c *gin.Context) {
 			"message": "参数错误: 需要 vm_name 和 template_name",
 		})
 		return
+	}
+	req.TransferMode = strings.ToLower(strings.TrimSpace(req.TransferMode))
+	if req.TransferMode == "" {
+		req.TransferMode = service.TemplateTransferModeCopy
+	}
+	if req.TransferMode != service.TemplateTransferModeCopy && req.TransferMode != service.TemplateTransferModeMove {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "磁盘处理方式仅支持 copy 或 move"})
+		return
+	}
+	if req.Compress && req.TransferMode == service.TemplateTransferModeMove {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "移动磁盘时固定为不压缩"})
+		return
+	}
+	if req.TransferMode == service.TemplateTransferModeMove {
+		if service.IsVMLocked(req.VMName) {
+			c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": "该虚拟机已锁定，请先解锁后再移动制作模板"})
+			return
+		}
+		if !requireHighRiskVerification(c, "move_vm_disk_to_template") {
+			return
+		}
 	}
 
 	username, _ := c.Get("username")

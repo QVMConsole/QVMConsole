@@ -300,7 +300,13 @@ func registerTaskHandlers() {
 			return "", err
 		}
 		progress(100, "模板制作完成")
-		return fmt.Sprintf(`{"template":"%s"}`, params.TemplateName), nil
+		return fmt.Sprintf(
+			`{"template":"%s","compressed":%t,"transfer_mode":"%s","source_vm_deleted":%t}`,
+			params.TemplateName,
+			params.Compress,
+			params.TransferMode,
+			params.TransferMode == service.TemplateTransferModeMove,
+		), nil
 	})
 
 	// 已导入 Linux 模板预处理任务

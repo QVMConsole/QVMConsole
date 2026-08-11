@@ -19,6 +19,8 @@ const (
 	TemplateDeleteModeCascade    = "cascade"
 	TemplateDeleteModePromote    = "promote_children"
 	TemplateDeleteModePromoteHot = "promote_children_hot"
+	TemplateTransferModeCopy     = "copy"
+	TemplateTransferModeMove     = "move"
 	templateDiskInfoWorkerLimit  = 4
 
 	defaultLinuxTemplateCategory   = "Ubuntu"
@@ -59,33 +61,35 @@ var (
 
 // TemplateMeta 模板元数据（保存在 .meta.json 文件中，由程序维护）
 type TemplateMeta struct {
-	Type             string                 `json:"type"`                         // 类型: linux/windows/fnos/other
-	Category         string                 `json:"category,omitempty"`           // 二级分类，当前用于 Linux 发行版和 Windows 版本
-	BootType         string                 `json:"boot_type,omitempty"`          // 启动类型: bios/uefi
-	BootVerified     bool                   `json:"boot_verified,omitempty"`      // 是否已确认启动类型
-	NVRAMPath        string                 `json:"nvram_path,omitempty"`         // UEFI 模板 NVRAM 变量文件
-	RootPassword     string                 `json:"root_password,omitempty"`      // 模板 root 密码（已废弃，保留兼容旧元数据）
-	TemplateUser     string                 `json:"template_user,omitempty"`      // 模板中的普通用户名（克隆时用于用户名重命名）
-	CloudInitMode    string                 `json:"cloud_init_mode,omitempty"`    // 初始化模式: "nocloud"=cloud-init, "configdrive"=Windows ConfigDrive, "fnos"=FnOS, "none"=不初始化
-	PostBootCommand  string                 `json:"post_boot_command,omitempty"`  // Linux 模板启动后执行的自定义命令
-	PostBootBlocking bool                   `json:"post_boot_blocking,omitempty"` // 启动后命令阻塞模式：true=阻塞系统启动直到命令完成（SSH不可用）
-	DefaultConfig    *TemplateDefaultConfig `json:"default_config,omitempty"`     // 模板默认硬件配置
-	TemplateUID      string                 `json:"template_uid,omitempty"`       // 模板族唯一标识
-	NodeID           string                 `json:"node_id,omitempty"`            // 当前节点唯一标识
-	ParentNodeID     string                 `json:"parent_node_id,omitempty"`     // 父节点 ID
-	RootNodeID       string                 `json:"root_node_id,omitempty"`       // 根节点 ID
-	AdminName        string                 `json:"admin_name,omitempty"`         // 管理员侧名称
-	DisplayName      string                 `json:"display_name,omitempty"`       // 用户侧显示文本
-	CloneVisible     bool                   `json:"clone_visible"`                // 是否允许普通用户克隆
-	Disabled         bool                   `json:"disabled"`                     // 是否禁用克隆
-	CreatedFromVM    string                 `json:"created_from_vm,omitempty"`    // 来源 VM
-	CreatedAt        string                 `json:"created_at,omitempty"`         // 创建时间
-	MD5              string                 `json:"md5,omitempty"`                // 模板磁盘 MD5
-	SHA256           string                 `json:"sha256,omitempty"`             // 模板磁盘 SHA256
-	FileSize         int64                  `json:"file_size,omitempty"`          // 模板磁盘字节数
-	LinuxInitStatus  string                 `json:"linux_init_status,omitempty"`  // Linux 克隆依赖状态: unknown/ready/failed
-	LinuxInitChecked string                 `json:"linux_init_checked,omitempty"` // Linux 克隆依赖最近检查时间
-	LinuxInitError   string                 `json:"linux_init_error,omitempty"`   // Linux 克隆依赖预处理错误摘要
+	Type               string                 `json:"type"`                           // 类型: linux/windows/fnos/other
+	Category           string                 `json:"category,omitempty"`             // 二级分类，当前用于 Linux 发行版和 Windows 版本
+	BootType           string                 `json:"boot_type,omitempty"`            // 启动类型: bios/uefi
+	BootVerified       bool                   `json:"boot_verified,omitempty"`        // 是否已确认启动类型
+	NVRAMPath          string                 `json:"nvram_path,omitempty"`           // UEFI 模板 NVRAM 变量文件
+	RootPassword       string                 `json:"root_password,omitempty"`        // 模板 root 密码（已废弃，保留兼容旧元数据）
+	TemplateUser       string                 `json:"template_user,omitempty"`        // 模板中的普通用户名（克隆时用于用户名重命名）
+	CloudInitMode      string                 `json:"cloud_init_mode,omitempty"`      // 初始化模式: "nocloud"=cloud-init, "configdrive"=Windows ConfigDrive, "fnos"=FnOS, "none"=不初始化
+	PostBootCommand    string                 `json:"post_boot_command,omitempty"`    // Linux 模板启动后执行的自定义命令
+	PostBootBlocking   bool                   `json:"post_boot_blocking,omitempty"`   // 启动后命令阻塞模式：true=阻塞系统启动直到命令完成（SSH不可用）
+	DefaultConfig      *TemplateDefaultConfig `json:"default_config,omitempty"`       // 模板默认硬件配置
+	TemplateUID        string                 `json:"template_uid,omitempty"`         // 模板族唯一标识
+	NodeID             string                 `json:"node_id,omitempty"`              // 当前节点唯一标识
+	ParentNodeID       string                 `json:"parent_node_id,omitempty"`       // 父节点 ID
+	RootNodeID         string                 `json:"root_node_id,omitempty"`         // 根节点 ID
+	AdminName          string                 `json:"admin_name,omitempty"`           // 管理员侧名称
+	DisplayName        string                 `json:"display_name,omitempty"`         // 用户侧显示文本
+	CloneVisible       bool                   `json:"clone_visible"`                  // 是否允许普通用户克隆
+	Disabled           bool                   `json:"disabled"`                       // 是否禁用克隆
+	CreatedFromVM      string                 `json:"created_from_vm,omitempty"`      // 来源 VM
+	CreatedAt          string                 `json:"created_at,omitempty"`           // 创建时间
+	DiskCompressed     bool                   `json:"disk_compressed,omitempty"`      // 制作时是否压缩磁盘
+	SourceTransferMode string                 `json:"source_transfer_mode,omitempty"` // 源磁盘处理方式: copy/move
+	MD5                string                 `json:"md5,omitempty"`                  // 模板磁盘 MD5
+	SHA256             string                 `json:"sha256,omitempty"`               // 模板磁盘 SHA256
+	FileSize           int64                  `json:"file_size,omitempty"`            // 模板磁盘字节数
+	LinuxInitStatus    string                 `json:"linux_init_status,omitempty"`    // Linux 克隆依赖状态: unknown/ready/failed
+	LinuxInitChecked   string                 `json:"linux_init_checked,omitempty"`   // Linux 克隆依赖最近检查时间
+	LinuxInitError     string                 `json:"linux_init_error,omitempty"`     // Linux 克隆依赖预处理错误摘要
 }
 
 // TemplateDefaultConfig 模板默认硬件配置
@@ -102,47 +106,49 @@ type TemplateDefaultConfig struct {
 
 // TemplateInfo 模板信息
 type TemplateInfo struct {
-	Name             string                 `json:"name"`                         // 文件名兼容标识
-	ActualSize       string                 `json:"actual_size"`                  // 实际磁盘占用
-	VirtualSize      string                 `json:"virtual_size"`                 // 虚拟大小
-	Type             string                 `json:"type"`                         // 类型: linux/windows/fnos/other
-	Category         string                 `json:"category,omitempty"`           // 二级分类，当前用于 Linux 发行版和 Windows 版本
-	BootType         string                 `json:"boot_type,omitempty"`          // 启动类型: bios/uefi
-	NVRAMPath        string                 `json:"nvram_path,omitempty"`         // UEFI 模板 NVRAM 变量文件
-	IsDefault        bool                   `json:"is_default"`                   // 是否默认模板
-	Path             string                 `json:"path"`                         // 完整路径
-	RootPassword     string                 `json:"root_password,omitempty"`      // 模板 root 密码（已废弃）
-	TemplateUser     string                 `json:"template_user,omitempty"`      // 模板中的普通用户名
-	CloudInitMode    string                 `json:"cloud_init_mode,omitempty"`    // 初始化模式: "nocloud"=cloud-init, "configdrive"=Windows ConfigDrive, "fnos"=FnOS
-	PostBootCommand  string                 `json:"post_boot_command,omitempty"`  // Linux 模板启动后执行的自定义命令
-	PostBootBlocking bool                   `json:"post_boot_blocking,omitempty"` // 启动后命令阻塞模式
-	DefaultConfig    *TemplateDefaultConfig `json:"default_config,omitempty"`
-	HasMeta          bool                   `json:"has_meta"`              // 是否有元数据文件
-	Exported         bool                   `json:"exported"`              // 是否存在导出文件
-	ExportPath       string                 `json:"export_path,omitempty"` // 当前导出文件下载路径
-	TemplateUID      string                 `json:"template_uid,omitempty"`
-	NodeID           string                 `json:"node_id,omitempty"`
-	ParentNodeID     string                 `json:"parent_node_id,omitempty"`
-	RootNodeID       string                 `json:"root_node_id,omitempty"`
-	AdminName        string                 `json:"admin_name,omitempty"`
-	DisplayName      string                 `json:"display_name,omitempty"`
-	CloneVisible     bool                   `json:"clone_visible"`
-	Disabled         bool                   `json:"disabled"`
-	CreatedFromVM    string                 `json:"created_from_vm,omitempty"`
-	CreatedAt        string                 `json:"created_at,omitempty"`
-	MD5              string                 `json:"md5,omitempty"`
-	SHA256           string                 `json:"sha256,omitempty"`
-	FileSize         int64                  `json:"file_size,omitempty"`
-	LinuxInitStatus  string                 `json:"linux_init_status,omitempty"`
-	LinuxInitChecked string                 `json:"linux_init_checked,omitempty"`
-	LinuxInitError   string                 `json:"linux_init_error,omitempty"`
-	HashStatus       string                 `json:"hash_status"` // ok/missing/size_mismatch
-	Level            int                    `json:"level"`
-	IsRoot           bool                   `json:"is_root"`
-	HasChildren      bool                   `json:"has_children"`
-	ChildrenCount    int                    `json:"children_count"`
-	DirectVMCount    int                    `json:"direct_vm_count"`
-	TreeVMCount      int                    `json:"tree_vm_count"`
+	Name               string                 `json:"name"`                         // 文件名兼容标识
+	ActualSize         string                 `json:"actual_size"`                  // 实际磁盘占用
+	VirtualSize        string                 `json:"virtual_size"`                 // 虚拟大小
+	Type               string                 `json:"type"`                         // 类型: linux/windows/fnos/other
+	Category           string                 `json:"category,omitempty"`           // 二级分类，当前用于 Linux 发行版和 Windows 版本
+	BootType           string                 `json:"boot_type,omitempty"`          // 启动类型: bios/uefi
+	NVRAMPath          string                 `json:"nvram_path,omitempty"`         // UEFI 模板 NVRAM 变量文件
+	IsDefault          bool                   `json:"is_default"`                   // 是否默认模板
+	Path               string                 `json:"path"`                         // 完整路径
+	RootPassword       string                 `json:"root_password,omitempty"`      // 模板 root 密码（已废弃）
+	TemplateUser       string                 `json:"template_user,omitempty"`      // 模板中的普通用户名
+	CloudInitMode      string                 `json:"cloud_init_mode,omitempty"`    // 初始化模式: "nocloud"=cloud-init, "configdrive"=Windows ConfigDrive, "fnos"=FnOS
+	PostBootCommand    string                 `json:"post_boot_command,omitempty"`  // Linux 模板启动后执行的自定义命令
+	PostBootBlocking   bool                   `json:"post_boot_blocking,omitempty"` // 启动后命令阻塞模式
+	DefaultConfig      *TemplateDefaultConfig `json:"default_config,omitempty"`
+	HasMeta            bool                   `json:"has_meta"`              // 是否有元数据文件
+	Exported           bool                   `json:"exported"`              // 是否存在导出文件
+	ExportPath         string                 `json:"export_path,omitempty"` // 当前导出文件下载路径
+	TemplateUID        string                 `json:"template_uid,omitempty"`
+	NodeID             string                 `json:"node_id,omitempty"`
+	ParentNodeID       string                 `json:"parent_node_id,omitempty"`
+	RootNodeID         string                 `json:"root_node_id,omitempty"`
+	AdminName          string                 `json:"admin_name,omitempty"`
+	DisplayName        string                 `json:"display_name,omitempty"`
+	CloneVisible       bool                   `json:"clone_visible"`
+	Disabled           bool                   `json:"disabled"`
+	CreatedFromVM      string                 `json:"created_from_vm,omitempty"`
+	CreatedAt          string                 `json:"created_at,omitempty"`
+	DiskCompressed     bool                   `json:"disk_compressed,omitempty"`
+	SourceTransferMode string                 `json:"source_transfer_mode,omitempty"`
+	MD5                string                 `json:"md5,omitempty"`
+	SHA256             string                 `json:"sha256,omitempty"`
+	FileSize           int64                  `json:"file_size,omitempty"`
+	LinuxInitStatus    string                 `json:"linux_init_status,omitempty"`
+	LinuxInitChecked   string                 `json:"linux_init_checked,omitempty"`
+	LinuxInitError     string                 `json:"linux_init_error,omitempty"`
+	HashStatus         string                 `json:"hash_status"` // ok/missing/size_mismatch
+	Level              int                    `json:"level"`
+	IsRoot             bool                   `json:"is_root"`
+	HasChildren        bool                   `json:"has_children"`
+	ChildrenCount      int                    `json:"children_count"`
+	DirectVMCount      int                    `json:"direct_vm_count"`
+	TreeVMCount        int                    `json:"tree_vm_count"`
 }
 
 // TemplateRelatedVM 模板关联的虚拟机信息
@@ -167,6 +173,8 @@ type PrepareTemplateParams struct {
 	VMName           string `json:"vm_name"`
 	TemplateName     string `json:"template_name"`                // 管理员侧名称，同时作为文件名
 	DisplayName      string `json:"display_name,omitempty"`       // 用户侧显示文本
+	Compress         bool   `json:"compress,omitempty"`           // 是否使用 qemu-img 压缩输出
+	TransferMode     string `json:"transfer_mode,omitempty"`      // copy/move；move 固定不压缩
 	Type             string `json:"type,omitempty"`               // linux/windows/fnos/other
 	Category         string `json:"category,omitempty"`           // 二级分类，当前用于 Linux 发行版和 Windows 版本
 	RootPassword     string `json:"root_password,omitempty"`      // 已废弃，保留兼容

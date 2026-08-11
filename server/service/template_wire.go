@@ -36,6 +36,8 @@ const (
 	TemplateDeleteModeCascade    = templatepkg.TemplateDeleteModeCascade
 	TemplateDeleteModePromote    = templatepkg.TemplateDeleteModePromote
 	TemplateDeleteModePromoteHot = templatepkg.TemplateDeleteModePromoteHot
+	TemplateTransferModeCopy     = templatepkg.TemplateTransferModeCopy
+	TemplateTransferModeMove     = templatepkg.TemplateTransferModeMove
 )
 
 // ── Exported delegates (used by handler and other service files) ──

@@ -537,7 +537,8 @@ export const endpointDescriptions: Record<string, EndpointDescription> = {
   'GET /template/list': { summary: '获取模板列表' },
   'POST /template/prepare': {
     summary: '制作模板',
-    body: 'JSON: vm_name, template_name, display_name, type, category, root_password, template_user',
+    body: 'JSON: vm_name, template_name, display_name, type, category, template_user, compress, transfer_mode(copy/move)。move 固定不压缩，成功后删除源虚拟机。',
+    notes: ['仅 transfer_mode=move 时触发 move_vm_disk_to_template 二次验证；未传 transfer_mode 时按 copy 兼容处理。'],
   },
   'POST /template/:name/prepare-linux': {
     summary: '预处理已导入 Linux 模板',

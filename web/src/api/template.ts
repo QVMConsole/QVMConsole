@@ -56,6 +56,8 @@ export interface TemplateItem {
   has_meta?: boolean
   created_from_vm?: string
   created_at?: string
+  disk_compressed?: boolean
+  source_transfer_mode?: 'copy' | 'move'
   post_boot_command?: string
   post_boot_blocking?: boolean
 }
@@ -71,6 +73,8 @@ export interface PrepareTemplatePayload {
   template_name: string
   display_name: string
   type: string
+  compress?: boolean
+  transfer_mode?: 'copy' | 'move'
   category?: string
   cloud_init_mode?: string
   template_user?: string

@@ -36,7 +36,7 @@
 
 - 重置（仅暂停态）/ 重启 / 强制断电（仅运行态）
 - 编辑备注、编辑分组（轻量云隐藏）
-- 制作模板（仅管理员）
+- 制作模板（仅管理员）：可选压缩/不压缩；不压缩时可复制或移动系统盘。移动成功后自动删除源虚拟机，并保留链式来源的子模板层级
 - 导出虚拟机（轻量云隐藏）：可选兼容 QCOW2 系统盘或标准 OVA；OVA 要求关机，系统盘固定、数据盘可选，结果计入我的存储配额
 - 重装系统（轻量云隐藏，含模板选择 / 系统盘大小 / 主机名 / 凭据 / FnOS 设备 ID）
 - 迁移（仅管理员，含「迁移虚拟机」跨节点预检与「迁移硬盘」本机换存储）
@@ -94,7 +94,7 @@ web/src/views/vm/
 - `DELETE /vm/:name`、`DELETE /self/vm/:name`
 - `POST /vm/:name/lock|unlock|rescue|make-independent|reinstall`
 - `GET /self/vm/:name/export-options`、`POST /self/vm/export`、`GET /self/storage/info`
-- `GET /template/list`、`POST /template/prepare`
+- `GET /template/list`、`POST /template/prepare`（`compress` 控制压缩；`transfer_mode=copy|move`，移动固定不压缩并需要二次验证）
 - `GET /nodes`、`GET /nodes/:id/migration-options`、`POST /vm/:name/migration/preview`、`POST /vm/:name/migrate`
 - `GET /vm/:name/disk-migration/options`、`POST /vm/:name/disk/:dev/migrate`
 - `GET /self/lightweight-registrations`、`POST /self/lightweight-registrations/:id/confirm`

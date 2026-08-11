@@ -1,6 +1,8 @@
 package service
 
 import (
+	"kvm_console/logger"
+	"kvm_console/model"
 	templatepkg "kvm_console/service/template"
 	vmpkg "kvm_console/service/vm"
 )
@@ -8,6 +10,15 @@ import (
 func init() {
 	// ── Clone (circular dependency) ──
 	templatepkg.HookDeleteVM = DeleteVM
+	templatepkg.HookFinalizeDeletedVM = func(vmName string) {
+		if err := DeleteVMCredential(vmName); err != nil {
+			logger.App.Warn("移动制作模板后清理虚拟机凭据失败", "vm", vmName, "error", err)
+		}
+		if err := model.DeleteVMLock(vmName); err != nil {
+			logger.App.Warn("移动制作模板后清理虚拟机锁失败", "vm", vmName, "error", err)
+		}
+		MarkVMCacheMissingAsync(vmName)
+	}
 
 	// ── VM helpers (private in service root) ──
 	templatepkg.HookGetVMDiskInfo = func(vmName string) templatepkg.VMDiskBrief {
