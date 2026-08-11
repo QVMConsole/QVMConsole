@@ -481,6 +481,60 @@ body[theme-mode='dark'] .net-port-addresses {
   color: #b8c1cf;
 }
 
+/* ==================== 创建交换机弹窗：两列折叠布局 ==================== */
+.net-switch-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 24px;
+  align-items: start;
+}
+.net-switch-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+/* Modal 内紧凑折叠面板（去除默认边框、压缩 padding） */
+.net-switch-collapse {
+  border: none;
+  background: transparent;
+  border-radius: 0;
+}
+.net-switch-collapse + .net-switch-collapse {
+  margin-top: 4px;
+}
+.net-switch-collapse .semi-collapse-header {
+  padding: 6px 4px;
+  background: transparent;
+  border-radius: 0;
+  border-bottom: 1px solid var(--qvm-stroke);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--qvm-text-2);
+}
+.net-switch-collapse .semi-collapse-content {
+  padding: 10px 0 4px;
+}
+.net-switch-collapse-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--qvm-text-1);
+  font-weight: 600;
+}
+/* 配额子项 2x2 紧凑网格（减少纵向高度） */
+.net-switch-quota-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 12px;
+}
+
+/* 深色模式：折叠标题柔和灰 */
+body[theme-mode='dark'] .net-switch-collapse-title {
+  color: #b8c1cf;
+}
+
 /* ==================== 响应式 ==================== */
 @media (max-width: 720px) {
   .net-stat-grid {
@@ -491,5 +545,8 @@ body[theme-mode='dark'] .net-port-addresses {
   }
   .net-stat-value {
     font-size: 15px;
+  }
+  .net-switch-grid {
+    grid-template-columns: 1fr;
   }
 }

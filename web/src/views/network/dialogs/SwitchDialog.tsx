@@ -5,7 +5,7 @@
  * - 流量/带宽配额按用户剩余配额动态限制上下限（编辑时可为负表示归还配额）
  */
 import { useEffect, useMemo, useState } from 'react'
-import { Input, InputNumber, Modal, Select, Switch, TextArea, Toast } from '@douyinfe/semi-ui'
+import { Collapse, Input, InputNumber, Modal, Select, Switch, TextArea, Toast } from '@douyinfe/semi-ui'
 import type { NetworkBridge } from '@/api/network'
 import { createVPCSwitch, updateVPCSwitch, type VpcQuota, type VpcSwitch } from '@/api/vpc'
 import { getUserList, type UserListItem } from '@/api/user'
@@ -182,195 +182,248 @@ export default function SwitchDialog({
       okText="保存"
       cancelText="取消"
       confirmLoading={submitting}
-      width={560}
+      width={820}
       closeOnEsc
     >
-      {isAdmin && (
-        <div className="qvm-form-item">
-          <div className="qvm-form-label">所属用户</div>
-          <Select
-            style={{ width: '100%' }}
-            placeholder="选择用户"
-            filter
-            showClear
-            loading={userLoading}
-            value={form.username}
-            onChange={(v) => patch({ username: String(v || '') })}
-            optionList={userOptions.map((u) => ({
-              value: u.username,
-              label: u.email ? `${u.username} (${u.email})` : u.username,
-            }))}
-          />
-        </div>
-      )}
-      <div className="qvm-form-item">
-        <div className="qvm-form-label required">名称</div>
-        <Input value={form.name} onChange={(v) => patch({ name: v })} placeholder="请输入交换机名称" />
-      </div>
-
-      {!isBridgeMode && (
-        <>
-          <div className="qvm-form-divider">网段配置</div>
-          <div className="qvm-form-item">
-            <div className="qvm-form-label">网段(CIDR)</div>
-            <Input
-              value={form.cidr}
-              onChange={(v) => patch({ cidr: v })}
-              placeholder="如 10.0.1.0/24，留空自动分配"
-              disabled={editing}
-            />
-            <div className="qvm-form-tip">创建后不可修改。留空时系统将自动分配未使用的子网。</div>
-            <div className="qvm-form-tip warn">注意：网段不能与宿主机网段相同，否则会导致网络冲突。</div>
-          </div>
-          <div className="qvm-form-item">
-            <div className="qvm-form-label">网关地址</div>
-            <Input
-              value={form.gateway_ip}
-              onChange={(v) => patch({ gateway_ip: v })}
-              placeholder="如 10.0.1.1，留空自动计算"
-              disabled={editing}
-            />
-            <div className="qvm-form-tip">创建后不可修改。留空时自动取网段内第一个可用 IP。</div>
-          </div>
-        </>
-      )}
-
-      {isAdmin && (
-        <div className="qvm-form-item">
-          <div className="qvm-form-label">目标网桥</div>
-          <Select
-            style={{ width: '100%' }}
-            placeholder="选择目标网桥"
-            value={form.bridge_name}
-            onChange={(v) => patch({ bridge_name: String(v) })}
-            optionList={bridges.map((b) => ({
-              value: b.name,
-              label: `${b.name} - ${bridgeModeText(b.mode)}`,
-            }))}
-          />
-          {isBridgeMode && (
-            <div className="qvm-form-tip">
-              桥接直通由上级路由器分配 IP，不启用内部 DHCP、NAT、安全组和端口转发。
-            </div>
-          )}
-        </div>
-      )}
-
-      {isBridgeMode && (
-        <>
-          <div className="qvm-form-item">
-            <div className="qvm-form-label">桥接 VLAN ID</div>
-            <InputNumber
-              style={{ width: '100%' }}
-              min={0}
-              max={4094}
-              value={form.bridge_vlan_id}
-              onChange={(v) => patch({ bridge_vlan_id: Number(v) || 0 })}
-            />
-            <div className="qvm-form-tip">0 表示不打 VLAN；填写 1-4094 时 VM 会以该 VLAN 接入上级网络。</div>
-          </div>
-          <div className="qvm-form-divider">桥接安全</div>
-          <SecuritySwitchRow
-            label="混杂模式"
-            tip="拒绝时会对 VM 端口启用 no-flood，减少未知单播泛洪到该 VM。"
-            checked={form.allow_promiscuous}
-            onChange={(v) => patch({ allow_promiscuous: v })}
-          />
-          <SecuritySwitchRow
-            label="MAC 地址更改"
-            tip="拒绝时 VM 只能使用 XML 中配置的 MAC 作为源 MAC 发包。"
-            checked={form.allow_mac_change}
-            onChange={(v) => patch({ allow_mac_change: v })}
-          />
-          <SecuritySwitchRow
-            label="伪传输"
-            tip="拒绝时源 MAC 与配置 MAC 不一致的发包会被 OVS 丢弃。"
-            checked={form.allow_forged_transmits}
-            onChange={(v) => patch({ allow_forged_transmits: v })}
-          />
-          {portSecurityEnabled && (
-            <>
-              <div className="qvm-form-divider">IPv6 端口防护</div>
-              <div className="qvm-form-item">
-                <div className="net-switch-row">
-                  <div>
-                    <div className="qvm-form-label">IPv6 防护</div>
-                    <div className="qvm-form-tip">开启后仅允许可信前缀内、且登记到网卡的精确 IPv6 地址。</div>
-                  </div>
-                  <div className="net-switch-control">
-                    <Switch
-                      checked={form.ipv6_security_enabled}
-                      onChange={(v) => patch({ ipv6_security_enabled: v })}
-                      size="small"
-                      checkedText="开"
-                      uncheckedText="关"
-                    />
-                  </div>
-                </div>
-              </div>
-              {form.ipv6_security_enabled && (
+      <div className="net-switch-grid">
+        {/* ==================== 左列：基本信息 + 配额设置 ==================== */}
+        <div className="net-switch-col">
+          <Collapse
+            defaultActiveKey={['basic']}
+            keepDOM
+            className="net-switch-collapse"
+          >
+            <Collapse.Panel
+              itemKey="basic"
+              header={<span className="net-switch-collapse-title">基本信息</span>}
+            >
+              {isAdmin && (
                 <div className="qvm-form-item">
-                  <div className="qvm-form-label required">可信 IPv6 前缀</div>
-                  <TextArea
-                    value={form.trusted_ipv6_prefixes}
-                    onChange={(v) => patch({ trusted_ipv6_prefixes: v })}
-                    placeholder={'每行一个 CIDR，例如：\n2001:db8:100::/64'}
-                    autosize={{ minRows: 2, maxRows: 5 }}
+                  <div className="qvm-form-label">所属用户</div>
+                  <Select
+                    style={{ width: '100%' }}
+                    placeholder="选择用户"
+                    filter
+                    showClear
+                    loading={userLoading}
+                    value={form.username}
+                    onChange={(v) => patch({ username: String(v || '') })}
+                    optionList={userOptions.map((u) => ({
+                      value: u.username,
+                      label: u.email ? `${u.username} (${u.email})` : u.username,
+                    }))}
                   />
-                  <div className="qvm-form-tip">可使用换行或逗号分隔；网卡精确地址还需单独登记。</div>
                 </div>
               )}
-            </>
+              <div className="qvm-form-item">
+                <div className="qvm-form-label required">名称</div>
+                <Input value={form.name} onChange={(v) => patch({ name: v })} placeholder="请输入交换机名称" />
+              </div>
+            </Collapse.Panel>
+          </Collapse>
+
+          <Collapse
+            defaultActiveKey={[]}
+            keepDOM
+            className="net-switch-collapse"
+          >
+            <Collapse.Panel
+              itemKey="quota"
+              header={<span className="net-switch-collapse-title">配额设置</span>}
+            >
+              <div className="net-switch-quota-grid">
+                <div className="qvm-form-item">
+                  <div className="qvm-form-label">下行月配额(GB)</div>
+                  <InputNumber
+                    style={{ width: '100%' }}
+                    min={trafficDown.min}
+                    max={trafficDown.max}
+                    value={form.traffic_down_gb}
+                    onChange={(v) => patch({ traffic_down_gb: Number(v) || 0 })}
+                  />
+                  <div className="qvm-form-tip">可填 0 表示不限</div>
+                </div>
+                <div className="qvm-form-item">
+                  <div className="qvm-form-label">上行月配额(GB)</div>
+                  <InputNumber
+                    style={{ width: '100%' }}
+                    min={trafficUp.min}
+                    max={trafficUp.max}
+                    value={form.traffic_up_gb}
+                    onChange={(v) => patch({ traffic_up_gb: Number(v) || 0 })}
+                  />
+                  <div className="qvm-form-tip">可填 0 表示不限</div>
+                </div>
+              </div>
+              <div className="net-switch-quota-grid">
+                <div className="qvm-form-item">
+                  <div className="qvm-form-label">下行总带宽(Mbps)</div>
+                  <InputNumber
+                    style={{ width: '100%' }}
+                    min={bandwidthDown.min}
+                    max={bandwidthDown.max}
+                    value={form.bandwidth_down_mbps}
+                    onChange={(v) => patch({ bandwidth_down_mbps: Number(v) || 0 })}
+                  />
+                  <div className="qvm-form-tip">可填 0 表示不限</div>
+                </div>
+                <div className="qvm-form-item">
+                  <div className="qvm-form-label">上行总带宽(Mbps)</div>
+                  <InputNumber
+                    style={{ width: '100%' }}
+                    min={bandwidthUp.min}
+                    max={bandwidthUp.max}
+                    value={form.bandwidth_up_mbps}
+                    onChange={(v) => patch({ bandwidth_up_mbps: Number(v) || 0 })}
+                  />
+                  <div className="qvm-form-tip">可填 0 表示不限</div>
+                </div>
+              </div>
+            </Collapse.Panel>
+          </Collapse>
+        </div>
+
+        {/* ==================== 右列：网络配置 + 安全设置 ==================== */}
+        <div className="net-switch-col">
+          <Collapse
+            defaultActiveKey={['network']}
+            keepDOM
+            className="net-switch-collapse"
+          >
+            <Collapse.Panel
+              itemKey="network"
+              header={<span className="net-switch-collapse-title">网络配置</span>}
+            >
+              {isAdmin && (
+                <div className="qvm-form-item">
+                  <div className="qvm-form-label">目标网桥</div>
+                  <Select
+                    style={{ width: '100%' }}
+                    placeholder="选择目标网桥"
+                    value={form.bridge_name}
+                    onChange={(v) => patch({ bridge_name: String(v) })}
+                    optionList={bridges.map((b) => ({
+                      value: b.name,
+                      label: `${b.name} - ${bridgeModeText(b.mode)}`,
+                    }))}
+                  />
+                  {isBridgeMode && (
+                    <div className="qvm-form-tip">
+                      桥接直通由上级路由器分配 IP，不启用内部 DHCP、NAT、安全组和端口转发。
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {!isBridgeMode && (
+                <>
+                  <div className="qvm-form-item">
+                    <div className="qvm-form-label">网段(CIDR)</div>
+                    <Input
+                      value={form.cidr}
+                      onChange={(v) => patch({ cidr: v })}
+                      placeholder="如 10.0.1.0/24，留空自动分配"
+                      disabled={editing}
+                    />
+                    <div className="qvm-form-tip">创建后不可修改。留空时系统将自动分配未使用的子网。</div>
+                    <div className="qvm-form-tip warn">注意：网段不能与宿主机网段相同，否则会导致网络冲突。</div>
+                  </div>
+                  <div className="qvm-form-item">
+                    <div className="qvm-form-label">网关地址</div>
+                    <Input
+                      value={form.gateway_ip}
+                      onChange={(v) => patch({ gateway_ip: v })}
+                      placeholder="如 10.0.1.1，留空自动计算"
+                      disabled={editing}
+                    />
+                    <div className="qvm-form-tip">创建后不可修改。留空时自动取网段内第一个可用 IP。</div>
+                  </div>
+                </>
+              )}
+
+              {isBridgeMode && (
+                <div className="qvm-form-item">
+                  <div className="qvm-form-label">桥接 VLAN ID</div>
+                  <InputNumber
+                    style={{ width: '100%' }}
+                    min={0}
+                    max={4094}
+                    value={form.bridge_vlan_id}
+                    onChange={(v) => patch({ bridge_vlan_id: Number(v) || 0 })}
+                  />
+                  <div className="qvm-form-tip">0 表示不打 VLAN；填写 1-4094 时 VM 会以该 VLAN 接入上级网络。</div>
+                </div>
+              )}
+            </Collapse.Panel>
+          </Collapse>
+
+          {isBridgeMode && (
+            <Collapse
+              defaultActiveKey={[]}
+              keepDOM
+              className="net-switch-collapse"
+            >
+              <Collapse.Panel
+                itemKey="security"
+                header={<span className="net-switch-collapse-title">安全设置</span>}
+              >
+                <div className="qvm-form-divider">桥接安全</div>
+                <SecuritySwitchRow
+                  label="混杂模式"
+                  tip="拒绝时会对 VM 端口启用 no-flood，减少未知单播泛洪到该 VM。"
+                  checked={form.allow_promiscuous}
+                  onChange={(v) => patch({ allow_promiscuous: v })}
+                />
+                <SecuritySwitchRow
+                  label="MAC 地址更改"
+                  tip="拒绝时 VM 只能使用 XML 中配置的 MAC 作为源 MAC 发包。"
+                  checked={form.allow_mac_change}
+                  onChange={(v) => patch({ allow_mac_change: v })}
+                />
+                <SecuritySwitchRow
+                  label="伪传输"
+                  tip="拒绝时源 MAC 与配置 MAC 不一致的发包会被 OVS 丢弃。"
+                  checked={form.allow_forged_transmits}
+                  onChange={(v) => patch({ allow_forged_transmits: v })}
+                />
+                {portSecurityEnabled && (
+                  <>
+                    <div className="qvm-form-divider">IPv6 端口防护</div>
+                    <div className="qvm-form-item">
+                      <div className="net-switch-row">
+                        <div>
+                          <div className="qvm-form-label">IPv6 防护</div>
+                          <div className="qvm-form-tip">开启后仅允许可信前缀内、且登记到网卡的精确 IPv6 地址。</div>
+                        </div>
+                        <div className="net-switch-control">
+                          <Switch
+                            checked={form.ipv6_security_enabled}
+                            onChange={(v) => patch({ ipv6_security_enabled: v })}
+                            size="small"
+                            checkedText="开"
+                            uncheckedText="关"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    {form.ipv6_security_enabled && (
+                      <div className="qvm-form-item">
+                        <div className="qvm-form-label required">可信 IPv6 前缀</div>
+                        <TextArea
+                          value={form.trusted_ipv6_prefixes}
+                          onChange={(v) => patch({ trusted_ipv6_prefixes: v })}
+                          placeholder={'每行一个 CIDR，例如：\n2001:db8:100::/64'}
+                          autosize={{ minRows: 2, maxRows: 5 }}
+                        />
+                        <div className="qvm-form-tip">可使用换行或逗号分隔；网卡精确地址还需单独登记。</div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </Collapse.Panel>
+            </Collapse>
           )}
-        </>
-      )}
-
-      <div className="qvm-form-divider">流量配额</div>
-      <div className="qvm-form-item">
-        <div className="qvm-form-label">下行月配额(GB)</div>
-        <InputNumber
-          style={{ width: '100%' }}
-          min={trafficDown.min}
-          max={trafficDown.max}
-          value={form.traffic_down_gb}
-          onChange={(v) => patch({ traffic_down_gb: Number(v) || 0 })}
-        />
-        <div className="qvm-form-tip">用户下行总配额不限时可填 0，表示不限</div>
-      </div>
-      <div className="qvm-form-item">
-        <div className="qvm-form-label">上行月配额(GB)</div>
-        <InputNumber
-          style={{ width: '100%' }}
-          min={trafficUp.min}
-          max={trafficUp.max}
-          value={form.traffic_up_gb}
-          onChange={(v) => patch({ traffic_up_gb: Number(v) || 0 })}
-        />
-        <div className="qvm-form-tip">用户上行总配额不限时可填 0，表示不限</div>
-      </div>
-
-      <div className="qvm-form-divider">带宽配额</div>
-      <div className="qvm-form-item">
-        <div className="qvm-form-label">下行总带宽(Mbps)</div>
-        <InputNumber
-          style={{ width: '100%' }}
-          min={bandwidthDown.min}
-          max={bandwidthDown.max}
-          value={form.bandwidth_down_mbps}
-          onChange={(v) => patch({ bandwidth_down_mbps: Number(v) || 0 })}
-        />
-        <div className="qvm-form-tip">用户下行带宽配额不限时可填 0，表示不限</div>
-      </div>
-      <div className="qvm-form-item">
-        <div className="qvm-form-label">上行总带宽(Mbps)</div>
-        <InputNumber
-          style={{ width: '100%' }}
-          min={bandwidthUp.min}
-          max={bandwidthUp.max}
-          value={form.bandwidth_up_mbps}
-          onChange={(v) => patch({ bandwidth_up_mbps: Number(v) || 0 })}
-        />
-        <div className="qvm-form-tip">用户上行带宽配额不限时可填 0，表示不限</div>
+        </div>
       </div>
     </Modal>
   )
