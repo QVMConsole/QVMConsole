@@ -146,6 +146,7 @@ func ListVMs(options ...VMListOptions) ([]VmInfo, error) {
 
 		if listOptions.IncludeIP {
 			vm.IP = ip_resolver.GetVMIP(name, vm.Status == "running")
+			vm.IPs = ip_resolver.GetAllVMIPs(name, vm.Status == "running")
 		}
 		vm.IPStatus = ip_resolver.GetVMIPStatus(name, vm.Status == "running")
 

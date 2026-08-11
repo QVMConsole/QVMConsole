@@ -18,6 +18,7 @@ export interface VmListItem {
   memory: number // MB
   max_memory: number // MB
   ip: string
+  ips?: string[]
   disk_size: string // 如 "20 GB"
   template: string
   network: string

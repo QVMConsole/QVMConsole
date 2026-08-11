@@ -28,8 +28,9 @@ type VmInfo struct {
 	VCPU                     int                  `json:"vcpu"`               // CPU 核心数
 	Memory                   int                  `json:"memory"`             // 内存（MB）
 	MaxMemory                int                  `json:"max_memory"`         // 最大内存（MB）
-	IP                       string               `json:"ip"`                 // IP 地址
+	IP                       string               `json:"ip"`                 // IP 地址（主 IP）
 	IPStatus                 string               `json:"ip_status"`          // IP 状态: ""=正常, "vlan_bridge"=VLAN桥接无法获取
+	IPs                      []string             `json:"ips"`                // 所有 IP 地址（IPv4 + IPv6，去重）
 	DiskSize                 string               `json:"disk_size"`          // 磁盘占用
 	Template                 string               `json:"template"`           // 模板来源
 	Network                  string               `json:"network"`            // 网络模式

@@ -417,5 +417,64 @@ func getAllHostNeighborMacIPs(bridge string) map[string]string {
 	return m
 }
 
+// GetAllVMIPs 获取虚拟机所有 IP 地址（IPv4 + IPv6），去重后返回
+// 优先通过 Guest Agent 获取，失败则通过 virsh domifaddr 解析
+func GetAllVMIPs(name string, isRunning bool) []string {
+	seen := make(map[string]bool)
+	var ips []string
+
+	addIP := func(ip string) {
+		ip = strings.TrimSpace(ip)
+		if ip == "" || seen[ip] {
+			return
+		}
+		parsed := net.ParseIP(ip)
+		if parsed == nil || parsed.IsLoopback() || parsed.IsLinkLocalUnicast() {
+			return
+		}
+		seen[ip] = true
+		ips = append(ips, ip)
+	}
+
+	// 方式1: Guest Agent（最准确，同时支持 IPv4 和 IPv6）
+	if isRunning {
+		agentIPs := guest_agent.GetVMAllAgentIPs(name)
+		for _, ip := range agentIPs {
+			addIP(ip)
+		}
+		if len(ips) > 0 {
+			return ips
+		}
+	}
+
+	// 方式2: virsh domifaddr（默认 source，同时显示 IPv4 和 IPv6）
+	ipRe := regexp.MustCompile(`(?:ipv4\s+(\S+)|ipv6\s+(\S+))`)
+	result := utils.ExecCommandQuiet("virsh", "domifaddr", name)
+	if result.Error == nil {
+		matches := ipRe.FindAllStringSubmatch(result.Stdout, -1)
+		for _, m := range matches {
+			if len(m) >= 3 {
+				if m[1] != "" {
+					addIP(strings.SplitN(m[1], "/", 2)[0])
+				} else if m[2] != "" {
+					addIP(strings.SplitN(m[2], "/", 2)[0])
+				}
+			}
+		}
+		if len(ips) > 0 {
+			return ips
+		}
+	}
+
+	// 方式3: 如果只有一个 IP，作为兜底
+	if isRunning {
+		if ip := GetVMIP(name, true); ip != "" {
+			addIP(ip)
+		}
+	}
+
+	return ips
+}
+
 // init 初始化日志
 // 回调注册由 service 包在 SetResolverCallbacks 中完成

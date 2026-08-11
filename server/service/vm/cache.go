@@ -136,6 +136,12 @@ func vmInfoFromCacheRecord(record model.VMCache, options VMListOptions) VmInfo {
 
 	if options.IncludeIP {
 		vm.IP = record.CachedIP
+		if record.CachedIPs != "" {
+			var ips []string
+			if err := json.Unmarshal([]byte(record.CachedIPs), &ips); err == nil && len(ips) > 0 {
+				vm.IPs = ips
+			}
+		}
 	}
 	if options.IncludeNetworkInfo {
 		vm.NicModel = record.NicModel
@@ -393,6 +399,12 @@ func defaultVMCacheBuildRecordFromHost(name string, syncedAt time.Time) (model.V
 	record.BandwidthIn, record.BandwidthOut = D.GetVMBandwidthMbps(name)
 	record.InRescue = D.IsInRescueMode(name)
 	record.CachedIP = ip_resolver.GetVMIP(name, strings.EqualFold(record.Status, "running"))
+	allIPs := ip_resolver.GetAllVMIPs(name, strings.EqualFold(record.Status, "running"))
+	if len(allIPs) > 0 {
+		if encoded, err := json.Marshal(allIPs); err == nil {
+			record.CachedIPs = string(encoded)
+		}
+	}
 
 	return record, nil
 }

@@ -24,6 +24,7 @@ type VMCache struct {
 	BandwidthOut  int       `json:"bandwidth_out"`
 	InRescue      bool      `json:"in_rescue"`
 	CachedIP      string    `json:"cached_ip" gorm:"size:64"`
+	CachedIPs     string    `json:"cached_ips" gorm:"type:text"`   // JSON 编码的 IP 数组
 	Present       bool      `json:"present" gorm:"index;not null;default:true"`
 	LastSyncedAt  time.Time `json:"last_synced_at" gorm:"index"`
 	CreatedAt     time.Time `json:"created_at"`
