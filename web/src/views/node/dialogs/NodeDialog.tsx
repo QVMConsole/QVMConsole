@@ -1,6 +1,7 @@
 /**
  * 添加/编辑节点对话框
  * - 编辑时 API Key 与 root 密码留空表示不修改
+ * - 节点 SSH 用户固定为 root，避免迁移写入存储目录或调用 libvirt/OVS 时权限不足
  * - root 密码接入统一密码泄露检测（本地弱密码 + HIBP k-匿名），泄露时警示确认后可继续保存
  */
 import { useState } from 'react'
@@ -33,7 +34,7 @@ export default function NodeDialog({ row, onClose, onSaved }: NodeDialogProps) {
     api_key: '',
     ssh_host: row?.ssh_host || '',
     ssh_port: row?.ssh_port || 22,
-    ssh_user: row?.ssh_user || 'root',
+    ssh_user: 'root',
     ssh_password: '',
     enabled: row ? row.enabled : true,
   })
@@ -66,8 +67,16 @@ export default function NodeDialog({ row, onClose, onSaved }: NodeDialogProps) {
       Toast.warning('请输入 SSH 用户')
       return false
     }
+    if (form.ssh_user.trim() !== 'root') {
+      Toast.warning('节点 SSH 用户必须为 root')
+      return false
+    }
     if (!editing && !form.ssh_password) {
       Toast.warning('请输入 root 密码')
+      return false
+    }
+    if (editing && row?.ssh_user !== 'root' && !form.ssh_password) {
+      Toast.warning('该节点原 SSH 用户不是 root，请输入目标节点 root 密码后保存')
       return false
     }
     return true
@@ -103,7 +112,7 @@ export default function NodeDialog({ row, onClose, onSaved }: NodeDialogProps) {
         api_key_id: form.api_key_id.trim(),
         ssh_host: form.ssh_host.trim(),
         ssh_port: form.ssh_port,
-        ssh_user: form.ssh_user.trim(),
+        ssh_user: 'root',
         enabled: form.enabled,
       }
       // 编辑时留空表示不修改，创建时必填（前面已校验）
@@ -188,7 +197,8 @@ export default function NodeDialog({ row, onClose, onSaved }: NodeDialogProps) {
         </div>
         <div className="qvm-form-item">
           <div className="qvm-form-label required">SSH 用户</div>
-          <Input value={form.ssh_user} onChange={(v) => patch({ ssh_user: v })} placeholder="root" />
+          <Input value={form.ssh_user} disabled placeholder="root" />
+          <div className="qvm-form-tip">迁移虚拟机需要写入目标存储并调用 libvirt/OVS，SSH 用户固定为 root</div>
         </div>
       </div>
       <div className="qvm-form-item">

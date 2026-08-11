@@ -41,6 +41,9 @@ func GetVMMigrationOptions(vmName string, nodeID uint) (*VMMigrationOptions, err
 	if err != nil {
 		return nil, err
 	}
+	if err := ensureMigrationNodeRoot(*node); err != nil {
+		return nil, err
+	}
 	if !service.DomainExists(vmName) {
 		return nil, fmt.Errorf("源虚拟机不存在")
 	}
@@ -95,6 +98,9 @@ func BuildVMMigrationPreview(vmName string, req VMMigrationRequest) (*VMMigratio
 	}
 	node, err := service.GetHostNode(req.NodeID)
 	if err != nil {
+		return nil, err
+	}
+	if err := ensureMigrationNodeRoot(*node); err != nil {
 		return nil, err
 	}
 	if !node.Enabled {
@@ -299,6 +305,9 @@ func validateCachedPreviewForExecution(preview *VMMigrationPreview, params VMMig
 	if err != nil {
 		return err
 	}
+	if err := ensureMigrationNodeRoot(*node); err != nil {
+		return err
+	}
 	out, err := service.RemoteSSHCommand(context.Background(), *node, "virsh dominfo "+utils.ShellSingleQuote(preview.VMName)+" >/dev/null 2>&1 && echo exists || echo missing", 30*time.Second)
 	if err != nil {
 		return fmt.Errorf("检查目标 VM 名称失败: %w", err)
@@ -310,6 +319,13 @@ func validateCachedPreviewForExecution(preview *VMMigrationPreview, params VMMig
 		if diskTargetExists(*node, disk.TargetPath) {
 			return fmt.Errorf("目标磁盘已存在: %s", disk.TargetPath)
 		}
+	}
+	return nil
+}
+
+func ensureMigrationNodeRoot(node model.HostNode) error {
+	if strings.TrimSpace(node.SSHUser) != "root" {
+		return fmt.Errorf("目标节点 SSH 用户必须为 root，非 root 用户没有迁移虚拟机所需的 libvirt、OVS 与存储目录权限")
 	}
 	return nil
 }

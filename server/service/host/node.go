@@ -21,6 +21,7 @@ const (
 	HostNodeStatusUnknown = "unknown"
 	HostNodeStatusOnline  = "online"
 	HostNodeStatusError   = "error"
+	requiredNodeSSHUser   = "root"
 )
 
 func ListHostNodes() ([]HostNodeView, error) {
@@ -83,6 +84,14 @@ func ProbeHostNode(id uint) (*HostNodeView, error) {
 	if err != nil {
 		return nil, err
 	}
+	if strings.TrimSpace(node.SSHUser) != requiredNodeSSHUser {
+		message := "节点 SSH 用户必须为 root，非 root 用户没有迁移虚拟机所需的 libvirt、OVS 与存储目录权限"
+		updateHostNodeProbe(node, HostNodeStatusError, message, map[string]interface{}{
+			"ssh_user": "必须为 root",
+		})
+		view := BuildHostNodeView(*node)
+		return &view, fmt.Errorf("%s", message)
+	}
 	caps := map[string]interface{}{}
 	checks := []string{
 		"command -v virsh",
@@ -139,7 +148,13 @@ func buildHostNodeFromRequest(current model.HostNode, req HostNodeRequest, creat
 		req.SSHPort = 22
 	}
 	if req.SSHUser == "" {
-		req.SSHUser = "root"
+		req.SSHUser = requiredNodeSSHUser
+	}
+	if req.SSHUser != requiredNodeSSHUser {
+		return current, fmt.Errorf("节点 SSH 用户必须为 root，非 root 用户没有迁移虚拟机所需的 libvirt、OVS 与存储目录权限")
+	}
+	if !creating && strings.TrimSpace(current.SSHUser) != requiredNodeSSHUser && strings.TrimSpace(req.SSHPassword) == "" {
+		return current, fmt.Errorf("该节点原 SSH 用户不是 root，请输入目标节点 root 密码后保存")
 	}
 	if req.Name == "" || req.APIBaseURL == "" || req.SSHHost == "" {
 		return current, fmt.Errorf("节点名称、面板地址和 SSH 地址不能为空")

@@ -7,7 +7,7 @@
 节点管理用于维护**跨节点迁移**的目标节点连接信息，每个节点包含两条通道：
 
 - **面板 API 通道**：目标面板地址 + 管理员 API ID/Key，用于目标面板接管虚拟机、查询迁移选项等；
-- **SSH 通道**：SSH 地址/端口/用户 + root 密码，用于磁盘数据传输等底层操作。
+- **SSH 通道**：SSH 地址/端口 + root 用户密码，用于磁盘数据传输、libvirt/OVS 检查等底层操作。后端强制 SSH 用户必须为 `root`，非 root 用户会在保存、探测和迁移预检阶段被阻断。
 
 凭据（API Key、root 密码）由后端加密存储（`APIKeyEnc` / `SSHPasswordEnc`），接口不回传明文。
 
@@ -17,7 +17,7 @@
 | --- | --- |
 | 节点列表 | 名称 / 面板 API 地址 / SSH（user@host:port）/ 状态标签（在线-绿 / 异常-红 / 未知-灰）/ 最近探测消息与时间 / 启用状态 |
 | 筛选 | 名称搜索、状态筛选（online/error/unknown）、启用状态筛选；筛选变化自动重置分页 |
-| 添加/编辑节点 | 弹窗表单：名称、面板 API 地址、API ID、API Key、SSH 地址/端口/用户、root 密码、启用开关（TextSwitch）；**编辑时 API Key 与 root 密码留空表示不修改** |
+| 添加/编辑节点 | 弹窗表单：名称、面板 API 地址、API ID、API Key、SSH 地址/端口、固定 root 用户、root 密码、启用开关（TextSwitch）；**编辑时 API Key 与 root 密码留空表示不修改**，但历史非 root 节点改回 root 时需要重新输入 root 密码 |
 | 探测节点 | 行内「探测」图标（IconPulse），行级 loading（IconRefresh spin），120s 超时；成功 Toast 探测消息，无论成败均刷新列表同步状态 |
 | 删除节点 | ⋯ 下拉菜单内危险项，二次确认后删除 |
 | 移动端适配 | ≤768px 隐藏表格，切换卡片视图（复用同一套行内操作区） |
@@ -50,6 +50,6 @@
 | POST | `/api/nodes` | 创建节点 |
 | PUT | `/api/nodes/:id` | 更新节点（api_key / ssh_password 缺省表示不修改） |
 | DELETE | `/api/nodes/:id` | 删除节点 |
-| POST | `/api/nodes/:id/probe` | 探测节点（API + SSH 双通道校验，前端 120s 超时） |
+| POST | `/api/nodes/:id/probe` | 探测节点（API + root SSH 双通道校验，前端 120s 超时） |
 
-跨节点迁移选项接口（`GET /api/nodes/:id/migration-options`）由 `web/src/api/migration.ts` 维护，与本页无耦合。
+跨节点迁移选项接口（`GET /api/nodes/:id/migration-options`）由 `web/src/api/migration.ts` 维护；若目标节点 SSH 用户不是 `root`，接口直接返回错误，避免迁移任务进入 rsync 后再因目标存储目录权限不足失败。

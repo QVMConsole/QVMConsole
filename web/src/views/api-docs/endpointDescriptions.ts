@@ -723,18 +723,18 @@ export const endpointDescriptions: Record<string, EndpointDescription> = {
   'GET /nodes': { summary: '获取节点列表' },
   'POST /nodes': {
     summary: '添加节点',
-    body: 'JSON: name, api_base_url, api_key_id, api_key, ssh_host, ssh_port, ssh_user, ssh_password, enabled',
+    body: 'JSON: name, api_base_url, api_key_id, api_key, ssh_host, ssh_port, ssh_user(必须为 root), ssh_password, enabled',
   },
   'PUT /nodes/:id': {
     summary: '更新节点',
-    body: 'JSON: name, api_base_url, api_key_id, api_key, ssh_host, ssh_port, ssh_user, ssh_password, enabled；密钥留空表示不修改',
+    body: 'JSON: name, api_base_url, api_key_id, api_key, ssh_host, ssh_port, ssh_user(必须为 root), ssh_password, enabled；密钥留空表示不修改',
   },
   'DELETE /nodes/:id': { summary: '删除节点' },
   'POST /nodes/:id/probe': { summary: '探测节点能力' },
   'GET /nodes/:id/migration-options': {
     summary: '加载 VM 迁移表单选项',
     query: ['vm_name'],
-    notes: ['返回自动迁移模式、目标存储、目标用户处理方式；目标已有同名用户时才返回该用户下的 VPC/安全组。'],
+    notes: ['返回自动迁移模式、目标存储、目标用户处理方式；目标节点 SSH 用户必须为 root；目标已有同名用户时才返回该用户下的 VPC/安全组。'],
   },
   'POST /migration/adopt-vm': {
     summary: '目标面板接管迁移 VM',

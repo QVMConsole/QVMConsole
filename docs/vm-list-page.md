@@ -99,6 +99,8 @@ web/src/views/vm/
 - `GET /vm/:name/disk-migration/options`、`POST /vm/:name/disk/:dev/migrate`
 - `GET /self/lightweight-registrations`、`POST /self/lightweight-registrations/:id/confirm`
 
+跨节点迁移要求目标节点的 SSH 用户必须为 `root`。节点保存、探测、迁移选项获取与迁移预检都会校验该条件，避免使用普通用户迁移时在目标节点 `/var/lib/kvm-storage/.../vm-disks` 写入磁盘文件失败。
+
 ## 本轮未迁移（入口占位）
 
 - 控制台（VNC）：P2 模块，点击占位提示
