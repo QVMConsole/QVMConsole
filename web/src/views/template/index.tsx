@@ -6,8 +6,9 @@
  * - 删除模板链路（级联/提升子节点/热删除，高风险二次验证由请求层自动处理）
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Button, Modal, Spin, Toast } from '@douyinfe/semi-ui'
+import { Button, Empty, Modal, Spin, Toast } from '@douyinfe/semi-ui'
 import { IconChevronDown, IconChevronUp, IconRefresh, IconUpload } from '@douyinfe/semi-icons'
+import { IllustrationNoContent, IllustrationNoContentDark } from '@douyinfe/semi-illustrations'
 import {
   deleteTemplateExport,
   exportTemplate,
@@ -261,13 +262,13 @@ export default function TemplateListPage() {
         </div>
 
         {loaded && families.length === 0 && (
-          <div className="tpl-empty">
-            <div className="tpl-empty-icon">📦</div>
-            <div>暂无模板</div>
-            <div className="tpl-empty-hint">
-              可通过「虚拟机列表 → 更多 → 制作模板」创建首个模板
-            </div>
-          </div>
+          <Empty
+            image={<IllustrationNoContent />}
+            darkModeImage={<IllustrationNoContentDark />}
+            title="暂无模板"
+            description="可通过「虚拟机列表 → 更多 → 制作模板」创建首个模板"
+            style={{ padding: '60px 0' }}
+          />
         )}
       </Spin>
 
