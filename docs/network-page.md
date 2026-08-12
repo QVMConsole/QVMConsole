@@ -13,7 +13,7 @@
 | 网络概览（管理员） | OVS 状态/网桥/端口数/内网 CIDR 统计卡；检测（同步刷新状态）、修复（高风险确认，异步任务）；端口安全总开关、预检结果、默认折叠的逐端口状态与协调/隔离操作；基础状态 + 服务状态信息卡；宿主机网桥表、物理网卡表、OVS 端口表 |
 | 宿主机网桥 | 网络概览保留历史网桥展示、删除与接口 IP 配置；新的物理上行统一在创建交换机时选择，不再提供独立“创建桥接网桥”入口 |
 | OVS NAT 出口协调 | `KVM_OVS_UPLINK` 可继续保存物理上联口；若该物理口已加入 OVS 网桥且默认路由已迁移到网桥，运行态 NAT/FORWARD 会自动改用实际三层网桥，并清理指向旧出口的同网段规则 |
-| 接口 IP/DNS 配置 | 展示当前 IP/网关/DNS；编辑保存或一键清除；物理网卡已加入网桥时提示改为在网桥上配置；不可配置接口禁用表单 |
+| 接口 IP/DNS 配置 | 展示当前 IPv4/IPv6/网关/DNS；编辑保存或一键清除；物理网卡已加入网桥时提示改为在网桥上配置；不可配置接口禁用表单 |
 | 交换机 | 直接管理零或一个上行链路，明确显示“空交换机 / 物理直通 / 内置 DHCP/NAT / 系统基础网络”；普通用户自行创建时固定为空交换机；历史用户 NAT 交换机显示待迁移状态并由管理员逐台迁移 |
 | 交换机表单 | 一步选择物理上行和内置 DHCP。无上行时为独立纯二层；物理上行且 DHCP 关闭时显示 VLAN、桥接安全与宿主机 IP 迁移；DHCP 开启时显示上行网关、CIDR、内部网关和地址池。自动检测不到出口默认路由时可填写上行网关；已有直通网桥的物理口仍可作为托管 NAT 出口。关闭 DHCP 会保留最近一次托管网段，后续可复用 |
 | 在线重配置 | 拓扑变化提交 `vpc_switch_reconfigure` 异步任务；任务按网口保留 MAC、型号、interface ID 与带宽 XML，热插失败时恢复已经处理的网口和旧运行态；行级任务期间更多按钮显示旋转图标 |
@@ -57,13 +57,22 @@ web/src/views/network/
 - `POST /ovs/port-security/ports/:port/isolate|release`：异步隔离或释放端口（高风险操作保留二次验证）
 - `GET/POST /network/bridges`、`DELETE /network/bridges/:id`：历史宿主机网桥兼容接口（管理员）
 - `GET /network/host/interfaces`：物理网卡列表，包含直通占用、NAT 使用数量、有效三层接口、网关及可选状态（管理员）
-- `GET/PUT /network/interfaces/:name/config`：接口 IP/DNS 配置（管理员）
+- `GET/PUT /network/interfaces/:name/config`：接口 IP/DNS 配置（管理员，支持 IPv4 + IPv6 双栈）
 - `GET /vpc/quota`：流量/带宽配额
 - `GET/POST /vpc/switches`、`PUT/DELETE /vpc/switches/:id`、`POST /vpc/switches/:id/traffic/reset`、`GET /vpc/switches/:id/vms`：交换机管理
 - `POST /vpc/switches/:id/reconfigure`：异步重配置完整目标拓扑，返回 `task_id/status`；支持 API Key 并保留二次验证
 - `GET/POST /vpc/security-groups`、`PUT/DELETE /vpc/security-groups/:id`、`POST /vpc/security-groups/:id/rules`、`DELETE /vpc/security-groups/rules/:id`：安全组与规则管理
 - `GET /vpc/acl/preview`、`POST /vpc/acl/apply`：ACL 预览与应用（应用为高风险操作，428 二次验证）
 - `GET /user/list`：用户选项（管理员）
+
+## 接口 IP/DNS 配置 IPv6 支持
+
+1. 接口配置弹窗同时支持 IPv4 和 IPv6 双栈编辑，分两个区块填写；DNS 服务器可混合 IPv4/IPv6 地址。
+2. IPv4 和 IPv6 至少填写一个地址才可保存；某地址族留空时保留该族现有地址，不会误清除。
+3. 独立物理网卡的静态配置通过 systemd-networkd `.network` 文件持久化；有 IPv6 地址时保留链路本地地址（IPv6 NDP 依赖），仅禁用 RA 自动配置。
+4. 面板管理网桥（已启用宿主机 IP 迁移）的 IPv6 配置持久化到数据库 `host_addrs6`/`host_gateway6`/`host_metric6` 字段，并在网桥恢复脚本中以静态变量恢复。
+5. 网桥创建/删除时的 IP 迁移同步处理 IPv4 和 IPv6：创建时从物理口捕获双栈地址并迁移到网桥；删除时将双栈地址回迁至物理口。
+6. 清除配置会同时移除 IPv4 和 IPv6 的所有静态地址、路由和 DNS。
 
 ## IPv6 安全组规则
 

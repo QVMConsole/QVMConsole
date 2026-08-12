@@ -48,22 +48,27 @@ type InterfaceConfigInfo struct {
 	Type          string   `json:"type"`            // bridge / nic
 	BridgeName    string   `json:"bridge_name"`     // 若物理网卡已加入网桥，对应的网桥名称
 	Addrs         []string `json:"addrs"`           // 当前 IPv4 地址（CIDR 格式）
-	Gateway       string   `json:"gateway"`         // 默认网关
-	Metric        string   `json:"metric"`          // 路由 metric
-	DNS           []string `json:"dns"`             // DNS 服务器列表
+	Gateway       string   `json:"gateway"`         // IPv4 默认网关
+	Metric        string   `json:"metric"`          // IPv4 路由 metric
+	DNS           []string `json:"dns"`             // DNS 服务器列表（可含 IPv4/IPv6 地址）
 	Configurable  bool     `json:"configurable"`    // 是否可配置
 	Reason        string   `json:"reason"`          // 不可配置原因
 	ManagedBridge bool     `json:"managed_bridge"`  // 是否为面板管理的网桥
 	MigrateHostIP bool     `json:"migrate_host_ip"` // 网桥是否迁移了宿主机 IP
+	Addrs6        []string `json:"addrs6"`           // 当前 IPv6 地址（CIDR 格式）
+	Gateway6      string   `json:"gateway6"`         // IPv6 默认网关
+	Metric6       string   `json:"metric6"`          // IPv6 路由 metric
 }
 
 // SetInterfaceConfigRequest 设置接口 IP/DNS 配置请求。
 type SetInterfaceConfigRequest struct {
-	Name    string `json:"name"`    // 接口名称（网桥或物理网卡）
-	Addrs   string `json:"addrs"`   // 新 IP 地址（换行或逗号分隔的 CIDR）
-	Gateway string `json:"gateway"` // 新默认网关
-	DNS     string `json:"dns"`     // 新 DNS 服务器（空格或逗号分隔）
-	Clear   bool   `json:"clear"`   // 为 true 时清除所有静态配置
+	Name     string `json:"name"`     // 接口名称（网桥或物理网卡）
+	Addrs    string `json:"addrs"`    // 新 IPv4 地址（换行或逗号分隔的 CIDR）
+	Gateway  string `json:"gateway"`  // 新 IPv4 默认网关
+	DNS      string `json:"dns"`      // 新 DNS 服务器（空格或逗号分隔，可含 IPv4/IPv6）
+	Clear    bool   `json:"clear"`    // 为 true 时清除所有静态配置
+	Addrs6   string `json:"addrs6"`   // 新 IPv6 地址（换行或逗号分隔的 CIDR）
+	Gateway6 string `json:"gateway6"` // 新 IPv6 默认网关
 }
 
 type NetworkBridgeRequest struct {

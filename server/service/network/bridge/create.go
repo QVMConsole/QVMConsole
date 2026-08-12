@@ -41,7 +41,7 @@ func CreateNetworkBridge(req NetworkBridgeRequest) (*model.NetworkBridge, error)
 	// 创建前捕获物理网卡当前 IP 配置（必须在加入 OVS 之前）
 	var ipCfg HostIPConfig
 	if req.MigrateHostIP {
-		ipCfg = CaptureInterfaceIPv4(req.UplinkIF)
+		ipCfg = CaptureInterfaceIP(req.UplinkIF)
 	}
 	if err := EnsureOVSBridgeDirect(req.Name, req.UplinkIF, req.MigrateHostIP, ipCfg); err != nil {
 		return nil, err
@@ -50,6 +50,7 @@ func CreateNetworkBridge(req NetworkBridgeRequest) (*model.NetworkBridge, error)
 		Name: req.Name, Mode: BridgeModeDirect, UplinkIF: req.UplinkIF,
 		MigrateHostIP: req.MigrateHostIP,
 		HostAddrs:     ipCfg.Addrs, HostGateway: ipCfg.Gateway, HostMetric: ipCfg.Metric, HostDNS: ipCfg.DNS,
+		HostAddrs6:    ipCfg.Addrs6, HostGateway6: ipCfg.Gateway6, HostMetric6: ipCfg.Metric6,
 	}
 	if model.DB != nil {
 		if err := model.DB.Create(row).Error; err != nil {
@@ -88,27 +89,27 @@ func EnsureOVSBridgeDirect(bridge, uplink string, migrateHostIP bool, cfg HostIP
 		}
 		utils.ExecCommand("ip", "link", "set", uplink, "up")
 	}
-	// IP 迁移逻辑
+	// IP 迁移逻辑（同时处理 IPv4 和 IPv6）
 	if migrateHostIP && uplink != "" {
 		// 检查网桥是否已有 IP（重启恢复场景：systemd 服务已应用了静态 IP）
-		bridgeCfg := CaptureInterfaceIPv4(bridge)
-		bridgeHasIP := strings.TrimSpace(bridgeCfg.Addrs) != ""
+		bridgeCfg := CaptureInterfaceIP(bridge)
+		bridgeHasIP := strings.TrimSpace(bridgeCfg.Addrs) != "" || strings.TrimSpace(bridgeCfg.Addrs6) != ""
 		if !bridgeHasIP {
 			// 网桥没有 IP，尝试从物理口迁移或使用存储值
-			uplinkCfg := CaptureInterfaceIPv4(uplink)
-			if strings.TrimSpace(uplinkCfg.Addrs) != "" {
-				// 物理口有 IP，执行动态迁移
-				migrateInterfaceIPv4ToBridge(uplink, bridge)
-			} else if strings.TrimSpace(cfg.Addrs) != "" {
-				// 物理口也没 IP，使用存储的静态配置恢复
-				applyStaticIPv4ToBridge(bridge, cfg)
+			uplinkCfg := CaptureInterfaceIP(uplink)
+			if strings.TrimSpace(uplinkCfg.Addrs) != "" || strings.TrimSpace(uplinkCfg.Addrs6) != "" {
+				// 物理口有 IP，执行动态迁移（IPv4 + IPv6）
+				migrateInterfaceIPToBridge(uplink, bridge)
+			} else if strings.TrimSpace(cfg.Addrs) != "" || strings.TrimSpace(cfg.Addrs6) != "" {
+				// 物理口也没 IP，使用存储的静态配置恢复（IPv4 + IPv6）
+				applyStaticIPToBridge(bridge, cfg)
 			}
 		}
 		// DNS 总是需要确保配置正确（重启恢复场景下即使网桥已有 IP，DNS 也可能丢失）
 		ensureBridgeResolvedDNSWithStatic(uplink, bridge, cfg.DNS)
 		// 如果 cfg 为空但网桥已有 IP，更新 cfg 用于写入脚本
-		if strings.TrimSpace(cfg.Addrs) == "" {
-			cfg = CaptureInterfaceIPv4(bridge)
+		if strings.TrimSpace(cfg.Addrs) == "" && strings.TrimSpace(cfg.Addrs6) == "" {
+			cfg = CaptureInterfaceIP(bridge)
 			// 同时保留已有的 DNS 信息
 			if cfg.DNS == "" {
 				cfg.DNS = captureInterfaceDNSServers(bridge)

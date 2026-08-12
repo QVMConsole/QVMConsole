@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-12T11:03:26.799Z",
-  "count": 328,
+  "generated_at": "2026-08-12T14:35:03.007Z",
+  "count": 329,
   "endpoints": [
     {
       "method": "POST",
@@ -1035,6 +1035,17 @@
       "vmAccess": false,
       "highRisk": "apply_public_ip",
       "comment": ""
+    },
+    {
+      "method": "POST",
+      "path": "/network/public-ips/batch",
+      "handler": "BatchCreatePublicIPs",
+      "auth": "jwt",
+      "admin": true,
+      "elasticOnly": false,
+      "vmAccess": false,
+      "highRisk": "",
+      "comment": "批量新增公网 IP（共用除 IP 外的字段）"
     },
     {
       "method": "GET",

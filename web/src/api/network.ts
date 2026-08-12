@@ -253,6 +253,9 @@ export interface InterfaceConfig {
   reason?: string
   managed_bridge?: boolean
   migrate_host_ip?: boolean
+  addrs6?: string[]
+  gateway6?: string
+  metric6?: string
 }
 
 /** 获取接口 IP/DNS 配置 */
@@ -265,7 +268,7 @@ export function getInterfaceConfig(name: string) {
 /** 设置接口 IP/DNS 配置（clear=true 时清除全部静态配置） */
 export function setInterfaceConfig(
   name: string,
-  data: { addrs?: string; gateway?: string; dns?: string; clear?: boolean },
+  data: { addrs?: string; gateway?: string; dns?: string; clear?: boolean; addrs6?: string; gateway6?: string },
 ) {
   return service.put<unknown, ApiResponse<unknown>>(
     `/network/interfaces/${encodeURIComponent(name)}/config`,

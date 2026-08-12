@@ -121,10 +121,13 @@ func EnsureAllNetworkBridgesRuntime() error {
 	var lastErr error
 	for _, row := range rows {
 		cfg := HostIPConfig{
-			Addrs:   row.HostAddrs,
-			Gateway: row.HostGateway,
-			Metric:  row.HostMetric,
-			DNS:     row.HostDNS,
+			Addrs:    row.HostAddrs,
+			Gateway:  row.HostGateway,
+			Metric:   row.HostMetric,
+			DNS:      row.HostDNS,
+			Addrs6:   row.HostAddrs6,
+			Gateway6: row.HostGateway6,
+			Metric6:  row.HostMetric6,
 		}
 		if err := EnsureOVSBridgeDirect(row.Name, row.UplinkIF, row.MigrateHostIP, cfg); err != nil {
 			lastErr = err

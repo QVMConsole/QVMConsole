@@ -28,15 +28,24 @@ ip link set "$BRIDGE" up
 ip link set "$UPLINK" up
 `
 	}
-	if migrateHostIP && strings.TrimSpace(cfg.Addrs) != "" {
-		// 使用静态硬编的 IP 配置，避免重启后动态捕获失败
-		content += fmt.Sprintf(`# 静态 IP 配置（创建时捕获）
+	// 有 IPv4 或 IPv6 静态配置时，使用硬编变量恢复（避免重启后动态捕获失败）
+	hasV4 := strings.TrimSpace(cfg.Addrs) != ""
+	hasV6 := strings.TrimSpace(cfg.Addrs6) != ""
+	if migrateHostIP && (hasV4 || hasV6) {
+		content += fmt.Sprintf(`# 静态 IPv4 配置
 HOST_ADDRS=%s
 HOST_GW=%s
 HOST_METRIC=%s
+# 静态 IPv6 配置
+HOST_ADDRS6=%s
+HOST_GW6=%s
+HOST_METRIC6=%s
 `, utils.ShellSingleQuote(cfg.Addrs),
 			utils.ShellSingleQuote(cfg.Gateway),
-			utils.ShellSingleQuote(cfg.Metric))
+			utils.ShellSingleQuote(cfg.Metric),
+			utils.ShellSingleQuote(cfg.Addrs6),
+			utils.ShellSingleQuote(cfg.Gateway6),
+			utils.ShellSingleQuote(cfg.Metric6))
 		content += bridgeHostIPApplyStaticShell()
 		// DNS：优先使用静态持久化 DNS，避免重启后因 uplink 被 networkd 禁用导致动态捕获失败
 		if strings.TrimSpace(cfg.DNS) != "" {
