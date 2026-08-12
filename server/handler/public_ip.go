@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -31,6 +32,25 @@ func CreatePublicIP(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "公网 IP 已添加", "data": row})
+}
+
+// BatchCreatePublicIPs 批量新增公网 IP（管理员）
+func BatchCreatePublicIPs(c *gin.Context) {
+	var req service.PublicIPBatchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		return
+	}
+	result, err := service.BatchCreatePublicIPs(req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": fmt.Sprintf("成功新增 %d 个公网 IP（跳过 %d，失败 %d）", result.Created, result.Skipped, result.Failed),
+		"data":    result,
+	})
 }
 
 func DiscoverPublicIPv6Prefixes(c *gin.Context) {

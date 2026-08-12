@@ -27,6 +27,42 @@ type PublicIPRequest struct {
 	Remark         string `json:"remark"`
 }
 
+// PublicIPBatchRequest 批量新增公网 IP 请求。
+// 除 IPs 外的其他字段（CIDR、网关、出口网卡、支持模式、状态、备注）对整批 IP 共用，
+// 每条 IP 仍会按地址族独立校验（IPv6 会自动剔除 NAT 模式）。
+type PublicIPBatchRequest struct {
+	IPs            []string `json:"ips"`
+	CIDR           string   `json:"cidr"`
+	Gateway        string   `json:"gateway"`
+	UplinkIF       string   `json:"uplink_if"`
+	SupportedModes string   `json:"supported_modes"`
+	Status         string   `json:"status"`
+	Remark         string   `json:"remark"`
+}
+
+// PublicIPBatchItemStatus 批量新增中单条 IP 的处理状态。
+const (
+	PublicIPBatchItemCreated = "created" // 新建成功
+	PublicIPBatchItemSkipped = "skipped" // 跳过（批内重复或数据库已存在）
+	PublicIPBatchItemFailed  = "failed"  // 校验或创建失败
+)
+
+// PublicIPBatchItemResult 批量新增中每条 IP 的处理结果。
+type PublicIPBatchItemResult struct {
+	IP     string           `json:"ip"`
+	Status string           `json:"status"`
+	Reason string           `json:"reason,omitempty"`
+	Row    *model.PublicIP `json:"row,omitempty"`
+}
+
+// PublicIPBatchResult 批量新增公网 IP 的汇总结果。
+type PublicIPBatchResult struct {
+	Created int                       `json:"created"`
+	Skipped int                       `json:"skipped"`
+	Failed  int                       `json:"failed"`
+	Items   []PublicIPBatchItemResult `json:"items"`
+}
+
 // PublicIPv6PrefixInfo 描述从宿主机上联网卡发现的公网 IPv6 前缀。
 type PublicIPv6PrefixInfo struct {
 	UplinkIF string `json:"uplink_if"`

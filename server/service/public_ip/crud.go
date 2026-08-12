@@ -2,6 +2,7 @@ package public_ip
 
 import (
 	"fmt"
+	"strings"
 
 	"kvm_console/model"
 )
@@ -54,6 +55,93 @@ func CreatePublicIP(req PublicIPRequest) (*model.PublicIP, error) {
 		return nil, fmt.Errorf("创建公网 IP 失败: %w", err)
 	}
 	return row, nil
+}
+
+// BatchCreatePublicIPs 批量新增公网 IP。
+// 共用除 IP 外的字段；逐条独立校验与写入，部分失败不影响其他 IP。
+// 批内重复或数据库已存在的 IP 会被跳过，不会覆盖已有记录。
+func BatchCreatePublicIPs(req PublicIPBatchRequest) (*PublicIPBatchResult, error) {
+	if model.DB == nil {
+		return nil, fmt.Errorf("数据库尚未初始化")
+	}
+	if len(req.IPs) == 0 {
+		return nil, fmt.Errorf("请至少提供一个公网 IP")
+	}
+	if len(req.IPs) > 1000 {
+		return nil, fmt.Errorf("单次批量新增数量不能超过 1000")
+	}
+
+	// 预处理：去除空白行与首尾空格
+	normalizedIPs := make([]string, 0, len(req.IPs))
+	for _, raw := range req.IPs {
+		ip := strings.TrimSpace(raw)
+		if ip != "" {
+			normalizedIPs = append(normalizedIPs, ip)
+		}
+	}
+	if len(normalizedIPs) == 0 {
+		return nil, fmt.Errorf("请至少提供一个公网 IP")
+	}
+
+	// 一次性查询批内 IP 是否已存在，避免逐条查询
+	var existingRows []model.PublicIP
+	if err := model.DB.Where("ip IN ?", normalizedIPs).Find(&existingRows).Error; err != nil {
+		return nil, fmt.Errorf("查询已有公网 IP 失败: %w", err)
+	}
+	existing := make(map[string]bool, len(existingRows))
+	for _, row := range existingRows {
+		existing[strings.TrimSpace(row.IP)] = true
+	}
+
+	result := &PublicIPBatchResult{Items: make([]PublicIPBatchItemResult, 0, len(normalizedIPs))}
+	seen := make(map[string]bool, len(normalizedIPs))
+
+	for _, ip := range normalizedIPs {
+		if seen[ip] {
+			result.Skipped++
+			result.Items = append(result.Items, PublicIPBatchItemResult{IP: ip, Status: PublicIPBatchItemSkipped, Reason: "批内重复"})
+			continue
+		}
+		seen[ip] = true
+		if existing[ip] {
+			result.Skipped++
+			result.Items = append(result.Items, PublicIPBatchItemResult{IP: ip, Status: PublicIPBatchItemSkipped, Reason: "该公网 IP 已存在"})
+			continue
+		}
+
+		// 复用单条新增的校验逻辑，按地址族独立校验模式与网关
+		row, err := normalizePublicIPRequest(PublicIPRequest{
+			IP:             ip,
+			CIDR:           req.CIDR,
+			Gateway:        req.Gateway,
+			UplinkIF:       req.UplinkIF,
+			SupportedModes: req.SupportedModes,
+			Status:         req.Status,
+			Remark:         req.Remark,
+		}, nil)
+		if err != nil {
+			result.Failed++
+			result.Items = append(result.Items, PublicIPBatchItemResult{IP: ip, Status: PublicIPBatchItemFailed, Reason: err.Error()})
+			continue
+		}
+		if row.Status == PublicIPStatusBound {
+			result.Failed++
+			result.Items = append(result.Items, PublicIPBatchItemResult{IP: ip, Status: PublicIPBatchItemFailed, Reason: "新增公网 IP 不能直接设置为已绑定"})
+			continue
+		}
+		if row.Status == "" {
+			row.Status = PublicIPStatusFree
+		}
+		if err := model.DB.Create(row).Error; err != nil {
+			result.Failed++
+			result.Items = append(result.Items, PublicIPBatchItemResult{IP: ip, Status: PublicIPBatchItemFailed, Reason: "创建失败: " + err.Error()})
+			continue
+		}
+		existing[row.IP] = true
+		result.Created++
+		result.Items = append(result.Items, PublicIPBatchItemResult{IP: ip, Status: PublicIPBatchItemCreated, Row: row})
+	}
+	return result, nil
 }
 
 func UpdatePublicIP(id uint, req PublicIPRequest) (*model.PublicIP, error) {

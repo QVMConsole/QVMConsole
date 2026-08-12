@@ -270,7 +270,7 @@ func cleanupPublicIPRulesShell() string {
   iptables_cmd=(iptables)
   [ "$table" = "nat" ] && iptables_cmd=(iptables -t nat)
   while true; do
-    line="$("${iptables_cmd[@]}" -L "$chain" --line-numbers 2>/dev/null | awk '/kvm-console:public-ip/ {print $1}' | sort -rn | head -n1)"
+    line="$("${iptables_cmd[@]}" -nL "$chain" --line-numbers 2>/dev/null | awk '/kvm-console:public-ip/ {print $1}' | sort -rn | head -n1)"
     [ -n "$line" ] || break
     "${iptables_cmd[@]}" -D "$chain" "$line" 2>/dev/null || break
   done
@@ -283,7 +283,7 @@ cleanup_iptables_comments filter FORWARD
 cleanup_ip6tables_comments() {
   chain="$1"
   while true; do
-    line="$(ip6tables -L "$chain" --line-numbers 2>/dev/null | awk '/kvm-console:public-ip/ {print $1}' | sort -rn | head -n1)"
+    line="$(ip6tables -nL "$chain" --line-numbers 2>/dev/null | awk '/kvm-console:public-ip/ {print $1}' | sort -rn | head -n1)"
     [ -n "$line" ] || break
     ip6tables -D "$chain" "$line" 2>/dev/null || break
   done

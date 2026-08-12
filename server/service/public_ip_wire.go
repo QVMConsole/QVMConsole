@@ -92,6 +92,8 @@ type PublicIPAttachment = publicippkg.PublicIPAttachment
 type PublicIPv6PrefixInfo = publicippkg.PublicIPv6PrefixInfo
 type PublicIPv6PrefixImportRequest = publicippkg.PublicIPv6PrefixImportRequest
 type PublicIPv6PrefixImportResult = publicippkg.PublicIPv6PrefixImportResult
+type PublicIPBatchRequest = publicippkg.PublicIPBatchRequest
+type PublicIPBatchResult = publicippkg.PublicIPBatchResult
 
 // ── Exported delegates (used by handler and other service files) ──
 
@@ -117,6 +119,11 @@ func DiscoverPublicIPv6Prefixes(uplinkIF string) ([]PublicIPv6PrefixInfo, error)
 
 func ImportPublicIPv6Prefix(req PublicIPv6PrefixImportRequest) (*PublicIPv6PrefixImportResult, error) {
 	return publicippkg.ImportPublicIPv6Prefix(req)
+}
+
+// BatchCreatePublicIPs 批量新增公网 IP，共用除 IP 外的字段。
+func BatchCreatePublicIPs(req PublicIPBatchRequest) (*PublicIPBatchResult, error) {
+	return publicippkg.BatchCreatePublicIPs(req)
 }
 
 func SyncManagedPublicIPv6Addresses() (int, error) {

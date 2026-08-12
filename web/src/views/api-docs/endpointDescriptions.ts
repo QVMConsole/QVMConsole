@@ -622,6 +622,10 @@ export const endpointDescriptions: Record<string, EndpointDescription> = {
   },
   'GET /network/public-ips': { summary: '列出公网 IP' },
   'POST /network/public-ips': { summary: '新增公网 IP', body: publicIPBody },
+  'POST /network/public-ips/batch': {
+    summary: '批量新增公网 IP',
+    body: 'JSON: ips(数组), cidr, gateway, uplink_if, supported_modes, status, remark；除 IP 外字段对整批共用，重复或已存在的自动跳过。',
+  },
 	'GET /network/public-ips/ipv6-prefixes': { summary: '检测上联网卡公网 IPv6 前缀', query: ['uplink_if'] },
 	'POST /network/public-ips/ipv6-prefixes/import': {
 	  summary: '批量导入公网 IPv6 /128 地址',

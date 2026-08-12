@@ -317,8 +317,9 @@ func Setup() *gin.Engine {
 				network.GET("/public-ips", middleware.AdminMiddleware(), handler.ListPublicIPs)
 				network.POST("/public-ips", middleware.AdminMiddleware(), handler.CreatePublicIP)
 				network.GET("/public-ips/ipv6-prefixes", middleware.AdminMiddleware(), handler.DiscoverPublicIPv6Prefixes)     // 检测上联网卡公网 IPv6 前缀
-				network.POST("/public-ips/ipv6-prefixes/import", middleware.AdminMiddleware(), handler.ImportPublicIPv6Prefix) // 批量导入公网 IPv6 /128 地址资源
-				network.PUT("/public-ips/:id", middleware.AdminMiddleware(), handler.UpdatePublicIP)
+	network.POST("/public-ips/ipv6-prefixes/import", middleware.AdminMiddleware(), handler.ImportPublicIPv6Prefix) // 批量导入公网 IPv6 /128 地址资源
+	network.POST("/public-ips/batch", middleware.AdminMiddleware(), handler.BatchCreatePublicIPs)                 // 批量新增公网 IP（共用除 IP 外的字段）
+	network.PUT("/public-ips/:id", middleware.AdminMiddleware(), handler.UpdatePublicIP)
 				network.DELETE("/public-ips/:id", middleware.AdminMiddleware(), handler.DeletePublicIP)
 				network.POST("/public-ips/:id/preview", middleware.AdminMiddleware(), handler.PreviewPublicIP)
 				network.POST("/public-ips/:id/bind", middleware.AdminMiddleware(), handler.BindPublicIP)
