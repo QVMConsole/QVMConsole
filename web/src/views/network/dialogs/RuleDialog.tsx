@@ -45,13 +45,21 @@ export default function RuleDialog({ group, switches, securityGroups, onClose, o
 
   const patch = (p: Partial<RuleFormState>) => setForm((f) => ({ ...f, ...p }))
 
+  // 仅展示与当前安全组属于同一用户的资源：管理员视图下 switches/securityGroups 可能包含所有用户的数据，
+  // 而每个用户都有一个名为"默认安全组"的项，不过滤会因同名导致下拉框无法区分且后端也按用户校验拒绝跨用户选择
   const switchOptions = useMemo(
-    () => switches.map((s) => ({ value: String(s.id), label: `${s.name} (${s.cidr})` })),
-    [switches],
+    () =>
+      switches
+        .filter((s) => s.username === group.username)
+        .map((s) => ({ value: String(s.id), label: `${s.name} (${s.cidr})` })),
+    [switches, group.username],
   )
   const groupOptions = useMemo(
-    () => securityGroups.map((g) => ({ value: String(g.id), label: g.name })),
-    [securityGroups],
+    () =>
+      securityGroups
+        .filter((g) => g.username === group.username)
+        .map((g) => ({ value: String(g.id), label: g.name })),
+    [securityGroups, group.username],
   )
 
   const targetHelp =
