@@ -34,8 +34,65 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+# ==================== 检查 CGO 环境 ====================
+# go-sqlite3 是 CGO 库，CGO_ENABLED=0 时会编译成空壳（stub），
+# 运行时报 "Binary was compiled with 'CGO_ENABLED=0'..." 错误。
+# 这里确保 C 编译器可用并持久化启用 CGO。
+ensure_cgo() {
+    # 持久化启用 CGO（写入 go env 配置，一次设置永久生效）
+    if [ "$(go env CGO_ENABLED)" != "1" ]; then
+        info "持久化启用 CGO_ENABLED=1 ..."
+        go env -w CGO_ENABLED=1
+    fi
+    # 当前 shell 显式覆盖（防止环境变量层把 CGO 关掉）
+    export CGO_ENABLED=1
+
+    # 检查 C 编译器
+    if command -v gcc &>/dev/null; then
+        info "C 编译器: gcc $(gcc -dumpversion)"
+        return 0
+    fi
+
+    # 非 Linux 平台提示手动安装
+    if [ "$(uname -s)" != "Linux" ]; then
+        warn "未检测到 gcc，请手动安装 C 编译器后再运行（macOS: xcode-select --install；Windows: mingw-w64）"
+        return 0
+    fi
+
+    # Linux 下自动安装 build-essential / gcc-c++ make
+    local pkg_mgr=""
+    if command -v apt-get &>/dev/null; then
+        pkg_mgr="apt-get"
+    elif command -v dnf &>/dev/null; then
+        pkg_mgr="dnf"
+    elif command -v yum &>/dev/null; then
+        pkg_mgr="yum"
+    else
+        error "未检测到包管理器，请手动安装 C 编译器（Debian/Ubuntu: build-essential；RHEL 系: gcc-c++ make）"
+        exit 1
+    fi
+
+    local need_sudo=""
+    if [ "$(id -u)" -ne 0 ]; then
+        need_sudo="sudo"
+    fi
+
+    local pkg_name="build-essential"
+    if [ "$pkg_mgr" = "dnf" ] || [ "$pkg_mgr" = "yum" ]; then
+        pkg_name="gcc-c++ make"
+    fi
+
+    warn "未检测到 gcc，go-sqlite3 依赖 CGO 需要 C 编译器，正在安装 $pkg_name（首次安装可能需要几分钟）..."
+    if ! $need_sudo $pkg_mgr install -y $pkg_name; then
+        error "安装 C 编译器失败，请手动安装: $pkg_name"
+        exit 1
+    fi
+    info "C 编译器安装完成: gcc $(gcc -dumpversion)"
+}
+
 # ==================== 检查依赖 ====================
 info "检查依赖..."
+ensure_cgo
 
 # 检查 air（兼容 Go 1.22~1.24，使用 v1.61.7）
 if ! command -v air &>/dev/null; then
