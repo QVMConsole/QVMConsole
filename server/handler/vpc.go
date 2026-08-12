@@ -3,10 +3,13 @@ package handler
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
+	"kvm_console/model"
 	"kvm_console/service"
+	"kvm_console/taskqueue"
 )
 
 func currentUserAndRole(c *gin.Context) (string, string) {
@@ -48,6 +51,11 @@ func CreateVPCSwitch(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
 		return
 	}
+	if role == "admin" && strings.TrimSpace(req.UplinkIF) != "" {
+		if !requireHighRiskVerification(c, "create_vpc_switch_physical_uplink") {
+			return
+		}
+	}
 	sw, err := service.CreateVPCSwitch(username, role, req)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
@@ -72,6 +80,43 @@ func UpdateVPCSwitch(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "交换机已更新", "data": sw})
 }
 
+// ReconfigureVPCSwitch 提交交换机上行链路和 DHCP/NAT 拓扑重配置任务。
+func ReconfigureVPCSwitch(c *gin.Context) {
+	username, role := currentUserAndRole(c)
+	if role != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": "仅管理员可重配置交换机拓扑"})
+		return
+	}
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "交换机 ID 无效"})
+		return
+	}
+	var req service.VPCSwitchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		return
+	}
+	if _, err := service.ValidateVPCSwitchReconfigure(username, role, uint(id), req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+	if !requireHighRiskVerification(c, "vpc_switch_reconfigure") {
+		return
+	}
+	params := service.VPCSwitchReconfigureParams{SwitchID: uint(id), Request: req, Operator: username}
+	task, err := taskqueue.SubmitWithStruct(model.TaskTypeVPCSwitchReconfigure, params, username)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "提交交换机重配置任务失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": "交换机重配置任务已提交",
+		"data":    gin.H{"task_id": task.ID, "status": task.Status},
+	})
+}
+
 func GetVPCSwitchVMs(c *gin.Context) {
 	username, role := currentUserAndRole(c)
 	id, _ := strconv.Atoi(c.Param("id"))
@@ -87,6 +132,14 @@ func DeleteVPCSwitch(c *gin.Context) {
 	username, role := currentUserAndRole(c)
 	id, _ := strconv.Atoi(c.Param("id"))
 	force := c.Query("force") == "true"
+	if id > 0 {
+		var sw model.VPCSwitch
+		if err := model.DB.First(&sw, uint(id)).Error; err == nil && strings.TrimSpace(sw.UplinkIF) != "" {
+			if !requireHighRiskVerification(c, "delete_vpc_switch_physical_uplink") {
+				return
+			}
+		}
+	}
 	if err := service.DeleteVPCSwitch(username, role, uint(id), force); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
 		return

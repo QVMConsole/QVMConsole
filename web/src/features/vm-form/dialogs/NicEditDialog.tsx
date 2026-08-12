@@ -7,6 +7,7 @@ import { Divider, InputNumber, Modal, Select, Tag, TextArea, Toast } from '@douy
 import { getPortSecurityStatus } from '@/api/ovs'
 import {
   addVMInterface,
+  vpcSwitchModeDetail,
   updateVMInterface,
   type VMInterfaceInfo,
   type VpcSecurityGroup,
@@ -98,13 +99,14 @@ export default function NicEditDialog({
     [availableSwitches, switchId],
   )
   const isBridge = selectedSwitch?.bridge_mode === 'bridge'
+  const isTrustedEmpty = isBridge && !selectedSwitch?.uplink_if
   const securityGroupOwner = ownerUsername || editing?.binding?.username || editing?.security_group?.username || ''
   const filteredSecurityGroups = useMemo(
     () => filterSecurityGroupsForSwitch(availableGroups, selectedSwitch, securityGroupOwner, vmName),
     [availableGroups, selectedSwitch, securityGroupOwner, vmName],
   )
 
-  // 切换交换机时：桥接直通清空安全组；安全组不属于新交换机用户时清空
+  // 切换交换机时：二层交换机清空安全组；安全组不属于新交换机用户时清空。
   const handleSwitchChange = (value: unknown) => {
     const id = Number(value)
     setSwitchId(id)
@@ -141,8 +143,8 @@ export default function NicEditDialog({
         security_group_id: securityGroupId || 0,
         bandwidth_inbound_avg: bandwidthIn || 0,
         bandwidth_outbound_avg: bandwidthOut || 0,
-        allowed_ipv4_addresses: allowedIPv4.trim(),
-        allowed_ipv6_addresses: allowedIPv6.trim(),
+        allowed_ipv4_addresses: isTrustedEmpty ? '' : allowedIPv4.trim(),
+        allowed_ipv6_addresses: isTrustedEmpty ? '' : allowedIPv6.trim(),
       }
       if (editing) {
         await updateVMInterface(vmName, editing.binding?.interface_order ?? 0, payload)
@@ -193,15 +195,13 @@ export default function NicEditDialog({
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
                 <span>{item.username ? `${item.username} / ${item.name}` : item.name}</span>
                 <Tag size="small" color={item.bridge_mode === 'bridge' ? 'orange' : 'blue'}>
-                  {item.bridge_mode === 'bridge'
-                    ? `${item.bridge_name || '桥接'}${item.bridge_vlan_id > 0 ? ` / VLAN ${item.bridge_vlan_id}` : ''}`
-                    : item.cidr}
+                  {vpcSwitchModeDetail(item)}
                 </Tag>
               </div>
             </Select.Option>
           ))}
         </Select>
-        {isBridge && <div className="qvm-vf-tip">桥接直通由上级路由器分配 IP，不使用内部 DHCP 和安全组</div>}
+        {isBridge && <div className="qvm-vf-tip">此二层交换机不使用面板 DHCP 和安全组；空交换机可由软路由提供地址</div>}
       </FormField>
       {!isBridge && (
         <FormField label="安全组" tip="不选则使用该交换机用户默认安全组">
@@ -219,12 +219,12 @@ export default function NicEditDialog({
           />
         </FormField>
       )}
-      {portSecurityEnabled && (
+      {portSecurityEnabled && !isTrustedEmpty && (
         <>
           <Divider margin="12px">端口安全地址</Divider>
           <FormField
             label="允许的 IPv4 地址"
-            tip={isBridge ? '可选；留空时使用兼容保护，填写后启用精确 IPv4 校验' : '填写静态地址；DHCP 租约和公网绑定会自动加入策略'}
+            tip={isBridge ? '物理直通填写后可启用精确 IPv4 校验' : '填写静态地址；DHCP 租约和公网绑定会自动加入策略'}
           >
             <TextArea
               value={allowedIPv4}

@@ -378,10 +378,12 @@ func validateSecurityGroupRuleTarget(username, targetType, targetValue string) e
 		if err != nil || id <= 0 {
 			return fmt.Errorf("请选择有效的目标交换机")
 		}
-		var count int64
-		model.DB.Model(&model.VPCSwitch{}).Where("id = ? AND username = ?", id, username).Count(&count)
-		if count == 0 {
+		var sw model.VPCSwitch
+		if err := model.DB.Where("id = ? AND username = ?", id, username).First(&sw).Error; err != nil {
 			return fmt.Errorf("目标交换机不存在或不属于该用户")
+		}
+		if !sw.IsSystem && !sw.DHCPEnabled {
+			return fmt.Errorf("二层交换机不参与安全组地址范围解析")
 		}
 	case "security_group":
 		id, err := strconv.Atoi(strings.TrimSpace(targetValue))

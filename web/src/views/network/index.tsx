@@ -47,6 +47,7 @@ import {
   getVPCSwitches,
   getVPCSwitchVMs,
   previewVPCACL,
+  reconfigureVPCSwitch,
   resetVPCSwitchTraffic,
   type VpcQuota,
   type VpcSecurityGroup,
@@ -64,7 +65,6 @@ import SecurityGroupsTab from './components/SecurityGroupsTab'
 import AclTab from './components/AclTab'
 import SwitchDialog from './dialogs/SwitchDialog'
 import SwitchVMsDialog from './dialogs/SwitchVMsDialog'
-import BridgeDialog from './dialogs/BridgeDialog'
 import InterfaceConfigDialog from './dialogs/InterfaceConfigDialog'
 import SecurityGroupDialog from './dialogs/SecurityGroupDialog'
 import RuleDialog from './dialogs/RuleDialog'
@@ -74,7 +74,6 @@ import './network.css'
 type DialogState =
   | { type: 'switch'; row?: VpcSwitch }
   | { type: 'switchVMs'; row: VpcSwitch }
-  | { type: 'bridge' }
   | { type: 'ifaceConfig'; name: string }
   | { type: 'group'; row?: VpcSecurityGroup }
   | { type: 'rule'; group: VpcSecurityGroup }
@@ -88,6 +87,7 @@ export default function NetworkPage() {
   const [usernameFilter, setUsernameFilter] = useState('')
   const [loading, setLoading] = useState(false)
   const [dialog, setDialog] = useState<DialogState>(null)
+  const [operatingSwitchIds, setOperatingSwitchIds] = useState<Set<number>>(() => new Set())
 
   // 交换机 / 安全组
   const [switches, setSwitches] = useState<VpcSwitch[]>([])
@@ -116,14 +116,16 @@ export default function NetworkPage() {
 
   // ==================== 数据加载 ====================
   const loadSwitches = useCallback(async () => {
-    const [switchRes, quotaRes, bridgeRes] = await Promise.all([
+    const [switchRes, quotaRes, bridgeRes, ifaceRes] = await Promise.all([
       getVPCSwitches(queryParams),
       getVPCQuota(queryParams),
       isAdmin ? getNetworkBridges() : Promise.resolve(null),
+      isAdmin ? getHostInterfaces() : Promise.resolve(null),
     ])
     setSwitches(switchRes.data || [])
     setQuota(quotaRes.data || null)
     if (isAdmin && bridgeRes) setBridges(bridgeRes.data || [])
+    if (isAdmin && ifaceRes) setHostInterfaces(ifaceRes.data || [])
   }, [queryParams, isAdmin])
 
   const loadSecurityGroups = useCallback(async () => {
@@ -338,6 +340,68 @@ export default function NetworkPage() {
   }, [waitPortSecurityTask])
 
   // ==================== 交换机操作 ====================
+  const monitorSwitchTask = useCallback(
+    async (switchId: number, taskId: number) => {
+      setOperatingSwitchIds((current) => new Set(current).add(switchId))
+      try {
+        for (;;) {
+          await new Promise((resolve) => window.setTimeout(resolve, 1200))
+          const response = await getTaskDetail(taskId)
+          const task = response.data
+          if (!task || !['success', 'failed', 'canceled'].includes(task.status)) continue
+          if (task.status === 'success') Toast.success(task.message || '交换机重配置完成')
+          else Toast.error(task.message || '交换机重配置失败，旧网络已恢复')
+          await loadSwitches()
+          return
+        }
+      } finally {
+        setOperatingSwitchIds((current) => {
+          const next = new Set(current)
+          next.delete(switchId)
+          return next
+        })
+      }
+    },
+    [loadSwitches],
+  )
+
+  const handleMigrateLegacySwitch = useCallback(
+    async (row: VpcSwitch) => {
+      let vmNames: string[] = []
+      try {
+        const response = await getVPCSwitchVMs(row.id)
+        vmNames = (response.data || []).map((item) => item.vm_name)
+      } catch {
+        // 预览失败时仍由后端任务重新读取绑定清单。
+      }
+      const ok = await confirmModal({
+        title: '迁移为空交换机',
+        content: vmNames.length > 0
+          ? `将停止旧 DHCP/NAT，并把 ${vmNames.length} 台虚拟机的全部关联网口迁移到独立二层交换机：${vmNames.join('、')}。确认提交？`
+          : '将停止此历史交换机的 DHCP/NAT，并迁移为独立纯二层交换机。确认提交？',
+        okText: '提交迁移',
+        danger: true,
+      })
+      if (!ok) return
+      try {
+        const response = await reconfigureVPCSwitch(row.id, {
+          name: row.name,
+          uplink_mode: 'none',
+          uplink_if: '',
+          dhcp_enabled: false,
+          migrate_host_ip: false,
+          bridge_vlan_id: 0,
+        })
+        const taskId = response.data?.task_id
+        if (taskId) void monitorSwitchTask(row.id, taskId)
+        Toast.success(response.message || '交换机迁移任务已提交')
+      } catch {
+        // 请求层已提示
+      }
+    },
+    [monitorSwitchTask],
+  )
+
   const handleDeleteSwitch = useCallback(
     async (row: VpcSwitch) => {
       // 先查询该交换机下是否仍有虚拟机绑定
@@ -517,7 +581,6 @@ export default function NetworkPage() {
               portSecurityAction={portSecurityAction}
               onCheck={() => void handleCheck()}
               onRepair={() => void handleRepair()}
-              onCreateBridge={() => setDialog({ type: 'bridge' })}
               onDeleteBridge={(row) => void handleDeleteBridge(row)}
               onConfigInterface={(name) => setDialog({ type: 'ifaceConfig', name })}
               onPortSecurityPreflight={() => void handlePortSecurityPreflight()}
@@ -538,6 +601,8 @@ export default function NetworkPage() {
             onDelete={(row) => void handleDeleteSwitch(row)}
             onResetTraffic={(row) => void handleResetSwitchTraffic(row)}
             onViewVMs={(row) => setDialog({ type: 'switchVMs', row })}
+            onMigrate={(row) => void handleMigrateLegacySwitch(row)}
+            operatingSwitchIds={operatingSwitchIds}
           />
         </Tabs.TabPane>
         <Tabs.TabPane tab="安全组策略" itemKey="securityGroups" icon={<IconLock />}>
@@ -571,7 +636,7 @@ export default function NetworkPage() {
         <SwitchDialog
           row={dialog.row}
           isAdmin={isAdmin}
-          bridges={bridges}
+          hostInterfaces={hostInterfaces}
           quota={quota}
           defaultUsername={usernameFilter}
           portSecurityEnabled={!!portSecurity?.enabled}
@@ -579,19 +644,11 @@ export default function NetworkPage() {
           onSaved={() => {
             void loadSwitches()
           }}
+          onTaskSubmitted={(switchId, taskId) => void monitorSwitchTask(switchId, taskId)}
         />
       )}
       {dialog?.type === 'switchVMs' && (
         <SwitchVMsDialog row={dialog.row} onClose={() => setDialog(null)} />
-      )}
-      {dialog?.type === 'bridge' && (
-        <BridgeDialog
-          hostInterfaces={hostInterfaces}
-          onClose={() => setDialog(null)}
-          onSaved={() => {
-            void loadOverview()
-          }}
-        />
       )}
       {dialog?.type === 'ifaceConfig' && (
         <InterfaceConfigDialog

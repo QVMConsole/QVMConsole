@@ -290,6 +290,9 @@ func EnsureStaticIP(vmName string) (string, error) {
 		return "", fmt.Errorf("无法获取虚拟机 %s 的 MAC 地址", vmName)
 	}
 	if sw, ok := HookGetVPCSwitchForVM(vmName); ok {
+		if !sw.IsSystem && !sw.DHCPEnabled {
+			return "", fmt.Errorf("二层交换机由外部网络或软路由管理地址，不能配置面板静态 IP")
+		}
 		if host, ok := GetVPCStaticHostByVMName(sw.ID, vmName); ok {
 			if !strings.EqualFold(host.MAC, mac) {
 				if err := UpsertVPCStaticHost(*sw, vmName, mac, host.IP); err != nil {
@@ -348,6 +351,9 @@ func ResolvePortForwardTargetIP(vmName, requestedIP string) (string, error) {
 		return requestedIP, nil
 	}
 	if sw, ok := HookGetVPCSwitchForVM(vmName); ok {
+		if !sw.IsSystem && !sw.DHCPEnabled {
+			return "", fmt.Errorf("二层交换机不提供内置 NAT，不能创建端口转发")
+		}
 		mac := ip_resolver.GetFirstVMMAC(vmName)
 		if mac == "" {
 			return "", fmt.Errorf("无法获取虚拟机 %s 的 MAC 地址", vmName)
@@ -399,6 +405,9 @@ func BindStaticIP(vmName, ipAddr string) (string, error) {
 		return "", fmt.Errorf("无法获取虚拟机 %s 的 MAC 地址", vmName)
 	}
 	if sw, ok := HookGetVPCSwitchForVM(vmName); ok {
+		if !sw.IsSystem && !sw.DHCPEnabled {
+			return "", fmt.Errorf("二层交换机由外部网络或软路由管理地址，不能配置面板静态 IP")
+		}
 		if ipAddr == "" {
 			freeIP, err := findVPCFreeIP(*sw)
 			if err != nil {

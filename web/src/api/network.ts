@@ -222,6 +222,13 @@ export interface HostInterface {
   physical?: boolean
   managed_bridge?: string
   risk?: string
+  gateway?: string
+  effective_l3_if?: string
+  direct_switch_id?: number
+  direct_switch_name?: string
+  nat_switch_count?: number
+  can_use_direct?: boolean
+  can_use_nat?: boolean
 }
 
 /** 获取宿主机网卡列表 */

@@ -128,6 +128,8 @@ func defaultVPCSwitchRequestForUser(user model.User) VPCSwitchRequest {
 	return VPCSwitchRequest{
 		Username:          user.Username,
 		Name:              DefaultVPCSwitchName,
+		DHCPEnabled:       false,
+		UplinkMode:        UplinkModeNone,
 		TrafficDownGB:     defaultSwitchTrafficQuota(user.MaxTrafficDown),
 		TrafficUpGB:       defaultSwitchTrafficQuota(user.MaxTrafficUp),
 		BandwidthDownMbps: defaultSwitchBandwidthQuota(user.MaxBandwidthDown),
@@ -192,16 +194,18 @@ func EnsureSystemBaseNetwork() error {
 		return nil
 	}
 	sw := model.VPCSwitch{
-		Username:   "",
-		Name:       SystemBaseNetworkName,
-		BridgeName: config.GlobalConfig.OVSBridge,
-		BridgeMode: BridgeModeNAT,
-		VLANID:     0,
-		CIDR:       cidr,
-		GatewayIP:  gateway,
-		DHCPStart:  prefix + ".2",
-		DHCPEnd:    prefix + ".254",
-		IsSystem:   true,
+		Username:    "",
+		Name:        SystemBaseNetworkName,
+		BridgeName:  config.GlobalConfig.OVSBridge,
+		BridgeMode:  BridgeModeNAT,
+		DHCPEnabled: true,
+		UplinkMode:  UplinkModeSystem,
+		VLANID:      0,
+		CIDR:        cidr,
+		GatewayIP:   gateway,
+		DHCPStart:   prefix + ".2",
+		DHCPEnd:     prefix + ".254",
+		IsSystem:    true,
 		// 系统基础网络不设流量和带宽配额限制（0 = 不限）
 		TrafficDownGB:     0,
 		TrafficUpGB:       0,

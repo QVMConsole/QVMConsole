@@ -339,6 +339,7 @@ func Setup() *gin.Engine {
 				vpc.GET("/switches", handler.ListVPCSwitches)
 				vpc.POST("/switches", middleware.ElasticCloudOnlyMiddleware(), handler.CreateVPCSwitch)
 				vpc.PUT("/switches/:id", middleware.ElasticCloudOnlyMiddleware(), handler.UpdateVPCSwitch)
+				vpc.POST("/switches/:id/reconfigure", middleware.ElasticCloudOnlyMiddleware(), handler.ReconfigureVPCSwitch) // 异步重配置交换机拓扑
 				vpc.POST("/switches/:id/traffic/reset", middleware.ElasticCloudOnlyMiddleware(), handler.ResetVPCSwitchTraffic)
 				vpc.DELETE("/switches/:id", middleware.ElasticCloudOnlyMiddleware(), handler.DeleteVPCSwitch)
 				vpc.GET("/switches/:id/vms", handler.GetVPCSwitchVMs)

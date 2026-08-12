@@ -20,6 +20,19 @@ func ListHostPhysicalInterfaces() ([]HostInterfaceInfo, error) {
 	defaults := readDefaultRouteIfaces()
 	ovsPorts := readOVSPortBridgeMap()
 	managed := readManagedBridgeByUplink()
+	directSwitches := map[string]model.VPCSwitch{}
+	natSwitchCounts := map[string]int64{}
+	if model.DB != nil {
+		var switches []model.VPCSwitch
+		_ = model.DB.Where("uplink_if <> ''").Find(&switches).Error
+		for _, sw := range switches {
+			if sw.DHCPEnabled {
+				natSwitchCounts[sw.UplinkIF]++
+			} else if _, exists := directSwitches[sw.UplinkIF]; !exists {
+				directSwitches[sw.UplinkIF] = sw
+			}
+		}
+	}
 	var result []HostInterfaceInfo
 	for _, item := range items {
 		if item.IfName == "" {
@@ -43,7 +56,23 @@ func ListHostPhysicalInterfaces() ([]HostInterfaceInfo, error) {
 			info.OVSBridge = bridge
 		}
 		info.ManagedBridge = managed[item.IfName]
-		if info.DefaultRoute {
+		effective := EffectiveL3Interface(item.IfName)
+		cfg := CaptureInterfaceIPv4(effective)
+		info.DefaultRoute = info.DefaultRoute || defaults[effective]
+		if len(info.Addresses) == 0 && strings.TrimSpace(cfg.Addrs) != "" {
+			info.Addresses = strings.Fields(cfg.Addrs)
+		}
+		info.Gateway = cfg.Gateway
+		info.EffectiveL3IF = effective
+		info.NATSwitchCount = natSwitchCounts[item.IfName]
+		if sw, exists := directSwitches[item.IfName]; exists {
+			info.DirectSwitchID = sw.ID
+			info.DirectSwitchName = sw.Name
+		}
+		info.CanUseDirect = info.ManagedBridge == "" && info.OVSBridge == "" && info.DirectSwitchID == 0 && info.NATSwitchCount == 0
+		// NAT 通过有效三层接口出站，可复用系统基础网桥或已有物理直通网桥；网关缺失时由创建表单补充。
+		info.CanUseNAT = strings.TrimSpace(cfg.Addrs) != ""
+		if info.DefaultRoute || strings.TrimSpace(info.Gateway) != "" {
 			info.Risk = "承载默认路由，桥接时可能短暂中断宿主机网络"
 		}
 		if info.Physical {

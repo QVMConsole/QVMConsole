@@ -22,9 +22,12 @@ UPLINK=%s
 `, utils.ShellSingleQuote(bridge), utils.ShellSingleQuote(uplink))
 	content += `ovs-vsctl --may-exist add-br "$BRIDGE"
 ip link set "$BRIDGE" up
-ovs-vsctl --may-exist add-port "$BRIDGE" "$UPLINK"
+`
+	if strings.TrimSpace(uplink) != "" {
+		content += `ovs-vsctl --may-exist add-port "$BRIDGE" "$UPLINK"
 ip link set "$UPLINK" up
 `
+	}
 	if migrateHostIP && strings.TrimSpace(cfg.Addrs) != "" {
 		// 使用静态硬编的 IP 配置，避免重启后动态捕获失败
 		content += fmt.Sprintf(`# 静态 IP 配置（创建时捕获）

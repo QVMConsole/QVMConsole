@@ -5,8 +5,20 @@
  * - 搜索（名称、子网）+ 客户端分页（100 条/页）
  */
 import { useEffect, useMemo, useState } from 'react'
-import { Button, Input, Pagination, Progress, Table, Tag, Tooltip } from '@douyinfe/semi-ui'
-import { IconBranch, IconDownloadStroked, IconPlus, IconSearch, IconUpload } from '@douyinfe/semi-icons'
+import { Button, Dropdown, Input, Pagination, Progress, Table, Tag, Tooltip } from '@douyinfe/semi-ui'
+import {
+  IconBranch,
+  IconDelete,
+  IconDownloadStroked,
+  IconEditStroked,
+  IconEyeOpenedStroked,
+  IconMore,
+  IconPlus,
+  IconRefresh,
+  IconSearch,
+  IconSend,
+  IconUpload,
+} from '@douyinfe/semi-icons'
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table'
 import type { VpcQuota, VpcSwitch } from '@/api/vpc'
 import { switchBandwidthText, switchTrafficPercent, switchTrafficText } from '../utils'
@@ -23,6 +35,8 @@ interface SwitchesTabProps {
   onDelete: (row: VpcSwitch) => void
   onResetTraffic: (row: VpcSwitch) => void
   onViewVMs: (row: VpcSwitch) => void
+  onMigrate: (row: VpcSwitch) => void
+  operatingSwitchIds: Set<number>
 }
 
 /** 配额摘要卡 */
@@ -85,6 +99,8 @@ export default function SwitchesTab({
   onDelete,
   onResetTraffic,
   onViewVMs,
+  onMigrate,
+  operatingSwitchIds,
 }: SwitchesTabProps) {
   const [searchName, setSearchName] = useState('')
   const [searchSubnet, setSearchSubnet] = useState('')
@@ -128,26 +144,25 @@ export default function SwitchesTab({
       ),
     },
     {
-      title: 'VLAN',
-      dataIndex: 'vlan_id',
-      width: 90,
-      align: 'center',
-      render: (_text, row) =>
-        row.is_system ? (
-          <Tag size="small">基础网络</Tag>
-        ) : (
-          <Tag size="small" color="blue">
-            {row.bridge_mode === 'bridge' ? '桥接' : row.vlan_id}
-          </Tag>
-        ),
+      title: '运行模式',
+      dataIndex: 'uplink_mode',
+      width: 145,
+      render: (_text, row) => {
+        if (row.is_system) return <Tag size="small">系统基础网络</Tag>
+        if (row.dhcp_enabled) return <Tag size="small" color="blue">内置 DHCP/NAT</Tag>
+        if (row.uplink_if) return <Tag size="small" color="orange">物理直通</Tag>
+        return <Tag size="small" color="green">空交换机</Tag>
+      },
     },
     ...(isAdmin
       ? [
           {
-            title: '目标网桥',
-            dataIndex: 'bridge_name',
-            width: 110,
-            render: (text: string) => <span className="qvm-mono">{text || 'br-ovs'}</span>,
+            title: '上行链路',
+            dataIndex: 'uplink_if',
+            width: 120,
+            render: (text: string, row: VpcSwitch) => (
+              <span className="qvm-mono">{row.is_system ? '系统出口' : text || '未绑定'}</span>
+            ),
           } as ColumnProps<VpcSwitch>,
           {
             title: '桥接 VLAN',
@@ -155,7 +170,7 @@ export default function SwitchesTab({
             width: 90,
             align: 'center',
             render: (_text: unknown, row: VpcSwitch) =>
-              row.bridge_mode === 'bridge'
+              !row.dhcp_enabled && !!row.uplink_if
                 ? row.bridge_vlan_id > 0
                   ? row.bridge_vlan_id
                   : '不打标签'
@@ -166,7 +181,7 @@ export default function SwitchesTab({
             dataIndex: 'allow_promiscuous',
             width: 200,
             render: (_text: unknown, row: VpcSwitch) =>
-              row.bridge_mode === 'bridge' ? (
+              !row.dhcp_enabled && !!row.uplink_if ? (
                 <div className="net-security-tags">
                   <Tag size="small" color={row.allow_promiscuous ? 'orange' : 'green'}>
                     混杂{row.allow_promiscuous ? '允许' : '拒绝'}
@@ -188,13 +203,15 @@ export default function SwitchesTab({
       title: '子网',
       dataIndex: 'cidr',
       render: (_text, row) => (
-        <span className="qvm-mono">{row.bridge_mode === 'bridge' ? '上级路由分配' : row.cidr}</span>
+        <span className="qvm-mono">
+          {row.dhcp_enabled || row.is_system ? row.cidr || '系统配置' : row.uplink_if ? '上级网络分配' : '纯二层'}
+        </span>
       ),
     },
     {
       title: '网关',
       dataIndex: 'gateway_ip',
-      render: (text) => <span className="qvm-mono">{text}</span>,
+      render: (text, row) => <span className="qvm-mono">{row.dhcp_enabled || row.is_system ? text || '—' : '—'}</span>,
     },
     {
       title: '月下行流量',
@@ -244,45 +261,49 @@ export default function SwitchesTab({
     {
       title: '操作',
       dataIndex: 'actions',
-      width: 300,
-      render: (_text, row) => (
-        <div className="net-row-actions">
-          <Button size="small" theme="borderless" onClick={() => onViewVMs(row)}>
-            查看虚拟机
-          </Button>
-          <Tooltip content="系统基础网络交换机仅供查看，不可编辑" disabled={!row.is_system}>
-            <Button
-              size="small"
-              theme="borderless"
-              type="primary"
-              disabled={row.is_system}
-              onClick={() => onEdit(row)}
+      width: 92,
+      render: (_text, row) => {
+        const operating = operatingSwitchIds.has(row.id)
+        return (
+          <div className="qvm-act-cell" onClick={(event) => event.stopPropagation()}>
+            <Tooltip content="查看虚拟机" position="top">
+              <span className="qvm-act-ic" onClick={() => onViewVMs(row)}>
+                <IconEyeOpenedStroked />
+              </span>
+            </Tooltip>
+            <Dropdown
+              trigger="click"
+              position="bottomRight"
+              clickToHide
+              render={
+                <Dropdown.Menu>
+                  <Dropdown.Item icon={<IconEditStroked />} disabled={row.is_system || operating} onClick={() => onEdit(row)}>
+                    编辑
+                  </Dropdown.Item>
+                  {isAdmin && row.legacy_migration_required && (
+                    <Dropdown.Item icon={<IconSend />} disabled={operating} onClick={() => onMigrate(row)}>
+                      迁移为空交换机
+                    </Dropdown.Item>
+                  )}
+                  {isAdmin && (
+                    <Dropdown.Item icon={<IconRefresh />} disabled={row.is_system || operating} onClick={() => onResetTraffic(row)}>
+                      重置流量
+                    </Dropdown.Item>
+                  )}
+                  <Dropdown.Divider />
+                  <Dropdown.Item icon={<IconDelete />} type="danger" disabled={row.is_system || operating} onClick={() => onDelete(row)}>
+                    删除
+                  </Dropdown.Item>
+                </Dropdown.Menu>
+              }
             >
-              编辑
-            </Button>
-          </Tooltip>
-          {isAdmin && (
-            <Button
-              size="small"
-              theme="borderless"
-              type="warning"
-              disabled={row.is_system}
-              onClick={() => onResetTraffic(row)}
-            >
-              重置流量
-            </Button>
-          )}
-          <Button
-            size="small"
-            theme="borderless"
-            type="danger"
-            disabled={row.is_system}
-            onClick={() => onDelete(row)}
-          >
-            删除
-          </Button>
-        </div>
-      ),
+              <span className={`qvm-act-ic more ${row.is_system ? 'disabled' : ''}`}>
+                {operating ? <IconRefresh spin /> : <IconMore />}
+              </span>
+            </Dropdown>
+          </div>
+        )
+      },
     },
   ]
 

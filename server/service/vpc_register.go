@@ -1,6 +1,8 @@
 package service
 
 import (
+	"context"
+
 	"kvm_console/config"
 	"kvm_console/model"
 	fwpkg "kvm_console/service/firewall"
@@ -24,6 +26,7 @@ type AddVMInterfaceRequest = vpcpkg.AddVMInterfaceRequest
 type VPCQuotaInfo = vpcpkg.VPCQuotaInfo
 type VPCBindingInfo = vpcpkg.VPCBindingInfo
 type VMInterfaceInfo = vpcpkg.VMInterfaceInfo
+type VPCSwitchReconfigureParams = vpcpkg.VPCSwitchReconfigureParams
 
 // ── Wrapper functions（向后兼容，让 service 根包和外部调用方仍通过 service.Xxx 调用） ──
 
@@ -45,6 +48,15 @@ func GetVPCSwitchVMs(operator, role string, id uint) ([]vpcpkg.VMSwitchInfo, err
 }
 func ResetVPCSwitchTraffic(operator, role string, id uint) error {
 	return vpcpkg.ResetVPCSwitchTraffic(operator, role, id)
+}
+func ValidateVPCSwitchReconfigure(operator, role string, id uint, req VPCSwitchRequest) (*model.VPCSwitch, error) {
+	return vpcpkg.ValidateVPCSwitchReconfigure(operator, role, id, req)
+}
+func ParseVPCSwitchReconfigureParams(raw string) (VPCSwitchReconfigureParams, error) {
+	return vpcpkg.ParseVPCSwitchReconfigureParams(raw)
+}
+func ExecuteVPCSwitchReconfigure(ctx context.Context, params VPCSwitchReconfigureParams, progress func(int, string)) (string, error) {
+	return vpcpkg.ExecuteVPCSwitchReconfigure(ctx, params, progress)
 }
 
 // Switch runtime
@@ -253,11 +265,18 @@ func init() {
 	vpcpkg.HookOvsUplink = ovspkg.OvsUplink
 	vpcpkg.HookEnsureOVSNetwork = ovspkg.EnsureOVSNetworkReady
 	vpcpkg.HookEnsureOVSBridgeExists = EnsureOVSBridgeExists
-	vpcpkg.HookEnsureOVSBridgeDirect = func(bridgeName, uplink string, migrateHostIP bool, hostAddrs, hostGW, hostMetric string) error {
-		cfg := bridge.HostIPConfig{Addrs: hostAddrs, Gateway: hostGW, Metric: hostMetric}
+	vpcpkg.HookEnsureOVSBridgeDirect = func(bridgeName, uplink string, migrateHostIP bool, hostAddrs, hostGW, hostMetric, hostDNS string) error {
+		cfg := bridge.HostIPConfig{Addrs: hostAddrs, Gateway: hostGW, Metric: hostMetric, DNS: hostDNS}
 		return EnsureOVSBridgeDirect(bridgeName, uplink, migrateHostIP, cfg)
 	}
 	vpcpkg.HookGetOVSBridgePhysicalUplink = bridge.DetectOVSBridgePhysicalUplink
+	vpcpkg.HookValidateSwitchUplink = bridge.ValidateVPCSwitchUplink
+	vpcpkg.HookEffectiveL3Interface = bridge.EffectiveL3Interface
+	vpcpkg.HookCaptureHostIPConfig = func(iface string) (string, string, string, string) {
+		cfg := bridge.CaptureInterfaceIPv4(iface)
+		return cfg.Addrs, cfg.Gateway, cfg.Metric, cfg.DNS
+	}
+	vpcpkg.HookDeleteOwnedSwitchBridge = bridge.DeleteOwnedVPCSwitchBridge
 	vpcpkg.HookBridgeNameForSwitch = BridgeNameForSwitch
 	vpcpkg.HookSwitchUsesDirectBridge = SwitchUsesDirectBridge
 	vpcpkg.HookBridgeModeForSwitch = BridgeModeForSwitch
@@ -348,6 +367,7 @@ func init() {
 	vpcpkg.HookGetVMMACByOrder = GetVMMACByOrder
 	vpcpkg.HookAttachVMInterface = vmpkg.AttachVMInterface
 	vpcpkg.HookDetachVMInterface = vmpkg.DetachVMInterface
+	vpcpkg.HookReconfigureVMInterfaceNetwork = vmpkg.ReconfigureVMInterfaceNetwork
 
 	// ── Port forward / Firewall hooks ──
 	vpcpkg.HookRemoveVPCPortForwardAcceptRules = RemoveVPCPortForwardAcceptRules

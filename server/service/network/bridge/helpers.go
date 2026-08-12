@@ -8,6 +8,12 @@ import (
 )
 
 func BridgeModeForSwitch(sw model.VPCSwitch) string {
+	if sw.IsSystem || sw.DHCPEnabled {
+		return BridgeModeNAT
+	}
+	if sw.OwnsBridge {
+		return BridgeModeDirect
+	}
 	mode := NormalizeBridgeMode(sw.BridgeMode)
 	if mode == "" {
 		mode = BridgeModeNAT

@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-12T03:40:30.268Z",
-  "count": 327,
+  "generated_at": "2026-08-12T11:03:26.799Z",
+  "count": 328,
   "endpoints": [
     {
       "method": "POST",
@@ -3552,7 +3552,7 @@
       "admin": false,
       "elasticOnly": true,
       "vmAccess": false,
-      "highRisk": "",
+      "highRisk": "create_vpc_switch_physical_uplink",
       "comment": ""
     },
     {
@@ -3563,7 +3563,7 @@
       "admin": false,
       "elasticOnly": true,
       "vmAccess": false,
-      "highRisk": "",
+      "highRisk": "delete_vpc_switch_physical_uplink",
       "comment": ""
     },
     {
@@ -3576,6 +3576,17 @@
       "vmAccess": false,
       "highRisk": "",
       "comment": ""
+    },
+    {
+      "method": "POST",
+      "path": "/vpc/switches/:id/reconfigure",
+      "handler": "ReconfigureVPCSwitch",
+      "auth": "jwt",
+      "admin": false,
+      "elasticOnly": true,
+      "vmAccess": false,
+      "highRisk": "vpc_switch_reconfigure",
+      "comment": "异步重配置交换机拓扑"
     },
     {
       "method": "POST",

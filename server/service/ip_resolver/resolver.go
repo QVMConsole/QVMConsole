@@ -107,8 +107,7 @@ func GetVMIP(name string, isRunning bool) string {
 			} else if len(allMatches) > 1 {
 				for i := len(allMatches) - 1; i >= 0; i-- {
 					ip := allMatches[i][1]
-					pingResult := utils.ExecCommandWithTimeout("ping", 2*time.Second, "-c", "1", "-W", "1", ip)
-					if pingResult.ExitCode == 0 {
+					if quietPingIP(ip) {
 						return ip
 					}
 				}
@@ -216,8 +215,7 @@ func getVMIPFromDomifaddrSource(name, source string, ipRe *regexp.Regexp, cidr s
 	}
 	if verifyPing {
 		for i := len(candidates) - 1; i >= 0; i-- {
-			pingResult := utils.ExecCommandWithTimeout("ping", 2*time.Second, "-c", "1", "-W", "1", candidates[i])
-			if pingResult.ExitCode == 0 {
+			if quietPingIP(candidates[i]) {
 				return candidates[i]
 			}
 		}
@@ -240,8 +238,7 @@ func execDomifaddrARP(name string, ipRe *regexp.Regexp) string {
 	}
 	for i := len(allMatches) - 1; i >= 0; i-- {
 		ip := allMatches[i][1]
-		pingResult := utils.ExecCommandWithTimeout("ping", 2*time.Second, "-c", "1", "-W", "1", ip)
-		if pingResult.ExitCode == 0 {
+		if quietPingIP(ip) {
 			return ip
 		}
 	}
@@ -263,13 +260,21 @@ func GetHostNeighborIPByMAC(mac, cidr string, verifyPing bool) string {
 	}
 	if verifyPing {
 		for i := len(candidates) - 1; i >= 0; i-- {
-			pingResult := utils.ExecCommandWithTimeout("ping", 2*time.Second, "-c", "1", "-W", "1", candidates[i])
-			if pingResult.ExitCode == 0 {
+			if quietPingIP(candidates[i]) {
 				return candidates[i]
 			}
 		}
 	}
 	return candidates[len(candidates)-1]
+}
+
+func quietPingIP(value string) bool {
+	ip := net.ParseIP(strings.TrimSpace(value))
+	// IPv6 链路本地地址必须携带接口作用域；无作用域时跳过探测，避免产生无意义错误日志。
+	if ip == nil || ip.IsLinkLocalUnicast() {
+		return false
+	}
+	return utils.ExecCommandQuietWithTimeout("ping", 2*time.Second, "-c", "1", "-W", "1", value).ExitCode == 0
 }
 
 func parseHostNeighborIPsByMAC(text, mac, cidr string) []string {

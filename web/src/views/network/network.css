@@ -482,6 +482,34 @@ body[theme-mode='dark'] .net-port-addresses {
 }
 
 /* ==================== 创建交换机弹窗：两列折叠布局 ==================== */
+.net-switch-mode-banner {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--semi-color-primary) 24%, var(--qvm-stroke));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--semi-color-primary) 7%, var(--qvm-card-bg));
+  color: var(--qvm-text-1);
+}
+.net-switch-mode-banner strong {
+  color: var(--semi-color-primary);
+  font-size: 15px;
+}
+.net-switch-mode-banner small {
+  color: var(--qvm-text-2);
+  line-height: 1.55;
+}
+.net-switch-inline-note {
+  padding: 12px 14px;
+  border: 1px dashed var(--qvm-stroke);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--qvm-card-bg) 88%, var(--semi-color-fill-0));
+  color: var(--qvm-text-1);
+  line-height: 1.65;
+}
 .net-switch-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -534,6 +562,10 @@ body[theme-mode='dark'] .net-port-addresses {
 body[theme-mode='dark'] .net-switch-collapse-title {
   color: #b8c1cf;
 }
+body[theme-mode='dark'] .net-switch-mode-banner,
+body[theme-mode='dark'] .net-switch-inline-note {
+  color: #b8c1cf;
+}
 
 /* ==================== 响应式 ==================== */
 @media (max-width: 720px) {
@@ -548,5 +580,9 @@ body[theme-mode='dark'] .net-switch-collapse-title {
   }
   .net-switch-grid {
     grid-template-columns: 1fr;
+  }
+  .net-switch-mode-banner {
+    grid-template-columns: 1fr;
+    gap: 4px;
   }
 }

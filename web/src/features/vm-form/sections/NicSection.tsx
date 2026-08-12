@@ -11,21 +11,17 @@ import SectionCard from './SectionCard'
 import FormField from './FormField'
 import { useVmFormScope } from '../scopeContext'
 import { NIC_MODEL_OPTIONS } from '../constants'
-import type { VpcSwitch } from '@/api/vpc'
+import { vpcSwitchModeDetail, type VpcSwitch } from '@/api/vpc'
 import { getPortSecurityStatus } from '@/api/ovs'
 import {
   filterSecurityGroupsForSwitch,
   formatSecurityGroupOptionLabel,
 } from '../vpcOptionUtils'
 
-/** 交换机选项展示文案（桥接直通显示 VLAN 信息） */
+/** 交换机选项展示文案。 */
 function switchOptionLabel(item: VpcSwitch, isAdmin: boolean): string {
   const prefix = isAdmin && item.username ? `${item.username} / ` : ''
-  if (item.bridge_mode === 'bridge') {
-    const vlan = item.bridge_vlan_id > 0 ? `，VLAN ${item.bridge_vlan_id}` : ''
-    return `${prefix}${item.name}（桥接直通：${item.bridge_name || '-'}${vlan}）`
-  }
-  return `${prefix}${item.name} (${item.cidr})`
+  return `${prefix}${item.name}（${vpcSwitchModeDetail(item)}）`
 }
 
 export default function NicSection() {
@@ -178,24 +174,27 @@ export default function NicSection() {
                       }))}
                     />
                   </FormField>
-                  <FormField label="安全组">
-                    <Select
-                      style={{ width: '100%' }}
-                      value={nic.security_group_id ?? undefined}
-                      placeholder="可选"
-                      filter
-                      onFocus={() => void options.loadVPCOptions()}
-                      onChange={(v) => updateNic(index, 'security_group_id', v)}
-                      optionList={getSecurityGroupsForSwitch(nic.switch_id).map((item) => ({
-                        value: item.id,
-                        label: formatSecurityGroupOptionLabel(item, ctx.isAdmin),
-                      }))}
-                    />
-                  </FormField>
+                  {options.vpcSwitches.find((item) => item.id === nic.switch_id)?.bridge_mode !== 'bridge' && (
+                    <FormField label="安全组">
+                      <Select
+                        style={{ width: '100%' }}
+                        value={nic.security_group_id ?? undefined}
+                        placeholder="可选"
+                        filter
+                        onFocus={() => void options.loadVPCOptions()}
+                        onChange={(v) => updateNic(index, 'security_group_id', v)}
+                        optionList={getSecurityGroupsForSwitch(nic.switch_id).map((item) => ({
+                          value: item.id,
+                          label: formatSecurityGroupOptionLabel(item, ctx.isAdmin),
+                        }))}
+                      />
+                    </FormField>
+                  )}
                 </div>
                 {portSecurityEnabled && (() => {
                   const selectedSwitch = options.vpcSwitches.find((item) => item.id === nic.switch_id)
                   const directBridge = selectedSwitch?.bridge_mode === 'bridge'
+                  if (directBridge && !selectedSwitch?.uplink_if) return null
                   return (
                     <div className="qvm-vf-grid-2">
                       <FormField

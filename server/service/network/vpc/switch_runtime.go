@@ -2,6 +2,7 @@ package vpc
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -22,6 +23,12 @@ func EnsureVPCSwitchRuntime(sw model.VPCSwitch) error {
 	}
 	if HookSwitchUsesDirectBridge(sw) {
 		bridgeName := HookBridgeNameForSwitch(sw)
+		if sw.OwnsBridge {
+			if err := HookEnsureOVSBridgeDirect(bridgeName, sw.UplinkIF, sw.MigrateHostIP, sw.HostAddrs, sw.HostGateway, sw.HostMetric, sw.HostDNS); err != nil {
+				return err
+			}
+			return ApplyVPCSwitchBandwidth(sw)
+		}
 		var bridge model.NetworkBridge
 		if err := model.DB.Where("name = ?", bridgeName).First(&bridge).Error; err != nil {
 			// 数据库中没有记录，回退到 OVS 系统层检查
@@ -35,11 +42,11 @@ func EnsureVPCSwitchRuntime(sw model.VPCSwitch) error {
 			if HookGetOVSBridgePhysicalUplink != nil {
 				uplink = HookGetOVSBridgePhysicalUplink(bridgeName)
 			}
-			if err := HookEnsureOVSBridgeDirect(bridgeName, uplink, false, "", "", ""); err != nil {
+			if err := HookEnsureOVSBridgeDirect(bridgeName, uplink, false, "", "", "", ""); err != nil {
 				return err
 			}
 		} else {
-			if err := HookEnsureOVSBridgeDirect(bridge.Name, bridge.UplinkIF, bridge.MigrateHostIP, bridge.HostAddrs, bridge.HostGateway, bridge.HostMetric); err != nil {
+			if err := HookEnsureOVSBridgeDirect(bridge.Name, bridge.UplinkIF, bridge.MigrateHostIP, bridge.HostAddrs, bridge.HostGateway, bridge.HostMetric, bridge.HostDNS); err != nil {
 				return err
 			}
 		}
@@ -69,8 +76,12 @@ func EnsureVPCSwitchRuntime(sw model.VPCSwitch) error {
 		}
 	}
 	utils.ExecCommand("ip", "link", "set", port, "up")
-	utils.ExecShellQuiet(fmt.Sprintf("ip -4 addr show dev %s | grep -q '%s/24' || ip addr add %s/24 dev %s",
-		utils.ShellSingleQuote(port), utils.ShellSingleQuote(sw.GatewayIP), utils.ShellSingleQuote(sw.GatewayIP), utils.ShellSingleQuote(port)))
+	gatewayCIDR, err := switchGatewayCIDR(sw)
+	if err != nil {
+		return err
+	}
+	utils.ExecShellQuiet(fmt.Sprintf("ip -4 addr show dev %s | grep -q %s || ip addr add %s dev %s",
+		utils.ShellSingleQuote(port), utils.ShellSingleQuote(gatewayCIDR), utils.ShellSingleQuote(gatewayCIDR), utils.ShellSingleQuote(port)))
 	if err := HookEnsureLocalDNSMasqInput(port); err != nil {
 		return err
 	}
@@ -137,7 +148,7 @@ func cleanOrphanVPCSwitchPorts(switches []model.VPCSwitch) error {
 	validIDs := map[uint]bool{}
 	for _, sw := range switches {
 		// 仅 VLAN>0 的交换机才有独立网关端口
-		if sw.VLANID > 0 {
+		if sw.VLANID > 0 && SwitchUsesManagedDHCP(sw) {
 			validIDs[sw.ID] = true
 		}
 	}
@@ -176,9 +187,14 @@ func cleanOrphanVPCSwitchPorts(switches []model.VPCSwitch) error {
 }
 
 func ensureVPCSwitchNAT(sw model.VPCSwitch, gatewayPort string) error {
-	uplink := HookOvsUplink()
+	uplink := effectiveUplinkForSwitch(sw)
 	if uplink == "" {
 		return fmt.Errorf("无法检测 VPC NAT 出口网卡，请配置 KVM_OVS_UPLINK")
+	}
+	if sw.UplinkMode == UplinkModePhysical {
+		if err := ensureVPCPolicyRoute(sw, uplink); err != nil {
+			return err
+		}
 	}
 	cleanupStaleManagedNATRules(sw.CIDR, gatewayPort, uplink)
 	if err := HookEnsureIPTablesRule(
@@ -208,7 +224,16 @@ func ensureVPCSwitchNAT(sw model.VPCSwitch, gatewayPort string) error {
 func removeVPCSwitchNAT(sw model.VPCSwitch) {
 	port := VPCGatewayPortName(sw.ID)
 	HookRemoveLocalDNSMasqInput(port)
-	uplink := HookOvsUplink()
+	removeVPCPolicyRoute(sw)
+	removeVPCSwitchNATRules(sw)
+}
+
+// removeVPCSwitchNATRules 仅删除指定交换机配置对应的 NAT/FORWARD 规则。
+// 托管网络修改网段或出口时，目标 dnsmasq 与策略路由仍在使用同一个网关端口，
+// 因此不能直接调用完整的 removeVPCSwitchNAT。
+func removeVPCSwitchNATRules(sw model.VPCSwitch) {
+	port := VPCGatewayPortName(sw.ID)
+	uplink := effectiveUplinkForSwitch(sw)
 	if uplink == "" {
 		return
 	}
@@ -220,9 +245,33 @@ func removeVPCSwitchNAT(sw model.VPCSwitch) {
 		utils.ShellSingleQuote(uplink), utils.ShellSingleQuote(port)))
 }
 
+// switchManagedRuntimeChanged 判断两个托管运行态是否需要清除旧地址与出口规则。
+func switchManagedRuntimeChanged(stale, active model.VPCSwitch) bool {
+	return strings.TrimSpace(stale.CIDR) != strings.TrimSpace(active.CIDR) ||
+		strings.TrimSpace(stale.GatewayIP) != strings.TrimSpace(active.GatewayIP) ||
+		strings.TrimSpace(effectiveUplinkForSwitch(stale)) != strings.TrimSpace(effectiveUplinkForSwitch(active))
+}
+
+// cleanupSupersededManagedRuntime 清除同一网关端口上的旧托管配置，再恢复活动配置。
+// 该函数同时用于提交后的旧配置清理和失败回滚时的目标配置清理。
+func cleanupSupersededManagedRuntime(stale, active model.VPCSwitch) error {
+	if switchManagedRuntimeChanged(stale, active) {
+		removeVPCSwitchNATRules(stale)
+		if staleGatewayCIDR, staleErr := switchGatewayCIDR(stale); staleErr == nil {
+			if activeGatewayCIDR, activeErr := switchGatewayCIDR(active); activeErr != nil || staleGatewayCIDR != activeGatewayCIDR {
+				utils.ExecCommandQuiet("ip", "addr", "del", staleGatewayCIDR, "dev", VPCGatewayPortName(stale.ID))
+			}
+		}
+	}
+	return EnsureVPCSwitchRuntime(active)
+}
+
 func removeVPCSwitchRuntime(sw model.VPCSwitch) error {
 	clearVPCSwitchBandwidth(sw)
 	if HookSwitchUsesDirectBridge(sw) {
+		if sw.OwnsBridge && HookDeleteOwnedSwitchBridge != nil {
+			return HookDeleteOwnedSwitchBridge(HookBridgeNameForSwitch(sw), sw.UplinkIF, sw.MigrateHostIP, sw.HostDNS)
+		}
 		return nil
 	}
 	// 系统基础网络交换机（VLANID == 0）不需要清理独立端口和 dnsmasq
@@ -259,18 +308,22 @@ func vpcDHCPLeasesPath(id uint) string {
 }
 
 func writeVPCDNSMasqConfig(sw model.VPCSwitch, iface string) (bool, error) {
+	mask, err := switchNetmask(sw)
+	if err != nil {
+		return false, err
+	}
 	content := fmt.Sprintf(`interface=%s
 bind-interfaces
 except-interface=lo
 dhcp-authoritative
-dhcp-range=%s,%s,255.255.255.0,12h
+dhcp-range=%s,%s,%s,12h
 dhcp-option=option:router,%s
 dhcp-option=option:dns-server,%s
 dhcp-hostsfile=%s
 pid-file=%s
 dhcp-leasefile=%s
 log-dhcp
-`, iface, sw.DHCPStart, sw.DHCPEnd, sw.GatewayIP, config.GlobalConfig.VPCDNS, VPCDHCPHostsPath(sw.ID), vpcDNSMasqPIDPath(sw.ID), vpcDHCPLeasesPath(sw.ID))
+`, iface, sw.DHCPStart, sw.DHCPEnd, mask, sw.GatewayIP, config.GlobalConfig.VPCDNS, VPCDHCPHostsPath(sw.ID), vpcDNSMasqPIDPath(sw.ID), vpcDHCPLeasesPath(sw.ID))
 	changed, err := HookWriteFileIfChanged(vpcDNSMasqConfigPath(sw.ID), []byte(content), 0644)
 	if err != nil {
 		return false, fmt.Errorf("写入 VPC DHCP 配置失败: %w", err)
@@ -310,7 +363,7 @@ func isVPCDNSMasqRunning(id uint) bool {
 
 func ReloadVPCDNSMasq(id uint) {
 	pidPath := vpcDNSMasqPIDPath(id)
-	result := utils.ExecShell(fmt.Sprintf("[ -f %s ] && kill -HUP $(cat %s)", utils.ShellSingleQuote(pidPath), utils.ShellSingleQuote(pidPath)))
+	result := utils.ExecShellQuiet(fmt.Sprintf("[ -f %s ] && kill -HUP $(cat %s)", utils.ShellSingleQuote(pidPath), utils.ShellSingleQuote(pidPath)))
 	if result.Error == nil {
 		return
 	}
@@ -321,7 +374,7 @@ func ReloadVPCDNSMasq(id uint) {
 
 func stopVPCDNSMasq(id uint) {
 	pidPath := vpcDNSMasqPIDPath(id)
-	utils.ExecShell(fmt.Sprintf("[ -f %s ] && kill $(cat %s) 2>/dev/null || true", utils.ShellSingleQuote(pidPath), utils.ShellSingleQuote(pidPath)))
+	utils.ExecShellQuiet(fmt.Sprintf("[ -f %s ] && kill $(cat %s) 2>/dev/null || true", utils.ShellSingleQuote(pidPath), utils.ShellSingleQuote(pidPath)))
 	_ = os.Remove(pidPath)
 }
 
@@ -329,4 +382,74 @@ func cleanupStaleManagedNATRules(cidr, gatewayPort, uplink string) {
 	if HookCleanupStaleNATRules != nil {
 		HookCleanupStaleNATRules(cidr, gatewayPort, uplink)
 	}
+}
+
+func effectiveUplinkForSwitch(sw model.VPCSwitch) string {
+	if sw.UplinkMode == UplinkModePhysical && strings.TrimSpace(sw.UplinkIF) != "" {
+		if HookEffectiveL3Interface != nil {
+			return strings.TrimSpace(HookEffectiveL3Interface(sw.UplinkIF))
+		}
+		return strings.TrimSpace(sw.UplinkIF)
+	}
+	if HookOvsUplink != nil {
+		return strings.TrimSpace(HookOvsUplink())
+	}
+	return ""
+}
+
+func switchGatewayCIDR(sw model.VPCSwitch) (string, error) {
+	_, network, err := net.ParseCIDR(strings.TrimSpace(sw.CIDR))
+	if err != nil || network == nil {
+		return "", fmt.Errorf("交换机 %s 的网段配置无效", sw.Name)
+	}
+	ones, _ := network.Mask.Size()
+	return fmt.Sprintf("%s/%d", strings.TrimSpace(sw.GatewayIP), ones), nil
+}
+
+func switchNetmask(sw model.VPCSwitch) (string, error) {
+	_, network, err := net.ParseCIDR(strings.TrimSpace(sw.CIDR))
+	if err != nil || network == nil {
+		return "", fmt.Errorf("交换机 %s 的网段配置无效", sw.Name)
+	}
+	return net.IP(network.Mask).String(), nil
+}
+
+const vpcPolicyRouteBase = 100000
+
+func vpcPolicyRouteID(id uint) uint64 {
+	return uint64(vpcPolicyRouteBase) + uint64(id)
+}
+
+func ensureVPCPolicyRoute(sw model.VPCSwitch, uplink string) error {
+	if HookCaptureHostIPConfig == nil {
+		return fmt.Errorf("策略路由接口信息读取器尚未初始化")
+	}
+	gateway := strings.TrimSpace(sw.UplinkGateway)
+	if gateway == "" {
+		_, gateway, _, _ = HookCaptureHostIPConfig(uplink)
+		gateway = strings.TrimSpace(gateway)
+	}
+	if gateway == "" {
+		return fmt.Errorf("上行接口 %s 未检测到 IPv4 默认网关，请填写上行网关", uplink)
+	}
+	tableID := strconv.FormatUint(vpcPolicyRouteID(sw.ID), 10)
+	priority := tableID
+	utils.ExecCommandQuiet("ip", "rule", "del", "priority", priority)
+	if result := utils.ExecCommand("ip", "route", "replace", "table", tableID, "default", "via", gateway, "dev", uplink, "onlink"); result.Error != nil {
+		return fmt.Errorf("配置交换机策略路由失败: %s", result.Stderr)
+	}
+	if result := utils.ExecCommand("ip", "rule", "add", "priority", priority, "from", strings.TrimSpace(sw.CIDR), "lookup", tableID); result.Error != nil {
+		utils.ExecCommandQuiet("ip", "route", "flush", "table", tableID)
+		return fmt.Errorf("配置交换机源地址路由规则失败: %s", result.Stderr)
+	}
+	return nil
+}
+
+func removeVPCPolicyRoute(sw model.VPCSwitch) {
+	if sw.ID == 0 {
+		return
+	}
+	tableID := strconv.FormatUint(vpcPolicyRouteID(sw.ID), 10)
+	utils.ExecCommandQuiet("ip", "rule", "del", "priority", tableID)
+	utils.ExecCommandQuiet("ip", "route", "flush", "table", tableID)
 }

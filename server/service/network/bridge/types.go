@@ -7,17 +7,24 @@ const (
 )
 
 type HostInterfaceInfo struct {
-	Name          string   `json:"name"`
-	MAC           string   `json:"mac"`
-	State         string   `json:"state"`
-	MTU           int      `json:"mtu"`
-	Addresses     []string `json:"addresses"`
-	DefaultRoute  bool     `json:"default_route"`
-	OVSBridge     string   `json:"ovs_bridge"`
-	OVSPort       bool     `json:"ovs_port"`
-	Physical      bool     `json:"physical"`
-	ManagedBridge string   `json:"managed_bridge"`
-	Risk          string   `json:"risk,omitempty"`
+	Name             string   `json:"name"`
+	MAC              string   `json:"mac"`
+	State            string   `json:"state"`
+	MTU              int      `json:"mtu"`
+	Addresses        []string `json:"addresses"`
+	DefaultRoute     bool     `json:"default_route"`
+	OVSBridge        string   `json:"ovs_bridge"`
+	OVSPort          bool     `json:"ovs_port"`
+	Physical         bool     `json:"physical"`
+	ManagedBridge    string   `json:"managed_bridge"`
+	Risk             string   `json:"risk,omitempty"`
+	Gateway          string   `json:"gateway,omitempty"`
+	EffectiveL3IF    string   `json:"effective_l3_if,omitempty"`
+	DirectSwitchID   uint     `json:"direct_switch_id,omitempty"`
+	DirectSwitchName string   `json:"direct_switch_name,omitempty"`
+	NATSwitchCount   int64    `json:"nat_switch_count"`
+	CanUseDirect     bool     `json:"can_use_direct"`
+	CanUseNAT        bool     `json:"can_use_nat"`
 }
 
 type NetworkBridgeInfo struct {

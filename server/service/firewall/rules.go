@@ -173,6 +173,9 @@ func firewallNetworkScopes(policy *FirewallPolicy) []firewallNetworkScope {
 		var switches []model.VPCSwitch
 		model.DB.Order("id ASC").Find(&switches)
 		for _, sw := range switches {
+			if !sw.IsSystem && !sw.DHCPEnabled {
+				continue
+			}
 			if strings.TrimSpace(sw.CIDR) == "" {
 				continue
 			}

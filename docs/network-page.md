@@ -11,11 +11,13 @@
 | 角色差异 | 管理员 4 个 Tab（网络概览/交换机/安全组策略/ACL）；普通用户（弹性云）2 个 Tab（交换机/安全组策略）；轻量云用户由路由守卫拦截，不可访问 |
 | 按用户筛选 | 管理员页头输入框，影响交换机/安全组/配额的查询参数（`username`） |
 | 网络概览（管理员） | OVS 状态/网桥/端口数/内网 CIDR 统计卡；检测（同步刷新状态）、修复（高风险确认，异步任务）；端口安全总开关、预检结果、默认折叠的逐端口状态与协调/隔离操作；基础状态 + 服务状态信息卡；宿主机网桥表、物理网卡表、OVS 端口表 |
-| 宿主机网桥 | 创建桥接网桥（物理网卡选择、迁移宿主机 IP 开关、断网风险警告）；删除非默认网桥；配置 IP（迁移过宿主机 IP 的网桥） |
+| 宿主机网桥 | 网络概览保留历史网桥展示、删除与接口 IP 配置；新的物理上行统一在创建交换机时选择，不再提供独立“创建桥接网桥”入口 |
 | OVS NAT 出口协调 | `KVM_OVS_UPLINK` 可继续保存物理上联口；若该物理口已加入 OVS 网桥且默认路由已迁移到网桥，运行态 NAT/FORWARD 会自动改用实际三层网桥，并清理指向旧出口的同网段规则 |
 | 接口 IP/DNS 配置 | 展示当前 IP/网关/DNS；编辑保存或一键清除；物理网卡已加入网桥时提示改为在网桥上配置；不可配置接口禁用表单 |
-| 交换机 | 配额摘要 4 卡（下行/上行月流量、下行/上行带宽：剩余 + 已分配）；名称/子网搜索；月流量进度条（超限变红）；限速状态标记；创建/编辑（系统基础网络只读）；删除（有 VM 绑定时二次确认强制删除）；重置流量计数（管理员）；查看虚拟机 |
-| 交换机表单 | 管理员可选所属用户与目标网桥；选中桥接网桥时隐藏网段配置，显示桥接 VLAN ID 与桥接安全三开关（混杂/MAC 更改/伪传输），开关内部显示“允/拒”状态；端口安全总开关开启时可配置直通桥 IPv6 防护和可信前缀；网段/网关创建后不可改，留空自动分配；流量/带宽配额按用户剩余配额限制上下限，编辑时可为负表示归还配额 |
+| 交换机 | 直接管理零或一个上行链路，明确显示“空交换机 / 物理直通 / 内置 DHCP/NAT / 系统基础网络”；普通用户自行创建时固定为空交换机；历史用户 NAT 交换机显示待迁移状态并由管理员逐台迁移 |
+| 交换机表单 | 一步选择物理上行和内置 DHCP。无上行时为独立纯二层；物理上行且 DHCP 关闭时显示 VLAN、桥接安全与宿主机 IP 迁移；DHCP 开启时显示上行网关、CIDR、内部网关和地址池。自动检测不到出口默认路由时可填写上行网关；已有直通网桥的物理口仍可作为托管 NAT 出口。关闭 DHCP 会保留最近一次托管网段，后续可复用 |
+| 在线重配置 | 拓扑变化提交 `vpc_switch_reconfigure` 异步任务；任务按网口保留 MAC、型号、interface ID 与带宽 XML，热插失败时恢复已经处理的网口和旧运行态；行级任务期间更多按钮显示旋转图标 |
+| 交换机操作 | 行内只保留“查看虚拟机”图标；编辑、历史迁移、重置流量和删除收入 `⋯` 菜单。系统基础网络只读；物理上行、在线切换和宿主机网络变化保留二次验证 |
 | 安全组策略 | 名称/类型搜索；行展开内联管理规则（方向/IP 版本/协议/端口范围/目标/备注/删除）；创建/编辑（默认组名称不可改）；删除（默认组受保护禁用） |
 | 安全组规则 | IP 版本（IPv4/IPv6）；方向（入站/出站）；协议（IPv4：TCP/UDP/ICMP/全部，IPv6：TCP/UDP/ICMPv6/全部）；端口（单端口/范围/全端口，ICMP、ICMPv6 与全部协议固定 0-0）；目标类型（CIDR/IP、指定交换机、指定安全组，仅允许选择当前用户可见资源） |
 | ACL（管理员） | nftables 规则预览（代码块 + 复制，HTTP 场景剪贴板降级）；应用 ACL（高风险确认后重建防火墙规则，428 二次验证由请求层自动处理） |
@@ -35,7 +37,7 @@ web/src/views/network/
 └── dialogs/
     ├── SwitchDialog.tsx             # 创建/编辑交换机
     ├── SwitchVMsDialog.tsx          # 交换机虚拟机列表
-    ├── BridgeDialog.tsx             # 创建桥接网桥
+    ├── BridgeDialog.tsx             # 历史桥接接口兼容组件（网络概览不再提供创建入口）
     ├── InterfaceConfigDialog.tsx    # 接口 IP/DNS 配置
     ├── SecurityGroupDialog.tsx      # 创建/编辑安全组
     └── RuleDialog.tsx               # 添加安全组规则
@@ -53,11 +55,12 @@ web/src/views/network/
 - `POST /ovs/check`、`POST /ovs/repair`：OVS 网络检测与修复（管理员）
 - `GET /ovs/port-security/status`、`POST /ovs/port-security/preflight|enable|disable|reconcile`：端口安全状态、预检与异步启停/协调
 - `POST /ovs/port-security/ports/:port/isolate|release`：异步隔离或释放端口（高风险操作保留二次验证）
-- `GET/POST /network/bridges`、`DELETE /network/bridges/:id`：宿主机网桥管理（管理员）
-- `GET /network/host/interfaces`：物理网卡列表（管理员）
+- `GET/POST /network/bridges`、`DELETE /network/bridges/:id`：历史宿主机网桥兼容接口（管理员）
+- `GET /network/host/interfaces`：物理网卡列表，包含直通占用、NAT 使用数量、有效三层接口、网关及可选状态（管理员）
 - `GET/PUT /network/interfaces/:name/config`：接口 IP/DNS 配置（管理员）
 - `GET /vpc/quota`：流量/带宽配额
 - `GET/POST /vpc/switches`、`PUT/DELETE /vpc/switches/:id`、`POST /vpc/switches/:id/traffic/reset`、`GET /vpc/switches/:id/vms`：交换机管理
+- `POST /vpc/switches/:id/reconfigure`：异步重配置完整目标拓扑，返回 `task_id/status`；支持 API Key 并保留二次验证
 - `GET/POST /vpc/security-groups`、`PUT/DELETE /vpc/security-groups/:id`、`POST /vpc/security-groups/:id/rules`、`DELETE /vpc/security-groups/rules/:id`：安全组与规则管理
 - `GET /vpc/acl/preview`、`POST /vpc/acl/apply`：ACL 预览与应用（应用为高风险操作，428 二次验证）
 - `GET /user/list`：用户选项（管理员）

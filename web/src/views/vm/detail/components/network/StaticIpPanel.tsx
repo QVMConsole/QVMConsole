@@ -41,7 +41,7 @@ export default function StaticIpPanel({ vmName, shared }: StaticIpPanelProps) {
   // ============ 绑定 ============
   const openBind = () => {
     if (currentSwitchIsBridge) {
-      Toast.warning('桥接直通交换机不使用面板 DHCP，不能在这里绑定静态 IP')
+      Toast.warning('当前二层交换机不使用面板 DHCP，不能在这里绑定静态 IP')
       return
     }
     if (currentVmDhcpLeases.length === 1) {
@@ -118,7 +118,7 @@ export default function StaticIpPanel({ vmName, shared }: StaticIpPanelProps) {
         <Banner
           type="info"
           closeIcon={null}
-          description="当前 VM 接入桥接直通交换机，不使用面板 DHCP；静态 IP 请在虚拟机系统或上级路由器中配置。"
+          description="当前 VM 接入空交换机或物理直通交换机，不使用面板 DHCP；地址应由软路由、虚拟机系统或上级网络配置。"
           style={{ marginBottom: 12 }}
         />
       )}

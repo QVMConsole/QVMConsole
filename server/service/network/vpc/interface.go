@@ -26,6 +26,10 @@ func AddVMInterface(vmName string, req AddVMInterfaceRequest) (*VMInterfaceInfo,
 	if err := normalizeInterfacePortSecurityFields(&req, HookSwitchUsesDirectBridge(sw) && sw.IPv6SecurityEnabled); err != nil {
 		return nil, err
 	}
+	if SwitchIsTrustedIsolated(sw) {
+		req.AllowedIPv4Addresses = ""
+		req.AllowedIPv6Addresses = ""
+	}
 
 	// 系统交换机使用 VM 归属用户的默认安全组
 	switchOwner := sw.Username
@@ -59,7 +63,9 @@ func AddVMInterface(vmName string, req AddVMInterfaceRequest) (*VMInterfaceInfo,
 
 	// 安全组处理
 	securityGroupID := req.SecurityGroupID
-	if !HookSwitchUsesDirectBridge(sw) {
+	if HookSwitchUsesDirectBridge(sw) {
+		securityGroupID = 0
+	} else {
 		if securityGroupID == 0 {
 			if _, err := EnsureDefaultSecurityGroup(switchOwner); err != nil {
 				return nil, err
@@ -209,6 +215,10 @@ func UpdateVMInterface(vmName string, interfaceOrder int, req AddVMInterfaceRequ
 	if err := normalizeInterfacePortSecurityFields(&req, HookSwitchUsesDirectBridge(sw) && sw.IPv6SecurityEnabled); err != nil {
 		return err
 	}
+	if SwitchIsTrustedIsolated(sw) {
+		req.AllowedIPv4Addresses = ""
+		req.AllowedIPv6Addresses = ""
+	}
 
 	// 系统交换机使用 VM 归属用户的默认安全组
 	switchOwner := sw.Username
@@ -234,7 +244,9 @@ func UpdateVMInterface(vmName string, interfaceOrder int, req AddVMInterfaceRequ
 
 	// 安全组处理
 	securityGroupID := req.SecurityGroupID
-	if !HookSwitchUsesDirectBridge(sw) {
+	if HookSwitchUsesDirectBridge(sw) {
+		securityGroupID = 0
+	} else {
 		if securityGroupID == 0 {
 			if _, err := EnsureDefaultSecurityGroup(switchOwner); err != nil {
 				return err
@@ -502,6 +514,28 @@ func getVMVnetIFByOrder(vmName string, order int) string {
 			}
 		}
 		idx++
+	}
+	return ""
+}
+
+// getVMVnetIFByMAC 在热拔插可能改变网口排列时按 MAC 精确定位运行态 vnet。
+func getVMVnetIFByMAC(vmName, mac string) string {
+	mac = strings.TrimSpace(mac)
+	if mac == "" {
+		return ""
+	}
+	result := utils.ExecCommand("virsh", "domiflist", vmName)
+	if result.Error != nil {
+		return ""
+	}
+	for index, line := range strings.Split(strings.TrimSpace(result.Stdout), "\n") {
+		if index < 2 || strings.TrimSpace(line) == "" {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) >= 5 && strings.EqualFold(fields[4], mac) {
+			return fields[0]
+		}
 	}
 	return ""
 }

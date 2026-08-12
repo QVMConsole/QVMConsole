@@ -10,6 +10,17 @@ type VPCSwitch struct {
 	Name                       string    `json:"name" gorm:"index;not null;size:64"`
 	BridgeName                 string    `json:"bridge_name" gorm:"not null;default:br-ovs;size:64"`
 	BridgeMode                 string    `json:"bridge_mode" gorm:"not null;default:nat;size:16"`
+	DHCPEnabled                bool      `json:"dhcp_enabled" gorm:"default:false"`
+	UplinkMode                 string    `json:"uplink_mode" gorm:"not null;default:none;size:16"`
+	UplinkIF                   string    `json:"uplink_if" gorm:"size:64"`
+	UplinkGateway              string    `json:"uplink_gateway" gorm:"size:64"`
+	OwnsBridge                 bool      `json:"owns_bridge" gorm:"default:false"`
+	MigrateHostIP              bool      `json:"migrate_host_ip" gorm:"default:false"`
+	HostAddrs                  string    `json:"-" gorm:"size:512"`
+	HostGateway                string    `json:"-" gorm:"size:64"`
+	HostMetric                 string    `json:"-" gorm:"size:16"`
+	HostDNS                    string    `json:"-" gorm:"size:512"`
+	LegacyMigrationRequired    bool      `json:"legacy_migration_required" gorm:"default:false"`
 	BridgeVLANID               int       `json:"bridge_vlan_id" gorm:"default:0"`
 	AllowPromiscuous           bool      `json:"allow_promiscuous" gorm:"default:false"`
 	AllowMACChange             bool      `json:"allow_mac_change" gorm:"default:false"`

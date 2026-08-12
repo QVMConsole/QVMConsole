@@ -114,7 +114,7 @@ func ApplyVPCSwitchBandwidth(sw model.VPCSwitch) error {
 		}
 	}
 	if HookSwitchUsesDirectBridge(sw) {
-		if err := applyDirectBridgePortSecurity(bridge, directVMPorts, sw.AllowPromiscuous); err != nil {
+		if err := applyDirectBridgePortSecurity(bridge, directVMPorts, sw.AllowPromiscuous || SwitchIsTrustedIsolated(sw)); err != nil {
 			return err
 		}
 	}
@@ -315,7 +315,8 @@ func buildDirectBridgeSwitchBandwidthFlows(sw model.VPCSwitch, vmPorts []vpcSwit
 	cookie := vpcSwitchCookie(sw.ID)
 	table := vpcBandwidthFlowTable()
 	var flows []string
-	restrictSourceMAC := !sw.AllowMACChange || !sw.AllowForgedTransmits
+	// 空交换机必须允许软路由转发任意来宾 MAC；仅保留按端口/MAC 统计的带宽 meter。
+	restrictSourceMAC := !SwitchIsTrustedIsolated(sw) && (!sw.AllowMACChange || !sw.AllowForgedTransmits)
 	for _, item := range vmPorts {
 		if strings.TrimSpace(item.OFPort) != "" {
 			if restrictSourceMAC && strings.TrimSpace(item.MAC) != "" {

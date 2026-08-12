@@ -192,6 +192,9 @@ func resolveRuleSources(rule model.VPCSecurityGroupRule) ([]string, error) {
 		if err := model.DB.First(&sw, id).Error; err != nil {
 			return nil, fmt.Errorf("安全组规则引用的交换机不存在")
 		}
+		if !sw.IsSystem && !sw.DHCPEnabled {
+			return nil, nil
+		}
 		sources := []string{sw.CIDR}
 		var bindings []model.VPCVMBinding
 		model.DB.Where("switch_id = ?", id).Find(&bindings)

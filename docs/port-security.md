@@ -23,12 +23,13 @@
 
 ## 策略模式
 
+- **空交换机信任网络**：没有物理上行且未启用内置 DHCP 的独立交换机完全排除在端口安全流表、源地址限制、DHCP/RA 拦截和 packet policing 管理范围之外。来宾 DHCP、DHCPv6 与 RA 可正常通过，适合软路由 LAN；交换机和网口的流量/带宽配额仍单独生效。
 - **系统/NAT 网络**：严格校验源 MAC、ARP SHA、IPv4 源地址与 ARP SPA；允许地址由静态绑定、dnsmasq 租约和公网 IP 绑定汇总。默认丢弃 IPv6；绑定路由型公网 IPv6 后，仅允许该 VM 对应的精确 `/128`、DAD 与必要 ND 报文。
 - **直通桥兼容保护**：始终校验源 MAC、ARP SHA、DHCP 服务端行为和速率；`allowed_ipv4_addresses` 为空时保留未知 IPv4 连通性，填写后切换为精确 IPv4 校验。
 - **直通桥 IPv6**：交换机需启用 `ipv6_security_enabled` 并配置 `trusted_ipv6_prefixes`；每张网卡必须配置可信前缀内的 `allowed_ipv6_addresses`。策略校验 IPv6 源、ND SLL/TLL、DAD，并阻断 RA、Redirect 与 DHCPv6 服务端报文。
 - **手工隔离**：隔离状态记录于 OVS Interface `external_ids`，协调和服务重启后继续保持，直到管理员释放。
 
-所有模式都会阻断虚拟机发出的 DHCP 服务端报文。ARP/ND 与其他广播/组播分别使用 packet meter；总包速率使用 `ingress_policing_kpkts_rate` 与 `ingress_policing_kpkts_burst`。
+除空交换机信任网络外，其余受管模式都会阻断虚拟机发出的 DHCP 服务端报文。ARP/ND 与其他广播/组播分别使用 packet meter；总包速率使用 `ingress_policing_kpkts_rate` 与 `ingress_policing_kpkts_burst`。
 
 ## 开启流程
 
@@ -50,6 +51,7 @@
 - VM 级和交换机级带宽策略按全部 libvirt 网卡分别落地；没有租约的网卡使用 MAC/ofport 匹配，避免额外网卡形成限速旁路。
 - OpenFlow14 bundle 可用时，将本模块旧 cookie 删除和新规则添加放入同一事务；bundle 不可用或被交换机拒绝时，先用高优先级隔离目标端口，再顺序更新、验证并释放。
 - DHCP 初次启动允许客户端报文，租约出现后自动收紧为精确 IPv4 策略。
+- 交换机从受管网络切换为空交换机时，协调器会清理该独立网桥上的端口安全 cookie、隔离 cookie、packet meter 和归属元数据；切换回物理直通或托管网络后重新纳入目标策略。
 
 ## API
 

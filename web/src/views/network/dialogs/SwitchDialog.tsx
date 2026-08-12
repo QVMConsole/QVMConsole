@@ -1,32 +1,40 @@
 /**
- * 创建/编辑交换机对话框
- * - 管理员可指定所属用户与目标网桥；选中桥接网桥时隐藏网段配置，显示桥接 VLAN 与桥接安全
- * - 网段/网关创建后不可修改；留空自动分配
- * - 流量/带宽配额按用户剩余配额动态限制上下限（编辑时可为负表示归还配额）
+ * ESXi 风格交换机创建/编辑弹窗。
+ * 交换机直接管理零或一个物理上行；管理员可配置托管 DHCP/NAT，普通用户固定创建空交换机。
  */
 import { useEffect, useMemo, useState } from 'react'
 import { Collapse, Input, InputNumber, Modal, Select, Switch, TextArea, Toast } from '@douyinfe/semi-ui'
-import type { NetworkBridge } from '@/api/network'
-import { createVPCSwitch, updateVPCSwitch, type VpcQuota, type VpcSwitch } from '@/api/vpc'
+import type { HostInterface } from '@/api/network'
+import {
+  createVPCSwitch,
+  reconfigureVPCSwitch,
+  updateVPCSwitch,
+  type VpcQuota,
+  type VpcSwitch,
+  type VpcSwitchPayload,
+} from '@/api/vpc'
 import { getUserList, type UserListItem } from '@/api/user'
-import { bridgeModeText } from '../utils'
 import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 interface SwitchDialogProps {
   row?: VpcSwitch
   isAdmin: boolean
-  bridges: NetworkBridge[]
+  hostInterfaces: HostInterface[]
   quota: VpcQuota | null
   defaultUsername: string
   portSecurityEnabled: boolean
   onClose: () => void
   onSaved: () => void
+  onTaskSubmitted: (switchId: number, taskId: number) => void
 }
 
 interface SwitchFormState {
   username: string
   name: string
-  bridge_name: string
+  uplink_if: string
+  uplink_gateway: string
+  dhcp_enabled: boolean
+  migrate_host_ip: boolean
   bridge_vlan_id: number
   allow_promiscuous: boolean
   allow_mac_change: boolean
@@ -43,19 +51,13 @@ interface SwitchFormState {
   bandwidth_up_mbps: number
 }
 
-/** 配额上下限（编辑时允许填负数以归还配额） */
 function quotaRange(quota: VpcQuota | null, maxField: keyof VpcQuota, remainingField: keyof VpcQuota, editing: boolean) {
   const max = Number(quota?.[maxField]) || 0
   const remaining = Number(quota?.[remainingField]) || 0
   const defaultVal = max > 0 ? remaining : 0
-  return {
-    min: editing ? -defaultVal : 0,
-    max: max > 0 ? remaining : 999999,
-    defaultVal,
-  }
+  return { min: editing ? -defaultVal : 0, max: max > 0 ? remaining : 999999, defaultVal }
 }
 
-/** 桥接安全开关行（状态文字内嵌） */
 function SecuritySwitchRow({
   label,
   tip,
@@ -65,7 +67,7 @@ function SecuritySwitchRow({
   label: string
   tip: string
   checked: boolean
-  onChange: (v: boolean) => void
+  onChange: (value: boolean) => void
 }) {
   return (
     <div className="qvm-form-item">
@@ -74,9 +76,7 @@ function SecuritySwitchRow({
           <div className="qvm-form-label">{label}</div>
           <div className="qvm-form-tip">{tip}</div>
         </div>
-        <div className="net-switch-control">
-          <Switch checked={checked} onChange={onChange} checkedText="允" uncheckedText="拒" />
-        </div>
+        <Switch checked={checked} onChange={onChange} checkedText="允" uncheckedText="拒" />
       </div>
     </div>
   )
@@ -85,19 +85,19 @@ function SecuritySwitchRow({
 export default function SwitchDialog({
   row,
   isAdmin,
-  bridges,
+  hostInterfaces,
   quota,
   defaultUsername,
   portSecurityEnabled,
   onClose,
   onSaved,
+  onTaskSubmitted,
 }: SwitchDialogProps) {
   const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const editing = !!row
   const [submitting, setSubmitting] = useState(false)
   const [userOptions, setUserOptions] = useState<UserListItem[]>([])
   const [userLoading, setUserLoading] = useState(false)
-
   const trafficDown = quotaRange(quota, 'max_traffic_down', 'remaining_traffic_down', editing)
   const trafficUp = quotaRange(quota, 'max_traffic_up', 'remaining_traffic_up', editing)
   const bandwidthDown = quotaRange(quota, 'max_bandwidth_down', 'remaining_bandwidth_down', editing)
@@ -108,7 +108,10 @@ export default function SwitchDialog({
     return {
       username: row?.username || defaultUsername || '',
       name: row?.name || '',
-      bridge_name: row?.bridge_name || bridges[0]?.name || 'br-ovs',
+      uplink_if: row?.uplink_if || '',
+      uplink_gateway: row?.uplink_gateway || hostInterfaces.find((item) => item.name === row?.uplink_if)?.gateway || '',
+      dhcp_enabled: !!row?.dhcp_enabled,
+      migrate_host_ip: !!row?.migrate_host_ip,
       bridge_vlan_id: row?.bridge_vlan_id || 0,
       allow_promiscuous: !!row?.allow_promiscuous,
       allow_mac_change: !!row?.allow_mac_change,
@@ -126,14 +129,6 @@ export default function SwitchDialog({
     }
   })
 
-  /** 当前选中的目标网桥 */
-  const selectedBridge = useMemo(
-    () => bridges.find((b) => b.name === form.bridge_name),
-    [bridges, form.bridge_name],
-  )
-  const isBridgeMode = selectedBridge?.mode === 'bridge'
-
-  // 管理员加载用户选项
   useEffect(() => {
     if (!isAdmin) return
     setUserLoading(true)
@@ -143,25 +138,120 @@ export default function SwitchDialog({
       .finally(() => setUserLoading(false))
   }, [isAdmin])
 
-  const patch = (p: Partial<SwitchFormState>) => setForm((f) => ({ ...f, ...p }))
+  const patch = (value: Partial<SwitchFormState>) => setForm((current) => ({ ...current, ...value }))
+  const hasPhysicalUplink = isAdmin && !!form.uplink_if
+  const isManaged = hasPhysicalUplink && form.dhcp_enabled
+  const isPhysicalDirect = hasPhysicalUplink && !form.dhcp_enabled
+  const modeText = isManaged ? '内置 DHCP/NAT' : isPhysicalDirect ? '物理直通' : '空交换机'
+
+  const uplinkOptions = useMemo(
+    () => hostInterfaces
+      .filter((item) => item.physical !== false)
+      .map((item) => {
+        // 尚未选择上行时同时展示可用于直通或托管 NAT 的物理口；已有直通口仍可继续作为 NAT 出口。
+        const available = form.dhcp_enabled
+          ? item.can_use_nat !== false
+          : item.can_use_direct !== false || item.can_use_nat !== false
+        const selectedByCurrent = !!row && item.name === row.uplink_if
+        const detail = [
+          item.state,
+          item.effective_l3_if && item.effective_l3_if !== item.name ? `经 ${item.effective_l3_if}` : '',
+          item.gateway ? `网关 ${item.gateway}` : form.dhcp_enabled ? '需填写网关' : '',
+          item.direct_switch_name ? `直通：${item.direct_switch_name}` : '',
+          item.nat_switch_count ? `${item.nat_switch_count} 个 NAT` : '',
+        ]
+          .filter(Boolean)
+          .join(' · ')
+        return {
+          value: item.name,
+          label: `${item.name}${detail ? `（${detail}）` : ''}`,
+          disabled: !available && !selectedByCurrent,
+        }
+      }),
+    [hostInterfaces, form.dhcp_enabled, row],
+  )
+
+  const buildPayload = (): VpcSwitchPayload => ({
+    username: form.username,
+    name: form.name.trim(),
+    uplink_mode: hasPhysicalUplink ? 'physical' : 'none',
+    uplink_if: hasPhysicalUplink ? form.uplink_if : '',
+    uplink_gateway: isManaged ? form.uplink_gateway.trim() : '',
+    dhcp_enabled: isManaged,
+    migrate_host_ip: isPhysicalDirect && form.migrate_host_ip,
+    bridge_vlan_id: isPhysicalDirect ? form.bridge_vlan_id : 0,
+    allow_promiscuous: isPhysicalDirect && form.allow_promiscuous,
+    allow_mac_change: isPhysicalDirect && form.allow_mac_change,
+    allow_forged_transmits: isPhysicalDirect && form.allow_forged_transmits,
+    ipv6_security_enabled: isPhysicalDirect && form.ipv6_security_enabled,
+    trusted_ipv6_prefixes: isPhysicalDirect ? form.trusted_ipv6_prefixes : '',
+    cidr: form.cidr,
+    gateway_ip: form.gateway_ip,
+    dhcp_start: form.dhcp_start,
+    dhcp_end: form.dhcp_end,
+    traffic_down_gb: form.traffic_down_gb,
+    traffic_up_gb: form.traffic_up_gb,
+    bandwidth_mbps: 0,
+    bandwidth_down_mbps: form.bandwidth_down_mbps,
+    bandwidth_up_mbps: form.bandwidth_up_mbps,
+  })
+
+  const topologyChanged = (payload: VpcSwitchPayload) => !!row && (
+    !!row.dhcp_enabled !== !!payload.dhcp_enabled ||
+    (row.uplink_if || '') !== (payload.uplink_if || '') ||
+    (row.uplink_gateway || '') !== (payload.uplink_gateway || '') ||
+    !!row.migrate_host_ip !== !!payload.migrate_host_ip ||
+    Number(row.bridge_vlan_id || 0) !== Number(payload.bridge_vlan_id || 0)
+  )
 
   const handleSubmit = async () => {
     if (!form.name.trim()) {
       Toast.warning('请输入交换机名称')
       return
     }
-    if (portSecurityEnabled && isBridgeMode && form.ipv6_security_enabled && !form.trusted_ipv6_prefixes.trim()) {
+    const managedFields = [form.cidr, form.gateway_ip, form.dhcp_start, form.dhcp_end].map((value) => value.trim())
+    if (isManaged && managedFields.some(Boolean) && managedFields.some((value) => !value)) {
+      Toast.warning('请完整填写托管网络的网段、网关和 DHCP 地址池，首次创建也可全部留空自动分配')
+      return
+    }
+    const selectedUplink = hostInterfaces.find((item) => item.name === form.uplink_if)
+    if (isManaged && !form.uplink_gateway.trim() && !selectedUplink?.gateway) {
+      Toast.warning('当前物理出口未检测到默认网关，请填写上行网关')
+      return
+    }
+    if (portSecurityEnabled && isPhysicalDirect && form.ipv6_security_enabled && !form.trusted_ipv6_prefixes.trim()) {
       Toast.warning('启用 IPv6 防护时请填写可信 IPv6 前缀')
       return
     }
+    const payload = buildPayload()
     setSubmitting(true)
     try {
-      if (editing && row) {
-        await updateVPCSwitch(row.id, form)
-        Toast.success('交换机已更新')
-      } else {
-        await createVPCSwitch({ ...form, bandwidth_mbps: 0 })
+      if (!editing || !row) {
+        await createVPCSwitch(payload)
         Toast.success('交换机已创建')
+      } else {
+        await updateVPCSwitch(row.id, {
+          username: payload.username,
+          name: payload.name,
+          traffic_down_gb: payload.traffic_down_gb,
+          traffic_up_gb: payload.traffic_up_gb,
+          bandwidth_mbps: 0,
+          bandwidth_down_mbps: payload.bandwidth_down_mbps,
+          bandwidth_up_mbps: payload.bandwidth_up_mbps,
+          allow_promiscuous: payload.allow_promiscuous,
+          allow_mac_change: payload.allow_mac_change,
+          allow_forged_transmits: payload.allow_forged_transmits,
+          ipv6_security_enabled: payload.ipv6_security_enabled,
+          trusted_ipv6_prefixes: payload.trusted_ipv6_prefixes,
+        })
+        if (isAdmin && topologyChanged(payload)) {
+          const response = await reconfigureVPCSwitch(row.id, payload)
+          const taskId = response.data?.task_id
+          if (taskId) onTaskSubmitted(row.id, taskId)
+          Toast.success(response.message || '交换机重配置任务已提交')
+        } else {
+          Toast.success('交换机已更新')
+        }
       }
       onSaved()
       requestClose()
@@ -179,24 +269,27 @@ export default function SwitchDialog({
       afterClose={afterModalClose}
       onCancel={requestClose}
       onOk={() => void handleSubmit()}
-      okText="保存"
+      okText={editing && isAdmin && topologyChanged(buildPayload()) ? '提交重配置' : '保存'}
       cancelText="取消"
       confirmLoading={submitting}
-      width={820}
+      width={860}
       closeOnEsc
     >
+      <div className="net-switch-mode-banner">
+        <span>当前模式</span>
+        <strong>{modeText}</strong>
+        <small>
+          {isManaged
+            ? '面板提供 DHCP、网关、DNS 与 NAT，并通过所选物理口出站。'
+            : isPhysicalDirect
+              ? '虚拟机直接接入上级二层网络，由上级网络分配地址。'
+              : '独立纯二层信任网络，适合连接软路由 LAN 口和内部虚拟机。'}
+        </small>
+      </div>
       <div className="net-switch-grid">
-        {/* ==================== 左列：基本信息 + 配额设置 ==================== */}
         <div className="net-switch-col">
-          <Collapse
-            defaultActiveKey={['basic']}
-            keepDOM
-            className="net-switch-collapse"
-          >
-            <Collapse.Panel
-              itemKey="basic"
-              header={<span className="net-switch-collapse-title">基本信息</span>}
-            >
+          <Collapse defaultActiveKey={['basic']} keepDOM className="net-switch-collapse">
+            <Collapse.Panel itemKey="basic" header={<span className="net-switch-collapse-title">基本信息</span>}>
               {isAdmin && (
                 <div className="qvm-form-item">
                   <div className="qvm-form-label">所属用户</div>
@@ -204,218 +297,181 @@ export default function SwitchDialog({
                     style={{ width: '100%' }}
                     placeholder="选择用户"
                     filter
-                    showClear
                     loading={userLoading}
                     value={form.username}
-                    onChange={(v) => patch({ username: String(v || '') })}
-                    optionList={userOptions.map((u) => ({
-                      value: u.username,
-                      label: u.email ? `${u.username} (${u.email})` : u.username,
+                    onChange={(value) => patch({ username: String(value || '') })}
+                    optionList={userOptions.map((user) => ({
+                      value: user.username,
+                      label: user.email ? `${user.username} (${user.email})` : user.username,
                     }))}
                   />
                 </div>
               )}
               <div className="qvm-form-item">
                 <div className="qvm-form-label required">名称</div>
-                <Input value={form.name} onChange={(v) => patch({ name: v })} placeholder="请输入交换机名称" />
+                <Input value={form.name} onChange={(value) => patch({ name: value })} placeholder="请输入交换机名称" />
               </div>
+              {isAdmin ? (
+                <>
+                  <div className="qvm-form-item">
+                    <div className="qvm-form-label">上行链路</div>
+                    <Select
+                      style={{ width: '100%' }}
+                      placeholder="不绑定物理网口"
+                      showClear
+                      value={form.uplink_if || undefined}
+                      onChange={(value) => {
+                        const uplink = String(value || '')
+                        const selected = hostInterfaces.find((item) => item.name === uplink)
+                        const managedOnly = !!uplink && selected?.can_use_direct === false && selected?.can_use_nat !== false
+                        patch({
+                          uplink_if: uplink,
+                          uplink_gateway: selected?.gateway || '',
+                          dhcp_enabled: uplink ? (managedOnly || form.dhcp_enabled) : false,
+                          migrate_host_ip: !!uplink && !!(selected?.default_route || selected?.gateway || selected?.addresses?.length),
+                        })
+                      }}
+                      optionList={uplinkOptions}
+                    />
+                    <div className="qvm-form-tip">第一版每个交换机最多绑定一个物理网口。</div>
+                  </div>
+                  {hasPhysicalUplink && (
+                    <div className="qvm-form-item">
+                      <div className="net-switch-row">
+                        <div>
+                          <div className="qvm-form-label">内置 DHCP</div>
+                          <div className="qvm-form-tip">开启后同时启用网关、DNS、NAT 与专属策略路由。</div>
+                        </div>
+                        <Switch
+                          checked={form.dhcp_enabled}
+                          onChange={(value) => {
+                            const selected = hostInterfaces.find((item) => item.name === form.uplink_if)
+                            if (!value && selected?.can_use_direct === false) {
+                              Toast.warning('该物理口已被直通网桥使用，只能继续作为托管 NAT 上行')
+                              return
+                            }
+                            patch({ dhcp_enabled: value, uplink_gateway: value ? (form.uplink_gateway || selected?.gateway || '') : form.uplink_gateway })
+                          }}
+                          checkedText="开"
+                          uncheckedText="关"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="net-switch-inline-note">普通用户创建的交换机固定为空交换机；仍可在虚拟机网络设置中选择系统基础网络。</div>
+              )}
             </Collapse.Panel>
           </Collapse>
 
-          <Collapse
-            defaultActiveKey={[]}
-            keepDOM
-            className="net-switch-collapse"
-          >
-            <Collapse.Panel
-              itemKey="quota"
-              header={<span className="net-switch-collapse-title">配额设置</span>}
-            >
+          <Collapse defaultActiveKey={[]} keepDOM className="net-switch-collapse">
+            <Collapse.Panel itemKey="quota" header={<span className="net-switch-collapse-title">配额设置</span>}>
               <div className="net-switch-quota-grid">
                 <div className="qvm-form-item">
                   <div className="qvm-form-label">下行月配额(GB)</div>
-                  <InputNumber
-                    style={{ width: '100%' }}
-                    min={trafficDown.min}
-                    max={trafficDown.max}
-                    value={form.traffic_down_gb}
-                    onChange={(v) => patch({ traffic_down_gb: Number(v) || 0 })}
-                  />
-                  <div className="qvm-form-tip">可填 0 表示不限</div>
+                  <InputNumber style={{ width: '100%' }} min={trafficDown.min} max={trafficDown.max} value={form.traffic_down_gb} onChange={(value) => patch({ traffic_down_gb: Number(value) || 0 })} />
                 </div>
                 <div className="qvm-form-item">
                   <div className="qvm-form-label">上行月配额(GB)</div>
-                  <InputNumber
-                    style={{ width: '100%' }}
-                    min={trafficUp.min}
-                    max={trafficUp.max}
-                    value={form.traffic_up_gb}
-                    onChange={(v) => patch({ traffic_up_gb: Number(v) || 0 })}
-                  />
-                  <div className="qvm-form-tip">可填 0 表示不限</div>
+                  <InputNumber style={{ width: '100%' }} min={trafficUp.min} max={trafficUp.max} value={form.traffic_up_gb} onChange={(value) => patch({ traffic_up_gb: Number(value) || 0 })} />
                 </div>
-              </div>
-              <div className="net-switch-quota-grid">
                 <div className="qvm-form-item">
                   <div className="qvm-form-label">下行总带宽(Mbps)</div>
-                  <InputNumber
-                    style={{ width: '100%' }}
-                    min={bandwidthDown.min}
-                    max={bandwidthDown.max}
-                    value={form.bandwidth_down_mbps}
-                    onChange={(v) => patch({ bandwidth_down_mbps: Number(v) || 0 })}
-                  />
-                  <div className="qvm-form-tip">可填 0 表示不限</div>
+                  <InputNumber style={{ width: '100%' }} min={bandwidthDown.min} max={bandwidthDown.max} value={form.bandwidth_down_mbps} onChange={(value) => patch({ bandwidth_down_mbps: Number(value) || 0 })} />
                 </div>
                 <div className="qvm-form-item">
                   <div className="qvm-form-label">上行总带宽(Mbps)</div>
-                  <InputNumber
-                    style={{ width: '100%' }}
-                    min={bandwidthUp.min}
-                    max={bandwidthUp.max}
-                    value={form.bandwidth_up_mbps}
-                    onChange={(v) => patch({ bandwidth_up_mbps: Number(v) || 0 })}
-                  />
-                  <div className="qvm-form-tip">可填 0 表示不限</div>
+                  <InputNumber style={{ width: '100%' }} min={bandwidthUp.min} max={bandwidthUp.max} value={form.bandwidth_up_mbps} onChange={(value) => patch({ bandwidth_up_mbps: Number(value) || 0 })} />
                 </div>
               </div>
+              <div className="qvm-form-tip">0 表示不限；编辑时可按现有配额规则归还额度。</div>
             </Collapse.Panel>
           </Collapse>
         </div>
 
-        {/* ==================== 右列：网络配置 + 安全设置 ==================== */}
         <div className="net-switch-col">
-          <Collapse
-            defaultActiveKey={['network']}
-            keepDOM
-            className="net-switch-collapse"
-          >
-            <Collapse.Panel
-              itemKey="network"
-              header={<span className="net-switch-collapse-title">网络配置</span>}
-            >
-              {isAdmin && (
-                <div className="qvm-form-item">
-                  <div className="qvm-form-label">目标网桥</div>
-                  <Select
-                    style={{ width: '100%' }}
-                    placeholder="选择目标网桥"
-                    value={form.bridge_name}
-                    onChange={(v) => patch({ bridge_name: String(v) })}
-                    optionList={bridges.map((b) => ({
-                      value: b.name,
-                      label: `${b.name} - ${bridgeModeText(b.mode)}`,
-                    }))}
-                  />
-                  {isBridgeMode && (
-                    <div className="qvm-form-tip">
-                      桥接直通由上级路由器分配 IP，不启用内部 DHCP、NAT、安全组和端口转发。
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {!isBridgeMode && (
+          <Collapse defaultActiveKey={['network']} keepDOM className="net-switch-collapse">
+            <Collapse.Panel itemKey="network" header={<span className="net-switch-collapse-title">动态网络配置</span>}>
+              {isManaged && (
                 <>
                   <div className="qvm-form-item">
-                    <div className="qvm-form-label">网段(CIDR)</div>
+                    <div className="qvm-form-label">上行网关（自动检测）</div>
                     <Input
-                      value={form.cidr}
-                      onChange={(v) => patch({ cidr: v })}
-                      placeholder="如 10.0.1.0/24，留空自动分配"
-                      disabled={editing}
+                      value={form.uplink_gateway}
+                      onChange={(value) => patch({ uplink_gateway: value })}
+                      placeholder="自动检测；未安装默认路由时请填写，例如 192.168.10.1"
                     />
-                    <div className="qvm-form-tip">创建后不可修改。留空时系统将自动分配未使用的子网。</div>
-                    <div className="qvm-form-tip warn">注意：网段不能与宿主机网段相同，否则会导致网络冲突。</div>
+                    <div className="qvm-form-tip">用于交换机专属策略路由；已有物理直通网桥也可作为托管 NAT 出口。</div>
+                  </div>
+                  <div className="qvm-form-item">
+                    <div className="qvm-form-label">网段(CIDR)</div>
+                    <Input value={form.cidr} onChange={(value) => patch({ cidr: value })} placeholder="如 10.0.1.0/24；四项全空时自动分配" />
                   </div>
                   <div className="qvm-form-item">
                     <div className="qvm-form-label">网关地址</div>
-                    <Input
-                      value={form.gateway_ip}
-                      onChange={(v) => patch({ gateway_ip: v })}
-                      placeholder="如 10.0.1.1，留空自动计算"
-                      disabled={editing}
-                    />
-                    <div className="qvm-form-tip">创建后不可修改。留空时自动取网段内第一个可用 IP。</div>
+                    <Input value={form.gateway_ip} onChange={(value) => patch({ gateway_ip: value })} placeholder="如 10.0.1.1" />
+                  </div>
+                  <div className="net-switch-quota-grid">
+                    <div className="qvm-form-item">
+                      <div className="qvm-form-label">DHCP 起始地址</div>
+                      <Input value={form.dhcp_start} onChange={(value) => patch({ dhcp_start: value })} />
+                    </div>
+                    <div className="qvm-form-item">
+                      <div className="qvm-form-label">DHCP 结束地址</div>
+                      <Input value={form.dhcp_end} onChange={(value) => patch({ dhcp_end: value })} />
+                    </div>
+                  </div>
+                  <div className="qvm-form-tip warn">关闭 DHCP 后会保留这组网段配置，重新开启时可直接复用。</div>
+                </>
+              )}
+              {isPhysicalDirect && (
+                <>
+                  <div className="qvm-form-item">
+                    <div className="qvm-form-label">桥接 VLAN ID</div>
+                    <InputNumber style={{ width: '100%' }} min={0} max={4094} value={form.bridge_vlan_id} onChange={(value) => patch({ bridge_vlan_id: Number(value) || 0 })} />
+                    <div className="qvm-form-tip">0 表示不打标签；1-4094 表示以指定 VLAN 接入上级网络。</div>
+                  </div>
+                  <div className="qvm-form-item">
+                    <div className="net-switch-row">
+                      <div>
+                        <div className="qvm-form-label">迁移宿主机 IP</div>
+                        <div className="qvm-form-tip">物理口承载宿主机地址或默认路由时，将地址、网关与 DNS 迁移到交换机网桥。</div>
+                      </div>
+                      <Switch checked={form.migrate_host_ip} onChange={(value) => patch({ migrate_host_ip: value })} checkedText="开" uncheckedText="关" />
+                    </div>
                   </div>
                 </>
               )}
-
-              {isBridgeMode && (
-                <div className="qvm-form-item">
-                  <div className="qvm-form-label">桥接 VLAN ID</div>
-                  <InputNumber
-                    style={{ width: '100%' }}
-                    min={0}
-                    max={4094}
-                    value={form.bridge_vlan_id}
-                    onChange={(v) => patch({ bridge_vlan_id: Number(v) || 0 })}
-                  />
-                  <div className="qvm-form-tip">0 表示不打 VLAN；填写 1-4094 时 VM 会以该 VLAN 接入上级网络。</div>
+              {!isManaged && !isPhysicalDirect && (
+                <div className="net-switch-inline-note">
+                  此交换机不连接宿主机或外部网络，不运行内置 DHCP，并放行来宾 DHCP、DHCPv6 与 RA。可将软路由 LAN 口和内部虚拟机接入同一交换机。
                 </div>
               )}
             </Collapse.Panel>
           </Collapse>
 
-          {isBridgeMode && (
-            <Collapse
-              defaultActiveKey={[]}
-              keepDOM
-              className="net-switch-collapse"
-            >
-              <Collapse.Panel
-                itemKey="security"
-                header={<span className="net-switch-collapse-title">安全设置</span>}
-              >
-                <div className="qvm-form-divider">桥接安全</div>
-                <SecuritySwitchRow
-                  label="混杂模式"
-                  tip="拒绝时会对 VM 端口启用 no-flood，减少未知单播泛洪到该 VM。"
-                  checked={form.allow_promiscuous}
-                  onChange={(v) => patch({ allow_promiscuous: v })}
-                />
-                <SecuritySwitchRow
-                  label="MAC 地址更改"
-                  tip="拒绝时 VM 只能使用 XML 中配置的 MAC 作为源 MAC 发包。"
-                  checked={form.allow_mac_change}
-                  onChange={(v) => patch({ allow_mac_change: v })}
-                />
-                <SecuritySwitchRow
-                  label="伪传输"
-                  tip="拒绝时源 MAC 与配置 MAC 不一致的发包会被 OVS 丢弃。"
-                  checked={form.allow_forged_transmits}
-                  onChange={(v) => patch({ allow_forged_transmits: v })}
-                />
+          {isPhysicalDirect && (
+            <Collapse defaultActiveKey={[]} keepDOM className="net-switch-collapse">
+              <Collapse.Panel itemKey="security" header={<span className="net-switch-collapse-title">桥接安全</span>}>
+                <SecuritySwitchRow label="混杂模式" tip="允许接收并非发往当前 VM MAC 的二层帧。" checked={form.allow_promiscuous} onChange={(value) => patch({ allow_promiscuous: value })} />
+                <SecuritySwitchRow label="MAC 地址更改" tip="允许来宾修改网卡 MAC 地址。" checked={form.allow_mac_change} onChange={(value) => patch({ allow_mac_change: value })} />
+                <SecuritySwitchRow label="伪传输" tip="允许源 MAC 与配置 MAC 不一致的报文。" checked={form.allow_forged_transmits} onChange={(value) => patch({ allow_forged_transmits: value })} />
                 {portSecurityEnabled && (
                   <>
-                    <div className="qvm-form-divider">IPv6 端口防护</div>
                     <div className="qvm-form-item">
                       <div className="net-switch-row">
                         <div>
                           <div className="qvm-form-label">IPv6 防护</div>
-                          <div className="qvm-form-tip">开启后仅允许可信前缀内、且登记到网卡的精确 IPv6 地址。</div>
+                          <div className="qvm-form-tip">仅允许可信前缀内登记到网卡的精确 IPv6 地址。</div>
                         </div>
-                        <div className="net-switch-control">
-                          <Switch
-                            checked={form.ipv6_security_enabled}
-                            onChange={(v) => patch({ ipv6_security_enabled: v })}
-                            size="small"
-                            checkedText="开"
-                            uncheckedText="关"
-                          />
-                        </div>
+                        <Switch checked={form.ipv6_security_enabled} onChange={(value) => patch({ ipv6_security_enabled: value })} checkedText="开" uncheckedText="关" />
                       </div>
                     </div>
                     {form.ipv6_security_enabled && (
                       <div className="qvm-form-item">
                         <div className="qvm-form-label required">可信 IPv6 前缀</div>
-                        <TextArea
-                          value={form.trusted_ipv6_prefixes}
-                          onChange={(v) => patch({ trusted_ipv6_prefixes: v })}
-                          placeholder={'每行一个 CIDR，例如：\n2001:db8:100::/64'}
-                          autosize={{ minRows: 2, maxRows: 5 }}
-                        />
-                        <div className="qvm-form-tip">可使用换行或逗号分隔；网卡精确地址还需单独登记。</div>
+                        <TextArea value={form.trusted_ipv6_prefixes} onChange={(value) => patch({ trusted_ipv6_prefixes: value })} placeholder={'每行一个 CIDR，例如：\n2001:db8:100::/64'} autosize={{ minRows: 2, maxRows: 5 }} />
                       </div>
                     )}
                   </>

@@ -982,6 +982,13 @@ func registerTaskHandlers() {
 	taskqueue.RegisterHandler(model.TaskTypeOVSRepair, func(ctx context.Context, task *model.Task, progress func(int, string)) (string, error) {
 		return service.RepairOVSNetwork(ctx, progress)
 	})
+	taskqueue.RegisterHandler(model.TaskTypeVPCSwitchReconfigure, func(ctx context.Context, task *model.Task, progress func(int, string)) (string, error) {
+		params, err := service.ParseVPCSwitchReconfigureParams(task.Params)
+		if err != nil {
+			return "", fmt.Errorf("解析交换机重配置参数失败: %w", err)
+		}
+		return service.ExecuteVPCSwitchReconfigure(ctx, params, progress)
+	})
 	taskqueue.RegisterHandler(model.TaskTypeNetworkCapture, func(ctx context.Context, task *model.Task, progress func(int, string)) (string, error) {
 		params, err := service.ParseNetworkCaptureParams(task.Params)
 		if err != nil {

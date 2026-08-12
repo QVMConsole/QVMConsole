@@ -79,7 +79,8 @@ func ResolveVPCForVMCreate(username string, switchID, securityGroupID uint) (uin
 		return 0, 0, fmt.Errorf("交换机不属于当前用户")
 	}
 	if HookSwitchUsesDirectBridge(sw) {
-		return 0, 0, fmt.Errorf("桥接直通交换机仅管理员可用于创建虚拟机")
+		// 空交换机和物理直通交换机是纯二层网络，不绑定安全组或静态地址。
+		return switchID, 0, nil
 	}
 	// 系统基础网络交换机不检查流量配额（不限）
 	if !sw.IsSystem {

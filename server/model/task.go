@@ -66,6 +66,7 @@ const (
 	TaskTypeMakeVMIndependent               = "make_vm_independent"                // 链式克隆虚拟机转为独立虚拟机
 	TaskTypePasswordBreachScan              = "password_breach_scan"               // 泄露密码扫描
 	TaskTypePasswordBreachNotify            = "password_breach_notify"             // 泄露密码通知
+	TaskTypeVPCSwitchReconfigure            = "vpc_switch_reconfigure"             // VPC 交换机拓扑重配置
 )
 
 // Task 异步任务模型（纯内存存储，不持久化）

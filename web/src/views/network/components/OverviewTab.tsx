@@ -1,7 +1,7 @@
 /**
  * 网络概览 Tab（仅管理员）
  * - 顶部统计卡：OVS 状态 / 网桥 / 端口数 / 内网 CIDR
- * - 操作：检测 / 修复 / 创建桥接网桥
+ * - 操作：检测 / 修复；历史宿主机网桥继续展示、配置和删除
  * - 基础状态 + 服务状态信息卡
  * - 宿主机网桥表、物理网卡表、OVS 端口表
  */
@@ -14,7 +14,6 @@ import {
   IconEditStroked,
   IconGlobeStroke,
   IconLink,
-  IconPlus,
   IconRefresh,
   IconLock,
   IconSafeStroked,
@@ -45,7 +44,6 @@ interface OverviewTabProps {
   portSecurityAction: string
   onCheck: () => void
   onRepair: () => void
-  onCreateBridge: () => void
   onDeleteBridge: (row: NetworkBridge) => void
   onConfigInterface: (name: string) => void
   onPortSecurityPreflight: () => void
@@ -75,7 +73,6 @@ export default function OverviewTab({
   portSecurityAction,
   onCheck,
   onRepair,
-  onCreateBridge,
   onDeleteBridge,
   onConfigInterface,
   onPortSecurityPreflight,
@@ -477,9 +474,6 @@ export default function OverviewTab({
           </Button>
           <Button type="warning" theme="light" icon={<IconWrench />} loading={repairing} onClick={onRepair}>
             修复
-          </Button>
-          <Button type="primary" theme="light" icon={<IconPlus />} onClick={onCreateBridge}>
-            创建桥接网桥
           </Button>
         </div>
       </div>

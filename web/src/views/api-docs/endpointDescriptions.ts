@@ -61,7 +61,7 @@ const publicIPBody = 'JSON: ip(IPv4/IPv6), cidr, gateway, uplink_if, supported_m
 const firewallPolicyBody =
   'JSON: policy 或完整防火墙策略对象，包含 default_action, rules, region_rules, port_forward_policy 等'
 const vpcSwitchBody =
-  'JSON: name, bridge_name, bridge_vlan_id, cidr, gateway_ip, dhcp_start, dhcp_end, username, ipv6_security_enabled, trusted_ipv6_prefixes, allow_promiscuous, allow_mac_change, allow_forged_transmits'
+  'JSON: name, username, uplink_mode(none/physical/system), uplink_if, uplink_gateway, dhcp_enabled, migrate_host_ip, bridge_vlan_id, cidr, gateway_ip, dhcp_start, dhcp_end, ipv6_security_enabled, trusted_ipv6_prefixes, allow_promiscuous, allow_mac_change, allow_forged_transmits'
 const securityGroupBody = 'JSON: name, remark, username'
 const securityRuleBody =
   'JSON: direction, address_family(ipv4/ipv6), protocol(tcp/udp/icmp/icmpv6/all), port_start, port_end, target_type(cidr/switch/security_group), target_value, action, remark'
@@ -643,6 +643,12 @@ export const endpointDescriptions: Record<string, EndpointDescription> = {
   'GET /vpc/switches': { summary: '列出 VPC 交换机', query: ['username(管理员可选)'] },
   'POST /vpc/switches': { summary: '创建 VPC 交换机', body: vpcSwitchBody },
   'PUT /vpc/switches/:id': { summary: '更新 VPC 交换机', body: vpcSwitchBody },
+  'POST /vpc/switches/:id/reconfigure': {
+    summary: '异步重配置交换机拓扑',
+    body: vpcSwitchBody,
+    response: 'data: task_id, status。',
+    notes: ['在线切换保留网口 MAC、型号、interface ID 和带宽配置；热插失败时任务恢复旧网络。'],
+  },
   'POST /vpc/switches/:id/traffic/reset': { summary: '重置交换机流量统计' },
   'DELETE /vpc/switches/:id': { summary: '删除 VPC 交换机' },
   'GET /vpc/switches/:id/vms': { summary: '获取交换机下的 VM 列表' },

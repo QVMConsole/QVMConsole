@@ -84,6 +84,7 @@ func InitDB() {
 	hadLightweightRegistrationMaxRuntimeColumn := DB.Migrator().HasColumn(&LightweightVMRegistration{}, "max_runtime_hours")
 	hadVPCBindingInterfaceOrderColumn := DB.Migrator().HasColumn(&VPCVMBinding{}, "interface_order")
 	hadVPCSwitchCIDRColumn := DB.Migrator().HasColumn(&VPCSwitch{}, "cidr")
+	hadVPCSwitchDHCPEnabledColumn := DB.Migrator().HasColumn(&VPCSwitch{}, "dhcp_enabled")
 
 	// 预修复: 在 AutoMigrate 之前清理 vpc_switches.cidr 重复数据并删除旧唯一索引
 	preFixVPCSwitchCIDRIndex()
@@ -106,6 +107,7 @@ func InitDB() {
 	migrateVPCBindingInterfaceOrder(hadVPCBindingInterfaceOrderColumn)
 	migrateVPCBindingInterfaceOrderNormalize()
 	migrateVPCSwitchCIDRColumn(hadVPCSwitchCIDRColumn)
+	migrateVPCSwitchTopologyFields(hadVPCSwitchDHCPEnabledColumn)
 	migrateVPCSecurityGroupRuleAddressFamily()
 
 	// 兼容旧用户：补齐默认状态，确保升级后能继续登录
@@ -118,6 +120,44 @@ func InitDB() {
 	// 初始化默认管理员
 	initDefaultAdmin()
 	logger.App.Info("数据库初始化完成")
+}
+
+// migrateVPCSwitchTopologyFields 为旧交换机补齐显式的 DHCP 与上行模式。
+// 历史 NAT 交换机继续保持原运行态，并由管理员在网络页逐台迁移。
+func migrateVPCSwitchTopologyFields(hadDHCPEnabledColumn bool) {
+	if DB == nil {
+		return
+	}
+	if !hadDHCPEnabledColumn {
+		if err := DB.Model(&VPCSwitch{}).
+			Where("is_system = ? OR bridge_mode = ? OR bridge_mode = '' OR bridge_mode IS NULL", true, "nat").
+			Updates(map[string]interface{}{
+				"dhcp_enabled": true,
+				"uplink_mode":  "system",
+			}).Error; err != nil {
+			logger.App.Warn("迁移历史托管交换机拓扑字段失败", "error", err)
+		}
+		if err := DB.Model(&VPCSwitch{}).
+			Where("is_system = ? AND (bridge_mode = ? OR bridge_mode = '' OR bridge_mode IS NULL)", false, "nat").
+			Update("legacy_migration_required", true).Error; err != nil {
+			logger.App.Warn("标记历史交换机待迁移状态失败", "error", err)
+		}
+		if err := DB.Exec(`
+			UPDATE vpc_switches
+			SET uplink_mode = 'physical',
+			    uplink_if = COALESCE((SELECT uplink_if FROM network_bridges WHERE network_bridges.name = vpc_switches.bridge_name LIMIT 1), '')
+			WHERE bridge_mode = 'bridge'
+		`).Error; err != nil {
+			logger.App.Warn("迁移历史桥接交换机上行信息失败", "error", err)
+		}
+	}
+	if err := DB.Model(&VPCSwitch{}).Where("is_system = ?", true).Updates(map[string]interface{}{
+		"dhcp_enabled":              true,
+		"uplink_mode":               "system",
+		"legacy_migration_required": false,
+	}).Error; err != nil {
+		logger.App.Warn("修复系统基础交换机拓扑字段失败", "error", err)
+	}
 }
 
 // migrateVPCSecurityGroupRuleAddressFamily 为历史安全组规则补齐地址族。

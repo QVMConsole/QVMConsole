@@ -5,7 +5,7 @@
  */
 import { useMemo, useState } from 'react'
 import { Checkbox, Input, Modal, Select, TextArea, Toast } from '@douyinfe/semi-ui'
-import { addVPCSecurityGroupRule, type VpcSecurityGroup, type VpcSwitch } from '@/api/vpc'
+import { addVPCSecurityGroupRule, vpcSwitchModeDetail, type VpcSecurityGroup, type VpcSwitch } from '@/api/vpc'
 import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 
 interface RuleDialogProps {
@@ -50,8 +50,8 @@ export default function RuleDialog({ group, switches, securityGroups, onClose, o
   const switchOptions = useMemo(
     () =>
       switches
-        .filter((s) => s.username === group.username)
-        .map((s) => ({ value: String(s.id), label: `${s.name} (${s.cidr})` })),
+        .filter((s) => s.username === group.username && (s.is_system || s.dhcp_enabled))
+        .map((s) => ({ value: String(s.id), label: `${s.name}（${vpcSwitchModeDetail(s)}）` })),
     [switches, group.username],
   )
   const groupOptions = useMemo(

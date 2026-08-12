@@ -49,6 +49,32 @@ func ensureBridgeResolvedDNSWithStatic(uplink, bridge, staticDNS string) {
 	utils.ExecCommand("resolvectl", "domain", bridge, "~.")
 }
 
+// restoreInterfaceResolvedDNS 将迁移到网桥的 DNS 配置回迁至物理接口。
+func restoreInterfaceResolvedDNS(uplink, bridge, staticDNS string) {
+	uplink = strings.TrimSpace(uplink)
+	bridge = strings.TrimSpace(bridge)
+	if uplink == "" || utils.ExecCommand("bash", "-c", "command -v resolvectl").Error != nil {
+		return
+	}
+	var servers []string
+	for _, value := range strings.Fields(strings.TrimSpace(staticDNS)) {
+		if net.ParseIP(value) != nil {
+			servers = append(servers, value)
+		}
+	}
+	if len(servers) == 0 && bridge != "" {
+		servers = resolvectlDNSServers(bridge)
+	}
+	if len(servers) > 0 {
+		utils.ExecCommand("resolvectl", append([]string{"dns", uplink}, servers...)...)
+	}
+	utils.ExecCommand("resolvectl", "default-route", uplink, "yes")
+	utils.ExecCommand("resolvectl", "domain", uplink, "~.")
+	if bridge != "" {
+		utils.ExecCommand("resolvectl", "revert", bridge)
+	}
+}
+
 func resolvectlDNSServers(link string) []string {
 	args := []string{"dns"}
 	if strings.TrimSpace(link) != "" {

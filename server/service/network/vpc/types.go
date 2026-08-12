@@ -8,12 +8,20 @@ const (
 	DefaultVPCSwitchName                 = "默认交换机"
 	SystemBaseNetworkName                = "基础网络"
 	AutoPortForwardSecurityGroupRuleNote = "端口转发自动放行"
+	UplinkModeNone                       = "none"
+	UplinkModePhysical                   = "physical"
+	UplinkModeSystem                     = "system"
 )
 
 type VPCSwitchRequest struct {
 	Username            string  `json:"username"`
 	Name                string  `json:"name"`
 	BridgeName          string  `json:"bridge_name"`
+	DHCPEnabled         bool    `json:"dhcp_enabled"`
+	UplinkMode          string  `json:"uplink_mode"`
+	UplinkIF            string  `json:"uplink_if"`
+	UplinkGateway       string  `json:"uplink_gateway"` // 自动检测不到默认路由时使用的物理出口网关
+	MigrateHostIP       bool    `json:"migrate_host_ip"`
 	BridgeVLANID        int     `json:"bridge_vlan_id"`
 	AllowPromiscuous    bool    `json:"allow_promiscuous"`
 	AllowMACChange      bool    `json:"allow_mac_change"`

@@ -64,6 +64,9 @@ func preflight(allowPendingVM string) (*PreflightResult, error) {
 	if model.DB != nil {
 		_ = model.DB.Find(&switches).Error
 		for _, sw := range switches {
+			if isTrustedIsolatedSwitch(sw) {
+				continue
+			}
 			bridgeSet[bridgepkg.BridgeNameForSwitch(sw)] = true
 		}
 		issues = append(issues, validateStoredIPv6Configuration(switches)...)
@@ -295,6 +298,9 @@ func reconcile(allowPendingVM string) (*Status, error) {
 	if config.GlobalConfig == nil || !config.GlobalConfig.PortSecurityEnabled {
 		return GetStatus()
 	}
+	if err := cleanupTrustedIsolatedSwitches(); err != nil {
+		return nil, err
+	}
 	preflight, err := preflight(allowPendingVM)
 	if err != nil {
 		return nil, err
@@ -353,6 +359,42 @@ func reconcile(allowPendingVM string) (*Status, error) {
 	}
 	status := updateCachedStatus(ports, issues, true, true)
 	return &status, nil
+}
+
+func cleanupTrustedIsolatedSwitches() error {
+	if model.DB == nil {
+		return nil
+	}
+	var switches []model.VPCSwitch
+	if err := model.DB.Find(&switches).Error; err != nil {
+		return err
+	}
+	for _, sw := range switches {
+		if !isTrustedIsolatedSwitch(sw) {
+			continue
+		}
+		bridgeName := bridgepkg.BridgeNameForSwitch(sw)
+		if strings.TrimSpace(bridgeName) == "" {
+			continue
+		}
+		utils.ExecCommandQuiet("ovs-ofctl", "-O", "OpenFlow13", "del-flows", bridgeName, "cookie="+PolicyCookie+"/0xffffffffffffffff")
+		utils.ExecCommandQuiet("ovs-ofctl", "-O", "OpenFlow13", "del-flows", bridgeName, "cookie="+QuarantineCookie+"/0xffffffffffffffff")
+		ports := utils.ExecCommandQuiet("ovs-vsctl", "list-ports", bridgeName)
+		if ports.Error == nil {
+			for _, portName := range strings.Fields(ports.Stdout) {
+				owner := utils.ExecCommandQuiet("ovs-vsctl", "--if-exists", "get", "Interface", portName, "external_ids:"+ExternalIDOwner)
+				if strings.Trim(strings.TrimSpace(owner.Stdout), "\"") != "true" {
+					continue
+				}
+				port := policyPort{PortStatus: PortStatus{Bridge: bridgeName, Port: portName}}
+				deletePortMeters(port)
+				utils.ExecCommandQuiet("ovs-vsctl", "set", "Interface", portName, "ingress_policing_kpkts_rate=0", "ingress_policing_kpkts_burst=0")
+				clearPortMetadata(portName, false)
+			}
+		}
+		deleteBridgeOwnedMeters(bridgeName)
+	}
+	return nil
 }
 
 // DisableRuntime 清理本模块的流表、meter、包速率字段和元数据。

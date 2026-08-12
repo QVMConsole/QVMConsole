@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -173,6 +174,159 @@ func DetachVMInterface(vmName string, interfaceOrder int) error {
 	return nil
 }
 
+// ReconfigureVMInterfaceNetwork 在保留 MAC、型号、interface ID、带宽等 XML 字段的前提下切换网口网络。
+// 运行中的虚拟机使用热拔插更新运行态，随后通过 define 同步持久化 XML；任一步失败都会恢复原网口。
+func ReconfigureVMInterfaceNetwork(vmName string, interfaceOrder int, sw model.VPCSwitch) error {
+	vmName = strings.TrimSpace(vmName)
+	if vmName == "" || interfaceOrder < 0 {
+		return fmt.Errorf("虚拟机网口参数无效")
+	}
+	inactive := utils.ExecCommand("virsh", "dumpxml", vmName, "--inactive")
+	if inactive.Error != nil {
+		inactive = utils.ExecCommand("virsh", "dumpxml", vmName)
+	}
+	if inactive.Error != nil {
+		return fmt.Errorf("读取虚拟机持久化 XML 失败: %s", D.FirstNonEmpty(inactive.Stderr, inactive.Error.Error()))
+	}
+	oldPersistentBlock, ok := extractInterfaceByIndex(inactive.Stdout, interfaceOrder)
+	if !ok {
+		return fmt.Errorf("未找到第 %d 个持久化网口", interfaceOrder+1)
+	}
+	targetMAC := extractInterfaceMAC(oldPersistentBlock)
+	if targetMAC == "" {
+		return fmt.Errorf("第 %d 个持久化网口缺少 MAC 地址", interfaceOrder+1)
+	}
+	newPersistentBlock, err := rewriteInterfaceNetwork(oldPersistentBlock, sw)
+	if err != nil {
+		return err
+	}
+	if newPersistentBlock == oldPersistentBlock {
+		return nil
+	}
+	updatedPersistentXML := strings.Replace(inactive.Stdout, oldPersistentBlock, newPersistentBlock, 1)
+	isRunning := strings.TrimSpace(utils.ExecCommand("virsh", "domstate", vmName).Stdout) == "running"
+	var oldLiveBlock, newLiveBlock string
+	if isRunning {
+		live := utils.ExecCommand("virsh", "dumpxml", vmName)
+		if live.Error != nil {
+			return fmt.Errorf("读取虚拟机运行态 XML 失败: %s", D.FirstNonEmpty(live.Stderr, live.Error.Error()))
+		}
+		// 热拔插可能改变运行态 XML 中的网口排列，使用持久化序号对应的 MAC 精确定位。
+		oldLiveBlock, ok = extractInterfaceByMAC(live.Stdout, targetMAC)
+		if !ok {
+			return fmt.Errorf("未找到第 %d 个运行态网口（MAC: %s）", interfaceOrder+1, targetMAC)
+		}
+		newLiveBlock, err = rewriteInterfaceNetwork(oldLiveBlock, sw)
+		if err != nil {
+			return err
+		}
+		if err := replugVMInterface(vmName, oldLiveBlock, newLiveBlock); err != nil {
+			return err
+		}
+	}
+	if err := defineVMInterfaceXML(vmName, interfaceOrder, updatedPersistentXML); err != nil {
+		if isRunning {
+			if rollbackErr := replugVMInterface(vmName, newLiveBlock, oldLiveBlock); rollbackErr != nil {
+				return fmt.Errorf("%v；恢复运行态原网口失败: %v", err, rollbackErr)
+			}
+		}
+		return err
+	}
+	return nil
+}
+
+func rewriteInterfaceNetwork(block string, sw model.VPCSwitch) (string, error) {
+	bridgeName := strings.TrimSpace(D.BridgeNameForSwitch(sw))
+	if bridgeName == "" {
+		return "", fmt.Errorf("目标交换机网桥为空")
+	}
+	sourceRe := regexp.MustCompile(`<source\b[^>]*/\s*>`)
+	if !sourceRe.MatchString(block) {
+		return "", fmt.Errorf("网口 XML 缺少 source 元素")
+	}
+	updated := sourceRe.ReplaceAllString(block, fmt.Sprintf("<source bridge='%s'/>", bridgeName))
+	indent := "      "
+	if match := regexp.MustCompile(`(?m)^(\s*)<interface\s`).FindStringSubmatch(updated); len(match) > 1 {
+		indent = match[1] + "  "
+	}
+	linkRe := regexp.MustCompile(`(?m)\n\s*<link\b[^>]*/\s*>`)
+	trustedIsolated := sw.OwnsBridge && !sw.DHCPEnabled && strings.TrimSpace(sw.UplinkIF) == ""
+	if trustedIsolated {
+		// 空交换机不进入端口安全，清除历史持久化的链路隔离标记。
+		updated = linkRe.ReplaceAllString(updated, "")
+	} else if D.IsPortSecurityEnabled != nil && D.IsPortSecurityEnabled() {
+		// 先以链路关闭状态接入目标拓扑，待目标策略安装成功后再统一放行。
+		linkXML := "\n" + indent + "<link state='down'/>"
+		if linkRe.MatchString(updated) {
+			updated = linkRe.ReplaceAllString(updated, linkXML)
+		} else {
+			closeIndex := strings.LastIndex(updated, "</interface>")
+			if closeIndex < 0 {
+				return "", fmt.Errorf("网口 XML 格式无效")
+			}
+			updated = updated[:closeIndex] + indent + "<link state='down'/>\n" + updated[closeIndex:]
+		}
+	}
+	vlanRe := regexp.MustCompile(`(?s)\n\s*<vlan>.*?</vlan>`)
+	targetVLAN := sw.VLANID
+	if D.SwitchUsesDirectBridge(sw) {
+		targetVLAN = sw.BridgeVLANID
+	}
+	if targetVLAN <= 0 {
+		return vlanRe.ReplaceAllString(updated, ""), nil
+	}
+	vlanXML := fmt.Sprintf("%s<vlan>\n%s  <tag id='%d'/>\n%s</vlan>", indent, indent, targetVLAN, indent)
+	if vlanRe.MatchString(updated) {
+		return vlanRe.ReplaceAllString(updated, "\n"+vlanXML), nil
+	}
+	closeIndex := strings.LastIndex(updated, "</interface>")
+	if closeIndex < 0 {
+		return "", fmt.Errorf("网口 XML 格式无效")
+	}
+	return updated[:closeIndex] + vlanXML + "\n" + updated[closeIndex:], nil
+}
+
+func replugVMInterface(vmName, oldBlock, newBlock string) error {
+	oldBlock = D.StripRuntimeOnlyInterfaceElements(oldBlock)
+	newBlock = D.StripRuntimeOnlyInterfaceElements(newBlock)
+	detachPath := filepath.Join(os.TempDir(), fmt.Sprintf("_vm-net-reconfigure-old-%s.xml", D.SafeVMXMLFileName(vmName)))
+	attachPath := filepath.Join(os.TempDir(), fmt.Sprintf("_vm-net-reconfigure-new-%s.xml", D.SafeVMXMLFileName(vmName)))
+	if err := os.WriteFile(detachPath, []byte(oldBlock), 0600); err != nil {
+		return fmt.Errorf("写入原网口 XML 失败: %w", err)
+	}
+	defer os.Remove(detachPath)
+	if err := os.WriteFile(attachPath, []byte(newBlock), 0600); err != nil {
+		return fmt.Errorf("写入目标网口 XML 失败: %w", err)
+	}
+	defer os.Remove(attachPath)
+	detach := utils.ExecCommandWithTimeout("virsh", 60*time.Second, "detach-device", vmName, detachPath, "--live")
+	if detach.Error != nil {
+		return fmt.Errorf("热拔网口失败，请关机后重试: %s", D.FirstNonEmpty(detach.Stderr, detach.Error.Error()))
+	}
+	attach := utils.ExecCommandWithTimeout("virsh", 60*time.Second, "attach-device", vmName, attachPath, "--live")
+	if attach.Error == nil {
+		return nil
+	}
+	restore := utils.ExecCommandWithTimeout("virsh", 60*time.Second, "attach-device", vmName, detachPath, "--live")
+	if restore.Error != nil {
+		return fmt.Errorf("热插目标网口失败: %s；恢复原网口失败: %s", D.FirstNonEmpty(attach.Stderr, attach.Error.Error()), D.FirstNonEmpty(restore.Stderr, restore.Error.Error()))
+	}
+	return fmt.Errorf("热插目标网口失败，已恢复原网口，请关机后重试: %s", D.FirstNonEmpty(attach.Stderr, attach.Error.Error()))
+}
+
+func defineVMInterfaceXML(vmName string, interfaceOrder int, xmlText string) error {
+	xmlPath := filepath.Join(os.TempDir(), fmt.Sprintf("_vm-net-reconfigure-%s-%d.xml", D.SafeVMXMLFileName(vmName), interfaceOrder))
+	if err := os.WriteFile(xmlPath, []byte(xmlText), 0600); err != nil {
+		return fmt.Errorf("写入虚拟机持久化 XML 失败: %w", err)
+	}
+	defer os.Remove(xmlPath)
+	define := utils.ExecCommand("virsh", "define", xmlPath)
+	if define.Error != nil {
+		return fmt.Errorf("持久化虚拟机网口失败: %s", D.FirstNonEmpty(define.Stderr, define.Error.Error()))
+	}
+	return nil
+}
+
 // extractInterfaceByIndex 从 VM XML 中提取第 N 个（从0开始）interface 块
 func extractInterfaceByIndex(xmlText string, targetIndex int) (string, bool) {
 	searchFrom := 0
@@ -232,6 +386,14 @@ func extractInterfaceByMAC(xmlText, targetMAC string) (string, bool) {
 	}
 }
 
+func extractInterfaceMAC(block string) string {
+	match := regexp.MustCompile(`(?i)<mac\b[^>]*address=['"]([^'"]+)['"][^>]*/\s*>`).FindStringSubmatch(block)
+	if len(match) < 2 {
+		return ""
+	}
+	return strings.ToLower(strings.TrimSpace(match[1]))
+}
+
 // buildVMInterfaceXML 构建虚拟机网口的 XML 块
 func buildVMInterfaceXML(vmName, bridgeName string, sw model.VPCSwitch, nicModel string, interfaceOrder int) string {
 	model := nicModel
@@ -261,7 +423,8 @@ func buildVMInterfaceXML(vmName, bridgeName string, sw model.VPCSwitch, nicModel
         <outbound average='0' burst='0' peak='0'/>
       </bandwidth>`, sw.VLANID)
 	}
-	if D.IsPortSecurityEnabled != nil && D.IsPortSecurityEnabled() {
+	// 空交换机是软路由 LAN 使用的信任二层域，网口创建后应立即保持链路可用。
+	if D.IsPortSecurityEnabled != nil && D.IsPortSecurityEnabled() && !(sw.OwnsBridge && !sw.DHCPEnabled && strings.TrimSpace(sw.UplinkIF) == "") {
 		xml += "\n      <link state='down'/>"
 	}
 
@@ -319,6 +482,17 @@ func CountVMInterfaces(vmName string) int {
 func GetVMMACByOrder(vmName string, order int) string {
 	if order < 0 {
 		return ""
+	}
+	inactive := utils.ExecCommand("virsh", "dumpxml", vmName, "--inactive")
+	if inactive.Error != nil {
+		inactive = utils.ExecCommand("virsh", "dumpxml", vmName)
+	}
+	if inactive.Error == nil {
+		if block, ok := extractInterfaceByIndex(inactive.Stdout, order); ok {
+			if mac := extractInterfaceMAC(block); mac != "" {
+				return mac
+			}
+		}
 	}
 	expectedMAC := strings.ToLower(generateInterfaceMAC(vmName, order))
 	for _, mac := range getAllVMInterfaceMACs(vmName) {

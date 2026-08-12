@@ -58,12 +58,7 @@ func bindVMToVPCWithSecurityGroupOwner(username, vmName string, switchID, securi
 		return err
 	}
 	if HookSwitchUsesDirectBridge(sw) {
-		if securityGroupID != 0 {
-			var sg model.VPCSecurityGroup
-			if err := model.DB.Where("id = ? AND username = ?", securityGroupID, securityGroupOwner).First(&sg).Error; err != nil {
-				return fmt.Errorf("安全组不存在或不属于该用户")
-			}
-		}
+		securityGroupID = 0
 	} else {
 		var sg model.VPCSecurityGroup
 		if err := model.DB.Where("id = ? AND username = ?", securityGroupID, securityGroupOwner).First(&sg).Error; err != nil {
@@ -390,7 +385,7 @@ func GetVPCBindingInfo(operator, role, vmName string) (*VPCBindingInfo, error) {
 		model.DB.Order("username ASC, id ASC").Find(&info.Switches)
 		model.DB.Order("username ASC, is_default DESC, id ASC").Find(&info.Groups)
 	} else if username != "" {
-		model.DB.Where("username = ? AND (bridge_mode = '' OR bridge_mode = ? OR bridge_mode IS NULL)", username, BridgeModeNAT).Order("id ASC").Find(&info.Switches)
+		model.DB.Where("username = ? OR is_system = ?", username, true).Order("is_system DESC, id ASC").Find(&info.Switches)
 		model.DB.Where("username = ?", username).Order("is_default DESC, id ASC").Find(&info.Groups)
 	}
 	for i := range info.Switches {

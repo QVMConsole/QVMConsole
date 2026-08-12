@@ -12,6 +12,7 @@ import {
   listVMInterfaces,
   removeVMInterface,
   switchVMSecurityGroup,
+  vpcSwitchModeDetail,
   type VMInterfaceInfo,
   type VpcBindingInfo,
 } from '@/api/vpc'
@@ -200,7 +201,7 @@ export default function NicManageSection({ vmName, vmStatus, live, liveTick }: N
       return
     }
     if (bindIsBridge) {
-      Toast.warning('桥接直通交换机不使用安全组')
+      Toast.warning('二层交换机不使用安全组')
       return
     }
     if (!bindGroupId) {
@@ -290,7 +291,7 @@ export default function NicManageSection({ vmName, vmStatus, live, liveTick }: N
           <span>
             {row.switch.name}{' '}
             <Tag size="small" color={row.switch.bridge_mode === 'bridge' ? 'orange' : 'blue'}>
-              {row.switch.bridge_mode === 'bridge' ? '桥接直通' : row.switch.cidr || '-'}
+              {vpcSwitchModeDetail(row.switch)}
             </Tag>
           </span>
         ) : (
@@ -304,7 +305,7 @@ export default function NicManageSection({ vmName, vmStatus, live, liveTick }: N
           return `${row.security_group.name}${row.security_group.is_default ? '（默认）' : ''}`
         }
         if (row.switch?.bridge_mode === 'bridge') {
-          return <span className="qvm-vf-tip">桥接直通不使用安全组</span>
+          return <span className="qvm-vf-tip">二层交换机不使用安全组</span>
         }
         return '-'
       },
@@ -383,14 +384,14 @@ export default function NicManageSection({ vmName, vmStatus, live, liveTick }: N
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
                     <span>{isAdmin && item.username ? `${item.username} / ${item.name}` : item.name}</span>
                     <Tag size="small" color={item.bridge_mode === 'bridge' ? 'orange' : 'blue'}>
-                      {item.bridge_mode === 'bridge' ? '桥接直通' : item.cidr}
+                      {vpcSwitchModeDetail(item)}
                     </Tag>
                   </div>
                 </Select.Option>
               ))}
             </Select>
             {bindIsBridge && (
-              <div className="qvm-vf-tip">桥接直通由上级路由器分配 IP，不使用内部 DHCP 和安全组</div>
+              <div className="qvm-vf-tip">二层交换机不使用面板 DHCP 和安全组；空交换机可由软路由提供地址</div>
             )}
           </FormField>
           {!bindIsBridge && (

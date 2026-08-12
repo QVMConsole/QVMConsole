@@ -60,8 +60,12 @@ var (
 	HookEnsureOVSNetwork func() error
 
 	HookEnsureOVSBridgeExists      func(bridge string) error
-	HookEnsureOVSBridgeDirect      func(bridge, uplink string, migrateHostIP bool, hostAddrs, hostGW, hostMetric string) error
+	HookEnsureOVSBridgeDirect      func(bridge, uplink string, migrateHostIP bool, hostAddrs, hostGW, hostMetric, hostDNS string) error
 	HookGetOVSBridgePhysicalUplink func(bridge string) string
+	HookValidateSwitchUplink       func(uplink, uplinkGateway string, managed bool, switchID uint, targetBridge string) error
+	HookEffectiveL3Interface       func(uplink string) string
+	HookCaptureHostIPConfig        func(iface string) (addrs, gateway, metric, dns string)
+	HookDeleteOwnedSwitchBridge    func(bridge, uplink string, migrateHostIP bool, hostDNS string) error
 
 	HookBridgeNameForSwitch    func(sw model.VPCSwitch) string
 	HookSwitchUsesDirectBridge func(sw model.VPCSwitch) bool
@@ -116,8 +120,9 @@ var (
 	HookPublicIPNATPrivateIPsForVM func(vmName string) []string
 	HookGetVMMACByOrder            func(vmName string, order int) string
 
-	HookAttachVMInterface func(vmName string, sw model.VPCSwitch, nicModel string, interfaceOrder int) error
-	HookDetachVMInterface func(vmName string, interfaceOrder int) error
+	HookAttachVMInterface             func(vmName string, sw model.VPCSwitch, nicModel string, interfaceOrder int) error
+	HookDetachVMInterface             func(vmName string, interfaceOrder int) error
+	HookReconfigureVMInterfaceNetwork func(vmName string, interfaceOrder int, sw model.VPCSwitch) error
 )
 
 // ── Port forward / Firewall hooks ──

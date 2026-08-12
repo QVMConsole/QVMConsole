@@ -108,6 +108,11 @@ func collectPolicyPorts() ([]policyPort, []Issue, error) {
 			if !hasBinding || !hasSwitch {
 				sw, hasSwitch = inferredSwitch, hasInferredSwitch
 			}
+			if hasSwitch && isTrustedIsolatedSwitch(sw) {
+				// 空交换机是软路由 LAN 等场景使用的纯二层信任域，不进入端口安全策略清单。
+				seenPorts[iface.Source+"\x00"+iface.Port] = true
+				continue
+			}
 			port := policyPort{PortStatus: PortStatus{
 				Bridge: iface.Source, Port: iface.Port, OFPort: ofport, VMName: vmName,
 				InterfaceOrder: interfaceOrder, MAC: normalizeMAC(iface.MAC),
@@ -465,6 +470,9 @@ func managedBridges(switches []model.VPCSwitch, ports []policyPort) []string {
 		add(config.GlobalConfig.OVSBridge)
 	}
 	for _, sw := range switches {
+		if isTrustedIsolatedSwitch(sw) {
+			continue
+		}
 		add(bridgepkg.BridgeNameForSwitch(sw))
 	}
 	for _, port := range ports {
@@ -476,6 +484,10 @@ func managedBridges(switches []model.VPCSwitch, ports []policyPort) []string {
 	}
 	sort.Strings(values)
 	return values
+}
+
+func isTrustedIsolatedSwitch(sw model.VPCSwitch) bool {
+	return sw.OwnsBridge && !sw.DHCPEnabled && strings.TrimSpace(sw.UplinkIF) == ""
 }
 
 func parseAddressList(value string, ipv6 bool) []string {

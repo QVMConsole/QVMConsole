@@ -65,7 +65,8 @@ func applyVPCSwitchRuntime(vmName string, sw model.VPCSwitch, ensureSwitch bool)
 		}
 		return nil
 	}
-	if strings.TrimSpace(utils.ExecCommand("virsh", "domstate", vmName).Stdout) == "running" {
+	vmRunning := strings.TrimSpace(utils.ExecCommand("virsh", "domstate", vmName).Stdout) == "running"
+	if vmRunning {
 		if firstVMRuntimeInterfaceUsesForeignBridge(vmName) {
 			return fmt.Errorf("从桥接直通交换机切换回 VPC 需要先关闭虚拟机")
 		}
@@ -76,10 +77,14 @@ func applyVPCSwitchRuntime(vmName string, sw model.VPCSwitch, ensureSwitch bool)
 	if mac := ip_resolver.GetFirstVMMAC(vmName); mac != "" {
 		HookCleanOVSDHCPLease(mac, "")
 	}
-	if strings.TrimSpace(utils.ExecCommand("virsh", "domstate", vmName).Stdout) == "running" {
+	if vmRunning {
 		if err := ensureVMVPCRuntimeInterfaceConfig(vmName, sw.VLANID); err != nil {
 			return err
 		}
+	}
+	if !vmRunning {
+		// 关机虚拟机没有 vnet 运行态端口，持久化 XML 已更新，无需输出异常告警。
+		return nil
 	}
 	vnetIF := ip_resolver.GetVMVnetIF(vmName)
 	if vnetIF == "" {

@@ -17,6 +17,7 @@ dist-ssr
 !web/scripts/
 !web/scripts/**
 .trae/
+.codex/
 
 # Editor directories and files
 .vscode/*
