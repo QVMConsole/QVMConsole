@@ -100,6 +100,8 @@ type SettingsResponse struct {
 	ScheduledPasswordBreachCheckEnabled bool `json:"scheduled_password_breach_check_enabled"`
 	// 硬件直通
 	HardwarePassthroughEnabled bool `json:"hardware_passthrough_enabled"`
+	// 安全组默认全放通（默认关闭，开启后新建安全组自动添加 IPv4/IPv6 全放通入站规则）
+	SecurityGroupDefaultAllowAll bool `json:"security_group_default_allow_all"`
 }
 
 // UpdateSettingsRequest 更新设置请求
@@ -174,6 +176,8 @@ type UpdateSettingsRequest struct {
 	ScheduledPasswordBreachCheckEnabled *bool `json:"scheduled_password_breach_check_enabled"`
 	// 硬件直通
 	HardwarePassthroughEnabled *bool `json:"hardware_passthrough_enabled"`
+	// 安全组默认全放通
+	SecurityGroupDefaultAllowAll *bool `json:"security_group_default_allow_all"`
 }
 
 type TestSMTPRequest struct {
@@ -297,6 +301,7 @@ func GetSettings(c *gin.Context) {
 			PasswordBreachCheckEnabled:            cfg.PasswordBreachCheckEnabled,
 			ScheduledPasswordBreachCheckEnabled:   cfg.ScheduledPasswordBreachCheckEnabled,
 			HardwarePassthroughEnabled:            cfg.HardwarePassthroughEnabled,
+			SecurityGroupDefaultAllowAll:          cfg.SecurityGroupDefaultAllowAll,
 		},
 	})
 }
@@ -659,6 +664,9 @@ func UpdateSettings(c *gin.Context) {
 	}
 	if req.HardwarePassthroughEnabled != nil {
 		cfg.HardwarePassthroughEnabled = *req.HardwarePassthroughEnabled
+	}
+	if req.SecurityGroupDefaultAllowAll != nil {
+		cfg.SecurityGroupDefaultAllowAll = *req.SecurityGroupDefaultAllowAll
 	}
 
 	if cfg.AutoPortStart >= cfg.AutoPortEnd {

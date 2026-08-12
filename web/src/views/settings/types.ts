@@ -96,6 +96,7 @@ export interface SettingsForm {
   spice_enabled_by_default: boolean
   igpu_passthrough_enabled: boolean
   hardware_passthrough_enabled: boolean
+  security_group_default_allow_all: boolean
 }
 
 /** 表单默认值（后端未返回字段时兜底） */
@@ -173,6 +174,7 @@ export const DEFAULT_SETTINGS_FORM: SettingsForm = {
   spice_enabled_by_default: false,
   igpu_passthrough_enabled: false,
   hardware_passthrough_enabled: false,
+  security_group_default_allow_all: false,
 }
 
 /** 保存前校验，返回第一条错误信息；通过时返回 null */
@@ -301,6 +303,7 @@ export function buildSettingsPayload(form: SettingsForm): Record<string, unknown
     spice_enabled_by_default: form.spice_enabled_by_default,
     igpu_passthrough_enabled: form.igpu_passthrough_enabled,
     hardware_passthrough_enabled: form.hardware_passthrough_enabled,
+    security_group_default_allow_all: form.security_group_default_allow_all,
   }
 }
 

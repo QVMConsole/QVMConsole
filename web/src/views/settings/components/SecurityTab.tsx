@@ -147,6 +147,23 @@ export default function SecurityTab({ form, patch, saveBeforeAction, refresh }: 
     }
   }
 
+  // 安全组默认全放通开关：开启时需二次确认提示风险，关闭时直接生效
+  const handleToggleSecurityGroupAllowAll = async (v: boolean) => {
+    if (!v) {
+      patch({ security_group_default_allow_all: false })
+      return
+    }
+    const ok = await confirmModal({
+      title: '开启安全组默认全放通',
+      content:
+        '开启后，后续新建的安全组将自动添加 IPv4 和 IPv6 全放通入站规则（0.0.0.0/0 和 ::/0），所有端口和协议均可被外部访问，存在重大安全风险。确定要开启吗？',
+      okText: '确认开启',
+      danger: true,
+    })
+    if (!ok) return
+    patch({ security_group_default_allow_all: true })
+  }
+
   return (
     <div className="stg-tab-pane">
       <SectionHead icon={<IconMail />} title="邮件与安全验证" />
@@ -318,6 +335,16 @@ export default function SecurityTab({ form, patch, saveBeforeAction, refresh }: 
             {breachTaskRunning ? '检测中' : '立即执行'}
           </Button>
         </div>
+      </SettingRow>
+
+      <SettingRow
+        label="安全组默认全放通"
+        tip="开启后，后续新建的安全组将自动添加 IPv4（0.0.0.0/0）和 IPv6（::/0）全放通入站规则，所有端口和协议均可被外部访问。此选项存在重大安全风险，请仅在受信任的内网或测试环境中开启 | 环境变量: KVM_SECURITY_GROUP_DEFAULT_ALLOW_ALL"
+      >
+        <TextSwitch
+          checked={form.security_group_default_allow_all}
+          onChange={(v) => void handleToggleSecurityGroupAllowAll(v)}
+        />
       </SettingRow>
 
       {breachStatus && (

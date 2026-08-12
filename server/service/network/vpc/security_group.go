@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"kvm_console/config"
 	"kvm_console/logger"
 	"kvm_console/model"
 )
@@ -114,7 +115,48 @@ func CreateVPCSecurityGroup(operator, role string, req VPCSecurityGroupRequest) 
 	if err := model.DB.Create(group).Error; err != nil {
 		return nil, err
 	}
+	// 安全组默认全放通开关开启时，自动添加 IPv4/IPv6 全放通入站规则
+	if config.GlobalConfig != nil && config.GlobalConfig.SecurityGroupDefaultAllowAll {
+		if err := appendDefaultAllowAllRules(group.ID); err != nil {
+			logger.App.Warn("新建安全组自动添加全放通规则失败", "group_id", group.ID, "error", err)
+		}
+	}
 	return group, nil
+}
+
+// appendDefaultAllowAllRules 为安全组添加 IPv4 和 IPv6 全放通入站规则。
+// 协议为 all，目标为 0.0.0.0/0 和 ::/0，方向为 ingress。
+func appendDefaultAllowAllRules(groupID uint) error {
+	rules := []model.VPCSecurityGroupRule{
+		{
+			SecurityGroupID: groupID,
+			Direction:       "ingress",
+			AddressFamily:   "ipv4",
+			Protocol:        "all",
+			PortStart:       0,
+			PortEnd:         0,
+			TargetType:      "cidr",
+			TargetValue:     "0.0.0.0/0",
+			Remark:          "系统默认全放通规则（IPv4）",
+		},
+		{
+			SecurityGroupID: groupID,
+			Direction:       "ingress",
+			AddressFamily:   "ipv6",
+			Protocol:        "all",
+			PortStart:       0,
+			PortEnd:         0,
+			TargetType:      "cidr",
+			TargetValue:     "::/0",
+			Remark:          "系统默认全放通规则（IPv6）",
+		},
+	}
+	for i := range rules {
+		if err := model.DB.Create(&rules[i]).Error; err != nil {
+			return fmt.Errorf("创建全放通规则失败: %w", err)
+		}
+	}
+	return nil
 }
 
 func UpdateVPCSecurityGroup(operator, role string, id uint, req VPCSecurityGroupRequest) (*model.VPCSecurityGroup, error) {

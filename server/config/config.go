@@ -182,6 +182,8 @@ type Config struct {
 	ScheduledPasswordBreachCheckEnabled bool `json:"scheduled_password_breach_check_enabled"`
 	// 硬件直通开关（默认关闭，开启后启用 IOMMU 和 vfio-pci 支持）
 	HardwarePassthroughEnabled bool `json:"hardware_passthrough_enabled"`
+	// 安全组默认全放通开关（默认关闭，开启后新建安全组自动添加 IPv4/IPv6 全放通入站规则）
+	SecurityGroupDefaultAllowAll bool `json:"security_group_default_allow_all"`
 }
 
 // GlobalConfig 全局配置实例
@@ -318,6 +320,7 @@ func Init() {
 		PasswordBreachCheckEnabled:            getEnvBool("KVM_PASSWORD_BREACH_CHECK_ENABLED", true),
 		ScheduledPasswordBreachCheckEnabled:   getEnvBool("KVM_SCHEDULED_PASSWORD_BREACH_CHECK_ENABLED", true),
 		HardwarePassthroughEnabled:            getEnvBool("KVM_HARDWARE_PASSTHROUGH_ENABLED", false),
+		SecurityGroupDefaultAllowAll:          getEnvBool("KVM_SECURITY_GROUP_DEFAULT_ALLOW_ALL", false),
 		CORSAllowedOrigins:                    getEnv("KVM_CORS_ALLOWED_ORIGINS", ""),
 	}
 	// 解析可信代理列表
@@ -563,6 +566,7 @@ var PersistableKeys = []string{
 	"scheduled_password_breach_check_enabled",
 	"igpu_passthrough_enabled",
 	"hardware_passthrough_enabled",
+	"security_group_default_allow_all",
 }
 
 // keyToEnvVar 配置项到环境变量的映射
@@ -649,6 +653,7 @@ var keyToEnvVar = map[string]string{
 	"scheduled_password_breach_check_enabled":   "KVM_SCHEDULED_PASSWORD_BREACH_CHECK_ENABLED",
 	"igpu_passthrough_enabled":                  "KVM_IGPU_PASSTHROUGH_ENABLED",
 	"hardware_passthrough_enabled":              "KVM_HARDWARE_PASSTHROUGH_ENABLED",
+	"security_group_default_allow_all":          "KVM_SECURITY_GROUP_DEFAULT_ALLOW_ALL",
 }
 
 // LoadFromDB 从数据库加载持久化的设置覆盖当前配置
@@ -908,6 +913,8 @@ func (c *Config) LoadFromDB(settings map[string]string) {
 			c.ScheduledPasswordBreachCheckEnabled = value != "false"
 		case "hardware_passthrough_enabled":
 			c.HardwarePassthroughEnabled = value == "true"
+		case "security_group_default_allow_all":
+			c.SecurityGroupDefaultAllowAll = value == "true"
 		case "api_max_body_size_mb":
 			if n, err := strconv.Atoi(value); err == nil && n > 0 {
 				c.APIMaxBodySizeMB = n
@@ -1000,6 +1007,7 @@ func (c *Config) ToSettingsMap() map[string]string {
 		"password_breach_check_enabled":             strconv.FormatBool(c.PasswordBreachCheckEnabled),
 		"scheduled_password_breach_check_enabled":   strconv.FormatBool(c.ScheduledPasswordBreachCheckEnabled),
 		"hardware_passthrough_enabled":              strconv.FormatBool(c.HardwarePassthroughEnabled),
+		"security_group_default_allow_all":          strconv.FormatBool(c.SecurityGroupDefaultAllowAll),
 	}
 }
 
