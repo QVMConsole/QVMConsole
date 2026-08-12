@@ -93,7 +93,12 @@ func ExecutePublicIPOperation(ctx context.Context, params PublicIPOperationParam
 		return "", err
 	}
 	markPublicIPBindingsApplied()
-	progress(90, "正在同步来宾系统 IPv6 配置...")
+	if publicIPOperationInvolvesIPv6(params) {
+		progress(90, "正在同步来宾系统 IPv6 配置...")
+	} else {
+		progress(90, "正在同步来宾系统公网 IPv4 配置...")
+	}
+	reconcilePublicIPv4GuestVMs(ctx, affectedVMs, true)
 	reconcilePublicIPv6GuestVMs(ctx, affectedVMs, true)
 	progress(100, "公网 IP 规则已应用")
 	data, _ := json.Marshal(result)
@@ -191,6 +196,24 @@ func migratePublicIP(id uint, req PublicIPBindRequest) (*model.PublicIPBinding, 
 	}
 	cleanupConntrackForPublicIP(ipRow.IP)
 	return &binding, nil
+}
+
+// publicIPOperationInvolvesIPv6 判断本次公网 IP 操作是否涉及 IPv6。
+// 单 IP 操作按 PublicIPID 判断；apply_all 按是否存在 IPv6 绑定判断。
+func publicIPOperationInvolvesIPv6(params PublicIPOperationParams) bool {
+	if model.DB == nil {
+		return false
+	}
+	if params.PublicIPID > 0 {
+		var ipRow model.PublicIP
+		if err := model.DB.First(&ipRow, params.PublicIPID).Error; err != nil {
+			return false
+		}
+		return publicIPIsIPv6(ipRow.IP)
+	}
+	var count int64
+	model.DB.Model(&model.PublicIPBinding{}).Where("public_ip LIKE ?", "%:%").Count(&count)
+	return count > 0
 }
 
 func publicIPOperationAffectedVMs(params PublicIPOperationParams) []string {

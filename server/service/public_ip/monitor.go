@@ -16,9 +16,11 @@ var publicIPv6MonitorOnce sync.Once
 func StartPublicIPv6PrefixMonitor() {
 	publicIPv6MonitorOnce.Do(func() {
 		go func() {
+			// 启动后先同步已有绑定，避免仅依赖后续面板操作触发来宾配置。
 			defer utils.RecoverAndLog("public-ipv6-prefix-monitor")
 			initialTimer := time.NewTimer(5 * time.Second)
 			<-initialTimer.C
+			ReconcilePendingPublicIPv4Guests(context.Background())
 			ReconcilePendingPublicIPv6Guests(context.Background())
 			for {
 				interval := 60
@@ -27,6 +29,7 @@ func StartPublicIPv6PrefixMonitor() {
 				}
 				timer := time.NewTimer(time.Duration(interval) * time.Second)
 				<-timer.C
+				ReconcilePendingPublicIPv4Guests(context.Background())
 				ReconcilePendingPublicIPv6Guests(context.Background())
 				publicIPApplyMu.Lock()
 				changed, err := SyncManagedPublicIPv6Addresses()

@@ -183,6 +183,13 @@ func buildPublicIPClassicRouteCommands(ipRow model.PublicIP, req PublicIPBindReq
 		bridge = HookOvsBridgeName()
 	}
 	var cmds []string
+	uplink := strings.TrimSpace(ipRow.UplinkIF)
+	if uplink == "" {
+		uplink = HookOvsUplink()
+	}
+	if uplink != "" {
+		cmds = append(cmds, fmt.Sprintf("sysctl -w net.ipv4.conf.%s.proxy_arp=1 >/dev/null 2>&1 || true", uplink))
+	}
 	if strings.TrimSpace(req.VMPrivateIP) != "" {
 		cmds = append(cmds, fmt.Sprintf("ip route replace %s/32 via %s dev %s || true",
 			utils.ShellSingleQuote(ipRow.IP), utils.ShellSingleQuote(req.VMPrivateIP), utils.ShellSingleQuote(bridge)))
@@ -253,13 +260,25 @@ func buildPublicIPAntiSpoofCommands(ipRow model.PublicIP, req PublicIPBindReques
 			fmt.Sprintf("ovs-ofctl -O OpenFlow13 add-flow %s %s", utils.ShellSingleQuote(bridge), utils.ShellSingleQuote(fmt.Sprintf("cookie=%s,priority=230,in_port=%s,ipv6,actions=drop", cookie, ofport))),
 		}
 	}
-	return []string{
+	commands := []string{
 		fmt.Sprintf("ovs-ofctl -O OpenFlow13 del-flows %s %s || true", utils.ShellSingleQuote(bridge), utils.ShellSingleQuote("cookie="+cookie+"/-1")),
+	}
+	// 路由模式以 VM 私网地址作为宿主机下一跳，需保留其 ARP 应答；
+	// 同时仅允许该地址和已绑定公网地址从对应端口发出。
+	privateIP := net.ParseIP(strings.TrimSpace(req.VMPrivateIP))
+	if NormalizePublicIPMode(req.Mode) == PublicIPModeClassicRoute && privateIP != nil && privateIP.To4() != nil {
+		commands = append(commands,
+			fmt.Sprintf("ovs-ofctl -O OpenFlow13 add-flow %s %s", utils.ShellSingleQuote(bridge), utils.ShellSingleQuote(fmt.Sprintf("cookie=%s,priority=240,in_port=%s,ip,nw_src=%s,actions=NORMAL", cookie, ofport, req.VMPrivateIP))),
+			fmt.Sprintf("ovs-ofctl -O OpenFlow13 add-flow %s %s", utils.ShellSingleQuote(bridge), utils.ShellSingleQuote(fmt.Sprintf("cookie=%s,priority=240,in_port=%s,arp,arp_spa=%s,actions=NORMAL", cookie, ofport, req.VMPrivateIP))),
+		)
+	}
+	commands = append(commands,
 		fmt.Sprintf("ovs-ofctl -O OpenFlow13 add-flow %s %s", utils.ShellSingleQuote(bridge), utils.ShellSingleQuote(fmt.Sprintf("cookie=%s,priority=240,in_port=%s,ip,nw_src=%s,actions=NORMAL", cookie, ofport, ipRow.IP))),
 		fmt.Sprintf("ovs-ofctl -O OpenFlow13 add-flow %s %s", utils.ShellSingleQuote(bridge), utils.ShellSingleQuote(fmt.Sprintf("cookie=%s,priority=240,in_port=%s,arp,arp_spa=%s,actions=NORMAL", cookie, ofport, ipRow.IP))),
 		fmt.Sprintf("ovs-ofctl -O OpenFlow13 add-flow %s %s", utils.ShellSingleQuote(bridge), utils.ShellSingleQuote(fmt.Sprintf("cookie=%s,priority=230,in_port=%s,ip,actions=drop", cookie, ofport))),
 		fmt.Sprintf("ovs-ofctl -O OpenFlow13 add-flow %s %s", utils.ShellSingleQuote(bridge), utils.ShellSingleQuote(fmt.Sprintf("cookie=%s,priority=230,in_port=%s,arp,actions=drop", cookie, ofport))),
-	}
+	)
+	return commands
 }
 
 func cleanupPublicIPRulesShell() string {
