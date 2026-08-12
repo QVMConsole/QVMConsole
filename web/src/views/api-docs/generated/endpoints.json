@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-11T07:14:40.682Z",
-  "count": 325,
+  "generated_at": "2026-08-12T03:40:30.268Z",
+  "count": 327,
   "endpoints": [
     {
       "method": "POST",
@@ -1035,6 +1035,28 @@
       "vmAccess": false,
       "highRisk": "apply_public_ip",
       "comment": ""
+    },
+    {
+      "method": "GET",
+      "path": "/network/public-ips/ipv6-prefixes",
+      "handler": "DiscoverPublicIPv6Prefixes",
+      "auth": "jwt",
+      "admin": true,
+      "elasticOnly": false,
+      "vmAccess": false,
+      "highRisk": "",
+      "comment": "检测上联网卡公网 IPv6 前缀"
+    },
+    {
+      "method": "POST",
+      "path": "/network/public-ips/ipv6-prefixes/import",
+      "handler": "ImportPublicIPv6Prefix",
+      "auth": "jwt",
+      "admin": true,
+      "elasticOnly": false,
+      "vmAccess": false,
+      "highRisk": "",
+      "comment": "批量导入公网 IPv6 /128 地址资源"
     },
     {
       "method": "POST",

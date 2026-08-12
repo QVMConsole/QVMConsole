@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"net"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"sort"
@@ -62,12 +63,11 @@ func normalizePublicIPRequest(req PublicIPRequest, current *model.PublicIP) (*mo
 	if current != nil && ipText == "" {
 		ipText = current.IP
 	}
-	if net.ParseIP(ipText) == nil {
+	address, err := netip.ParseAddr(ipText)
+	if err != nil {
 		return nil, fmt.Errorf("公网 IP 格式无效")
 	}
-	if strings.Contains(ipText, ":") {
-		return nil, fmt.Errorf("当前仅支持 IPv4 公网 IP")
-	}
+	ipText = address.String()
 	cidr := strings.TrimSpace(req.CIDR)
 	if cidr != "" {
 		if err := validatePublicIPCidr(ipText, cidr); err != nil {
@@ -75,10 +75,29 @@ func normalizePublicIPRequest(req PublicIPRequest, current *model.PublicIP) (*mo
 		}
 	}
 	gateway := strings.TrimSpace(req.Gateway)
-	if gateway != "" && net.ParseIP(gateway) == nil {
-		return nil, fmt.Errorf("网关 IP 格式无效")
+	if gateway != "" {
+		gatewayAddr, gatewayErr := netip.ParseAddr(gateway)
+		if gatewayErr != nil {
+			return nil, fmt.Errorf("网关 IP 格式无效")
+		}
+		if gatewayAddr.Is4() != address.Is4() {
+			return nil, fmt.Errorf("公网 IP 与网关必须使用相同地址族")
+		}
+		gateway = gatewayAddr.String()
 	}
 	modes := normalizeSupportedPublicIPModes(req.SupportedModes)
+	if !address.Is4() {
+		ipv6Modes := make([]string, 0, 2)
+		for _, mode := range parsePublicIPModes(modes) {
+			if mode == PublicIPModeClassicRoute || mode == PublicIPModeClassicBridge {
+				ipv6Modes = append(ipv6Modes, mode)
+			}
+		}
+		if len(ipv6Modes) == 0 {
+			return nil, fmt.Errorf("IPv6 公网地址仅支持经典网络-路由或经典网络-桥接模式")
+		}
+		modes = strings.Join(ipv6Modes, ",")
+	}
 	status := strings.TrimSpace(req.Status)
 	if status == "" {
 		if current != nil {
@@ -90,11 +109,15 @@ func normalizePublicIPRequest(req PublicIPRequest, current *model.PublicIP) (*mo
 	if status != PublicIPStatusFree && status != PublicIPStatusBound && status != "reserved" {
 		return nil, fmt.Errorf("公网 IP 状态无效")
 	}
+	uplinkIF := strings.TrimSpace(req.UplinkIF)
+	if uplinkIF != "" && !publicIPInterfacePattern.MatchString(uplinkIF) {
+		return nil, fmt.Errorf("出口网卡名称格式无效")
+	}
 	return &model.PublicIP{
 		IP:             ipText,
 		CIDR:           cidr,
 		Gateway:        gateway,
-		UplinkIF:       strings.TrimSpace(req.UplinkIF),
+		UplinkIF:       uplinkIF,
 		SupportedModes: modes,
 		Status:         status,
 		Remark:         strings.TrimSpace(req.Remark),
@@ -103,20 +126,19 @@ func normalizePublicIPRequest(req PublicIPRequest, current *model.PublicIP) (*mo
 
 func validatePublicIPCidr(ipText, cidr string) error {
 	if strings.Contains(cidr, "/") {
-		ip, network, err := net.ParseCIDR(cidr)
+		prefix, err := netip.ParsePrefix(cidr)
 		if err != nil {
 			return fmt.Errorf("CIDR/掩码格式无效")
 		}
-		publicIP := net.ParseIP(ipText)
-		if publicIP == nil || !network.Contains(publicIP) {
+		publicIP, parseErr := netip.ParseAddr(ipText)
+		if parseErr != nil || prefix.Addr().Is4() != publicIP.Is4() || !prefix.Contains(publicIP) {
 			return fmt.Errorf("公网 IP 不在填写的 CIDR 范围内")
-		}
-		if ip.String() == ipText {
-			return nil
 		}
 		return nil
 	}
-	if net.ParseIP(cidr) == nil {
+	publicIP, parseErr := netip.ParseAddr(ipText)
+	maskIP := net.ParseIP(cidr)
+	if parseErr != nil || !publicIP.Is4() || maskIP == nil || maskIP.To4() == nil {
 		return fmt.Errorf("CIDR/掩码格式无效")
 	}
 	return nil
@@ -124,12 +146,9 @@ func validatePublicIPCidr(ipText, cidr string) error {
 
 func publicIPPrefix(ipRow model.PublicIP) int {
 	if strings.Contains(ipRow.CIDR, "/") {
-		_, network, err := net.ParseCIDR(ipRow.CIDR)
-		if err == nil {
-			ones, _ := network.Mask.Size()
-			if ones > 0 {
-				return ones
-			}
+		prefix, err := netip.ParsePrefix(ipRow.CIDR)
+		if err == nil && prefix.Bits() > 0 {
+			return prefix.Bits()
 		}
 	}
 	if maskIP := net.ParseIP(strings.TrimSpace(ipRow.CIDR)); maskIP != nil {
@@ -140,15 +159,33 @@ func publicIPPrefix(ipRow model.PublicIP) int {
 			}
 		}
 	}
+	if publicIPIsIPv6(ipRow.IP) {
+		return 128
+	}
 	return 32
 }
 
 func publicIPAddrForHost(ipRow model.PublicIP) string {
+	if publicIPIsIPv6(ipRow.IP) {
+		return ""
+	}
 	prefix := publicIPPrefix(ipRow)
 	if prefix <= 0 || prefix > 32 {
 		prefix = 32
 	}
 	return fmt.Sprintf("%s/%d", strings.TrimSpace(ipRow.IP), prefix)
+}
+
+func publicIPAddressFamily(ipText string) string {
+	address, err := netip.ParseAddr(strings.TrimSpace(ipText))
+	if err == nil && !address.Is4() {
+		return "ipv6"
+	}
+	return "ipv4"
+}
+
+func publicIPIsIPv6(ipText string) bool {
+	return publicIPAddressFamily(ipText) == "ipv6"
 }
 
 func publicIPVMInterface(vmName string) (string, string) {
@@ -163,6 +200,41 @@ func publicIPVMInterface(vmName string) (string, string) {
 func publicIPVMBridge(vmName string) string {
 	_, bridge := publicIPVMInterface(vmName)
 	return bridge
+}
+
+func publicIPVMRouteInterface(vmName string) string {
+	if HookGetVMRouteInterface != nil {
+		if iface := strings.TrimSpace(HookGetVMRouteInterface(vmName)); iface != "" {
+			return iface
+		}
+	}
+	return publicIPVMBridge(vmName)
+}
+
+func publicIPv6GatewayLinkLocal(vmName string) string {
+	iface := publicIPVMRouteInterface(vmName)
+	if iface == "" {
+		iface = strings.TrimSpace(HookOvsBridgeName())
+	}
+	if iface == "" {
+		return ""
+	}
+	fields := strings.Fields(utils.ExecCommand("ip", "-6", "-o", "addr", "show", "dev", iface, "scope", "link").Stdout)
+	for index, field := range fields {
+		if field != "inet6" || index+1 >= len(fields) {
+			continue
+		}
+		prefix, err := netip.ParsePrefix(fields[index+1])
+		if err == nil {
+			return prefix.Addr().String()
+		}
+	}
+	// OVS 基础网桥在尚无运行中端口时可能没有内核自动生成的链路本地地址。
+	// 使用接口名生成稳定地址，绑定规则应用时会把同一地址配置到该接口。
+	hash := fnv.New64a()
+	_, _ = hash.Write([]byte(iface))
+	value := hash.Sum64()
+	return fmt.Sprintf("fe80::%x:%x:%x:%x", uint16(value>>48), uint16(value>>32), uint16(value>>16), uint16(value))
 }
 
 func publicIPFlowCookie(ipText string) string {

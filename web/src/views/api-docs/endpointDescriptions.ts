@@ -57,14 +57,14 @@ const reinstallBody = 'JSON: template, disk_size, hostname, user, password, pres
 const scheduleBody = 'JSON: name, action(start/shutdown/destroy/reboot/delete), cron/execute_at, enabled, timezone, params'
 const portForwardBody =
   'JSON: vm_name, guest_ip, guest_port, host_port, protocol(tcp/udp), description, target_type, public_ip_id'
-const publicIPBody = 'JSON: address, cidr, gateway, iface, mac, vm_name, mode, remark, enabled 等公网 IP 配置字段'
+const publicIPBody = 'JSON: ip(IPv4/IPv6), cidr, gateway, uplink_if, supported_modes, status, remark'
 const firewallPolicyBody =
   'JSON: policy 或完整防火墙策略对象，包含 default_action, rules, region_rules, port_forward_policy 等'
 const vpcSwitchBody =
   'JSON: name, bridge_name, bridge_vlan_id, cidr, gateway_ip, dhcp_start, dhcp_end, username, ipv6_security_enabled, trusted_ipv6_prefixes, allow_promiscuous, allow_mac_change, allow_forged_transmits'
 const securityGroupBody = 'JSON: name, remark, username'
 const securityRuleBody =
-  'JSON: direction, protocol, port_start, port_end, target_type(cidr/switch/security_group), target_value, action, remark'
+  'JSON: direction, address_family(ipv4/ipv6), protocol(tcp/udp/icmp/icmpv6/all), port_start, port_end, target_type(cidr/switch/security_group), target_value, action, remark'
 const templateMetaBody =
   'JSON: admin_name, display_name, clone_visible, disabled, category, vcpu, ram, disk_size, disk_bus, nic_model, video_model, cpu_topology_mode, first_boot_reboot_mode'
 const hostRuleBody = 'JSON: name, direction, protocol, port, source, action, enabled'
@@ -622,6 +622,11 @@ export const endpointDescriptions: Record<string, EndpointDescription> = {
   },
   'GET /network/public-ips': { summary: '列出公网 IP' },
   'POST /network/public-ips': { summary: '新增公网 IP', body: publicIPBody },
+	'GET /network/public-ips/ipv6-prefixes': { summary: '检测上联网卡公网 IPv6 前缀', query: ['uplink_if'] },
+	'POST /network/public-ips/ipv6-prefixes/import': {
+	  summary: '批量导入公网 IPv6 /128 地址',
+	  body: 'JSON: uplink_if, prefix, count, remark；地址绑定后使用 Proxy NDP 与精确路由。',
+	},
   'PUT /network/public-ips/:id': { summary: '更新公网 IP', body: publicIPBody },
   'DELETE /network/public-ips/:id': { summary: '删除公网 IP' },
   'POST /network/public-ips/:id/preview': { summary: '预览公网 IP 规则', body: publicIPBody },

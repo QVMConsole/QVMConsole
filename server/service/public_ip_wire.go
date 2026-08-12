@@ -4,8 +4,10 @@ import (
 	"context"
 
 	"kvm_console/model"
-	publicippkg "kvm_console/service/public_ip"
+	bridgepkg "kvm_console/service/network/bridge"
+	vpcpkg "kvm_console/service/network/vpc"
 	ovspkg "kvm_console/service/ovs"
+	publicippkg "kvm_console/service/public_ip"
 )
 
 // init wires public_ip package function variables to service root implementations.
@@ -35,8 +37,29 @@ func init() {
 		}
 		return &publicippkg.VMNetworkRuntimeStatus{Interfaces: ifaces}, nil
 	}
+	publicippkg.HookGetVMRouteInterface = func(vmName string) string {
+		var binding model.VPCVMBinding
+		if model.DB == nil || model.DB.Where("vm_name = ? AND interface_order = ?", vmName, 0).First(&binding).Error != nil {
+			return ""
+		}
+		var sw model.VPCSwitch
+		if model.DB.First(&sw, binding.SwitchID).Error != nil {
+			return ""
+		}
+		if bridgepkg.SwitchUsesDirectBridge(sw) {
+			return bridgepkg.BridgeNameForSwitch(sw)
+		}
+		if sw.VLANID == 0 {
+			return ovspkg.OvsBridgeName()
+		}
+		return vpcpkg.VPCGatewayPortName(sw.ID)
+	}
 	publicippkg.HookIsVPCManagedIP = IsVPCManagedIP
 	publicippkg.HookApplyVPCACLRules = ApplyVPCACLRules
+	publicippkg.HookReconcilePortSecurity = func() error {
+		_, err := ReconcilePortSecurity()
+		return err
+	}
 	publicippkg.HookOvsUplink = ovspkg.OvsUplink
 	publicippkg.HookOvsBridgeName = ovspkg.OvsBridgeName
 	publicippkg.HookOvsGatewayIP = ovspkg.OvsGatewayIP
@@ -66,6 +89,9 @@ type PublicIPOperationParams = publicippkg.PublicIPOperationParams
 type PublicIPInfo = publicippkg.PublicIPInfo
 type PublicIPPreview = publicippkg.PublicIPPreview
 type PublicIPAttachment = publicippkg.PublicIPAttachment
+type PublicIPv6PrefixInfo = publicippkg.PublicIPv6PrefixInfo
+type PublicIPv6PrefixImportRequest = publicippkg.PublicIPv6PrefixImportRequest
+type PublicIPv6PrefixImportResult = publicippkg.PublicIPv6PrefixImportResult
 
 // ── Exported delegates (used by handler and other service files) ──
 
@@ -83,6 +109,22 @@ func UpdatePublicIP(id uint, req PublicIPRequest) (*model.PublicIP, error) {
 
 func DeletePublicIP(id uint) error {
 	return publicippkg.DeletePublicIP(id)
+}
+
+func DiscoverPublicIPv6Prefixes(uplinkIF string) ([]PublicIPv6PrefixInfo, error) {
+	return publicippkg.DiscoverPublicIPv6Prefixes(uplinkIF)
+}
+
+func ImportPublicIPv6Prefix(req PublicIPv6PrefixImportRequest) (*PublicIPv6PrefixImportResult, error) {
+	return publicippkg.ImportPublicIPv6Prefix(req)
+}
+
+func SyncManagedPublicIPv6Addresses() (int, error) {
+	return publicippkg.SyncManagedPublicIPv6Addresses()
+}
+
+func StartPublicIPv6PrefixMonitor() {
+	publicippkg.StartPublicIPv6PrefixMonitor()
 }
 
 func PreviewPublicIPBinding(id uint, req PublicIPBindRequest) (*PublicIPPreview, error) {

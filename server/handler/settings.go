@@ -52,6 +52,7 @@ type SettingsResponse struct {
 	PortSecurityBroadcastPPS              int    `json:"port_security_broadcast_pps"`
 	PortSecurityBroadcastBurstPackets     int    `json:"port_security_broadcast_burst_packets"`
 	PortSecurityReconcileIntervalSeconds  int    `json:"port_security_reconcile_interval_seconds"`
+	PublicIPv6SyncIntervalSeconds         int    `json:"public_ipv6_sync_interval_seconds"`
 	RescueISO                             string `json:"rescue_iso"`
 	SpiceEnabledByDefault                 bool   `json:"spice_enabled_by_default"`
 	PublicBaseURL                         string `json:"public_base_url"`
@@ -128,6 +129,7 @@ type UpdateSettingsRequest struct {
 	PortSecurityBroadcastPPS              *int    `json:"port_security_broadcast_pps"`
 	PortSecurityBroadcastBurstPackets     *int    `json:"port_security_broadcast_burst_packets"`
 	PortSecurityReconcileIntervalSeconds  *int    `json:"port_security_reconcile_interval_seconds"`
+	PublicIPv6SyncIntervalSeconds         *int    `json:"public_ipv6_sync_interval_seconds"`
 	RescueISO                             *string `json:"rescue_iso"`
 	SpiceEnabledByDefault                 *bool   `json:"spice_enabled_by_default"`
 	PublicBaseURL                         *string `json:"public_base_url"`
@@ -254,6 +256,7 @@ func GetSettings(c *gin.Context) {
 			PortSecurityBroadcastPPS:              cfg.PortSecurityBroadcastPPS,
 			PortSecurityBroadcastBurstPackets:     cfg.PortSecurityBroadcastBurstPackets,
 			PortSecurityReconcileIntervalSeconds:  cfg.PortSecurityReconcileIntervalSeconds,
+			PublicIPv6SyncIntervalSeconds:         cfg.PublicIPv6SyncIntervalSeconds,
 			RescueISO:                             cfg.RescueISO,
 			SpiceEnabledByDefault:                 cfg.SpiceEnabledByDefault,
 			PublicBaseURL:                         cfg.PublicBaseURL,
@@ -453,6 +456,13 @@ func UpdateSettings(c *gin.Context) {
 			return
 		}
 		cfg.PortSecurityReconcileIntervalSeconds = *req.PortSecurityReconcileIntervalSeconds
+	}
+	if req.PublicIPv6SyncIntervalSeconds != nil {
+		if *req.PublicIPv6SyncIntervalSeconds < 10 || *req.PublicIPv6SyncIntervalSeconds > 3600 {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "公网 IPv6 前缀检测周期需在 10 - 3600 秒之间"})
+			return
+		}
+		cfg.PublicIPv6SyncIntervalSeconds = *req.PublicIPv6SyncIntervalSeconds
 	}
 	if portSecuritySettingsChanged && (cfg.PortSecurityTotalBurstKPackets*5 < cfg.PortSecurityTotalKpps*4 ||
 		cfg.PortSecurityNeighborBurstPackets*5 < cfg.PortSecurityNeighborPPS*4 ||

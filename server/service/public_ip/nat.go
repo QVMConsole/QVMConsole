@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"kvm_console/config"
@@ -15,7 +16,20 @@ import (
 	"kvm_console/utils"
 )
 
+var publicIPApplyMu sync.Mutex
+
 func ApplyPublicIPRules() error {
+	publicIPApplyMu.Lock()
+	defer publicIPApplyMu.Unlock()
+	return applyPublicIPRulesLocked(true)
+}
+
+func applyPublicIPRulesLocked(syncPrefix bool) error {
+	if syncPrefix {
+		if _, err := SyncManagedPublicIPv6Addresses(); err != nil {
+			return fmt.Errorf("同步动态公网 IPv6 前缀失败: %w", err)
+		}
+	}
 	if err := os.MkdirAll(filepath.Join(publicIPConfigDir, "backups"), 0755); err != nil {
 		return fmt.Errorf("创建公网 IP 配置目录失败: %w", err)
 	}
@@ -44,12 +58,6 @@ func ApplyPublicIPRules() error {
 }
 
 func RestorePublicIPRules() error {
-	if _, err := os.Stat(publicIPRulesPath); err == nil {
-		result := utils.ExecCommand("bash", publicIPRulesPath)
-		if result.Error != nil {
-			return fmt.Errorf("恢复公网 IP 规则失败: %s", strings.TrimSpace(result.Stderr))
-		}
-	}
 	return ApplyPublicIPRules()
 }
 
@@ -75,7 +83,23 @@ func BuildPublicIPRulesScript() (string, error) {
 	b.WriteString("\n")
 	b.WriteString(cleanupPublicIPHostAddressesShell(ips))
 	b.WriteString("\n")
+	b.WriteString(cleanupPublicIPv6StateShell(ips))
+	b.WriteString("\n")
 	b.WriteString("sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1 || true\n\n")
+	for _, binding := range bindings {
+		if ipRow, ok := ipRows[binding.PublicIPID]; ok && publicIPIsIPv6(ipRow.IP) {
+			uplink := strings.TrimSpace(ipRow.UplinkIF)
+			if uplink == "" {
+				uplink = detectDefaultIPv6Uplink()
+			}
+			if uplink != "" {
+				b.WriteString(fmt.Sprintf("sysctl -w net.ipv6.conf.%s.accept_ra=2 >/dev/null 2>&1 || true\n", uplink))
+				b.WriteString(fmt.Sprintf("sysctl -w net.ipv6.conf.%s.proxy_ndp=1 >/dev/null 2>&1 || true\n", uplink))
+			}
+			b.WriteString("sysctl -w net.ipv6.conf.all.forwarding=1 >/dev/null 2>&1 || true\n\n")
+			break
+		}
+	}
 
 	for _, binding := range bindings {
 		ipRow, ok := ipRows[binding.PublicIPID]
@@ -151,6 +175,9 @@ func buildPublicIPNATCommands(ipRow model.PublicIP, req PublicIPBindRequest) []s
 }
 
 func buildPublicIPClassicRouteCommands(ipRow model.PublicIP, req PublicIPBindRequest) []string {
+	if publicIPIsIPv6(ipRow.IP) {
+		return buildPublicIPv6RouteCommands(ipRow, req)
+	}
 	bridge := publicIPVMBridge(req.VMName)
 	if bridge == "" {
 		bridge = HookOvsBridgeName()
@@ -161,6 +188,37 @@ func buildPublicIPClassicRouteCommands(ipRow model.PublicIP, req PublicIPBindReq
 			utils.ShellSingleQuote(ipRow.IP), utils.ShellSingleQuote(req.VMPrivateIP), utils.ShellSingleQuote(bridge)))
 	} else {
 		cmds = append(cmds, fmt.Sprintf("ip route replace %s/32 dev %s || true", utils.ShellSingleQuote(ipRow.IP), utils.ShellSingleQuote(bridge)))
+	}
+	cmds = append(cmds, buildPublicIPAntiSpoofCommands(ipRow, req)...)
+	return cmds
+}
+
+func buildPublicIPv6RouteCommands(ipRow model.PublicIP, req PublicIPBindRequest) []string {
+	publicIP := strings.TrimSpace(ipRow.IP)
+	uplink := strings.TrimSpace(ipRow.UplinkIF)
+	if uplink == "" {
+		uplink = detectDefaultIPv6Uplink()
+	}
+	routeIF := publicIPVMRouteInterface(req.VMName)
+	if routeIF == "" {
+		routeIF = HookOvsBridgeName()
+	}
+	gateway := publicIPv6GatewayLinkLocal(req.VMName)
+	comment := publicIPRuleComment + ":" + publicIP
+	cmds := make([]string, 0, 6)
+	if gateway != "" {
+		cmds = append(cmds,
+			fmt.Sprintf("ip link set dev %s up || true", utils.ShellSingleQuote(routeIF)),
+			fmt.Sprintf("ip -6 addr replace %s/64 dev %s", utils.ShellSingleQuote(gateway), utils.ShellSingleQuote(routeIF)),
+		)
+	}
+	cmds = append(cmds, fmt.Sprintf("ip -6 route replace %s/128 dev %s", utils.ShellSingleQuote(publicIP), utils.ShellSingleQuote(routeIF)))
+	if uplink != "" {
+		cmds = append(cmds,
+			fmt.Sprintf("ip -6 neigh replace proxy %s dev %s", utils.ShellSingleQuote(publicIP), utils.ShellSingleQuote(uplink)),
+			fmt.Sprintf("ip6tables -A FORWARD -i %s -o %s -d %s/128 -m comment --comment %s -j ACCEPT", utils.ShellSingleQuote(uplink), utils.ShellSingleQuote(routeIF), utils.ShellSingleQuote(publicIP), utils.ShellSingleQuote(comment+":forward-in")),
+			fmt.Sprintf("ip6tables -A FORWARD -i %s -o %s -s %s/128 -m comment --comment %s -j ACCEPT", utils.ShellSingleQuote(routeIF), utils.ShellSingleQuote(uplink), utils.ShellSingleQuote(publicIP), utils.ShellSingleQuote(comment+":forward-out")),
+		)
 	}
 	cmds = append(cmds, buildPublicIPAntiSpoofCommands(ipRow, req)...)
 	return cmds
@@ -187,6 +245,14 @@ func buildPublicIPAntiSpoofCommands(ipRow model.PublicIP, req PublicIPBindReques
 		return []string{fmt.Sprintf("# VM %s 的 OVS ofport 无效，跳过经典网络防伪造流表", req.VMName)}
 	}
 	cookie := publicIPFlowCookie(ipRow.IP)
+	if publicIPIsIPv6(ipRow.IP) {
+		return []string{
+			fmt.Sprintf("ovs-ofctl -O OpenFlow13 del-flows %s %s || true", utils.ShellSingleQuote(bridge), utils.ShellSingleQuote("cookie="+cookie+"/-1")),
+			fmt.Sprintf("ovs-ofctl -O OpenFlow13 add-flow %s %s", utils.ShellSingleQuote(bridge), utils.ShellSingleQuote(fmt.Sprintf("cookie=%s,priority=245,in_port=%s,icmp6,icmp_type=135,ipv6_src=::,nd_target=%s,actions=NORMAL", cookie, ofport, ipRow.IP))),
+			fmt.Sprintf("ovs-ofctl -O OpenFlow13 add-flow %s %s", utils.ShellSingleQuote(bridge), utils.ShellSingleQuote(fmt.Sprintf("cookie=%s,priority=240,in_port=%s,ipv6,ipv6_src=%s,actions=NORMAL", cookie, ofport, ipRow.IP))),
+			fmt.Sprintf("ovs-ofctl -O OpenFlow13 add-flow %s %s", utils.ShellSingleQuote(bridge), utils.ShellSingleQuote(fmt.Sprintf("cookie=%s,priority=230,in_port=%s,ipv6,actions=drop", cookie, ofport))),
+		}
+	}
 	return []string{
 		fmt.Sprintf("ovs-ofctl -O OpenFlow13 del-flows %s %s || true", utils.ShellSingleQuote(bridge), utils.ShellSingleQuote("cookie="+cookie+"/-1")),
 		fmt.Sprintf("ovs-ofctl -O OpenFlow13 add-flow %s %s", utils.ShellSingleQuote(bridge), utils.ShellSingleQuote(fmt.Sprintf("cookie=%s,priority=240,in_port=%s,ip,nw_src=%s,actions=NORMAL", cookie, ofport, ipRow.IP))),
@@ -213,10 +279,40 @@ func cleanupPublicIPRulesShell() string {
 cleanup_iptables_comments nat PREROUTING
 cleanup_iptables_comments nat POSTROUTING
 cleanup_iptables_comments filter FORWARD
+
+cleanup_ip6tables_comments() {
+  chain="$1"
+  while true; do
+    line="$(ip6tables -L "$chain" --line-numbers 2>/dev/null | awk '/kvm-console:public-ip/ {print $1}' | sort -rn | head -n1)"
+    [ -n "$line" ] || break
+    ip6tables -D "$chain" "$line" 2>/dev/null || break
+  done
+}
+
+cleanup_ip6tables_comments FORWARD
 `)
 	for _, bridge := range publicIPManagedBridges() {
 		b.WriteString(fmt.Sprintf("ovs-ofctl -O OpenFlow13 del-flows %s %s 2>/dev/null || true\n",
 			utils.ShellSingleQuote(bridge), utils.ShellSingleQuote("cookie="+publicIPFlowPrefix+"00000000000000/"+publicIPFlowMask)))
+	}
+	return b.String()
+}
+
+func cleanupPublicIPv6StateShell(ipRows []model.PublicIP) string {
+	var b strings.Builder
+	b.WriteString("# 清理面板托管的公网 IPv6 Proxy NDP 与精确路由，后续按当前绑定重建\n")
+	for _, ipRow := range ipRows {
+		if !publicIPIsIPv6(ipRow.IP) {
+			continue
+		}
+		uplink := strings.TrimSpace(ipRow.UplinkIF)
+		if uplink == "" {
+			uplink = detectDefaultIPv6Uplink()
+		}
+		if uplink != "" {
+			b.WriteString(fmt.Sprintf("ip -6 neigh del proxy %s dev %s 2>/dev/null || true\n", utils.ShellSingleQuote(ipRow.IP), utils.ShellSingleQuote(uplink)))
+		}
+		b.WriteString(fmt.Sprintf("ip -6 route del %s/128 2>/dev/null || true\n", utils.ShellSingleQuote(ipRow.IP)))
 	}
 	return b.String()
 }
@@ -267,6 +363,11 @@ func cleanupConntrackForPublicIP(publicIP string) {
 	if publicIP == "" {
 		return
 	}
-	utils.ExecCommand("conntrack", "-D", "-d", publicIP)
-	utils.ExecCommand("conntrack", "-D", "-s", publicIP)
+	if publicIPIsIPv6(publicIP) {
+		utils.ExecCommandQuiet("conntrack", "-f", "ipv6", "-D", "-d", publicIP)
+		utils.ExecCommandQuiet("conntrack", "-f", "ipv6", "-D", "-s", publicIP)
+		return
+	}
+	utils.ExecCommandQuiet("conntrack", "-f", "ipv4", "-D", "-d", publicIP)
+	utils.ExecCommandQuiet("conntrack", "-f", "ipv4", "-D", "-s", publicIP)
 }

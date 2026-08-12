@@ -6,10 +6,10 @@
  */
 import { useEffect, useMemo, useState } from 'react'
 import { Button, Empty, Input, Pagination, Select, Table, Tag, Tooltip } from '@douyinfe/semi-ui'
-import { IconLock, IconPlus, IconSearch } from '@douyinfe/semi-icons'
+import { IconDelete, IconEdit, IconLock, IconPlus, IconSearch } from '@douyinfe/semi-icons'
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table'
 import type { VpcSecurityGroup, VpcSecurityGroupRule } from '@/api/vpc'
-import { directionText, portText, targetText } from '../utils'
+import { addressFamilyText, directionText, portText, protocolText, targetText } from '../utils'
 
 const PAGE_SIZE = 100
 
@@ -47,11 +47,22 @@ function RulePanel({
       ),
     },
     {
+      title: 'IP 版本',
+      dataIndex: 'address_family',
+      width: 90,
+      align: 'center',
+      render: (_text, rule) => (
+        <Tag size="small" color={addressFamilyText(rule) === 'IPv6' ? 'violet' : 'blue'}>
+          {addressFamilyText(rule)}
+        </Tag>
+      ),
+    },
+    {
       title: '协议',
       dataIndex: 'protocol',
-      width: 80,
+      width: 90,
       align: 'center',
-      render: (text) => <span className="qvm-mono">{String(text || '').toUpperCase()}</span>,
+      render: (_text, rule) => <span className="qvm-mono">{protocolText(rule)}</span>,
     },
     {
       title: '端口范围',
@@ -75,9 +86,17 @@ function RulePanel({
       width: 80,
       align: 'center',
       render: (_text, rule) => (
-        <Button size="small" theme="borderless" type="danger" onClick={() => onDeleteRule(rule)}>
-          删除
-        </Button>
+        <Tooltip content="删除规则" position="top">
+          <Button
+            className="qvm-act-ic"
+            size="small"
+            theme="borderless"
+            type="danger"
+            icon={<IconDelete />}
+            aria-label="删除规则"
+            onClick={() => onDeleteRule(rule)}
+          />
+        </Tooltip>
       ),
     },
   ]
@@ -189,19 +208,29 @@ export default function SecurityGroupsTab({
       width: 150,
       render: (_text, row) => (
         <div className="net-row-actions">
-          <Button size="small" theme="borderless" type="primary" onClick={() => onEdit(row)}>
-            编辑
-          </Button>
-          <Tooltip content="默认安全组用于兜底策略，不能删除" disabled={!row.is_default}>
+          <Tooltip content="编辑安全组" position="top">
             <Button
+              className="qvm-act-ic"
               size="small"
               theme="borderless"
-              type="danger"
-              disabled={row.is_default}
-              onClick={() => onDelete(row)}
-            >
-              {row.is_default ? '受保护' : '删除'}
-            </Button>
+              type="primary"
+              icon={<IconEdit />}
+              aria-label="编辑安全组"
+              onClick={() => onEdit(row)}
+            />
+          </Tooltip>
+          <Tooltip content={row.is_default ? '默认安全组用于兜底策略，不能删除' : '删除安全组'} position="top">
+            <span className="qvm-act-ic">
+              <Button
+                size="small"
+                theme="borderless"
+                type="danger"
+                disabled={row.is_default}
+                icon={row.is_default ? <IconLock /> : <IconDelete />}
+                aria-label={row.is_default ? '默认安全组受保护' : '删除安全组'}
+                onClick={() => onDelete(row)}
+              />
+            </span>
           </Tooltip>
         </div>
       ),

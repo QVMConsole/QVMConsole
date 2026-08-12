@@ -64,8 +64,9 @@ func (VPCSecurityGroup) TableName() string {
 type VPCSecurityGroupRule struct {
 	ID              uint      `json:"id" gorm:"primaryKey"`
 	SecurityGroupID uint      `json:"security_group_id" gorm:"index;not null"`
-	Direction       string    `json:"direction" gorm:"size:16;not null"` // ingress/egress
-	Protocol        string    `json:"protocol" gorm:"size:16;not null"`  // tcp/udp/icmp/all
+	Direction       string    `json:"direction" gorm:"size:16;not null"`                  // ingress/egress
+	AddressFamily   string    `json:"address_family" gorm:"size:8;not null;default:ipv4"` // ipv4/ipv6
+	Protocol        string    `json:"protocol" gorm:"size:16;not null"`                   // tcp/udp/icmp/icmpv6/all
 	PortStart       int       `json:"port_start" gorm:"default:0"`
 	PortEnd         int       `json:"port_end" gorm:"default:0"`
 	TargetType      string    `json:"target_type" gorm:"size:32;not null"` // cidr/switch/security_group

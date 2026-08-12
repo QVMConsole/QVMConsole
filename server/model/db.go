@@ -106,6 +106,7 @@ func InitDB() {
 	migrateVPCBindingInterfaceOrder(hadVPCBindingInterfaceOrderColumn)
 	migrateVPCBindingInterfaceOrderNormalize()
 	migrateVPCSwitchCIDRColumn(hadVPCSwitchCIDRColumn)
+	migrateVPCSecurityGroupRuleAddressFamily()
 
 	// 兼容旧用户：补齐默认状态，确保升级后能继续登录
 	if err := DB.Model(&User{}).Where("status = '' OR status IS NULL").Updates(map[string]interface{}{
@@ -117,6 +118,30 @@ func InitDB() {
 	// 初始化默认管理员
 	initDefaultAdmin()
 	logger.App.Info("数据库初始化完成")
+}
+
+// migrateVPCSecurityGroupRuleAddressFamily 为历史安全组规则补齐地址族。
+// 旧版本通过 IPv6 CIDR 隐式识别 IPv6，升级后将其固化为明确字段并统一 ICMPv6 协议名。
+func migrateVPCSecurityGroupRuleAddressFamily() {
+	if DB == nil {
+		return
+	}
+	if err := DB.Model(&VPCSecurityGroupRule{}).
+		Where("target_type = ? AND instr(target_value, ':') > 0", "cidr").
+		Updates(map[string]interface{}{"address_family": "ipv6"}).Error; err != nil {
+		logger.App.Warn("迁移 IPv6 安全组规则地址族失败", "error", err)
+		return
+	}
+	if err := DB.Model(&VPCSecurityGroupRule{}).
+		Where("address_family = ? AND lower(protocol) = ?", "ipv6", "icmp").
+		Update("protocol", "icmpv6").Error; err != nil {
+		logger.App.Warn("迁移 IPv6 安全组 ICMP 协议失败", "error", err)
+	}
+	if err := DB.Model(&VPCSecurityGroupRule{}).
+		Where("lower(protocol) = ?", "icmpv6").
+		Update("address_family", "ipv6").Error; err != nil {
+		logger.App.Warn("修复 ICMPv6 安全组规则地址族失败", "error", err)
+	}
 }
 
 func migrateUserCloudType() {

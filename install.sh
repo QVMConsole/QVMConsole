@@ -305,6 +305,7 @@ COMMAND_CHECKS=(
     "nft"
     "ip"
     "iptables"
+    "ip6tables"
     "tcpdump"
     "tc"
     "setquota"

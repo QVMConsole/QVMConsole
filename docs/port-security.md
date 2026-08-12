@@ -23,7 +23,7 @@
 
 ## 策略模式
 
-- **系统/NAT 网络**：严格校验源 MAC、ARP SHA、IPv4 源地址与 ARP SPA；允许地址由静态绑定、dnsmasq 租约和公网 IP 绑定汇总。IPv6 在防护开启时丢弃。
+- **系统/NAT 网络**：严格校验源 MAC、ARP SHA、IPv4 源地址与 ARP SPA；允许地址由静态绑定、dnsmasq 租约和公网 IP 绑定汇总。默认丢弃 IPv6；绑定路由型公网 IPv6 后，仅允许该 VM 对应的精确 `/128`、DAD 与必要 ND 报文。
 - **直通桥兼容保护**：始终校验源 MAC、ARP SHA、DHCP 服务端行为和速率；`allowed_ipv4_addresses` 为空时保留未知 IPv4 连通性，填写后切换为精确 IPv4 校验。
 - **直通桥 IPv6**：交换机需启用 `ipv6_security_enabled` 并配置 `trusted_ipv6_prefixes`；每张网卡必须配置可信前缀内的 `allowed_ipv6_addresses`。策略校验 IPv6 源、ND SLL/TLL、DAD，并阻断 RA、Redirect 与 DHCPv6 服务端报文。
 - **手工隔离**：隔离状态记录于 OVS Interface `external_ids`，协调和服务重启后继续保持，直到管理员释放。
@@ -45,6 +45,7 @@
 - 创建、克隆、批量克隆和导入在首次启动前保存主网卡绑定；防护开启时先暂停启动，策略安装和回读成功后再恢复。
 - 热添加先以 link-down 接入，绑定和策略校验完成后置为 up；失败会删除绑定并卸载网卡。
 - 启动、恢复、重置、网卡变更、公网 IP 与带宽变更触发协调；OVSDB Interface 事件和周期任务负责运行时恢复。
+- 动态公网 IPv6 前缀变化会先更新绑定地址，再协调端口身份策略；旧前缀源地址随协调删除，防止 VM 继续伪造失效地址。
 - 运行态网卡优先按逻辑序号对应的稳定 MAC 关联绑定，再按实际 OVS 网桥与 VLAN 兼容旧虚拟机，最后才回退到 libvirt 列表位置；热插拔或重定义导致 XML 网卡节点换序时不会串用其他网卡的交换机与地址策略。
 - VM 级和交换机级带宽策略按全部 libvirt 网卡分别落地；没有租约的网卡使用 MAC/ofport 匹配，避免额外网卡形成限速旁路。
 - OpenFlow14 bundle 可用时，将本模块旧 cookie 删除和新规则添加放入同一事务；bundle 不可用或被交换机拒绝时，先用高优先级隔离目标端口，再顺序更新、验证并释放。

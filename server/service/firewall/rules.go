@@ -71,6 +71,12 @@ func BuildFirewallRules(policy *FirewallPolicy) (string, error) {
 		b.WriteString(fmt.Sprintf("    oifname %q ip daddr %s ip saddr @whitelist4 accept\n", scope.IfName, scope.CIDR))
 		b.WriteString(fmt.Sprintf("    iifname %q oifname %q accept\n", scope.IfName, scope.IfName))
 	}
+	// 已绑定的路由型公网 IPv6 是显式放行资源；否则全局“禁用 VM IPv6”会先于
+	// Proxy NDP 转发命中并阻断。VPC 端口安全仍负责精确源地址校验。
+	for _, address := range boundPublicIPv6Addresses() {
+		b.WriteString(fmt.Sprintf("    ip6 saddr %s accept\n", address))
+		b.WriteString(fmt.Sprintf("    ip6 daddr %s accept\n", address))
+	}
 
 	if policy.DisableVMIPv6 {
 		for _, scope := range scopes {
@@ -133,6 +139,28 @@ func BuildFirewallRules(policy *FirewallPolicy) (string, error) {
 	b.WriteString("  }\n")
 	b.WriteString("}\n")
 	return b.String(), nil
+}
+
+func boundPublicIPv6Addresses() []string {
+	if model.DB == nil {
+		return []string{}
+	}
+	var bindings []model.PublicIPBinding
+	if err := model.DB.Order("public_ip ASC").Find(&bindings).Error; err != nil {
+		return []string{}
+	}
+	seen := map[string]bool{}
+	addresses := make([]string, 0)
+	for _, binding := range bindings {
+		address, err := netip.ParseAddr(strings.TrimSpace(binding.PublicIP))
+		if err != nil || address.Is4() || seen[address.String()] {
+			continue
+		}
+		seen[address.String()] = true
+		addresses = append(addresses, address.String())
+	}
+	sort.Strings(addresses)
+	return addresses
 }
 
 func firewallNetworkScopes(policy *FirewallPolicy) []firewallNetworkScope {

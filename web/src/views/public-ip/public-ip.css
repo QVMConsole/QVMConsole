@@ -60,6 +60,18 @@
   font-weight: 600;
   color: var(--qvm-acc-ink);
 }
+.pip-address-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.pip-inline-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
 .pip-muted {
   color: var(--qvm-text-2);
   font-size: 12px;
@@ -199,5 +211,8 @@ body[theme-mode='dark'] .pip-preview-title {
   }
   .pip-header-actions {
     width: 100%;
+  }
+  .pip-inline-field {
+    grid-template-columns: 1fr;
   }
 }

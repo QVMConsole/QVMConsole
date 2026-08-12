@@ -111,13 +111,13 @@ require_positive_integer "内存" "$RAM_GB"
 require_positive_integer "磁盘" "$DISK_GB"
 resolve_binary
 
-for command_name in ovs-vsctl ovs-ofctl ovsdb-client; do
+for command_name in ovs-vsctl ovs-ofctl ovsdb-client ip6tables; do
     if ! command -v "$command_name" >/dev/null 2>&1; then
         error "未找到端口安全兼容性测试所需命令: ${command_name}"
         exit 1
     fi
 done
-info "将验证 OVS packet meter、包速率 policing、OpenFlow bundle/兼容流程及资源清理"
+info "将验证 OVS packet meter、包速率 policing、IPv6 ND 流表、OpenFlow bundle/兼容流程及资源清理"
 
 if [ -z "$BINARY_PATH" ] || [ ! -x "$BINARY_PATH" ]; then
     error "未找到可执行的 kvm-console，请通过 --binary 指定路径"

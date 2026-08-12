@@ -192,6 +192,20 @@ export default function StorageNetworkTab({ form, patch }: SettingsTabProps) {
         />
       </SettingRow>
 
+      <SettingRow
+        label="公网 IPv6 前缀检测"
+        tip="定期检查上联网卡的动态公网 IPv6 前缀；前缀变化后保留每个 VM 的主机位并自动重建 Proxy NDP 与 /128 路由 | 环境变量: KVM_PUBLIC_IPV6_SYNC_INTERVAL_SECONDS"
+      >
+        <NumField
+          label="检测周期"
+          suffix="秒"
+          value={form.public_ipv6_sync_interval_seconds}
+          onChange={(v) => patch({ public_ipv6_sync_interval_seconds: v })}
+          min={10}
+          max={3600}
+        />
+      </SettingRow>
+
       <SectionHead icon={<IconSafeStroked />} title="端口安全参数" />
 
       {!form.port_security_enabled ? (

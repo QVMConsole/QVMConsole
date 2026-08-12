@@ -48,6 +48,7 @@ import { confirmModal } from '@/utils/confirm'
 import { useUserStore } from '@/stores/user'
 import { ROLES } from '@/config/constants'
 import {
+  guestIPv6StatusLabel,
   publicIpModeLabel,
   publicIpRowStatus,
   publicIpStatusLabel,
@@ -56,6 +57,7 @@ import {
 } from './utils'
 import PublicIpDialog from './dialogs/PublicIpDialog'
 import BindPublicIpDialog, { type BindVmOption } from './dialogs/BindPublicIpDialog'
+import ImportIPv6PrefixDialog from './dialogs/ImportIPv6PrefixDialog'
 import PreviewModal from '@/components/common/PreviewModal'
 import './public-ip.css'
 
@@ -66,6 +68,7 @@ type DialogState =
   | { type: 'edit'; row?: PublicIpItem }
   | { type: 'bind'; row: PublicIpItem; action: 'bind' | 'migrate' }
   | { type: 'preview'; row: PublicIpItem; preview: PublicIpPreview }
+  | { type: 'ipv6-import' }
   | null
 
 export default function PublicIpPage() {
@@ -81,6 +84,7 @@ export default function PublicIpPage() {
   const [searchText, setSearchText] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [modeFilter, setModeFilter] = useState('')
+  const [familyFilter, setFamilyFilter] = useState('')
   const [page, setPage] = useState(1)
 
   // ==================== 数据加载 ====================
@@ -127,12 +131,15 @@ export default function PublicIpPage() {
     if (modeFilter) {
       data = data.filter((row) => (row.modes || []).includes(modeFilter as never))
     }
+	if (familyFilter) {
+	  data = data.filter((row) => (row.address_family || (row.ip.includes(':') ? 'ipv6' : 'ipv4')) === familyFilter)
+	}
     return data
-  }, [list, searchText, statusFilter, modeFilter])
+  }, [list, searchText, statusFilter, modeFilter, familyFilter])
 
   useEffect(() => {
     setPage(1)
-  }, [searchText, statusFilter, modeFilter])
+  }, [searchText, statusFilter, modeFilter, familyFilter])
 
   const paged = useMemo(
     () => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
@@ -229,8 +236,16 @@ export default function PublicIpPage() {
     {
       title: '公网 IP',
       dataIndex: 'ip',
-      width: 150,
-      render: (text) => <span className="pip-ip-text">{text}</span>,
+      width: 275,
+      render: (text, row) => (
+        <div className="pip-address-cell">
+          <span className="pip-ip-text">{text}</span>
+          <Tag size="small" color={row.address_family === 'ipv6' || row.ip.includes(':') ? 'purple' : 'cyan'}>
+            {row.address_family === 'ipv6' || row.ip.includes(':') ? 'IPv6' : 'IPv4'}
+          </Tag>
+          {row.auto_ipv6 && <Tag size="small" color="green">动态</Tag>}
+        </div>
+      ),
     },
     {
       title: '掩码/网关',
@@ -291,6 +306,13 @@ export default function PublicIpPage() {
             <div className="pip-muted">用户：{row.binding.username}</div>
             <div className="pip-muted">私网：{row.binding.vm_private_ip || '-'}</div>
             <div className="pip-muted">运行态：{row.binding.runtime_status || '-'}</div>
+            {row.address_family === 'ipv6' && (
+              <Tooltip content={row.binding.guest_ipv6_message || '来宾系统 IPv6 配置状态'}>
+                <div className="pip-muted">
+                  来宾 IPv6：{guestIPv6StatusLabel(row.binding.guest_ipv6_status)}
+                </div>
+              </Tooltip>
+            )}
           </div>
         ) : (
           <span className="pip-muted">未绑定</span>
@@ -397,9 +419,9 @@ export default function PublicIpPage() {
         <div>
           <h2>
             <IconGlobeStroke style={{ marginRight: 8, color: 'var(--qvm-acc-ink)' }} />
-            公网 IP
+            公网 IP（IPv4 / IPv6）
           </h2>
-          <p className="pip-page-sub">管理 1:1 NAT、经典网络和浮动 IP 迁移</p>
+          <p className="pip-page-sub">管理 IPv4 NAT、IPv6 前缀路由、经典网络和浮动 IP 迁移</p>
         </div>
         <div className="pip-header-actions">
           <Button icon={<IconRefresh />} loading={loading} onClick={() => void loadData()}>
@@ -409,6 +431,13 @@ export default function PublicIpPage() {
             重载规则
           </Button>
           <Button
+			theme="light"
+			icon={<IconGlobeStroke />}
+			onClick={() => setDialog({ type: 'ipv6-import' })}
+		  >
+			导入 IPv6 前缀
+		  </Button>
+		  <Button
             type="primary"
             theme="light"
             icon={<IconPlus />}
@@ -423,7 +452,7 @@ export default function PublicIpPage() {
         type="warning"
         closeIcon={null}
         className="qvm-fade-up"
-        description="公网 IP 绑定、解绑、迁移会触发高风险验证，并通过任务队列应用规则。经典网络需要上游网络支持，VM 内 IP 由用户手动配置。"
+        description="公网 IP 绑定、解绑、迁移会触发高风险验证，并通过任务队列应用规则。IPv6 使用 Proxy NDP + /128 路由，VM 内地址与默认路由按预览提示配置。"
         style={{ marginBottom: 16 }}
       />
 
@@ -437,6 +466,17 @@ export default function PublicIpPage() {
           style={{ width: 180 }}
         />
         <Select
+		  value={familyFilter}
+		  onChange={(v) => setFamilyFilter(v as string)}
+		  placeholder="地址族"
+		  showClear
+		  style={{ width: 120 }}
+		  optionList={[
+			{ label: 'IPv4', value: 'ipv4' },
+			{ label: 'IPv6', value: 'ipv6' },
+		  ]}
+		/>
+		<Select
           value={statusFilter}
           onChange={(v) => setStatusFilter(v as string)}
           placeholder="状态筛选"
@@ -507,6 +547,13 @@ export default function PublicIpPage() {
           }}
         />
       )}
+	  {dialog?.type === 'ipv6-import' && (
+		<ImportIPv6PrefixDialog
+		  suggestedCount={Math.max(1, vms.length)}
+		  onClose={() => setDialog(null)}
+		  onSaved={() => void loadData()}
+		/>
+	  )}
       {dialog?.type === 'preview' && (
         <PreviewModal
           title={`规则预览：${dialog.row.ip}`}

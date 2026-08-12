@@ -73,7 +73,7 @@ func collectPolicyPorts() ([]policyPort, []Issue, error) {
 	}
 
 	staticByMAC, leaseByMAC := collectKnownIPv4ByMAC()
-	publicByVM := collectPublicIPv4ByVM()
+	publicIPv4ByVM, publicIPv6ByVM := collectPublicAddressesByVM()
 	vmNames, err := listActiveVMNames()
 	if err != nil {
 		return nil, nil, err
@@ -133,7 +133,14 @@ func collectPolicyPorts() ([]policyPort, []Issue, error) {
 			port.AllowedIPv4Addresses = appendUniqueAddresses(port.AllowedIPv4Addresses, leaseByMAC[port.MAC]...)
 			// 现有公网 IP 绑定模型归属于虚拟机主网卡；不要扩散到额外网卡，避免跨端口地址冒用。
 			if interfaceOrder == 0 {
-				port.AllowedIPv4Addresses = appendUniqueAddresses(port.AllowedIPv4Addresses, publicByVM[vmName]...)
+				port.AllowedIPv4Addresses = appendUniqueAddresses(port.AllowedIPv4Addresses, publicIPv4ByVM[vmName]...)
+				port.AllowedIPv6Addresses = appendUniqueAddresses(port.AllowedIPv6Addresses, publicIPv6ByVM[vmName]...)
+				if len(publicIPv6ByVM[vmName]) > 0 {
+					port.IPv6Enabled = true
+					for _, address := range publicIPv6ByVM[vmName] {
+						port.TrustedIPv6Prefixes = appendUniqueAddresses(port.TrustedIPv6Prefixes, address+"/128")
+					}
+				}
 			}
 			port.StrictIPv4 = !port.DirectBridge || len(port.AllowedIPv4Addresses) > 0
 			port.Mode = ModeStrict
@@ -422,23 +429,29 @@ func collectKnownIPv4ByMAC() (map[string][]string, map[string][]string) {
 	return staticByMAC, leaseByMAC
 }
 
-func collectPublicIPv4ByVM() map[string][]string {
-	result := make(map[string][]string)
+func collectPublicAddressesByVM() (map[string][]string, map[string][]string) {
+	ipv4 := make(map[string][]string)
+	ipv6 := make(map[string][]string)
 	if model.DB == nil {
-		return result
+		return ipv4, ipv6
 	}
 	var bindings []model.PublicIPBinding
 	if err := model.DB.Find(&bindings).Error; err != nil {
-		return result
+		return ipv4, ipv6
 	}
 	for _, binding := range bindings {
+		publicAddr, _ := netip.ParseAddr(strings.TrimSpace(binding.PublicIP))
+		if publicAddr.IsValid() && !publicAddr.Is4() {
+			ipv6[binding.VMName] = appendUniqueAddresses(ipv6[binding.VMName], publicAddr.String())
+			continue
+		}
 		if strings.EqualFold(binding.Mode, "nat") {
-			result[binding.VMName] = appendUniqueAddresses(result[binding.VMName], binding.VMPrivateIP)
+			ipv4[binding.VMName] = appendUniqueAddresses(ipv4[binding.VMName], binding.VMPrivateIP)
 		} else {
-			result[binding.VMName] = appendUniqueAddresses(result[binding.VMName], binding.PublicIP, binding.VMPrivateIP)
+			ipv4[binding.VMName] = appendUniqueAddresses(ipv4[binding.VMName], binding.PublicIP, binding.VMPrivateIP)
 		}
 	}
-	return result
+	return ipv4, ipv6
 }
 
 func managedBridges(switches []model.VPCSwitch, ports []policyPort) []string {

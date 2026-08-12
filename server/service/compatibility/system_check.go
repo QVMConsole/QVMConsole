@@ -413,7 +413,7 @@ func (r *runner) checkRequiredRuntime() error {
 	if arch.DetectHostArch() == arch.ArchAarch64 {
 		qemuCandidates = []string{arch.GetProfile(arch.ArchAarch64).EmulatorPath(), "qemu-system-aarch64", "qemu-kvm", "/usr/libexec/qemu-kvm"}
 	}
-	commands := []string{"virsh", "virt-install", "qemu-img", "ovs-vsctl", "ovs-ofctl", "ovsdb-client", "ip", "iptables", "dnsmasq"}
+	commands := []string{"virsh", "virt-install", "qemu-img", "ovs-vsctl", "ovs-ofctl", "ovsdb-client", "ip", "iptables", "ip6tables", "dnsmasq"}
 	for _, command := range commands {
 		if _, err := exec.LookPath(command); err != nil {
 			return fmt.Errorf("未找到必要命令 %s", command)
@@ -496,7 +496,8 @@ func (r *runner) checkPortSecurityRuntime() (map[string]string, error) {
 	}
 	r.portSecurityProbeFile = flowFile.Name()
 	flow := "cookie=" + probeCookie + ",table=0,priority=100,arp,actions=meter:" + probeMeter + ",drop"
-	if _, err := flowFile.WriteString("delete cookie=" + probeCookie + "/0xffffffffffffffff\nadd " + flow + "\n"); err != nil {
+	ipv6Flow := "cookie=" + probeCookie + ",table=0,priority=101,icmp6,icmp_type=135,ipv6_src=::,nd_target=2001:db8::1,actions=drop"
+	if _, err := flowFile.WriteString("delete cookie=" + probeCookie + "/0xffffffffffffffff\nadd " + flow + "\nadd " + ipv6Flow + "\n"); err != nil {
 		_ = flowFile.Close()
 		return nil, fmt.Errorf("写入端口安全探测流表失败: %w", err)
 	}
@@ -514,9 +515,12 @@ func (r *runner) checkPortSecurityRuntime() (map[string]string, error) {
 		if result := utils.ExecCommand("ovs-ofctl", "-O", "OpenFlow13", "add-flow", bridge, flow); result.Error != nil {
 			return nil, fmt.Errorf("兼容模式端口安全流表落地失败: %s", firstNonEmpty(result.Stderr, result.Error.Error()))
 		}
+		if result := utils.ExecCommand("ovs-ofctl", "-O", "OpenFlow13", "add-flow", bridge, ipv6Flow); result.Error != nil {
+			return nil, fmt.Errorf("IPv6 ND 防伪造流表落地失败: %s", firstNonEmpty(result.Stderr, result.Error.Error()))
+		}
 	}
 	flowDump := utils.ExecCommand("ovs-ofctl", "-O", "OpenFlow13", "dump-flows", bridge, "cookie="+probeCookie+"/0xffffffffffffffff")
-	if flowDump.Error != nil || !strings.Contains(strings.ToLower(flowDump.Stdout), strings.TrimPrefix(strings.ToLower(probeCookie), "0x")) || !strings.Contains(strings.ToLower(flowDump.Stdout), "meter:1") {
+	if flowDump.Error != nil || !strings.Contains(strings.ToLower(flowDump.Stdout), strings.TrimPrefix(strings.ToLower(probeCookie), "0x")) || !strings.Contains(strings.ToLower(flowDump.Stdout), "meter:1") || !strings.Contains(strings.ToLower(flowDump.Stdout), "icmp6") {
 		return nil, fmt.Errorf("端口安全探测流表回读校验失败")
 	}
 
@@ -527,6 +531,7 @@ func (r *runner) checkPortSecurityRuntime() (map[string]string, error) {
 		"sequential_apply_guard": strconv.FormatBool(!bundleApplied),
 		"packet_meter":           "pktps+burst",
 		"packet_policing":        "ingress_policing_kpkts_rate+burst",
+		"ipv6_nd_flow":           "true",
 		"max_meter":              maxMeter,
 	}
 	return details, nil

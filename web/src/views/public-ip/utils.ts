@@ -35,6 +35,15 @@ export function publicIpStatusTagColor(status: PublicIpRowStatus): 'green' | 'or
   return 'grey'
 }
 
+/** 来宾 IPv6 自动配置状态。 */
+export function guestIPv6StatusLabel(status?: string): string {
+  if (status === 'applied') return '已自动配置'
+  if (status === 'pending') return '等待自动配置'
+  if (status === 'failed') return '自动配置失败'
+  if (status === 'manual') return '需手动配置'
+  return status || '-'
+}
+
 /** 任务提交成功提示文案 */
 export function publicIpTaskToast(prefix: string, taskId?: string): string {
   return taskId ? `${prefix}（任务ID: ${taskId}）` : prefix

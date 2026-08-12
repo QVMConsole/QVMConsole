@@ -33,6 +33,29 @@ func CreatePublicIP(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "公网 IP 已添加", "data": row})
 }
 
+func DiscoverPublicIPv6Prefixes(c *gin.Context) {
+	items, err := service.DiscoverPublicIPv6Prefixes(c.Query("uplink_if"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "ok", "data": items})
+}
+
+func ImportPublicIPv6Prefix(c *gin.Context) {
+	var req service.PublicIPv6PrefixImportRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		return
+	}
+	result, err := service.ImportPublicIPv6Prefix(req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "IPv6 前缀已导入", "data": result})
+}
+
 func UpdatePublicIP(c *gin.Context) {
 	id, err := service.ParsePublicIPID(c.Param("id"))
 	if err != nil {

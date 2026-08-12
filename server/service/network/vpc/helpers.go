@@ -264,8 +264,11 @@ func GetVPCQuota(username string) (*VPCQuotaInfo, error) {
 
 func normalizeCIDROrIP(value string) string {
 	value = strings.TrimSpace(value)
-	if addr, err := netip.ParseAddr(value); err == nil && addr.Is4() {
-		return addr.String() + "/32"
+	if addr, err := netip.ParseAddr(value); err == nil {
+		if addr.Is4() {
+			return addr.String() + "/32"
+		}
+		return addr.String() + "/128"
 	}
 	return value
 }

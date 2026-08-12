@@ -20,6 +20,8 @@ export interface PublicIpBinding {
   vm_private_ip?: string
   mode: PublicIpMode
   runtime_status?: string
+  guest_ipv6_status?: string
+  guest_ipv6_message?: string
   config_hint?: string
   last_applied_at?: string
 }
@@ -39,6 +41,29 @@ export interface PublicIpItem {
   binding?: PublicIpBinding
   runtime_rules?: string[]
   issues?: string[]
+  address_family?: 'ipv4' | 'ipv6'
+  auto_ipv6?: boolean
+  ipv6_source_prefix?: string
+}
+
+export interface PublicIPv6PrefixInfo {
+  uplink_if: string
+  address: string
+  prefix: string
+  gateway?: string
+}
+
+export interface PublicIPv6PrefixImportPayload {
+  uplink_if: string
+  prefix: string
+  count: number
+  remark?: string
+}
+
+export interface PublicIPv6PrefixImportResult {
+  prefix: string
+  created: PublicIpItem[]
+  skipped: number
 }
 
 /** 公网 IP 创建/编辑请求 */
@@ -86,6 +111,22 @@ export function getPublicIPs() {
 /** 新增公网 IP */
 export function createPublicIP(data: PublicIpPayload) {
   return service.post<unknown, ApiResponse<PublicIpItem>>('/network/public-ips', data)
+}
+
+/** 检测上联网卡当前通过 RA 获取的公网 IPv6 前缀 */
+export function discoverPublicIPv6Prefixes(uplinkIf?: string) {
+  return service.get<unknown, ApiResponse<PublicIPv6PrefixInfo[]>>(
+    '/network/public-ips/ipv6-prefixes',
+    { params: uplinkIf ? { uplink_if: uplinkIf } : undefined },
+  )
+}
+
+/** 将 IPv6 前缀展开为可逐台 VM 绑定的 /128 地址资源 */
+export function importPublicIPv6Prefix(data: PublicIPv6PrefixImportPayload) {
+  return service.post<unknown, ApiResponse<PublicIPv6PrefixImportResult>>(
+    '/network/public-ips/ipv6-prefixes/import',
+    data,
+  )
 }
 
 /** 更新公网 IP */

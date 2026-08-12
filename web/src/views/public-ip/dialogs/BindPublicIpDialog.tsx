@@ -44,9 +44,13 @@ export default function BindPublicIpDialog({
 }: BindPublicIpDialogProps) {
   const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const binding = row.binding
+	const isIPv6 = row.address_family === 'ipv6' || row.ip.includes(':')
   const supportedModes = useMemo(
-    () => (row.modes?.length ? row.modes : (['nat'] as PublicIpMode[])),
-    [row.modes],
+	() => {
+	  const modes = row.modes?.length ? row.modes : (['nat'] as PublicIpMode[])
+	  return isIPv6 ? modes.filter((mode) => mode !== 'nat') : modes
+	},
+	[row.modes, isIPv6],
   )
   const [form, setForm] = useState({
     username: binding?.username || '',
@@ -163,14 +167,22 @@ export default function BindPublicIpDialog({
           }))}
         />
       </div>
-      <div className="qvm-form-item">
+	  {!isIPv6 && <div className="qvm-form-item">
         <div className="qvm-form-label">VM 私网 IP</div>
         <Input
           value={form.vm_private_ip}
           onChange={(v) => patch({ vm_private_ip: v })}
           placeholder="NAT 必填，留空时后端自动解析或静态绑定"
         />
-      </div>
+	  </div>}
+	  {isIPv6 && (
+		<Banner
+		  type="warning"
+		  closeIcon={null}
+		  description="绑定后请按规则预览中的提示，在 VM 主网卡配置该公网 IPv6 /128 与链路本地默认网关。"
+		  style={{ marginBottom: 14 }}
+		/>
+	  )}
       <div className="qvm-form-item">
         <Button
           icon={<IconSearch />}

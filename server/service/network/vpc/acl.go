@@ -27,36 +27,72 @@ func BuildVPCACLRules() (string, error) {
 	b.WriteString(" {\n")
 	b.WriteString("  chain forward {\n")
 	b.WriteString("    type filter hook forward priority -40; policy accept;\n")
-	var vmIPs []string
+	var vmAddresses []string
 	for _, binding := range bindings {
 		var sw model.VPCSwitch
 		if err := model.DB.First(&sw, binding.SwitchID).Error; err == nil && HookSwitchUsesDirectBridge(sw) {
 			continue
 		}
-		bindingIPs := vpcFirewallIPsForVM(binding.VMName)
-		if len(bindingIPs) == 0 {
+		bindingAddresses := vpcFirewallAddressesForVM(binding.VMName)
+		if len(bindingAddresses) == 0 {
 			continue
 		}
-		for _, vmIP := range bindingIPs {
-			allows, err := buildVPCIngressAllowRules(binding, vmIP)
+		for _, vmAddress := range bindingAddresses {
+			allows, err := buildVPCIngressAllowRules(binding, vmAddress)
 			if err != nil {
 				return "", err
 			}
 			for _, line := range allows {
 				b.WriteString(line)
 			}
-			b.WriteString(fmt.Sprintf("    ct status dnat ip daddr %s reject\n", vmIP))
-			vmIPs = append(vmIPs, vmIP)
+			// DNAT 仅适用于 IPv4；路由型公网 IPv6 使用普通目的地址规则。
+			if addressFamilyExpression(vmAddress) == "ip" {
+				b.WriteString(fmt.Sprintf("    ct status dnat ip daddr %s reject\n", vmAddress))
+			}
+			vmAddresses = append(vmAddresses, vmAddress)
 		}
 	}
 	b.WriteString("    ct state established,related accept\n")
-	sort.Strings(vmIPs)
-	for _, vmIP := range vmIPs {
-		b.WriteString(fmt.Sprintf("    ip daddr %s reject\n", vmIP))
+	sort.Strings(vmAddresses)
+	for _, vmAddress := range vmAddresses {
+		b.WriteString(fmt.Sprintf("    %s daddr %s reject\n", addressFamilyExpression(vmAddress), vmAddress))
 	}
 	b.WriteString("  }\n")
 	b.WriteString("}\n")
 	return b.String(), nil
+}
+
+func vpcFirewallAddressesForVM(vmName string) []string {
+	candidates := vpcFirewallIPsForVM(vmName)
+	if model.DB != nil {
+		var bindings []model.PublicIPBinding
+		model.DB.Where("vm_name = ?", vmName).Find(&bindings)
+		for _, binding := range bindings {
+			if address, err := netip.ParseAddr(strings.TrimSpace(binding.PublicIP)); err == nil && address.Is6() {
+				candidates = append(candidates, address.String())
+			}
+		}
+	}
+	seen := map[string]bool{}
+	addresses := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		address, err := netip.ParseAddr(strings.TrimSpace(candidate))
+		if err != nil || seen[address.String()] {
+			continue
+		}
+		seen[address.String()] = true
+		addresses = append(addresses, address.String())
+	}
+	sort.Strings(addresses)
+	return addresses
+}
+
+func addressFamilyExpression(value string) string {
+	address, err := netip.ParseAddr(strings.TrimSpace(value))
+	if err == nil && address.Is6() {
+		return "ip6"
+	}
+	return "ip"
 }
 
 func vpcFirewallIPsForVM(vmName string) []string {
@@ -94,12 +130,23 @@ func buildVPCIngressAllowRules(binding model.VPCVMBinding, vmIP string) ([]strin
 	model.DB.Where("security_group_id = ? AND direction = ?", binding.SecurityGroupID, "ingress").Find(&rules)
 	var lines []string
 	for _, rule := range rules {
+		family := addressFamilyExpression(vmIP)
+		ruleFamily := "ipv4"
+		if family == "ip6" {
+			ruleFamily = "ipv6"
+		}
+		if effectiveSecurityGroupRuleAddressFamily(rule) != ruleFamily {
+			continue
+		}
 		sources, err := resolveRuleSources(rule)
 		if err != nil {
 			return nil, err
 		}
 		for _, src := range sources {
-			match := fmt.Sprintf("    ip daddr %s ip saddr %s", vmIP, src)
+			if !sameAddressFamily(vmIP, src) {
+				continue
+			}
+			match := fmt.Sprintf("    %s daddr %s %s saddr %s", family, vmIP, family, src)
 			switch rule.Protocol {
 			case "tcp", "udp":
 				portMatch := strconv.Itoa(rule.PortStart)
@@ -108,7 +155,14 @@ func buildVPCIngressAllowRules(binding model.VPCVMBinding, vmIP string) ([]strin
 				}
 				match += fmt.Sprintf(" %s dport %s accept\n", rule.Protocol, portMatch)
 			case "icmp":
-				match += " icmp type echo-request accept\n"
+				if family == "ip6" {
+					// 兼容 address_family 字段加入前已保存的 IPv6 ICMP 规则。
+					match += " meta l4proto ipv6-icmp accept\n"
+				} else {
+					match += " icmp type echo-request accept\n"
+				}
+			case "icmpv6":
+				match += " meta l4proto ipv6-icmp accept\n"
 			default:
 				match += " accept\n"
 			}
@@ -117,6 +171,15 @@ func buildVPCIngressAllowRules(binding model.VPCVMBinding, vmIP string) ([]strin
 	}
 	sort.Strings(lines)
 	return lines, nil
+}
+
+func sameAddressFamily(addressText, prefixText string) bool {
+	address, err := netip.ParseAddr(strings.TrimSpace(addressText))
+	if err != nil {
+		return false
+	}
+	prefix, err := netip.ParsePrefix(normalizeCIDROrIP(prefixText))
+	return err == nil && address.Is4() == prefix.Addr().Is4()
 }
 
 func resolveRuleSources(rule model.VPCSecurityGroupRule) ([]string, error) {
@@ -129,24 +192,55 @@ func resolveRuleSources(rule model.VPCSecurityGroupRule) ([]string, error) {
 		if err := model.DB.First(&sw, id).Error; err != nil {
 			return nil, fmt.Errorf("安全组规则引用的交换机不存在")
 		}
-		return []string{sw.CIDR}, nil
+		sources := []string{sw.CIDR}
+		var bindings []model.VPCVMBinding
+		model.DB.Where("switch_id = ?", id).Find(&bindings)
+		for _, binding := range bindings {
+			for _, address := range vpcFirewallAddressesForVM(binding.VMName) {
+				sources = append(sources, addressWithHostPrefix(address))
+			}
+		}
+		return uniqueSortedStrings(sources), nil
 	case "security_group":
 		id, _ := strconv.Atoi(rule.TargetValue)
 		var bindings []model.VPCVMBinding
 		model.DB.Where("security_group_id = ?", id).Find(&bindings)
 		var sources []string
 		for _, binding := range bindings {
-			for _, ip := range vpcFirewallIPsForVM(binding.VMName) {
-				sources = append(sources, ip+"/32")
+			for _, address := range vpcFirewallAddressesForVM(binding.VMName) {
+				sources = append(sources, addressWithHostPrefix(address))
 			}
 		}
-		if len(sources) == 0 {
-			return []string{"255.255.255.255/32"}, nil
-		}
-		return sources, nil
+		return uniqueSortedStrings(sources), nil
 	default:
 		return nil, fmt.Errorf("安全组规则目标类型无效")
 	}
+}
+
+func addressWithHostPrefix(value string) string {
+	address, err := netip.ParseAddr(strings.TrimSpace(value))
+	if err != nil {
+		return ""
+	}
+	if address.Is6() {
+		return address.String() + "/128"
+	}
+	return address.String() + "/32"
+}
+
+func uniqueSortedStrings(values []string) []string {
+	seen := map[string]bool{}
+	items := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		items = append(items, value)
+	}
+	sort.Strings(items)
+	return items
 }
 
 func PreviewVPCACLRules() (string, error) {

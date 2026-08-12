@@ -140,6 +140,8 @@ type Config struct {
 	PortSecurityBroadcastPPS             int  `json:"port_security_broadcast_pps"`
 	PortSecurityBroadcastBurstPackets    int  `json:"port_security_broadcast_burst_packets"`
 	PortSecurityReconcileIntervalSeconds int  `json:"port_security_reconcile_interval_seconds"`
+	// 动态公网 IPv6 前缀检测周期（秒）
+	PublicIPv6SyncIntervalSeconds int `json:"public_ipv6_sync_interval_seconds"`
 	// 网络抓包配置
 	NetworkCaptureDir            string `json:"network_capture_dir"`
 	NetworkCaptureDefaultSeconds int    `json:"network_capture_default_seconds"`
@@ -289,6 +291,7 @@ func Init() {
 		PortSecurityBroadcastPPS:              getEnvInt("KVM_PORT_SECURITY_BROADCAST_PPS", 1000),
 		PortSecurityBroadcastBurstPackets:     getEnvInt("KVM_PORT_SECURITY_BROADCAST_BURST_PACKETS", 2000),
 		PortSecurityReconcileIntervalSeconds:  getEnvInt("KVM_PORT_SECURITY_RECONCILE_INTERVAL_SECONDS", 60),
+		PublicIPv6SyncIntervalSeconds:         getEnvInt("KVM_PUBLIC_IPV6_SYNC_INTERVAL_SECONDS", 60),
 		NetworkCaptureDir:                     getEnv("KVM_NETWORK_CAPTURE_DIR", "/var/lib/kvm-console/captures"),
 		NetworkCaptureDefaultSeconds:          getEnvInt("KVM_NETWORK_CAPTURE_DEFAULT_SECONDS", 30),
 		NetworkCaptureMaxSeconds:              getEnvInt("KVM_NETWORK_CAPTURE_MAX_SECONDS", 120),
@@ -537,6 +540,7 @@ var PersistableKeys = []string{
 	"port_security_broadcast_pps",
 	"port_security_broadcast_burst_packets",
 	"port_security_reconcile_interval_seconds",
+	"public_ipv6_sync_interval_seconds",
 	"default_disk_iops_total",
 	"default_disk_iops_read",
 	"default_disk_iops_write",
@@ -622,6 +626,7 @@ var keyToEnvVar = map[string]string{
 	"port_security_broadcast_pps":               "KVM_PORT_SECURITY_BROADCAST_PPS",
 	"port_security_broadcast_burst_packets":     "KVM_PORT_SECURITY_BROADCAST_BURST_PACKETS",
 	"port_security_reconcile_interval_seconds":  "KVM_PORT_SECURITY_RECONCILE_INTERVAL_SECONDS",
+	"public_ipv6_sync_interval_seconds":         "KVM_PUBLIC_IPV6_SYNC_INTERVAL_SECONDS",
 	"default_disk_iops_total":                   "KVM_DEFAULT_DISK_IOPS_TOTAL",
 	"default_disk_iops_read":                    "KVM_DEFAULT_DISK_IOPS_READ",
 	"default_disk_iops_write":                   "KVM_DEFAULT_DISK_IOPS_WRITE",
@@ -833,6 +838,10 @@ func (c *Config) LoadFromDB(settings map[string]string) {
 			if v, err := strconv.Atoi(value); err == nil {
 				c.PortSecurityReconcileIntervalSeconds = v
 			}
+		case "public_ipv6_sync_interval_seconds":
+			if v, err := strconv.Atoi(value); err == nil {
+				c.PublicIPv6SyncIntervalSeconds = v
+			}
 		case "default_disk_iops_total":
 			if v, err := strconv.Atoi(value); err == nil {
 				c.DefaultDiskIOPSTotal = v
@@ -969,6 +978,7 @@ func (c *Config) ToSettingsMap() map[string]string {
 		"port_security_broadcast_pps":               strconv.Itoa(c.PortSecurityBroadcastPPS),
 		"port_security_broadcast_burst_packets":     strconv.Itoa(c.PortSecurityBroadcastBurstPackets),
 		"port_security_reconcile_interval_seconds":  strconv.Itoa(c.PortSecurityReconcileIntervalSeconds),
+		"public_ipv6_sync_interval_seconds":         strconv.Itoa(c.PublicIPv6SyncIntervalSeconds),
 		"default_disk_iops_total":                   strconv.Itoa(c.DefaultDiskIOPSTotal),
 		"default_disk_iops_read":                    strconv.Itoa(c.DefaultDiskIOPSRead),
 		"default_disk_iops_write":                   strconv.Itoa(c.DefaultDiskIOPSWrite),

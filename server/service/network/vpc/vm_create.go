@@ -184,6 +184,7 @@ func EnsureSecurityGroupAllowsPortForward(vmName, protocol, portText string) err
 		rule := model.VPCSecurityGroupRule{
 			SecurityGroupID: binding.SecurityGroupID,
 			Direction:       "ingress",
+			AddressFamily:   "ipv4",
 			Protocol:        proto,
 			PortStart:       portStart,
 			PortEnd:         portEnd,

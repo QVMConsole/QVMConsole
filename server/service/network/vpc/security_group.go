@@ -23,6 +23,7 @@ func ListVPCSecurityGroups(operator, role, requestedUsername string) ([]model.VP
 			Find(&groups).Error; err != nil {
 			return nil, err
 		}
+		normalizeSecurityGroupRulesForResponse(groups)
 		return groups, nil
 	}
 	if role != "admin" {
@@ -43,7 +44,20 @@ func ListVPCSecurityGroups(operator, role, requestedUsername string) ([]model.VP
 	if err := query.Order("username ASC, is_default DESC, id ASC").Find(&groups).Error; err != nil {
 		return nil, err
 	}
+	normalizeSecurityGroupRulesForResponse(groups)
 	return groups, nil
+}
+
+func normalizeSecurityGroupRulesForResponse(groups []model.VPCSecurityGroup) {
+	for groupIndex := range groups {
+		for ruleIndex := range groups[groupIndex].Rules {
+			rule := &groups[groupIndex].Rules[ruleIndex]
+			rule.AddressFamily = effectiveSecurityGroupRuleAddressFamily(*rule)
+			if rule.AddressFamily == "ipv6" && strings.EqualFold(rule.Protocol, "icmp") {
+				rule.Protocol = "icmpv6"
+			}
+		}
+	}
 }
 
 func cleanupInvalidVPCSecurityGroupRules(operator, role, requestedUsername string) {
@@ -224,9 +238,10 @@ func normalizeSecurityGroupRule(groupID uint, req VPCSecurityGroupRuleRequest) (
 	if proto == "" {
 		proto = "tcp"
 	}
-	if proto != "tcp" && proto != "udp" && proto != "icmp" && proto != "all" {
-		return nil, fmt.Errorf("协议只支持 tcp/udp/icmp/all")
+	if proto != "tcp" && proto != "udp" && proto != "icmp" && proto != "icmpv6" && proto != "all" {
+		return nil, fmt.Errorf("协议只支持 tcp/udp/icmp/icmpv6/all")
 	}
+	addressFamily := strings.ToLower(strings.TrimSpace(req.AddressFamily))
 	targetType := strings.ToLower(strings.TrimSpace(req.TargetType))
 	if targetType == "" {
 		targetType = "cidr"
@@ -237,16 +252,42 @@ func normalizeSecurityGroupRule(groupID uint, req VPCSecurityGroupRuleRequest) (
 	targetValue := strings.TrimSpace(req.TargetValue)
 	if targetValue == "" {
 		if targetType == "cidr" {
-			targetValue = "0.0.0.0/0"
+			if addressFamily == "ipv6" {
+				targetValue = "::/0"
+			} else {
+				targetValue = "0.0.0.0/0"
+			}
 		} else {
 			return nil, fmt.Errorf("请选择目标交换机或安全组")
 		}
 	}
 	if targetType == "cidr" {
-		if _, err := netip.ParsePrefix(normalizeCIDROrIP(targetValue)); err != nil {
+		prefix, err := netip.ParsePrefix(normalizeCIDROrIP(targetValue))
+		if err != nil {
 			return nil, fmt.Errorf("CIDR 无效: %s", targetValue)
 		}
 		targetValue = normalizeCIDROrIP(targetValue)
+		targetFamily := "ipv4"
+		if prefix.Addr().Is6() {
+			targetFamily = "ipv6"
+		}
+		if addressFamily != "" && addressFamily != targetFamily {
+			return nil, fmt.Errorf("地址族与 CIDR 不一致")
+		}
+		addressFamily = targetFamily
+	}
+	if addressFamily == "" {
+		// 兼容未传地址族的旧客户端；非 CIDR 目标沿用历史 IPv4 语义。
+		addressFamily = "ipv4"
+	}
+	if addressFamily != "ipv4" && addressFamily != "ipv6" {
+		return nil, fmt.Errorf("地址族只支持 ipv4 或 ipv6")
+	}
+	if addressFamily == "ipv6" && proto == "icmp" {
+		proto = "icmpv6"
+	}
+	if addressFamily == "ipv4" && proto == "icmpv6" {
+		return nil, fmt.Errorf("ICMPv6 仅适用于 IPv6 规则")
 	}
 	if req.PortEnd == 0 {
 		req.PortEnd = req.PortStart
@@ -254,13 +295,14 @@ func normalizeSecurityGroupRule(groupID uint, req VPCSecurityGroupRuleRequest) (
 	if (proto == "tcp" || proto == "udp") && (req.PortStart < 1 || req.PortStart > 65535 || req.PortEnd < req.PortStart || req.PortEnd > 65535) {
 		return nil, fmt.Errorf("端口范围无效")
 	}
-	if proto == "icmp" || proto == "all" {
+	if proto == "icmp" || proto == "icmpv6" || proto == "all" {
 		req.PortStart = 0
 		req.PortEnd = 0
 	}
 	return &model.VPCSecurityGroupRule{
 		SecurityGroupID: groupID,
 		Direction:       direction,
+		AddressFamily:   addressFamily,
 		Protocol:        proto,
 		PortStart:       req.PortStart,
 		PortEnd:         req.PortEnd,
@@ -268,6 +310,23 @@ func normalizeSecurityGroupRule(groupID uint, req VPCSecurityGroupRuleRequest) (
 		TargetValue:     targetValue,
 		Remark:          strings.TrimSpace(req.Remark),
 	}, nil
+}
+
+// effectiveSecurityGroupRuleAddressFamily 为历史规则推导地址族。
+// 旧表没有 address_family 字段时，IPv6 CIDR 规则仍应继续按 IPv6 生效。
+func effectiveSecurityGroupRuleAddressFamily(rule model.VPCSecurityGroupRule) string {
+	if rule.TargetType == "cidr" {
+		if prefix, err := netip.ParsePrefix(normalizeCIDROrIP(rule.TargetValue)); err == nil && prefix.Addr().Is6() {
+			return "ipv6"
+		}
+	}
+	if strings.EqualFold(strings.TrimSpace(rule.Protocol), "icmpv6") {
+		return "ipv6"
+	}
+	if strings.EqualFold(strings.TrimSpace(rule.AddressFamily), "ipv6") {
+		return "ipv6"
+	}
+	return "ipv4"
 }
 
 func validateSecurityGroupRuleTarget(username, targetType, targetValue string) error {

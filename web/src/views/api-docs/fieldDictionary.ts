@@ -6,6 +6,8 @@
 export const fieldDescriptions: Record<string, string> = {
   action: '要执行的动作，例如开机、关机、重启、删除、启用或禁用。',
   address: '公网 IP 地址或资源地址。',
+  address_family: '地址族，值为 ipv4 或 ipv6。',
+  auto_ipv6: '是否由上联网卡动态 IPv6 前缀自动生成并同步。',
   accounts: '可选择的账号列表。',
   admin_name: '管理员侧展示名称。',
   allow_forged_transmits: '是否允许伪造发送，桥接安全相关选项。',
@@ -80,6 +82,8 @@ export const fieldDescriptions: Record<string, string> = {
   gateway: '网关地址。',
   geoip_base_url: 'GeoIP 或地域库下载基础地址。',
   guest_agent: '是否启用 QEMU Guest Agent 相关能力。',
+  guest_ipv6_message: '来宾公网 IPv6 自动配置状态的补充说明。',
+  guest_ipv6_status: '来宾公网 IPv6 状态，例如 pending、applied、failed 或 manual。',
   guest_ip: '虚拟机内网 IP。',
   guest_port: '虚拟机内部端口。',
   guest_type: '来宾系统类型，例如 linux、windows 或 fnos。',
@@ -155,7 +159,7 @@ export const fieldDescriptions: Record<string, string> = {
   port_end: '端口范围结束。',
   port_start: '端口范围起始。',
   profile: '宿主机功能挡位，例如 off、balanced。',
-  protocol: '协议，通常为 tcp、udp、icmp 或 all。',
+  protocol: '协议，通常为 tcp、udp、icmp、icmpv6 或 all。',
   product: 'SMBIOS product 产品字段。',
   public_ip_id: '公网 IP 资源 ID。',
   publish: '是否发布模板。',
@@ -231,7 +235,7 @@ export const fieldDescriptions: Record<string, string> = {
 /** 从请求体/返回描述文本中提取字段名时需要忽略的记号 */
 export const ignoredFieldTokens = new Set([
   'JSON', 'FormData', 'Content', 'Type', 'application', 'json', 'multipart', 'form', 'data',
-  'true', 'false', 'null', 'tcp', 'udp', 'icmp', 'all', 'GET', 'POST', 'PUT', 'DELETE',
+  'true', 'false', 'null', 'tcp', 'udp', 'icmp', 'icmpv6', 'all', 'ipv4', 'ipv6', 'GET', 'POST', 'PUT', 'DELETE',
   'success', 'login_verify', 'bootstrap_security', 'node', 'off', 'balanced',
   'kvm', 'qemu', 'x86_64', 'aarch64', 'riscv64', 'q35', 'i440fx',
   'virtio', 'scsi', 'sata', 'ide', 'raw', 'qcow2', 'bool', 'str',

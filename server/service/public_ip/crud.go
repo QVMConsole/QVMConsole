@@ -24,9 +24,10 @@ func ListPublicIPs() ([]PublicIPInfo, error) {
 	for _, row := range rows {
 		modes := parsePublicIPModes(row.SupportedModes)
 		info := PublicIPInfo{
-			PublicIP:   row,
-			Modes:      modes,
-			ModeLabels: publicIPModeLabels(modes),
+			PublicIP:      row,
+			AddressFamily: publicIPAddressFamily(row.IP),
+			Modes:         modes,
+			ModeLabels:    publicIPModeLabels(modes),
 		}
 		if binding, ok := byIPID[row.ID]; ok {
 			copyBinding := binding

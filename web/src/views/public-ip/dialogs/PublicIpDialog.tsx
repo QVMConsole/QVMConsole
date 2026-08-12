@@ -34,8 +34,19 @@ export default function PublicIpDialog({ row, onClose, onSaved }: PublicIpDialog
     status: row?.status === 'reserved' ? 'reserved' : 'free',
     remark: row?.remark || '',
   })
+	const isIPv6 = form.ip.includes(':')
+	const availableModes = isIPv6
+	  ? ALL_PUBLIC_IP_MODES.filter((mode) => mode !== 'nat')
+	  : ALL_PUBLIC_IP_MODES
 
   const patch = (p: Partial<typeof form>) => setForm((f) => ({ ...f, ...p }))
+	const patchIP = (ip: string) => {
+	  const nextIsIPv6 = ip.includes(':')
+	  const modes = nextIsIPv6
+		? form.modes.filter((mode) => mode !== 'nat')
+		: form.modes
+	  patch({ ip, modes: modes.length > 0 ? modes : ['classic_route'] })
+	}
 
   const handleSubmit = async () => {
     if (!form.ip.trim()) {
@@ -89,18 +100,20 @@ export default function PublicIpDialog({ row, onClose, onSaved }: PublicIpDialog
         <div className="qvm-form-label required">公网 IP</div>
         <Input
           value={form.ip}
-          onChange={(v) => patch({ ip: v })}
-          disabled={bound}
-          placeholder="例如 203.0.113.10"
+		  onChange={patchIP}
+		  disabled={bound || !!row?.auto_ipv6}
+		  placeholder="例如 203.0.113.10 或 2001:db8::10"
         />
         {bound && <div className="qvm-form-tip warn">公网 IP 已绑定，不能修改 IP 地址</div>}
+		{row?.auto_ipv6 && <div className="qvm-form-tip">动态 IPv6 地址由来源前缀自动同步</div>}
       </div>
       <div className="qvm-form-item">
         <div className="qvm-form-label">CIDR/掩码</div>
         <Input
           value={form.cidr}
           onChange={(v) => patch({ cidr: v })}
-          placeholder="例如 203.0.113.10/32 或 203.0.113.0/29"
+		  disabled={!!row?.auto_ipv6}
+		  placeholder="例如 203.0.113.0/29 或 2001:db8::/64"
         />
       </div>
       <div className="qvm-form-item">
@@ -116,6 +129,7 @@ export default function PublicIpDialog({ row, onClose, onSaved }: PublicIpDialog
         <Input
           value={form.uplink_if}
           onChange={(v) => patch({ uplink_if: v })}
+		  disabled={!!row?.auto_ipv6}
           placeholder="留空时自动检测默认出口"
         />
       </div>
@@ -125,12 +139,13 @@ export default function PublicIpDialog({ row, onClose, onSaved }: PublicIpDialog
           value={form.modes}
           onChange={(v) => patch({ modes: v as PublicIpMode[] })}
         >
-          {ALL_PUBLIC_IP_MODES.map((mode) => (
+		  {availableModes.map((mode) => (
             <Checkbox key={mode} value={mode}>
               {publicIpModeLabel(mode)}
             </Checkbox>
           ))}
         </Checkbox.Group>
+		{isIPv6 && <div className="qvm-form-tip">IPv6 使用路由或桥接转发，不使用 NAT66</div>}
       </div>
       <div className="qvm-form-item">
         <div className="qvm-form-label">状态</div>

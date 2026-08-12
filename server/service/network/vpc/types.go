@@ -38,13 +38,14 @@ type VPCSecurityGroupRequest struct {
 }
 
 type VPCSecurityGroupRuleRequest struct {
-	Direction   string `json:"direction"`
-	Protocol    string `json:"protocol"`
-	PortStart   int    `json:"port_start"`
-	PortEnd     int    `json:"port_end"`
-	TargetType  string `json:"target_type"`
-	TargetValue string `json:"target_value"`
-	Remark      string `json:"remark"`
+	Direction     string `json:"direction"`
+	AddressFamily string `json:"address_family"`
+	Protocol      string `json:"protocol"`
+	PortStart     int    `json:"port_start"`
+	PortEnd       int    `json:"port_end"`
+	TargetType    string `json:"target_type"`
+	TargetValue   string `json:"target_value"`
+	Remark        string `json:"remark"`
 }
 
 type VPCQuotaInfo struct {

@@ -52,6 +52,7 @@ export interface SettingsForm {
   port_security_broadcast_pps: number
   port_security_broadcast_burst_packets: number
   port_security_reconcile_interval_seconds: number
+  public_ipv6_sync_interval_seconds: number
   default_disk_iops_total: number
   default_disk_iops_read: number
   default_disk_iops_write: number
@@ -128,6 +129,7 @@ export const DEFAULT_SETTINGS_FORM: SettingsForm = {
   port_security_broadcast_pps: 1000,
   port_security_broadcast_burst_packets: 2000,
   port_security_reconcile_interval_seconds: 60,
+  public_ipv6_sync_interval_seconds: 60,
   default_disk_iops_total: 0,
   default_disk_iops_read: 0,
   default_disk_iops_write: 0,
@@ -198,6 +200,8 @@ export function validateSettingsForm(form: SettingsForm): string | null {
     return '观察期需在 0 - 168 小时之间'
   if (form.scheduler_event_retention_hours < 1 || form.scheduler_event_retention_hours > 2160)
     return '调度事件保留时长需在 1 - 2160 小时之间'
+  if (form.public_ipv6_sync_interval_seconds < 10 || form.public_ipv6_sync_interval_seconds > 3600)
+    return '公网 IPv6 前缀检测周期需在 10 - 3600 秒之间'
   if (form.port_security_enabled) {
     if (form.port_security_total_kpps < 1) return '端口总包速率需大于 0'
     if (form.port_security_total_burst_kpackets * 5 < form.port_security_total_kpps * 4)
@@ -246,6 +250,7 @@ export function buildSettingsPayload(form: SettingsForm): Record<string, unknown
     external_nic: form.external_nic,
     max_burst_inbound: form.max_burst_inbound,
     max_burst_outbound: form.max_burst_outbound,
+    public_ipv6_sync_interval_seconds: form.public_ipv6_sync_interval_seconds,
     ...(form.port_security_enabled
       ? {
           port_security_total_kpps: form.port_security_total_kpps,

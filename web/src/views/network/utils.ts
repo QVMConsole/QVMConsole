@@ -64,6 +64,19 @@ export function directionText(direction?: string): string {
   return direction || '-'
 }
 
+/** 安全组规则地址族文案，兼容没有 address_family 的历史响应。 */
+export function addressFamilyText(rule: VpcSecurityGroupRule): string {
+  if (rule.address_family === 'ipv6' || rule.protocol === 'icmpv6') return 'IPv6'
+  if (rule.target_type === 'cidr' && String(rule.target_value || '').includes(':')) return 'IPv6'
+  return 'IPv4'
+}
+
+/** 安全组规则协议文案。 */
+export function protocolText(rule: VpcSecurityGroupRule): string {
+  if (rule.protocol === 'icmpv6') return 'ICMPv6'
+  return String(rule.protocol || '').toUpperCase()
+}
+
 /** 规则端口范围文案 */
 export function portText(rule: VpcSecurityGroupRule): string {
   if (!rule.port_start && !rule.port_end) return '全部'
@@ -76,7 +89,7 @@ export function targetText(rule: VpcSecurityGroupRule & { target_name?: string }
   if (rule.target_type === 'switch') return `交换机: ${rule.target_name || rule.target_value || '-'}`
   if (rule.target_type === 'security_group')
     return `安全组: ${rule.target_name || rule.target_value || '-'}`
-  return rule.target_value || '0.0.0.0/0'
+  return rule.target_value || (addressFamilyText(rule) === 'IPv6' ? '::/0' : '0.0.0.0/0')
 }
 
 /** 配额剩余文案（-1 或 max 为 0 表示不限） */

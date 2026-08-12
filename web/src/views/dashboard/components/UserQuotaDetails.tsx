@@ -112,12 +112,12 @@ export default function UserQuotaDetails({ quota: q }: UserQuotaDetailsProps) {
       display: `${q.used_traffic_up_gb || '0'} / ${q.max_traffic_up || '不限'} GB`,
       percent: percent(q.used_traffic_up / 1073741824, q.max_traffic_up),
     },
-    // 公网 IPv4 仅弹性云口径
+	// 公网 IPv4 / IPv6 共用弹性云公网地址配额
     ...(!isLightweight
       ? [
           {
-            label: '公网 IPv4',
-            desc: '绑定至 VPC 弹性网卡',
+			label: '公网 IP',
+			desc: 'IPv4 / IPv6 公网地址',
             icon: <GlobeIcon size={14} />,
             color: '#38BDF8',
             bg: 'rgba(56,189,248,.1)',

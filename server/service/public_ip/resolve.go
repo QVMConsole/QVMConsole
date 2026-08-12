@@ -9,16 +9,18 @@ import (
 )
 
 func ResolvePublicIPVMPrivateIP(vmName string) string {
-	if ip := HookGetVPCLeaseIPForVM(vmName); ip != "" {
+	if ip := HookGetVPCLeaseIPForVM(vmName); net.ParseIP(ip) != nil && net.ParseIP(ip).To4() != nil {
 		return ip
 	}
 	if host, ok := HookGetOVSStaticHostByVMName(vmName); ok {
-		return host.IP
+		if ip := net.ParseIP(host.IP); ip != nil && ip.To4() != nil {
+			return host.IP
+		}
 	}
 	status, err := HookGetVMNetworkRuntimeStatus(vmName)
 	if err == nil && status != nil {
 		for _, iface := range status.Interfaces {
-			if iface.IP != "" && net.ParseIP(iface.IP) != nil {
+			if ip := net.ParseIP(iface.IP); iface.IP != "" && ip != nil && ip.To4() != nil {
 				return iface.IP
 			}
 		}
@@ -39,7 +41,8 @@ func PublicIPNATPrivateIPsForVM(vmName string) []string {
 	var ips []string
 	for _, binding := range bindings {
 		ip := strings.TrimSpace(binding.VMPrivateIP)
-		if ip == "" || net.ParseIP(ip) == nil || seen[ip] {
+		parsed := net.ParseIP(ip)
+		if ip == "" || parsed == nil || parsed.To4() == nil || seen[ip] {
 			continue
 		}
 		seen[ip] = true

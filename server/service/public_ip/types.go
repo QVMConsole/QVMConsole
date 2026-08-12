@@ -27,6 +27,28 @@ type PublicIPRequest struct {
 	Remark         string `json:"remark"`
 }
 
+// PublicIPv6PrefixInfo 描述从宿主机上联网卡发现的公网 IPv6 前缀。
+type PublicIPv6PrefixInfo struct {
+	UplinkIF string `json:"uplink_if"`
+	Address  string `json:"address"`
+	Prefix   string `json:"prefix"`
+	Gateway  string `json:"gateway,omitempty"`
+}
+
+// PublicIPv6PrefixImportRequest 将动态发现的 IPv6 前缀展开为可独立绑定的 /128 资源。
+type PublicIPv6PrefixImportRequest struct {
+	UplinkIF string `json:"uplink_if"`
+	Prefix   string `json:"prefix"`
+	Count    int    `json:"count"`
+	Remark   string `json:"remark"`
+}
+
+type PublicIPv6PrefixImportResult struct {
+	Prefix  string           `json:"prefix"`
+	Created []model.PublicIP `json:"created"`
+	Skipped int              `json:"skipped"`
+}
+
 type PublicIPBindRequest struct {
 	Username    string `json:"username"`
 	VMName      string `json:"vm_name"`
@@ -44,11 +66,12 @@ type PublicIPOperationParams struct {
 
 type PublicIPInfo struct {
 	model.PublicIP
-	Modes        []string               `json:"modes"`
-	ModeLabels   []string               `json:"mode_labels"`
-	Binding      *model.PublicIPBinding `json:"binding,omitempty"`
-	RuntimeRules []string               `json:"runtime_rules,omitempty"`
-	Issues       []string               `json:"issues,omitempty"`
+	AddressFamily string                 `json:"address_family"`
+	Modes         []string               `json:"modes"`
+	ModeLabels    []string               `json:"mode_labels"`
+	Binding       *model.PublicIPBinding `json:"binding,omitempty"`
+	RuntimeRules  []string               `json:"runtime_rules,omitempty"`
+	Issues        []string               `json:"issues,omitempty"`
 }
 
 type PublicIPPreview struct {

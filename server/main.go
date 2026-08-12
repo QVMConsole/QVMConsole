@@ -127,6 +127,7 @@ func main() {
 	if err := service.RestorePublicIPRules(); err != nil {
 		logger.App.Warn("恢复公网 IP 规则失败", "error", err)
 	}
+	service.StartPublicIPv6PrefixMonitor()
 	service.StartPortSecurityReconciler()
 
 	// 设置路由

@@ -36,8 +36,10 @@ var (
 	HookGetVPCLeaseIPForVM        func(vmName string) string
 	HookGetOVSStaticHostByVMName  func(vmName string) (OVSStaticHost, bool)
 	HookGetVMNetworkRuntimeStatus func(vmName string) (*VMNetworkRuntimeStatus, error)
+	HookGetVMRouteInterface       func(vmName string) string
 	HookIsVPCManagedIP            func(ipText string) bool
 	HookApplyVPCACLRules          func() error
+	HookReconcilePortSecurity     func() error
 	HookOvsUplink                 func() string
 	HookOvsBridgeName             func() string
 	HookOvsGatewayIP              func() string
