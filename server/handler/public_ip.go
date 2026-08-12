@@ -111,6 +111,61 @@ func DeletePublicIP(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "公网 IP 已删除"})
 }
 
+// BatchDeletePublicIPs 批量删除公网 IP（管理员，高风险）。
+// 已绑定的 IP 自动跳过，部分失败不影响其他 IP。
+func BatchDeletePublicIPs(c *gin.Context) {
+	if !requireHighRiskVerification(c, "delete_public_ip") {
+		return
+	}
+	var req service.PublicIPBatchOpRequest
+	if err := c.ShouldBindJSON(&req); err != nil || len(req.IDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误: 需要公网 IP ID 列表"})
+		return
+	}
+	result, err := service.BatchDeletePublicIPs(req.IDs)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": fmt.Sprintf("批量删除完成（成功 %d / 失败 %d / 跳过 %d）", result.Success, result.Failed, result.Skipped),
+		"data":    result,
+	})
+}
+
+// BatchBindPublicIPs 批量绑定公网 IP（管理员，高风险）。
+// 通过任务队列异步应用规则，只提交一个任务，逐条绑定后统一应用。
+func BatchBindPublicIPs(c *gin.Context) {
+	if !requireHighRiskVerification(c, "bind_public_ip") {
+		return
+	}
+	var req service.PublicIPBatchOpRequest
+	if err := c.ShouldBindJSON(&req); err != nil || len(req.Items) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误: 需要批量绑定条目"})
+		return
+	}
+	submitPublicIPTask(c, service.PublicIPOperationParams{Action: "batch_bind", BatchItems: req.Items})
+}
+
+// BatchUnbindPublicIPs 批量解绑公网 IP（管理员，高风险）。
+// 通过任务队列异步应用规则，只提交一个任务，逐条解绑后统一应用。
+func BatchUnbindPublicIPs(c *gin.Context) {
+	if !requireHighRiskVerification(c, "unbind_public_ip") {
+		return
+	}
+	var req service.PublicIPBatchOpRequest
+	if err := c.ShouldBindJSON(&req); err != nil || len(req.IDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误: 需要公网 IP ID 列表"})
+		return
+	}
+	items := make([]service.PublicIPBatchOpItem, 0, len(req.IDs))
+	for _, id := range req.IDs {
+		items = append(items, service.PublicIPBatchOpItem{PublicIPID: id})
+	}
+	submitPublicIPTask(c, service.PublicIPOperationParams{Action: "batch_unbind", BatchItems: items})
+}
+
 func PreviewPublicIP(c *gin.Context) {
 	id, err := service.ParsePublicIPID(c.Param("id"))
 	if err != nil {

@@ -98,6 +98,40 @@ type PublicIPOperationParams struct {
 	TargetVM    string              `json:"target_vm"`
 	TargetUser  string              `json:"target_user"`
 	BindRequest PublicIPBindRequest `json:"bind_request"`
+	// BatchItems 用于批量绑定/解绑操作；batch_bind 时每项需携带 BindRequest，
+	// batch_unbind 时只需 PublicIPID。单条操作不使用此字段。
+	BatchItems []PublicIPBatchOpItem `json:"batch_items,omitempty"`
+}
+
+// PublicIPBatchOpItem 批量操作中的单条参数。
+// 批量绑定：PublicIPID + BindRequest 都必填。
+// 批量解绑：仅 PublicIPID 必填。
+type PublicIPBatchOpItem struct {
+	PublicIPID  uint                `json:"public_ip_id"`
+	BindRequest PublicIPBindRequest `json:"bind_request,omitempty"`
+}
+
+// PublicIPBatchOpRequest 批量绑定/解绑请求体（前端 → handler）。
+// IDs 用于批量解绑；Items 用于批量绑定（含每条 IP 的绑定参数）。
+type PublicIPBatchOpRequest struct {
+	IDs   []uint                 `json:"ids,omitempty"`
+	Items []PublicIPBatchOpItem  `json:"items,omitempty"`
+}
+
+// PublicIPBatchOpResult 批量绑定/解绑单条处理结果。
+type PublicIPBatchOpResult struct {
+	ID     uint   `json:"id"`
+	IP     string `json:"ip"`
+	Status string `json:"status"` // success / failed / skipped
+	Reason string `json:"reason,omitempty"`
+}
+
+// PublicIPBatchOpSummary 批量操作汇总。
+type PublicIPBatchOpSummary struct {
+	Success int                      `json:"success"`
+	Failed  int                      `json:"failed"`
+	Skipped int                      `json:"skipped"`
+	Items   []PublicIPBatchOpResult  `json:"items"`
 }
 
 type PublicIPInfo struct {

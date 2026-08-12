@@ -313,19 +313,22 @@ func Setup() *gin.Engine {
 				network.GET("/interfaces/:name/config", middleware.AdminMiddleware(), handler.GetInterfaceConfig)
 				network.PUT("/interfaces/:name/config", middleware.AdminMiddleware(), handler.SetInterfaceConfig)
 
-				// 公网 IP / 浮动 IP
-				network.GET("/public-ips", middleware.AdminMiddleware(), handler.ListPublicIPs)
-				network.POST("/public-ips", middleware.AdminMiddleware(), handler.CreatePublicIP)
-				network.GET("/public-ips/ipv6-prefixes", middleware.AdminMiddleware(), handler.DiscoverPublicIPv6Prefixes)     // 检测上联网卡公网 IPv6 前缀
+			// 公网 IP / 浮动 IP
+			network.GET("/public-ips", middleware.AdminMiddleware(), handler.ListPublicIPs)
+			network.POST("/public-ips", middleware.AdminMiddleware(), handler.CreatePublicIP)
+			network.GET("/public-ips/ipv6-prefixes", middleware.AdminMiddleware(), handler.DiscoverPublicIPv6Prefixes)     // 检测上联网卡公网 IPv6 前缀
 	network.POST("/public-ips/ipv6-prefixes/import", middleware.AdminMiddleware(), handler.ImportPublicIPv6Prefix) // 批量导入公网 IPv6 /128 地址资源
 	network.POST("/public-ips/batch", middleware.AdminMiddleware(), handler.BatchCreatePublicIPs)                 // 批量新增公网 IP（共用除 IP 外的字段）
+	network.DELETE("/public-ips/batch", middleware.AdminMiddleware(), handler.BatchDeletePublicIPs)              // 批量删除公网 IP（已绑定的自动跳过）
+	network.POST("/public-ips/batch/bind", middleware.AdminMiddleware(), handler.BatchBindPublicIPs)              // 批量绑定公网 IP（高风险，任务队列）
+	network.POST("/public-ips/batch/unbind", middleware.AdminMiddleware(), handler.BatchUnbindPublicIPs)          // 批量解绑公网 IP（高风险，任务队列）
 	network.PUT("/public-ips/:id", middleware.AdminMiddleware(), handler.UpdatePublicIP)
-				network.DELETE("/public-ips/:id", middleware.AdminMiddleware(), handler.DeletePublicIP)
-				network.POST("/public-ips/:id/preview", middleware.AdminMiddleware(), handler.PreviewPublicIP)
-				network.POST("/public-ips/:id/bind", middleware.AdminMiddleware(), handler.BindPublicIP)
-				network.POST("/public-ips/:id/unbind", middleware.AdminMiddleware(), handler.UnbindPublicIP)
-				network.POST("/public-ips/:id/migrate", middleware.AdminMiddleware(), handler.MigratePublicIP)
-				network.POST("/public-ips/apply", middleware.AdminMiddleware(), handler.ApplyPublicIPRules)
+			network.DELETE("/public-ips/:id", middleware.AdminMiddleware(), handler.DeletePublicIP)
+			network.POST("/public-ips/:id/preview", middleware.AdminMiddleware(), handler.PreviewPublicIP)
+			network.POST("/public-ips/:id/bind", middleware.AdminMiddleware(), handler.BindPublicIP)
+			network.POST("/public-ips/:id/unbind", middleware.AdminMiddleware(), handler.UnbindPublicIP)
+			network.POST("/public-ips/:id/migrate", middleware.AdminMiddleware(), handler.MigratePublicIP)
+			network.POST("/public-ips/apply", middleware.AdminMiddleware(), handler.ApplyPublicIPRules)
 
 				// 网络抓包诊断
 				network.GET("/captures/:task_id", middleware.AdminMiddleware(), handler.GetNetworkCaptureSession)

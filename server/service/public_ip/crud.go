@@ -193,3 +193,73 @@ func DeletePublicIP(id uint) error {
 	}
 	return nil
 }
+
+// BatchDeletePublicIPs 批量删除公网 IP。
+// 已绑定的 IP 自动跳过（不会删除），其他 IP 逐条删除；部分失败不影响其他 IP。
+// 返回每条 IP 的处理结果与汇总。
+func BatchDeletePublicIPs(ids []uint) (*PublicIPBatchOpSummary, error) {
+	if model.DB == nil {
+		return nil, fmt.Errorf("数据库尚未初始化")
+	}
+	if len(ids) == 0 {
+		return nil, fmt.Errorf("请至少选择一个公网 IP")
+	}
+	if len(ids) > 1000 {
+		return nil, fmt.Errorf("单次批量删除数量不能超过 1000")
+	}
+
+	// 去重，保持稳定顺序
+	seen := make(map[uint]bool, len(ids))
+	uniqueIDs := make([]uint, 0, len(ids))
+	for _, id := range ids {
+		if id == 0 || seen[id] {
+			continue
+		}
+		seen[id] = true
+		uniqueIDs = append(uniqueIDs, id)
+	}
+
+	// 一次性查询所有 IP 行，便于返回 IP 文本与判断绑定状态
+	var rows []model.PublicIP
+	if err := model.DB.Where("id IN ?", uniqueIDs).Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("查询公网 IP 失败: %w", err)
+	}
+	rowByID := make(map[uint]model.PublicIP, len(rows))
+	for _, row := range rows {
+		rowByID[row.ID] = row
+	}
+
+	// 一次性查询哪些 IP 已绑定
+	var boundIDs []uint
+	if err := model.DB.Model(&model.PublicIPBinding{}).Where("public_ip_id IN ?", uniqueIDs).Pluck("public_ip_id", &boundIDs).Error; err != nil {
+		return nil, fmt.Errorf("查询公网 IP 绑定状态失败: %w", err)
+	}
+	boundSet := make(map[uint]bool, len(boundIDs))
+	for _, id := range boundIDs {
+		boundSet[id] = true
+	}
+
+	summary := &PublicIPBatchOpSummary{Items: make([]PublicIPBatchOpResult, 0, len(uniqueIDs))}
+	for _, id := range uniqueIDs {
+		row, exists := rowByID[id]
+		if !exists || row.ID == 0 {
+			summary.Failed++
+			summary.Items = append(summary.Items, PublicIPBatchOpResult{ID: id, IP: "-", Status: "failed", Reason: "公网 IP 不存在"})
+			continue
+		}
+		ipText := row.IP
+		if boundSet[id] {
+			summary.Skipped++
+			summary.Items = append(summary.Items, PublicIPBatchOpResult{ID: id, IP: ipText, Status: "skipped", Reason: "已绑定，请先解绑"})
+			continue
+		}
+		if err := model.DB.Delete(&model.PublicIP{}, id).Error; err != nil {
+			summary.Failed++
+			summary.Items = append(summary.Items, PublicIPBatchOpResult{ID: id, IP: ipText, Status: "failed", Reason: "删除失败: " + err.Error()})
+			continue
+		}
+		summary.Success++
+		summary.Items = append(summary.Items, PublicIPBatchOpResult{ID: id, IP: ipText, Status: "success"})
+	}
+	return summary, nil
+}

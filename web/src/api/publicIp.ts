@@ -209,3 +209,53 @@ export function migratePublicIP(id: number, data: PublicIpBindPayload) {
 export function applyPublicIPRules() {
   return service.post<unknown, ApiResponse<PublicIpTaskResult>>('/network/public-ips/apply')
 }
+
+/** 批量操作单条结果 */
+export interface PublicIpBatchOpResult {
+  id: number
+  ip: string
+  status: 'success' | 'failed' | 'skipped'
+  reason?: string
+}
+
+/** 批量操作汇总 */
+export interface PublicIpBatchOpSummary {
+  success: number
+  failed: number
+  skipped: number
+  items: PublicIpBatchOpResult[]
+}
+
+/** 批量绑定单条参数 */
+export interface PublicIpBatchBindItem {
+  id: number
+  payload: PublicIpBindPayload
+}
+
+/** 批量删除公网 IP（高风险，已绑定的自动跳过） */
+export function batchDeletePublicIPs(ids: number[]) {
+  return service.delete<unknown, ApiResponse<PublicIpBatchOpSummary>>('/network/public-ips/batch', {
+    data: { ids },
+  })
+}
+
+/** 批量解绑公网 IP（高风险，任务队列） */
+export function batchUnbindPublicIPs(ids: number[]) {
+  return service.post<unknown, ApiResponse<PublicIpTaskResult>>(
+    '/network/public-ips/batch/unbind',
+    { ids },
+  )
+}
+
+/** 批量绑定公网 IP（高风险，任务队列） */
+export function batchBindPublicIPs(items: PublicIpBatchBindItem[]) {
+  return service.post<unknown, ApiResponse<PublicIpTaskResult>>(
+    '/network/public-ips/batch/bind',
+    {
+      items: items.map((item) => ({
+        public_ip_id: item.id,
+        bind_request: item.payload,
+      })),
+    },
+  )
+}

@@ -47,6 +47,12 @@ func ExecutePublicIPOperation(ctx context.Context, params PublicIPOperationParam
 	}
 
 	action := strings.ToLower(strings.TrimSpace(params.Action))
+	// 批量绑定/解绑走单独入口，统一只应用一次规则
+	switch action {
+	case "batch_bind", "batch_unbind":
+		return executePublicIPBatchBindUnbind(ctx, params, progress)
+	}
+
 	affectedVMs := publicIPOperationAffectedVMs(params)
 	progress(10, "正在校验公网 IP 操作...")
 
@@ -103,6 +109,182 @@ func ExecutePublicIPOperation(ctx context.Context, params PublicIPOperationParam
 	progress(100, "公网 IP 规则已应用")
 	data, _ := json.Marshal(result)
 	return string(data), nil
+}
+
+// executePublicIPBatchBindUnbind 处理批量绑定/解绑。
+// 逐条执行 bind/unbind，全部完成后再统一应用规则、同步 VPC ACL 与来宾配置，
+// 避免逐条应用规则带来的开销与中间态抖动。
+func executePublicIPBatchBindUnbind(ctx context.Context, params PublicIPOperationParams, progress func(int, string)) (string, error) {
+	if progress == nil {
+		progress = func(int, string) {}
+	}
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	default:
+	}
+	action := strings.ToLower(strings.TrimSpace(params.Action))
+	if len(params.BatchItems) == 0 {
+		return "", fmt.Errorf("批量操作缺少条目")
+	}
+	// 去重，保持稳定顺序
+	seen := make(map[uint]bool, len(params.BatchItems))
+	items := make([]PublicIPBatchOpItem, 0, len(params.BatchItems))
+	for _, item := range params.BatchItems {
+		if item.PublicIPID == 0 || seen[item.PublicIPID] {
+			continue
+		}
+		seen[item.PublicIPID] = true
+		items = append(items, item)
+	}
+	if len(items) == 0 {
+		return "", fmt.Errorf("批量操作缺少有效条目")
+	}
+
+	// 预查 IP 行，便于返回 IP 文本
+	var rows []model.PublicIP
+	ids := make([]uint, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.PublicIPID)
+	}
+	if err := model.DB.Where("id IN ?", ids).Find(&rows).Error; err != nil {
+		return "", fmt.Errorf("查询公网 IP 失败: %w", err)
+	}
+	rowByID := make(map[uint]model.PublicIP, len(rows))
+	for _, row := range rows {
+		rowByID[row.ID] = row
+	}
+
+	// 批量解绑前先查 binding，用于收集受影响 VM（unbind 会删除 binding 记录）
+	unbindVMByIPID := map[uint]string{}
+	if action == "batch_unbind" {
+		var bindings []model.PublicIPBinding
+		if err := model.DB.Where("public_ip_id IN ?", ids).Find(&bindings).Error; err == nil {
+			for _, b := range bindings {
+				unbindVMByIPID[b.PublicIPID] = b.VMName
+			}
+		}
+	}
+
+	total := len(items)
+	progress(10, fmt.Sprintf("正在批量%s公网 IP（共 %d 条）...", publicIPBatchActionLabel(action), total))
+	summary := &PublicIPBatchOpSummary{Items: make([]PublicIPBatchOpResult, 0, total)}
+	affectedVMsSet := map[string]bool{}
+	step := 60
+	if total > 0 {
+		step = 60 / total
+	}
+	for i, item := range items {
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		default:
+		}
+		ipText := "-"
+		if row, ok := rowByID[item.PublicIPID]; ok {
+			ipText = row.IP
+		} else {
+			summary.Failed++
+			summary.Items = append(summary.Items, PublicIPBatchOpResult{ID: item.PublicIPID, IP: ipText, Status: "failed", Reason: "公网 IP 不存在"})
+			continue
+		}
+		var err error
+		switch action {
+		case "batch_bind":
+			bindReq, _, normErr := normalizePublicIPBindRequest(rowByID[item.PublicIPID], item.BindRequest, true)
+			if normErr != nil {
+				err = normErr
+			} else {
+				_, err = bindPublicIP(item.PublicIPID, bindReq)
+			}
+		case "batch_unbind":
+			_, err = unbindPublicIP(item.PublicIPID)
+		default:
+			err = fmt.Errorf("不支持的批量操作: %s", action)
+		}
+		if err != nil {
+			summary.Failed++
+			summary.Items = append(summary.Items, PublicIPBatchOpResult{ID: item.PublicIPID, IP: ipText, Status: "failed", Reason: err.Error()})
+			if vm := strings.TrimSpace(item.BindRequest.VMName); vm != "" {
+				affectedVMsSet[vm] = true
+			}
+		} else {
+			summary.Success++
+			summary.Items = append(summary.Items, PublicIPBatchOpResult{ID: item.PublicIPID, IP: ipText, Status: "success"})
+			if vm := strings.TrimSpace(item.BindRequest.VMName); vm != "" {
+				affectedVMsSet[vm] = true
+			}
+			// 批量解绑：从预查的 binding 里取 VM 名
+			if action == "batch_unbind" {
+				if vm := strings.TrimSpace(unbindVMByIPID[item.PublicIPID]); vm != "" {
+					affectedVMsSet[vm] = true
+				}
+			}
+		}
+		progress(10+step*(i+1), fmt.Sprintf("已处理 %d/%d", i+1, total))
+	}
+
+	// 收集受影响 VM
+	affectedVMs := make([]string, 0, len(affectedVMsSet))
+	for vm := range affectedVMsSet {
+		affectedVMs = append(affectedVMs, vm)
+	}
+
+	// 全部失败时无需应用规则，直接返回汇总
+	if summary.Success == 0 {
+		progress(100, fmt.Sprintf("批量%s完成（0 成功 / %d 失败）", publicIPBatchActionLabel(action), summary.Failed))
+		data, _ := json.Marshal(summary)
+		return string(data), nil
+	}
+
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	default:
+	}
+	if publicIPHasVPCBindings() {
+		progress(75, "正在同步 VPC 安全组规则...")
+		if err := HookApplyVPCACLRules(); err != nil {
+			markPublicIPBindingsRuntimeFailed(err.Error())
+			return "", err
+		}
+	}
+	progress(85, "正在写入并应用公网 IP 运行规则...")
+	if err := ApplyPublicIPRules(); err != nil {
+		markPublicIPBindingsRuntimeFailed(err.Error())
+		return "", err
+	}
+	markPublicIPBindingsApplied()
+	if publicIPBatchInvolvesIPv6(rowByID) {
+		progress(95, "正在同步来宾系统 IPv6 配置...")
+	} else {
+		progress(95, "正在同步来宾系统公网 IPv4 配置...")
+	}
+	reconcilePublicIPv4GuestVMs(ctx, affectedVMs, true)
+	reconcilePublicIPv6GuestVMs(ctx, affectedVMs, true)
+	progress(100, fmt.Sprintf("批量%s完成（成功 %d / 失败 %d）", publicIPBatchActionLabel(action), summary.Success, summary.Failed))
+	data, _ := json.Marshal(summary)
+	return string(data), nil
+}
+
+func publicIPBatchActionLabel(action string) string {
+	switch action {
+	case "batch_bind":
+		return "绑定"
+	case "batch_unbind":
+		return "解绑"
+	default:
+		return action
+	}
+}
+
+func publicIPBatchInvolvesIPv6(rowByID map[uint]model.PublicIP) bool {
+	for _, row := range rowByID {
+		if publicIPIsIPv6(row.IP) {
+			return true
+		}
+	}
+	return false
 }
 
 func bindPublicIP(id uint, req PublicIPBindRequest) (*model.PublicIPBinding, error) {
