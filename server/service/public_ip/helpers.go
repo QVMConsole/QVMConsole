@@ -188,6 +188,51 @@ func publicIPIsIPv6(ipText string) bool {
 	return publicIPAddressFamily(ipText) == "ipv6"
 }
 
+// effectivePublicIPUplink 解析实际承载宿主机三层出口的接口。
+// 物理网卡被迁入 OVS 直连桥后，面板保存的出口网卡仍是物理口，
+// 但地址、默认路由、Netfilter 和 Proxy ARP/NDP 均运行在 OVS 内部口。
+func effectivePublicIPUplink(configured string, ipv6 bool) string {
+	configured = strings.TrimSpace(configured)
+	if configured == "" {
+		if ipv6 {
+			return detectDefaultIPv6Uplink()
+		}
+		if HookOvsUplink != nil {
+			return strings.TrimSpace(HookOvsUplink())
+		}
+		return ""
+	}
+
+	bridgeResult := utils.ExecCommandQuiet("ovs-vsctl", "--timeout=5", "port-to-br", configured)
+	bridge := strings.TrimSpace(bridgeResult.Stdout)
+	if bridgeResult.Error == nil && bridge != "" && bridge != configured {
+		args := []string{"-4", "route", "show", "default", "dev", bridge}
+		if ipv6 {
+			args[0] = "-6"
+		}
+		if result := utils.ExecCommandQuiet("ip", args...); result.Error == nil && strings.TrimSpace(result.Stdout) != "" {
+			return bridge
+		}
+	}
+	return configured
+}
+
+func publicIPUplinkCandidates(configured string, ipv6 bool) []string {
+	configured = strings.TrimSpace(configured)
+	effective := effectivePublicIPUplink(configured, ipv6)
+	seen := map[string]bool{}
+	items := make([]string, 0, 2)
+	for _, item := range []string{configured, effective} {
+		item = strings.TrimSpace(item)
+		if item == "" || seen[item] {
+			continue
+		}
+		seen[item] = true
+		items = append(items, item)
+	}
+	return items
+}
+
 func publicIPVMInterface(vmName string) (string, string) {
 	for _, iface := range HookParseVirshDomiflistOutput(utils.ExecCommand("virsh", "domiflist", strings.TrimSpace(vmName)).Stdout) {
 		if strings.TrimSpace(iface.Name) != "" && iface.Name != "-" && strings.TrimSpace(iface.Source) != "" {

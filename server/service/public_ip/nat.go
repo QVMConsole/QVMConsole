@@ -88,10 +88,7 @@ func BuildPublicIPRulesScript() (string, error) {
 	b.WriteString("sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1 || true\n\n")
 	for _, binding := range bindings {
 		if ipRow, ok := ipRows[binding.PublicIPID]; ok && publicIPIsIPv6(ipRow.IP) {
-			uplink := strings.TrimSpace(ipRow.UplinkIF)
-			if uplink == "" {
-				uplink = detectDefaultIPv6Uplink()
-			}
+			uplink := effectivePublicIPUplink(ipRow.UplinkIF, true)
 			if uplink != "" {
 				b.WriteString(fmt.Sprintf("sysctl -w net.ipv6.conf.%s.accept_ra=2 >/dev/null 2>&1 || true\n", uplink))
 				b.WriteString(fmt.Sprintf("sysctl -w net.ipv6.conf.%s.proxy_ndp=1 >/dev/null 2>&1 || true\n", uplink))
@@ -145,10 +142,7 @@ func buildPublicIPCommands(ipRow model.PublicIP, req PublicIPBindRequest) ([]str
 func buildPublicIPNATCommands(ipRow model.PublicIP, req PublicIPBindRequest) []string {
 	publicIP := strings.TrimSpace(ipRow.IP)
 	privateIP := strings.TrimSpace(req.VMPrivateIP)
-	uplink := strings.TrimSpace(ipRow.UplinkIF)
-	if uplink == "" {
-		uplink = HookOvsUplink()
-	}
+	uplink := effectivePublicIPUplink(ipRow.UplinkIF, false)
 	comment := publicIPRuleComment + ":" + publicIP
 	var cmds []string
 	if addr := publicIPAddrForHost(ipRow); addr != "" && uplink != "" {
@@ -183,10 +177,7 @@ func buildPublicIPClassicRouteCommands(ipRow model.PublicIP, req PublicIPBindReq
 		bridge = HookOvsBridgeName()
 	}
 	var cmds []string
-	uplink := strings.TrimSpace(ipRow.UplinkIF)
-	if uplink == "" {
-		uplink = HookOvsUplink()
-	}
+	uplink := effectivePublicIPUplink(ipRow.UplinkIF, false)
 	if uplink != "" {
 		cmds = append(cmds, fmt.Sprintf("sysctl -w net.ipv4.conf.%s.proxy_arp=1 >/dev/null 2>&1 || true", uplink))
 	}
@@ -202,10 +193,7 @@ func buildPublicIPClassicRouteCommands(ipRow model.PublicIP, req PublicIPBindReq
 
 func buildPublicIPv6RouteCommands(ipRow model.PublicIP, req PublicIPBindRequest) []string {
 	publicIP := strings.TrimSpace(ipRow.IP)
-	uplink := strings.TrimSpace(ipRow.UplinkIF)
-	if uplink == "" {
-		uplink = detectDefaultIPv6Uplink()
-	}
+	uplink := effectivePublicIPUplink(ipRow.UplinkIF, true)
 	routeIF := publicIPVMRouteInterface(req.VMName)
 	if routeIF == "" {
 		routeIF = HookOvsBridgeName()
@@ -324,11 +312,7 @@ func cleanupPublicIPv6StateShell(ipRows []model.PublicIP) string {
 		if !publicIPIsIPv6(ipRow.IP) {
 			continue
 		}
-		uplink := strings.TrimSpace(ipRow.UplinkIF)
-		if uplink == "" {
-			uplink = detectDefaultIPv6Uplink()
-		}
-		if uplink != "" {
+		for _, uplink := range publicIPUplinkCandidates(ipRow.UplinkIF, true) {
 			b.WriteString(fmt.Sprintf("ip -6 neigh del proxy %s dev %s 2>/dev/null || true\n", utils.ShellSingleQuote(ipRow.IP), utils.ShellSingleQuote(uplink)))
 		}
 		b.WriteString(fmt.Sprintf("ip -6 route del %s/128 2>/dev/null || true\n", utils.ShellSingleQuote(ipRow.IP)))
@@ -347,10 +331,7 @@ func cleanupPublicIPHostAddressesShell(ipRows []model.PublicIP) string {
 		if strings.TrimSpace(ipRow.IP) == "" || net.ParseIP(strings.TrimSpace(ipRow.IP)) == nil {
 			continue
 		}
-		uplink := strings.TrimSpace(ipRow.UplinkIF)
-		if uplink == "" {
-			uplink = HookOvsUplink()
-		}
+		uplink := effectivePublicIPUplink(ipRow.UplinkIF, publicIPIsIPv6(ipRow.IP))
 		if uplink == "" {
 			continue
 		}

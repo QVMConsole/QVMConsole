@@ -21,6 +21,8 @@ func DiscoverPublicIPv6Prefixes(uplinkIF string) ([]PublicIPv6PrefixInfo, error)
 	uplinkIF = strings.TrimSpace(uplinkIF)
 	if uplinkIF == "" {
 		uplinkIF = detectDefaultIPv6Uplink()
+	} else {
+		uplinkIF = effectivePublicIPUplink(uplinkIF, true)
 	}
 	if uplinkIF == "" {
 		return nil, fmt.Errorf("未检测到 IPv6 默认出口网卡")
@@ -267,7 +269,9 @@ func SyncManagedPublicIPv6Addresses() (int, error) {
 		}); err != nil {
 			return changed, fmt.Errorf("更新动态公网 IPv6 失败: %w", err)
 		}
-		utils.ExecCommand("ip", "-6", "neigh", "del", "proxy", oldAddress.String(), "dev", row.UplinkIF)
+		for _, uplink := range publicIPUplinkCandidates(row.UplinkIF, true) {
+			utils.ExecCommand("ip", "-6", "neigh", "del", "proxy", oldAddress.String(), "dev", uplink)
+		}
 		utils.ExecCommand("ip", "-6", "route", "del", oldAddress.String()+"/128")
 		cleanupConntrackForPublicIP(oldAddress.String())
 		changed++
