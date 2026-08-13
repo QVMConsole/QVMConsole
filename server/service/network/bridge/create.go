@@ -192,8 +192,8 @@ func ValidateVPCSwitchUplink(uplink, uplinkGateway string, managed bool, switchI
 				if strings.TrimSpace(sw.BridgeName) != strings.TrimSpace(targetBridge) {
 					return fmt.Errorf("物理网卡 %s 已由其它直通网桥使用", uplink)
 				}
-				if bridgeVLANID == 0 || sw.BridgeVLANID == 0 {
-					return fmt.Errorf("物理网卡 %s 已存在不打标签的直通交换机，不能共享该上行", uplink)
+				if bridgeVLANID == 0 {
+					return fmt.Errorf("物理网卡 %s 已有直通交换机，共享该上行时 VLAN ID 必须为 1-4094", uplink)
 				}
 				if sw.BridgeVLANID == bridgeVLANID {
 					return fmt.Errorf("物理网卡 %s 的桥接 VLAN ID %d 已被交换机「%s」使用", uplink, bridgeVLANID, sw.Name)

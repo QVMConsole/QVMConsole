@@ -308,8 +308,8 @@ func findSharedDirectSwitch(uplink string, bridgeVLANID int, excludeSwitchID uin
 		if !HookSwitchUsesDirectBridge(sw) || strings.TrimSpace(sw.UplinkIF) == "" {
 			continue
 		}
-		if bridgeVLANID == 0 || sw.BridgeVLANID == 0 {
-			return nil, fmt.Errorf("物理网卡 %s 已存在直通交换机；共享物理上行时 VLAN ID 必须为 1-4094", uplink)
+		if bridgeVLANID == 0 {
+			return nil, fmt.Errorf("物理网卡 %s 已有直通交换机；共享物理上行时 VLAN ID 必须为 1-4094", uplink)
 		}
 		if sw.BridgeVLANID == bridgeVLANID {
 			return nil, fmt.Errorf("物理网卡 %s 的桥接 VLAN ID %d 已被交换机「%s」使用", uplink, bridgeVLANID, sw.Name)

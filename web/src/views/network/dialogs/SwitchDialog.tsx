@@ -219,10 +219,6 @@ export default function SwitchDialog({
     const occupiedDirectVLANs = (selectedUplink?.direct_vlan_ids || []).filter(
       (vlanID) => !(editing && row?.uplink_if === form.uplink_if && Number(row.bridge_vlan_id || 0) === vlanID),
     )
-    if (isPhysicalDirect && occupiedDirectVLANs.includes(0)) {
-      Toast.warning('该物理口已有不打标签的直通交换机，需先为其设置非零 VLAN ID 后才能共享上行')
-      return
-    }
     if (isPhysicalDirect && occupiedDirectVLANs.length > 0 && form.bridge_vlan_id === 0) {
       Toast.warning('该物理口已由直通交换机使用，共享上行时 VLAN ID 必须为 1-4094')
       return
@@ -363,10 +359,7 @@ export default function SwitchDialog({
                           onChange={(value) => {
                             const selected = hostInterfaces.find((item) => item.name === form.uplink_if)
                             if (!value && selected?.can_use_direct === false) {
-                              const reason = selected.direct_vlan_ids?.includes(0)
-                                ? '该物理口已有不打标签的直通交换机，需先为其设置非零 VLAN ID 后才能共享上行'
-                                : '该物理口当前不可用于新的直通交换机'
-                              Toast.warning(reason)
+                              Toast.warning('该物理口当前不可用于新的直通交换机')
                               return
                             }
                             patch({ dhcp_enabled: value, uplink_gateway: value ? (form.uplink_gateway || selected?.gateway || '') : form.uplink_gateway })

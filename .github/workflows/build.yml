@@ -16,6 +16,11 @@ on:
           - amd64,arm64
           - amd64
           - arm64
+      variant:
+        description: '构建变体（留空时构建兼容版和原生版）'
+        required: false
+        type: string
+        default: ''
       artifact_storage:
         description: '构建产物存储位置'
         required: true
@@ -68,8 +73,14 @@ jobs:
 
       # ==================== 使用 build.sh 构建 ====================
       - name: 执行构建脚本 (build.sh)
+        env:
+          BUILD_VARIANT: ${{ inputs.variant }}
         run: |
-          bash build.sh -v "${{ inputs.version }}"
+          if [ -n "${BUILD_VARIANT}" ]; then
+            bash build.sh -v "${{ inputs.version }}" --variant "${BUILD_VARIANT}"
+          else
+            bash build.sh -v "${{ inputs.version }}"
+          fi
 
       # ==================== GitHub Artifacts 上传 ====================
       - name: 上传构建产物 (GitHub)
@@ -150,8 +161,14 @@ jobs:
 
       # ==================== 使用 build.sh 构建 ====================
       - name: 执行构建脚本 (build.sh)
+        env:
+          BUILD_VARIANT: ${{ inputs.variant }}
         run: |
-          bash build.sh -v "${{ inputs.version }}"
+          if [ -n "${BUILD_VARIANT}" ]; then
+            bash build.sh -v "${{ inputs.version }}" --variant "${BUILD_VARIANT}"
+          else
+            bash build.sh -v "${{ inputs.version }}"
+          fi
 
       # ==================== GitHub Artifacts 上传 ====================
       - name: 上传构建产物 (GitHub)

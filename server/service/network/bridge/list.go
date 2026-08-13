@@ -73,7 +73,7 @@ func ListHostPhysicalInterfaces() ([]HostInterfaceInfo, error) {
 			sharedBridge := strings.TrimSpace(switches[0].BridgeName)
 			for _, sw := range switches {
 				info.DirectVLANIDs = append(info.DirectVLANIDs, sw.BridgeVLANID)
-				if sw.BridgeVLANID == 0 || !strings.EqualFold(sharedBridge, strings.TrimSpace(sw.BridgeName)) {
+				if !strings.EqualFold(sharedBridge, strings.TrimSpace(sw.BridgeName)) {
 					shareableDirect = false
 				}
 			}
