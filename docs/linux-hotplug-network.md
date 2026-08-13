@@ -23,3 +23,16 @@ networkctl list --no-legend
 ```
 
 新增网口应为 `UP` 且显示为 `configured`；若对应 VPC 提供 DHCP 服务，应获得 IPv4 地址。主网口默认路由的度量仍应低于附加网口。
+
+## 物理直通 VLAN 网口
+
+- 附加网口选择“物理直通 / VLAN”交换机时，网口 XML 使用交换机的 `bridge_vlan_id`。
+- 运行中的虚拟机热插网口后，系统会同步设置对应 `vnet` OVS 端口的 VLAN tag。
+- 持久化 XML 同时包含 `<vlan><tag id='...'/></vlan>`，虚拟机重启后仍保持相同 VLAN。
+
+宿主机可使用以下命令核对运行态与持久化配置：
+
+```bash
+ovs-vsctl get Port <vnet端口> tag
+virsh dumpxml --inactive <虚拟机名称>
+```

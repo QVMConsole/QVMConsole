@@ -413,15 +413,23 @@ func buildVMInterfaceXML(vmName, bridgeName string, sw model.VPCSwitch, nicModel
         <parameters interfaceid='%s'/>
       </virtualport>`, macAddr, bridgeName, model, ifaceUUID)
 
-	if !D.SwitchUsesDirectBridge(sw) && sw.VLANID > 0 {
+	isDirectBridge := D.SwitchUsesDirectBridge(sw)
+	targetVLAN := sw.VLANID
+	if isDirectBridge {
+		targetVLAN = sw.BridgeVLANID
+	}
+	if targetVLAN > 0 {
 		xml += fmt.Sprintf(`
       <vlan>
         <tag id='%d'/>
-      </vlan>
+      </vlan>`, targetVLAN)
+	}
+	if !isDirectBridge && sw.VLANID > 0 {
+		xml += `
       <bandwidth>
         <inbound average='0' burst='0' peak='0'/>
         <outbound average='0' burst='0' peak='0'/>
-      </bandwidth>`, sw.VLANID)
+      </bandwidth>`
 	}
 	// 空交换机是软路由 LAN 使用的信任二层域，网口创建后应立即保持链路可用。
 	if D.IsPortSecurityEnabled != nil && D.IsPortSecurityEnabled() && !(sw.OwnsBridge && !sw.DHCPEnabled && strings.TrimSpace(sw.UplinkIF) == "") {

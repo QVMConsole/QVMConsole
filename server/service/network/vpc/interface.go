@@ -500,12 +500,16 @@ func applyNewInterfaceRuntime(vmName string, sw model.VPCSwitch, interfaceOrder 
 		return fmt.Errorf("无法找到新网口对应的 vnet 接口")
 	}
 
-	if !HookSwitchUsesDirectBridge(sw) && sw.VLANID > 0 {
+	targetVLAN := sw.VLANID
+	if HookSwitchUsesDirectBridge(sw) {
+		targetVLAN = sw.BridgeVLANID
+	}
+	if targetVLAN > 0 {
 		// 检查端口是否实际存在于 OVS
 		if !ovsPortExists(vnetIF) {
 			logger.App.Warn("OVS 端口不存在，跳过新网口 VLAN tag 设置", "port", vnetIF)
 		} else {
-			targetTag := strconv.Itoa(sw.VLANID)
+			targetTag := strconv.Itoa(targetVLAN)
 			result := utils.ExecCommand("ovs-vsctl", "set", "Port", vnetIF, "tag="+targetTag)
 			if result.Error != nil {
 				return fmt.Errorf("设置新网口 OVS VLAN tag 失败: %s", result.Stderr)
