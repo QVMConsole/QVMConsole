@@ -158,6 +158,7 @@ export default function SwitchDialog({
           item.effective_l3_if && item.effective_l3_if !== item.name ? `经 ${item.effective_l3_if}` : '',
           item.gateway ? `网关 ${item.gateway}` : form.dhcp_enabled ? '需填写网关' : '',
           item.direct_switch_name ? `直通：${item.direct_switch_name}` : '',
+          item.direct_vlan_ids?.length ? `已用 VLAN ${item.direct_vlan_ids.join('/')}` : '',
           item.nat_switch_count ? `${item.nat_switch_count} 个 NAT` : '',
         ]
           .filter(Boolean)
@@ -215,6 +216,21 @@ export default function SwitchDialog({
       return
     }
     const selectedUplink = hostInterfaces.find((item) => item.name === form.uplink_if)
+    const occupiedDirectVLANs = (selectedUplink?.direct_vlan_ids || []).filter(
+      (vlanID) => !(editing && row?.uplink_if === form.uplink_if && Number(row.bridge_vlan_id || 0) === vlanID),
+    )
+    if (isPhysicalDirect && occupiedDirectVLANs.includes(0)) {
+      Toast.warning('该物理口已有不打标签的直通交换机，需先为其设置非零 VLAN ID 后才能共享上行')
+      return
+    }
+    if (isPhysicalDirect && occupiedDirectVLANs.length > 0 && form.bridge_vlan_id === 0) {
+      Toast.warning('该物理口已由直通交换机使用，共享上行时 VLAN ID 必须为 1-4094')
+      return
+    }
+    if (isPhysicalDirect && occupiedDirectVLANs.includes(form.bridge_vlan_id)) {
+      Toast.warning(`该物理口的 VLAN ID ${form.bridge_vlan_id} 已被其它直通交换机使用`)
+      return
+    }
     if (isManaged && !form.uplink_gateway.trim() && !selectedUplink?.gateway) {
       Toast.warning('当前物理出口未检测到默认网关，请填写上行网关')
       return
@@ -347,7 +363,10 @@ export default function SwitchDialog({
                           onChange={(value) => {
                             const selected = hostInterfaces.find((item) => item.name === form.uplink_if)
                             if (!value && selected?.can_use_direct === false) {
-                              Toast.warning('该物理口已被直通网桥使用，只能继续作为托管 NAT 上行')
+                              const reason = selected.direct_vlan_ids?.includes(0)
+                                ? '该物理口已有不打标签的直通交换机，需先为其设置非零 VLAN ID 后才能共享上行'
+                                : '该物理口当前不可用于新的直通交换机'
+                              Toast.warning(reason)
                               return
                             }
                             patch({ dhcp_enabled: value, uplink_gateway: value ? (form.uplink_gateway || selected?.gateway || '') : form.uplink_gateway })
@@ -430,7 +449,9 @@ export default function SwitchDialog({
                   <div className="qvm-form-item">
                     <div className="qvm-form-label">桥接 VLAN ID</div>
                     <InputNumber style={{ width: '100%' }} min={0} max={4094} value={form.bridge_vlan_id} onChange={(value) => patch({ bridge_vlan_id: Number(value) || 0 })} />
-                    <div className="qvm-form-tip">0 表示不打标签；1-4094 表示以指定 VLAN 接入上级网络。</div>
+                    <div className="qvm-form-tip">
+                      0 表示不打标签；1-4094 表示以指定 VLAN 接入上级网络。同一物理口被多个直通交换机共享时，必须分别使用不同的非零 VLAN ID。
+                    </div>
                   </div>
                   <div className="qvm-form-item">
                     <div className="net-switch-row">

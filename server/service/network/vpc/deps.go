@@ -62,7 +62,7 @@ var (
 	HookEnsureOVSBridgeExists      func(bridge string) error
 	HookEnsureOVSBridgeDirect      func(bridge, uplink string, migrateHostIP bool, hostAddrs, hostGW, hostMetric, hostDNS string) error
 	HookGetOVSBridgePhysicalUplink func(bridge string) string
-	HookValidateSwitchUplink       func(uplink, uplinkGateway string, managed bool, switchID uint, targetBridge string) error
+	HookValidateSwitchUplink       func(uplink, uplinkGateway string, managed bool, switchID uint, targetBridge string, bridgeVLANID int) error
 	HookEffectiveL3Interface       func(uplink string) string
 	HookCaptureHostIPConfig        func(iface string) (addrs, gateway, metric, dns string)
 	HookDeleteOwnedSwitchBridge    func(bridge, uplink string, migrateHostIP bool, hostDNS string) error

@@ -50,7 +50,7 @@ func CreateNetworkBridge(req NetworkBridgeRequest) (*model.NetworkBridge, error)
 		Name: req.Name, Mode: BridgeModeDirect, UplinkIF: req.UplinkIF,
 		MigrateHostIP: req.MigrateHostIP,
 		HostAddrs:     ipCfg.Addrs, HostGateway: ipCfg.Gateway, HostMetric: ipCfg.Metric, HostDNS: ipCfg.DNS,
-		HostAddrs6:    ipCfg.Addrs6, HostGateway6: ipCfg.Gateway6, HostMetric6: ipCfg.Metric6,
+		HostAddrs6: ipCfg.Addrs6, HostGateway6: ipCfg.Gateway6, HostMetric6: ipCfg.Metric6,
 	}
 	if model.DB != nil {
 		if err := model.DB.Create(row).Error; err != nil {
@@ -169,8 +169,8 @@ func validateBridgeUplink(uplink, targetBridge string) error {
 }
 
 // ValidateVPCSwitchUplink 校验交换机上行链路的占用关系与三层出口条件。
-// 托管 NAT 上行允许在多个托管交换机间共享；二层直通上行保持独占。
-func ValidateVPCSwitchUplink(uplink, uplinkGateway string, managed bool, switchID uint, targetBridge string) error {
+// 托管 NAT 上行允许共享；二层直通只有在共用同一网桥且 VLAN 唯一时允许共享。
+func ValidateVPCSwitchUplink(uplink, uplinkGateway string, managed bool, switchID uint, targetBridge string, bridgeVLANID int) error {
 	uplink = strings.TrimSpace(uplink)
 	uplinkGateway = strings.TrimSpace(uplinkGateway)
 	if !isPhysicalInterface(uplink) {
@@ -181,13 +181,23 @@ func ValidateVPCSwitchUplink(uplink, uplinkGateway string, managed bool, switchI
 		if switchID > 0 {
 			query = query.Where("id <> ?", switchID)
 		}
-		if managed {
-			// 托管 NAT 只借用宿主机三层出口，允许与已有物理直通交换机共享同一出口。
-		} else {
-			var count int64
-			query.Count(&count)
-			if count > 0 {
-				return fmt.Errorf("物理网卡 %s 已由其它交换机使用", uplink)
+		if !managed {
+			var switches []model.VPCSwitch
+			query.Find(&switches)
+			for _, sw := range switches {
+				// 托管 NAT 只借用三层出口，不占用二层直通网桥。
+				if sw.DHCPEnabled {
+					continue
+				}
+				if strings.TrimSpace(sw.BridgeName) != strings.TrimSpace(targetBridge) {
+					return fmt.Errorf("物理网卡 %s 已由其它直通网桥使用", uplink)
+				}
+				if bridgeVLANID == 0 || sw.BridgeVLANID == 0 {
+					return fmt.Errorf("物理网卡 %s 已存在不打标签的直通交换机，不能共享该上行", uplink)
+				}
+				if sw.BridgeVLANID == bridgeVLANID {
+					return fmt.Errorf("物理网卡 %s 的桥接 VLAN ID %d 已被交换机「%s」使用", uplink, bridgeVLANID, sw.Name)
+				}
 			}
 		}
 

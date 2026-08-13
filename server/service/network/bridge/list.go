@@ -20,7 +20,7 @@ func ListHostPhysicalInterfaces() ([]HostInterfaceInfo, error) {
 	defaults := readDefaultRouteIfaces()
 	ovsPorts := readOVSPortBridgeMap()
 	managed := readManagedBridgeByUplink()
-	directSwitches := map[string]model.VPCSwitch{}
+	directSwitches := map[string][]model.VPCSwitch{}
 	natSwitchCounts := map[string]int64{}
 	if model.DB != nil {
 		var switches []model.VPCSwitch
@@ -28,8 +28,8 @@ func ListHostPhysicalInterfaces() ([]HostInterfaceInfo, error) {
 		for _, sw := range switches {
 			if sw.DHCPEnabled {
 				natSwitchCounts[sw.UplinkIF]++
-			} else if _, exists := directSwitches[sw.UplinkIF]; !exists {
-				directSwitches[sw.UplinkIF] = sw
+			} else if SwitchUsesDirectBridge(sw) {
+				directSwitches[sw.UplinkIF] = append(directSwitches[sw.UplinkIF], sw)
 			}
 		}
 	}
@@ -65,11 +65,22 @@ func ListHostPhysicalInterfaces() ([]HostInterfaceInfo, error) {
 		info.Gateway = cfg.Gateway
 		info.EffectiveL3IF = effective
 		info.NATSwitchCount = natSwitchCounts[item.IfName]
-		if sw, exists := directSwitches[item.IfName]; exists {
-			info.DirectSwitchID = sw.ID
-			info.DirectSwitchName = sw.Name
+		shareableDirect := false
+		if switches := directSwitches[item.IfName]; len(switches) > 0 {
+			info.DirectSwitchID = switches[0].ID
+			info.DirectSwitchName = switches[0].Name
+			shareableDirect = true
+			sharedBridge := strings.TrimSpace(switches[0].BridgeName)
+			for _, sw := range switches {
+				info.DirectVLANIDs = append(info.DirectVLANIDs, sw.BridgeVLANID)
+				if sw.BridgeVLANID == 0 || !strings.EqualFold(sharedBridge, strings.TrimSpace(sw.BridgeName)) {
+					shareableDirect = false
+				}
+			}
+			sort.Ints(info.DirectVLANIDs)
 		}
-		info.CanUseDirect = info.ManagedBridge == "" && info.OVSBridge == "" && info.DirectSwitchID == 0 && info.NATSwitchCount == 0
+		unusedDirect := info.OVSBridge == "" && info.DirectSwitchID == 0 && info.NATSwitchCount == 0
+		info.CanUseDirect = info.ManagedBridge == "" && (unusedDirect || shareableDirect)
 		// NAT 通过有效三层接口出站，可复用系统基础网桥或已有物理直通网桥；网关缺失时由创建表单补充。
 		info.CanUseNAT = strings.TrimSpace(cfg.Addrs) != ""
 		if info.DefaultRoute || strings.TrimSpace(info.Gateway) != "" {

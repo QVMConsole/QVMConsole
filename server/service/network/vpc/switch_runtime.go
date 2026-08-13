@@ -29,6 +29,14 @@ func EnsureVPCSwitchRuntime(sw model.VPCSwitch) error {
 			}
 			return ApplyVPCSwitchBandwidth(sw)
 		}
+		// 共享直通网桥由所有者维护物理上行和宿主机地址迁移配置，避免非所有者覆盖恢复脚本。
+		var owner model.VPCSwitch
+		if err := model.DB.Where("bridge_name = ? AND owns_bridge = ?", bridgeName, true).First(&owner).Error; err == nil {
+			if err := HookEnsureOVSBridgeDirect(bridgeName, owner.UplinkIF, owner.MigrateHostIP, owner.HostAddrs, owner.HostGateway, owner.HostMetric, owner.HostDNS); err != nil {
+				return err
+			}
+			return ApplyVPCSwitchBandwidth(sw)
+		}
 		var bridge model.NetworkBridge
 		if err := model.DB.Where("name = ?", bridgeName).First(&bridge).Error; err != nil {
 			// 数据库中没有记录，回退到 OVS 系统层检查
@@ -270,6 +278,13 @@ func removeVPCSwitchRuntime(sw model.VPCSwitch) error {
 	clearVPCSwitchBandwidth(sw)
 	if HookSwitchUsesDirectBridge(sw) {
 		if sw.OwnsBridge && HookDeleteOwnedSwitchBridge != nil {
+			handedOff, err := handoffOwnedDirectBridge(sw)
+			if err != nil {
+				return err
+			}
+			if handedOff {
+				return nil
+			}
 			return HookDeleteOwnedSwitchBridge(HookBridgeNameForSwitch(sw), sw.UplinkIF, sw.MigrateHostIP, sw.HostDNS)
 		}
 		return nil
@@ -285,6 +300,32 @@ func removeVPCSwitchRuntime(sw model.VPCSwitch) error {
 	_ = os.Remove(VPCDHCPHostsPath(sw.ID))
 	_ = os.Remove(vpcDHCPLeasesPath(sw.ID))
 	return nil
+}
+
+// handoffOwnedDirectBridge 在删除或重配置网桥所有者前，把运行态恢复责任移交给共享该网桥的交换机。
+func handoffOwnedDirectBridge(sw model.VPCSwitch) (bool, error) {
+	if model.DB == nil || !sw.OwnsBridge {
+		return false, nil
+	}
+	bridgeName := HookBridgeNameForSwitch(sw)
+	var successor model.VPCSwitch
+	if err := model.DB.Where("id <> ? AND bridge_mode = ? AND bridge_name = ?", sw.ID, BridgeModeDirect, bridgeName).
+		Order("id ASC").First(&successor).Error; err != nil {
+		return false, nil
+	}
+	updates := map[string]any{
+		"owns_bridge":     true,
+		"migrate_host_ip": sw.MigrateHostIP,
+		"host_addrs":      sw.HostAddrs,
+		"host_gateway":    sw.HostGateway,
+		"host_metric":     sw.HostMetric,
+		"host_dns":        sw.HostDNS,
+	}
+	if err := model.DB.Model(&successor).Updates(updates).Error; err != nil {
+		return false, fmt.Errorf("移交共享直通网桥 %s 的所有权失败: %w", bridgeName, err)
+	}
+	logger.App.Info("共享直通网桥所有权已移交", "bridge", bridgeName, "from_switch", sw.ID, "to_switch", successor.ID)
+	return true, nil
 }
 
 func VPCGatewayPortName(id uint) string {

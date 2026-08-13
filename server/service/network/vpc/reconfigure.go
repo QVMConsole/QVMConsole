@@ -44,12 +44,14 @@ func ValidateVPCSwitchReconfigure(operator, role string, id uint, req VPCSwitchR
 		return nil, err
 	}
 	if target.UplinkMode == UplinkModePhysical && HookValidateSwitchUplink != nil {
-		if err := HookValidateSwitchUplink(target.UplinkIF, target.UplinkGateway, target.DHCPEnabled, current.ID, target.BridgeName); err != nil {
+		if err := HookValidateSwitchUplink(target.UplinkIF, target.UplinkGateway, target.DHCPEnabled, current.ID, target.BridgeName, target.BridgeVLANID); err != nil {
 			return nil, err
 		}
 	}
-	if err := validateHostIPMigrationSelection(req); err != nil {
-		return nil, err
+	if target.OwnsBridge {
+		if err := validateHostIPMigrationSelection(req); err != nil {
+			return nil, err
+		}
 	}
 	return &target, nil
 }
@@ -91,12 +93,14 @@ func ExecuteVPCSwitchReconfigure(ctx context.Context, params VPCSwitchReconfigur
 		return "", err
 	}
 	if target.UplinkMode == UplinkModePhysical && HookValidateSwitchUplink != nil {
-		if err := HookValidateSwitchUplink(target.UplinkIF, target.UplinkGateway, target.DHCPEnabled, current.ID, target.BridgeName); err != nil {
+		if err := HookValidateSwitchUplink(target.UplinkIF, target.UplinkGateway, target.DHCPEnabled, current.ID, target.BridgeName, target.BridgeVLANID); err != nil {
 			return "", err
 		}
 	}
-	if err := validateHostIPMigrationSelection(params.Request); err != nil {
-		return "", err
+	if target.OwnsBridge {
+		if err := validateHostIPMigrationSelection(params.Request); err != nil {
+			return "", err
+		}
 	}
 
 	report(15, "正在准备目标交换机运行态")
@@ -246,8 +250,6 @@ func buildReconfiguredSwitch(current model.VPCSwitch, req VPCSwitchRequest) (mod
 	}
 
 	target.BridgeMode = BridgeModeDirect
-	target.OwnsBridge = true
-	target.BridgeName = nextOwnedBridgeName(current, target.UplinkIF)
 	target.MigrateHostIP = target.UplinkMode == UplinkModePhysical && req.MigrateHostIP
 	target.BridgeVLANID = normalizedBridgeVLANID(BridgeModeDirect, req.BridgeVLANID)
 	if err := validateBridgeVLANID(BridgeModeDirect, target.BridgeVLANID); err != nil {
@@ -259,6 +261,8 @@ func buildReconfiguredSwitch(current model.VPCSwitch, req VPCSwitchRequest) (mod
 	target.IPv6SecurityEnabled = target.UplinkMode == UplinkModePhysical && req.IPv6SecurityEnabled
 	target.TrustedIPv6Prefixes = strings.TrimSpace(req.TrustedIPv6Prefixes)
 	if target.UplinkMode != UplinkModePhysical {
+		target.OwnsBridge = true
+		target.BridgeName = nextOwnedBridgeName(current, target.UplinkIF)
 		target.UplinkMode = UplinkModeNone
 		target.UplinkIF = ""
 		target.UplinkGateway = ""
@@ -269,6 +273,25 @@ func buildReconfiguredSwitch(current model.VPCSwitch, req VPCSwitchRequest) (mod
 		target.AllowForgedTransmits = false
 		target.IPv6SecurityEnabled = false
 		target.TrustedIPv6Prefixes = ""
+	} else {
+		shared, err := findSharedDirectSwitch(target.UplinkIF, target.BridgeVLANID, current.ID)
+		if err != nil {
+			return target, err
+		}
+		if shared != nil {
+			if current.OwnsBridge && strings.EqualFold(strings.TrimSpace(current.UplinkIF), target.UplinkIF) &&
+				strings.EqualFold(HookBridgeNameForSwitch(current), HookBridgeNameForSwitch(*shared)) {
+				target.OwnsBridge = true
+				target.BridgeName = HookBridgeNameForSwitch(current)
+			} else {
+				target.OwnsBridge = false
+				target.BridgeName = HookBridgeNameForSwitch(*shared)
+				target.MigrateHostIP = false
+			}
+		} else {
+			target.OwnsBridge = true
+			target.BridgeName = nextOwnedBridgeName(current, target.UplinkIF)
+		}
 	}
 	if target.MigrateHostIP && HookCaptureHostIPConfig != nil {
 		target.HostAddrs, target.HostGateway, target.HostMetric, target.HostDNS = HookCaptureHostIPConfig(target.UplinkIF)

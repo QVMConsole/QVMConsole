@@ -22,6 +22,7 @@ type HostInterfaceInfo struct {
 	EffectiveL3IF    string   `json:"effective_l3_if,omitempty"`
 	DirectSwitchID   uint     `json:"direct_switch_id,omitempty"`
 	DirectSwitchName string   `json:"direct_switch_name,omitempty"`
+	DirectVLANIDs    []int    `json:"direct_vlan_ids,omitempty"`
 	NATSwitchCount   int64    `json:"nat_switch_count"`
 	CanUseDirect     bool     `json:"can_use_direct"`
 	CanUseNAT        bool     `json:"can_use_nat"`
@@ -55,9 +56,9 @@ type InterfaceConfigInfo struct {
 	Reason        string   `json:"reason"`          // 不可配置原因
 	ManagedBridge bool     `json:"managed_bridge"`  // 是否为面板管理的网桥
 	MigrateHostIP bool     `json:"migrate_host_ip"` // 网桥是否迁移了宿主机 IP
-	Addrs6        []string `json:"addrs6"`           // 当前 IPv6 地址（CIDR 格式）
-	Gateway6      string   `json:"gateway6"`         // IPv6 默认网关
-	Metric6       string   `json:"metric6"`          // IPv6 路由 metric
+	Addrs6        []string `json:"addrs6"`          // 当前 IPv6 地址（CIDR 格式）
+	Gateway6      string   `json:"gateway6"`        // IPv6 默认网关
+	Metric6       string   `json:"metric6"`         // IPv6 路由 metric
 }
 
 // SetInterfaceConfigRequest 设置接口 IP/DNS 配置请求。

@@ -226,6 +226,7 @@ export interface HostInterface {
   effective_l3_if?: string
   direct_switch_id?: number
   direct_switch_name?: string
+  direct_vlan_ids?: number[]
   nat_switch_count?: number
   can_use_direct?: boolean
   can_use_nat?: boolean

@@ -69,12 +69,14 @@ func CreateVPCSwitch(operator, role string, req VPCSwitchRequest) (*model.VPCSwi
 		return nil, err
 	}
 	if req.UplinkMode == UplinkModePhysical && HookValidateSwitchUplink != nil {
-		if err := HookValidateSwitchUplink(req.UplinkIF, req.UplinkGateway, req.DHCPEnabled, 0, bridgeName); err != nil {
+		if err := HookValidateSwitchUplink(req.UplinkIF, req.UplinkGateway, req.DHCPEnabled, 0, bridgeName, req.BridgeVLANID); err != nil {
 			return nil, err
 		}
 	}
-	if err := validateHostIPMigrationSelection(req); err != nil {
-		return nil, err
+	if ownsBridge {
+		if err := validateHostIPMigrationSelection(req); err != nil {
+			return nil, err
+		}
 	}
 	if req.DHCPEnabled && req.UplinkMode != UplinkModePhysical {
 		return nil, fmt.Errorf("托管 DHCP/NAT 交换机需要选择物理上行链路")
@@ -85,7 +87,7 @@ func CreateVPCSwitch(operator, role string, req VPCSwitchRequest) (*model.VPCSwi
 		return nil, err
 	}
 	hostAddrs, hostGateway, hostMetric, hostDNS := "", "", "", ""
-	if bridgeMode == BridgeModeDirect && req.MigrateHostIP && req.UplinkIF != "" && HookCaptureHostIPConfig != nil {
+	if ownsBridge && bridgeMode == BridgeModeDirect && req.MigrateHostIP && req.UplinkIF != "" && HookCaptureHostIPConfig != nil {
 		hostAddrs, hostGateway, hostMetric, hostDNS = HookCaptureHostIPConfig(req.UplinkIF)
 	}
 	sw := &model.VPCSwitch{
@@ -98,7 +100,7 @@ func CreateVPCSwitch(operator, role string, req VPCSwitchRequest) (*model.VPCSwi
 		UplinkIF:             req.UplinkIF,
 		UplinkGateway:        strings.TrimSpace(req.UplinkGateway),
 		OwnsBridge:           ownsBridge,
-		MigrateHostIP:        bridgeMode == BridgeModeDirect && req.MigrateHostIP,
+		MigrateHostIP:        ownsBridge && bridgeMode == BridgeModeDirect && req.MigrateHostIP,
 		HostAddrs:            hostAddrs,
 		HostGateway:          hostGateway,
 		HostMetric:           hostMetric,
@@ -268,10 +270,60 @@ func resolveNewVPCSwitchBridge(role string, vlanID int, req *VPCSwitchRequest) (
 		req.UplinkMode = normalizeUplinkMode(req.UplinkMode, req.UplinkIF, false)
 		return bridgeName, bridgeMode, false, nil
 	}
+	if strings.TrimSpace(req.UplinkIF) != "" {
+		shared, err := findSharedDirectSwitch(req.UplinkIF, req.BridgeVLANID, 0)
+		if err != nil {
+			return "", "", false, err
+		}
+		if shared != nil {
+			req.BridgeName = HookBridgeNameForSwitch(*shared)
+			req.UplinkMode = UplinkModePhysical
+			return req.BridgeName, BridgeModeDirect, false, nil
+		}
+	}
 	bridgeName := managedVPCBridgeName(vlanID)
 	req.BridgeName = bridgeName
 	req.UplinkMode = normalizeUplinkMode(req.UplinkMode, req.UplinkIF, false)
 	return bridgeName, BridgeModeDirect, true, nil
+}
+
+// findSharedDirectSwitch 查找同一物理上行上的直通交换机，并校验共享 VLAN 唯一性。
+// VLAN 0 表示不打标签，因此不能和其它逻辑交换机共享同一个物理上行。
+func findSharedDirectSwitch(uplink string, bridgeVLANID int, excludeSwitchID uint) (*model.VPCSwitch, error) {
+	uplink = strings.TrimSpace(uplink)
+	if uplink == "" || model.DB == nil {
+		return nil, nil
+	}
+	query := model.DB.Where("uplink_if = ? AND dhcp_enabled = ?", uplink, false)
+	if excludeSwitchID > 0 {
+		query = query.Where("id <> ?", excludeSwitchID)
+	}
+	var switches []model.VPCSwitch
+	if err := query.Order("owns_bridge DESC, id ASC").Find(&switches).Error; err != nil {
+		return nil, err
+	}
+	var shared *model.VPCSwitch
+	for index := range switches {
+		sw := switches[index]
+		if !HookSwitchUsesDirectBridge(sw) || strings.TrimSpace(sw.UplinkIF) == "" {
+			continue
+		}
+		if bridgeVLANID == 0 || sw.BridgeVLANID == 0 {
+			return nil, fmt.Errorf("物理网卡 %s 已存在直通交换机；共享物理上行时 VLAN ID 必须为 1-4094", uplink)
+		}
+		if sw.BridgeVLANID == bridgeVLANID {
+			return nil, fmt.Errorf("物理网卡 %s 的桥接 VLAN ID %d 已被交换机「%s」使用", uplink, bridgeVLANID, sw.Name)
+		}
+		if shared == nil {
+			copy := sw
+			shared = &copy
+			continue
+		}
+		if !strings.EqualFold(HookBridgeNameForSwitch(*shared), HookBridgeNameForSwitch(sw)) {
+			return nil, fmt.Errorf("物理网卡 %s 存在多个不同的直通网桥，请先整理现有拓扑", uplink)
+		}
+	}
+	return shared, nil
 }
 
 func validateBridgeVLANID(bridgeMode string, vlanID int) error {
