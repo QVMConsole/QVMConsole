@@ -206,6 +206,7 @@ func UpdateVMInterface(vmName string, interfaceOrder int, req AddVMInterfaceRequ
 	}
 	previousBinding := binding
 	oldSwitchID := binding.SwitchID
+	var oldSwitch model.VPCSwitch
 
 	// 验证交换机存在
 	var sw model.VPCSwitch
@@ -285,12 +286,46 @@ func UpdateVMInterface(vmName string, interfaceOrder int, req AddVMInterfaceRequ
 		}
 	}
 	restoreLink := func() {
-		if linkPort != "" {
-			_ = setVMInterfaceLink(vmName, linkPort, "up", false)
+		if linkPort == "" {
+			return
+		}
+		// 热拔插会重新创建 vnet 端口，不能继续使用切换前的端口名称。
+		currentPort := getVMVnetIFByOrder(vmName, interfaceOrder)
+		if currentPort != "" {
+			_ = setVMInterfaceLink(vmName, currentPort, "up", false)
 		}
 	}
 
-	// 更新绑定记录
+	// 交换机切换必须先更新实际网口。否则数据库已指向目标交换机，
+	// 但运行态和持久化 XML 仍保留旧交换机，面板与实际网络会不一致。
+	networkChanged := false
+	rollbackNetwork := func() error {
+		if !networkChanged {
+			return nil
+		}
+		if err := HookReconfigureVMInterfaceNetwork(vmName, interfaceOrder, oldSwitch); err != nil {
+			return err
+		}
+		networkChanged = false
+		return nil
+	}
+	if oldSwitchID != req.SwitchID {
+		if HookReconfigureVMInterfaceNetwork == nil {
+			restoreLink()
+			return fmt.Errorf("网口网络重配置服务尚未初始化")
+		}
+		if err := model.DB.First(&oldSwitch, oldSwitchID).Error; err != nil {
+			restoreLink()
+			return fmt.Errorf("读取原交换机失败，已保持原配置: %w", err)
+		}
+		if err := HookReconfigureVMInterfaceNetwork(vmName, interfaceOrder, sw); err != nil {
+			restoreLink()
+			return fmt.Errorf("切换第 %d 个网口的交换机失败，已保持原配置: %w", interfaceOrder+1, err)
+		}
+		networkChanged = true
+	}
+
+	// 实际网口切换成功后再更新绑定记录。
 	binding.Username = sw.Username
 	binding.SwitchID = req.SwitchID
 	binding.SecurityGroupID = securityGroupID
@@ -300,6 +335,10 @@ func UpdateVMInterface(vmName string, interfaceOrder int, req AddVMInterfaceRequ
 	binding.AllowedIPv4Addresses = req.AllowedIPv4Addresses
 	binding.AllowedIPv6Addresses = req.AllowedIPv6Addresses
 	if err := model.DB.Save(&binding).Error; err != nil {
+		if rollbackErr := rollbackNetwork(); rollbackErr != nil {
+			restoreLink()
+			return fmt.Errorf("更新网口绑定记录失败，且恢复原网口失败: %v；%w", rollbackErr, err)
+		}
 		restoreLink()
 		return fmt.Errorf("更新网口绑定记录失败: %w", err)
 	}
@@ -316,33 +355,8 @@ func UpdateVMInterface(vmName string, interfaceOrder int, req AddVMInterfaceRequ
 		}
 	}
 
-	// 如果交换机改变了，需要更新 VM 的 XML 配置（仅主网口 interface_order==0 支持）
+	// 实际网口已在保存绑定前完成重配置；此处只清理旧交换机 DHCP 租约。
 	if oldSwitchID != req.SwitchID {
-		if vmState != "running" {
-			// 关机态：更新 inactive XML，确保下次开机时使用正确配置
-			if interfaceOrder == 0 {
-				if HookSwitchUsesDirectBridge(sw) {
-					if err := ensureVMBridgeInterfaceConfig(vmName, HookBridgeNameForSwitch(sw), sw.BridgeVLANID); err != nil {
-						logger.App.Warn("更新桥接直通 XML 失败", "vm", vmName, "error", err)
-					}
-				} else {
-					if err := ensureVMVPCInterfaceConfig(vmName, sw.VLANID); err != nil {
-						logger.App.Warn("更新 VPC VLAN XML 失败", "vm", vmName, "error", err)
-					}
-				}
-			} else {
-				// TODO: 非主网口需要 detach-device + attach-device 或完整 XML 重写
-				logger.App.Warn("非主网口交换机变更后需重启虚拟机生效", "vm", vmName, "order", interfaceOrder)
-			}
-		} else {
-			// 运行态：尝试热更新 VLAN tag
-			vnetIF := getVMVnetIFByOrder(vmName, interfaceOrder)
-			if vnetIF != "" && !HookSwitchUsesDirectBridge(sw) && sw.VLANID > 0 {
-				targetTag := strconv.Itoa(sw.VLANID)
-				_ = utils.ExecCommand("ovs-vsctl", "set", "Port", vnetIF, "tag="+targetTag)
-			}
-		}
-		// 清理旧交换机 DHCP 租约
 		if mac := HookGetVMMACByOrder(vmName, interfaceOrder); mac != "" {
 			HookCleanOVSDHCPLease(mac, "")
 		}
@@ -363,13 +377,24 @@ func UpdateVMInterface(vmName string, interfaceOrder int, req AddVMInterfaceRequ
 	}
 	if portSecurityEnabled && HookReconcileVMPortSecurity != nil {
 		if err := HookReconcileVMPortSecurity(vmName); err != nil {
-			_ = model.DB.Save(&previousBinding).Error
+			if rollbackErr := rollbackNetwork(); rollbackErr != nil {
+				restoreLink()
+				return fmt.Errorf("更新端口安全策略失败，且恢复原网口失败，当前绑定保留目标交换机: %v；%w", rollbackErr, err)
+			}
+			if rollbackErr := model.DB.Save(&previousBinding).Error; rollbackErr != nil {
+				restoreLink()
+				return fmt.Errorf("更新端口安全策略失败，且恢复原绑定失败: %v；%w", rollbackErr, err)
+			}
 			_ = HookReconcileVMPortSecurity(vmName)
 			restoreLink()
 			return fmt.Errorf("更新端口安全策略失败，已恢复原绑定: %w", err)
 		}
 		if linkPort != "" {
-			if err := setVMInterfaceLink(vmName, linkPort, "up", false); err != nil {
+			currentPort := getVMVnetIFByOrder(vmName, interfaceOrder)
+			if currentPort == "" {
+				return fmt.Errorf("策略已更新，但未找到切换后的运行态网口")
+			}
+			if err := setVMInterfaceLink(vmName, currentPort, "up", false); err != nil {
 				return fmt.Errorf("策略已更新，但恢复网口链路失败: %w", err)
 			}
 		}
