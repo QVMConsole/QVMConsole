@@ -33,6 +33,17 @@ import (
 var Version = "dev"
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "port-mirror-watchdog" {
+		token := ""
+		if len(os.Args) > 2 {
+			token = os.Args[2]
+		}
+		if err := service.RunPortMirrorWatchdog(token); err != nil {
+			log.Fatalf("端口镜像自动回滚失败: %v", err)
+		}
+		return
+	}
+
 	if len(os.Args) > 1 && os.Args[1] == "system-compatibility-check" {
 		os.Exit(runSystemCompatibilityCheckCommand(os.Args[2:]))
 	}
@@ -123,6 +134,9 @@ func main() {
 	}
 	if err := service.EnsureAllVPCSwitchRuntime(); err != nil {
 		logger.App.Warn("恢复 VPC 网络运行态失败", "error", err)
+	}
+	if err := service.RestorePortMirror(); err != nil {
+		logger.App.Warn("恢复端口镜像运行态失败", "error", err)
 	}
 	if err := service.RestorePublicIPRules(); err != nil {
 		logger.App.Warn("恢复公网 IP 规则失败", "error", err)
@@ -1028,6 +1042,13 @@ func registerTaskHandlers() {
 			}
 		}
 		return result, nil
+	})
+	taskqueue.RegisterHandler(model.TaskTypePortMirror, func(ctx context.Context, task *model.Task, progress func(int, string)) (string, error) {
+		var params service.PortMirrorTaskParams
+		if err := json.Unmarshal([]byte(task.Params), &params); err != nil {
+			return "", fmt.Errorf("解析端口镜像参数失败: %w", err)
+		}
+		return service.ExecutePortMirrorTask(ctx, params, progress)
 	})
 	taskqueue.RegisterHandler(model.TaskTypeEnterMaintenanceMode, func(ctx context.Context, task *model.Task, progress func(int, string)) (string, error) {
 		var params service.MaintenanceModeTaskParams

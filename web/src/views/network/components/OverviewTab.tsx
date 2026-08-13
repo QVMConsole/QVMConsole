@@ -28,9 +28,10 @@ import type {
   PortSecurityPort,
   PortSecurityPreflight,
   PortSecurityStatus,
+  PortMirrorStatus,
 } from '@/api/ovs'
 import type { HostInterface, NetworkBridge } from '@/api/network'
-import { bridgeModeText, yesNo } from '../utils'
+import { bridgeModeText, formatBytes, yesNo } from '../utils'
 
 interface OverviewTabProps {
   status: OvsStatus | null
@@ -42,6 +43,9 @@ interface OverviewTabProps {
   portSecurity: PortSecurityStatus | null
   portSecurityPreflight: PortSecurityPreflight | null
   portSecurityAction: string
+  portMirror: PortMirrorStatus | null
+  portMirrorAction: string
+  portMirrorLoading: boolean
   onCheck: () => void
   onRepair: () => void
   onDeleteBridge: (row: NetworkBridge) => void
@@ -50,6 +54,8 @@ interface OverviewTabProps {
   onPortSecurityToggle: (enabled: boolean) => void
   onPortSecurityReconcile: () => void
   onPortSecurityPortAction: (port: string, release: boolean) => void
+  onPortMirrorConfig: () => void
+  onPortMirrorDisable: () => void
 }
 
 /** 布尔状态 Tag（绿/红） */
@@ -71,6 +77,9 @@ export default function OverviewTab({
   portSecurity,
   portSecurityPreflight,
   portSecurityAction,
+  portMirror,
+  portMirrorAction,
+  portMirrorLoading,
   onCheck,
   onRepair,
   onDeleteBridge,
@@ -79,6 +88,8 @@ export default function OverviewTab({
   onPortSecurityToggle,
   onPortSecurityReconcile,
   onPortSecurityPortAction,
+  onPortMirrorConfig,
+  onPortMirrorDisable,
 }: OverviewTabProps) {
   const healthy = !!status?.healthy
   const portCount = ports?.ports?.length || 0
@@ -346,6 +357,89 @@ export default function OverviewTab({
 
   return (
     <div>
+      <div className="net-card net-port-mirror-card">
+        <div className="net-card-header">
+          <IconBranch />
+          <span>端口镜像</span>
+          <div className="net-card-extra">
+            <Tag size="small" color={portMirrorLoading ? 'blue' : !portMirror ? 'red' : !portMirror.enabled ? 'grey' : portMirror.healthy ? 'green' : 'red'}>
+              {portMirrorLoading ? <><IconRefresh spin /> 加载中</> : !portMirror ? '读取失败' : !portMirror.enabled ? '未启用' : portMirror.healthy ? '正在镜像' : '运行异常'}
+            </Tag>
+            <Button
+              size="small"
+              loading={portMirrorLoading || portMirrorAction === 'enable'}
+              disabled={portMirrorLoading || !portMirror || !!portMirrorAction}
+              onClick={onPortMirrorConfig}
+            >
+              {portMirror?.enabled ? '更新配置' : '配置'}
+            </Button>
+            {portMirror?.enabled ? (
+              <Button
+                size="small"
+                type="danger"
+                theme="light"
+                loading={portMirrorAction === 'disable'}
+                disabled={portMirrorLoading || !portMirror || !!portMirrorAction}
+                onClick={onPortMirrorDisable}
+              >
+                停用
+              </Button>
+            ) : null}
+          </div>
+        </div>
+        <div className="net-card-body">
+          {portMirrorLoading ? (
+            <div className="net-port-mirror-loading">
+              <IconRefresh spin />
+              <span>正在读取端口镜像状态和流量计数...</span>
+            </div>
+          ) : !portMirror ? (
+            <div className="net-port-mirror-loading net-text-warn">
+              端口镜像状态读取失败，请刷新页面后重试。
+            </div>
+          ) : portMirror.enabled ? (
+            <div className="net-port-mirror-summary">
+              <div className="net-port-mirror-route">
+                <span className="qvm-mono">{portMirror.source_interfaces?.join('、') || '—'}</span>
+                <span className="net-port-mirror-arrow">→</span>
+                <span>{portMirror.targets?.map((item) => item.switch_name).join('、') || '—'}</span>
+                <span className="qvm-mono net-text-muted">{portMirror.targets?.map((item) => item.bridge).join('、')}</span>
+              </div>
+              <div className="net-port-mirror-detail-grid">
+                {(portMirror.sources || []).map((source) => (
+                  <div key={source.source_interface} className="net-port-mirror-detail-item">
+                    <strong className="qvm-mono">{source.source_interface}</strong>
+                    <span>入 {source.ingress?.packets || 0} 包</span>
+                    <span>出 {source.egress?.packets || 0} 包</span>
+                  </div>
+                ))}
+                {(portMirror.target_stats || []).map((target) => (
+                  <div key={target.switch_id} className="net-port-mirror-detail-item">
+                    <strong>{target.switch_name}</strong>
+                    <span>{target.connections} 条连接</span>
+                    <span>{target.ovs_packets || 0} 包</span>
+                  </div>
+                ))}
+              </div>
+              <div className="net-port-mirror-stats">
+                <span>入方向 {portMirror.ingress?.packets || 0} 包 / {formatBytes(portMirror.ingress?.bytes)}</span>
+                <span>出方向 {portMirror.egress?.packets || 0} 包 / {formatBytes(portMirror.egress?.bytes)}</span>
+                <span>OVS {portMirror.ovs_packets || 0} 包 / {formatBytes(portMirror.ovs_bytes)}</span>
+              </div>
+              {(portMirror.issues?.length || 0) > 0 ? (
+                <div className="net-preflight blocked">
+                  {portMirror.issues.map((issue) => <div key={issue}>{issue}</div>)}
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <div className="net-text-muted">
+              使用 tc 复制一个或多个接口的入站或出站报文，经专用 veth 注入一个或多个空交换机。选择系统基础 OVS 网桥可在 NAT 前保留虚拟机局域网 IP。
+            </div>
+          )}
+        </div>
+      </div>
+
       <div className="net-card net-port-security-card">
         <div className="net-card-header">
           <IconSafeStroked />

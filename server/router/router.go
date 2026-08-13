@@ -400,6 +400,10 @@ func Setup() *gin.Engine {
 				ovs.POST("/port-security/reconcile", handler.ReconcilePortSecurity)             // 异步协调全部端口策略
 				ovs.POST("/port-security/ports/:port/isolate", handler.IsolatePortSecurityPort) // 异步隔离指定 OVS 端口
 				ovs.POST("/port-security/ports/:port/release", handler.ReleasePortSecurityPort) // 异步释放指定 OVS 端口
+				ovs.GET("/port-mirror/options", handler.GetPortMirrorOptions)                   // 获取端口镜像源接口和目标空交换机
+				ovs.GET("/port-mirror/status", handler.GetPortMirrorStatus)                     // 获取端口镜像实时状态与计数
+				ovs.POST("/port-mirror/enable", handler.EnablePortMirror)                       // 异步启用端口镜像
+				ovs.POST("/port-mirror/disable", handler.DisablePortMirror)                     // 异步停用端口镜像并清理运行态
 			}
 
 			// ==================== 存储池管理 ====================

@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-12T14:35:03.007Z",
-  "count": 329,
+  "generated_at": "2026-08-13T14:34:52.242Z",
+  "count": 336,
   "endpoints": [
     {
       "method": "POST",
@@ -1037,6 +1037,17 @@
       "comment": ""
     },
     {
+      "method": "DELETE",
+      "path": "/network/public-ips/batch",
+      "handler": "BatchDeletePublicIPs",
+      "auth": "jwt",
+      "admin": true,
+      "elasticOnly": false,
+      "vmAccess": false,
+      "highRisk": "delete_public_ip",
+      "comment": "批量删除公网 IP（已绑定的自动跳过）"
+    },
+    {
       "method": "POST",
       "path": "/network/public-ips/batch",
       "handler": "BatchCreatePublicIPs",
@@ -1046,6 +1057,28 @@
       "vmAccess": false,
       "highRisk": "",
       "comment": "批量新增公网 IP（共用除 IP 外的字段）"
+    },
+    {
+      "method": "POST",
+      "path": "/network/public-ips/batch/bind",
+      "handler": "BatchBindPublicIPs",
+      "auth": "jwt",
+      "admin": true,
+      "elasticOnly": false,
+      "vmAccess": false,
+      "highRisk": "bind_public_ip",
+      "comment": "批量绑定公网 IP（高风险，任务队列）"
+    },
+    {
+      "method": "POST",
+      "path": "/network/public-ips/batch/unbind",
+      "handler": "BatchUnbindPublicIPs",
+      "auth": "jwt",
+      "admin": true,
+      "elasticOnly": false,
+      "vmAccess": false,
+      "highRisk": "unbind_public_ip",
+      "comment": "批量解绑公网 IP（高风险，任务队列）"
     },
     {
       "method": "GET",
@@ -1211,6 +1244,50 @@
       "vmAccess": false,
       "highRisk": "",
       "comment": ""
+    },
+    {
+      "method": "POST",
+      "path": "/ovs/port-mirror/disable",
+      "handler": "DisablePortMirror",
+      "auth": "jwt",
+      "admin": true,
+      "elasticOnly": false,
+      "vmAccess": false,
+      "highRisk": "disable_port_mirror",
+      "comment": "异步停用端口镜像并清理运行态"
+    },
+    {
+      "method": "POST",
+      "path": "/ovs/port-mirror/enable",
+      "handler": "EnablePortMirror",
+      "auth": "jwt",
+      "admin": true,
+      "elasticOnly": false,
+      "vmAccess": false,
+      "highRisk": "enable_port_mirror",
+      "comment": "异步启用端口镜像"
+    },
+    {
+      "method": "GET",
+      "path": "/ovs/port-mirror/options",
+      "handler": "GetPortMirrorOptions",
+      "auth": "jwt",
+      "admin": true,
+      "elasticOnly": false,
+      "vmAccess": false,
+      "highRisk": "",
+      "comment": "获取端口镜像源接口和目标空交换机"
+    },
+    {
+      "method": "GET",
+      "path": "/ovs/port-mirror/status",
+      "handler": "GetPortMirrorStatus",
+      "auth": "jwt",
+      "admin": true,
+      "elasticOnly": false,
+      "vmAccess": false,
+      "highRisk": "",
+      "comment": "获取端口镜像实时状态与计数"
     },
     {
       "method": "POST",

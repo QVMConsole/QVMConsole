@@ -142,6 +142,74 @@ export interface PortSecurityTaskResult {
   status: string
 }
 
+export type PortMirrorDirection = 'ingress' | 'egress' | 'both'
+
+export interface PortMirrorSourceOption {
+  name: string
+  kind: 'physical' | 'ovs_bridge' | 'interface'
+  state: string
+  addresses: string[]
+  default_route: boolean
+  capture_stage: 'pre_nat' | 'post_nat' | 'interface'
+  risk?: string
+}
+
+export interface PortMirrorTargetOption {
+  switch_id: number
+  switch_name: string
+  bridge: string
+  vm_count: number
+}
+
+export interface PortMirrorOptions {
+  sources: PortMirrorSourceOption[]
+  targets: PortMirrorTargetOption[]
+}
+
+export interface PortMirrorDirectionStats {
+  enabled: boolean
+  packets: number
+  bytes: number
+  dropped: number
+}
+
+export interface PortMirrorTargetConfig {
+  switch_id: number
+  switch_name: string
+  bridge: string
+}
+
+export interface PortMirrorSourceStatus {
+  source_interface: string
+  ingress: PortMirrorDirectionStats
+  egress: PortMirrorDirectionStats
+}
+
+export interface PortMirrorTargetStatus {
+  switch_id: number
+  switch_name: string
+  bridge: string
+  connections: number
+  ovs_packets: number
+  ovs_bytes: number
+}
+
+export interface PortMirrorStatus {
+  enabled: boolean
+  healthy: boolean
+  source_interfaces: string[]
+  targets: PortMirrorTargetConfig[]
+  direction?: PortMirrorDirection
+  sources: PortMirrorSourceStatus[]
+  target_stats: PortMirrorTargetStatus[]
+  ingress: PortMirrorDirectionStats
+  egress: PortMirrorDirectionStats
+  ovs_packets: number
+  ovs_bytes: number
+  issues: string[]
+  updated_at?: string
+}
+
 /** 检测 OVS 网络（聚合状态 + 端口） */
 export function checkOVSNetwork() {
   return service.post<unknown, ApiResponse<OvsCheckResult>>('/ovs/check')
@@ -184,4 +252,28 @@ export function releasePortSecurityPort(port: string) {
   return service.post<unknown, ApiResponse<PortSecurityTaskResult>>(
     `/ovs/port-security/ports/${encodeURIComponent(port)}/release`,
   )
+}
+
+export function getPortMirrorOptions() {
+  return service.get<unknown, ApiResponse<PortMirrorOptions>>('/ovs/port-mirror/options', {
+    silent: true,
+  })
+}
+
+export function getPortMirrorStatus() {
+  return service.get<unknown, ApiResponse<PortMirrorStatus>>('/ovs/port-mirror/status', {
+    silent: true,
+  })
+}
+
+export function enablePortMirror(data: {
+  source_interfaces: string[]
+  target_switch_ids: number[]
+  direction: PortMirrorDirection
+}) {
+  return service.post<unknown, ApiResponse<PortSecurityTaskResult>>('/ovs/port-mirror/enable', data)
+}
+
+export function disablePortMirror() {
+  return service.post<unknown, ApiResponse<PortSecurityTaskResult>>('/ovs/port-mirror/disable')
 }

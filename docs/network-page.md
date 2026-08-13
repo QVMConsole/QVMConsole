@@ -10,7 +10,7 @@
 |------|------|
 | 角色差异 | 管理员 4 个 Tab（网络概览/交换机/安全组策略/ACL）；普通用户（弹性云）2 个 Tab（交换机/安全组策略）；轻量云用户由路由守卫拦截，不可访问 |
 | 按用户筛选 | 管理员页头输入框，影响交换机/安全组/配额的查询参数（`username`） |
-| 网络概览（管理员） | OVS 状态/网桥/端口数/内网 CIDR 统计卡；检测（同步刷新状态）、修复（高风险确认，异步任务）；端口安全总开关、预检结果、默认折叠的逐端口状态与协调/隔离操作；基础状态 + 服务状态信息卡；宿主机网桥表、物理网卡表、OVS 端口表 |
+| 网络概览（管理员） | OVS 状态/网桥/端口数/内网 CIDR 统计卡；检测（同步刷新状态）、修复（高风险确认，异步任务）；端口镜像多来源/多目标配置、分源与分目标计数、故障状态，状态刷新期间显示加载提示并锁定操作；端口安全总开关、预检结果、默认折叠的逐端口状态与协调/隔离操作；基础状态 + 服务状态信息卡；宿主机网桥表、物理网卡表、OVS 端口表 |
 | 宿主机网桥 | 网络概览保留历史网桥展示、删除与接口 IP 配置；新的物理上行统一在创建交换机时选择，不再提供独立“创建桥接网桥”入口 |
 | OVS NAT 出口协调 | `KVM_OVS_UPLINK` 可继续保存物理上联口；若该物理口已加入 OVS 网桥且默认路由已迁移到网桥，运行态 NAT/FORWARD 会自动改用实际三层网桥，并清理指向旧出口的同网段规则 |
 | 接口 IP/DNS 配置 | 展示当前 IPv4/IPv6/网关/DNS；编辑保存或一键清除；物理网卡已加入网桥时提示改为在网桥上配置；不可配置接口禁用表单 |
@@ -56,6 +56,7 @@ web/src/views/network/
 - `GET /ovs/port-security/status`、`POST /ovs/port-security/preflight|enable|disable|reconcile`：端口安全状态、预检与异步启停/协调
 - `POST /ovs/port-security/ports/:port/isolate|release`：异步隔离或释放端口（高风险操作保留二次验证）
 - `GET/POST /network/bridges`、`DELETE /network/bridges/:id`：历史宿主机网桥兼容接口（管理员）
+- `GET /ovs/port-mirror/options|status`、`POST /ovs/port-mirror/enable|disable`：端口镜像选项、运行态与异步启停；启停保留二次验证
 - `GET /network/host/interfaces`：物理网卡列表，包含直通占用、NAT 使用数量、有效三层接口、网关及可选状态（管理员）
 - `GET/PUT /network/interfaces/:name/config`：接口 IP/DNS 配置（管理员，支持 IPv4 + IPv6 双栈）
 - `GET /vpc/quota`：流量/带宽配额

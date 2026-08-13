@@ -48,6 +48,7 @@ const (
 	TaskTypeDisableHostFirewall             = "disable_host_firewall"              // 关闭宿主机防火墙
 	TaskTypeOVSRepair                       = "ovs_repair"                         // 修复 OVS 网络基础配置
 	TaskTypePortSecurity                    = "port_security"                      // OVS 端口安全启停、协调与隔离
+	TaskTypePortMirror                      = "port_mirror"                        // tc/OVS 端口镜像启停
 	TaskTypePublicIPApply                   = "public_ip_apply"                    // 应用公网 IP 绑定/解绑/迁移
 	TaskTypeEnterMaintenanceMode            = "enter_maintenance_mode"             // 启用维护模式
 	TaskTypeExitMaintenanceMode             = "exit_maintenance_mode"              // 关闭维护模式

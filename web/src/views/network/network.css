@@ -481,6 +481,103 @@ body[theme-mode='dark'] .net-port-addresses {
   color: #b8c1cf;
 }
 
+/* ==================== 端口镜像 ==================== */
+.net-port-mirror-card {
+  margin-bottom: 16px;
+}
+.net-port-mirror-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.net-port-mirror-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 72px;
+  color: var(--qvm-text-2);
+  font-size: 13px;
+}
+.net-port-mirror-route {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: var(--qvm-text-1);
+  font-weight: 600;
+}
+.net-port-mirror-arrow {
+  color: var(--semi-color-primary);
+  font-size: 18px;
+}
+.net-port-mirror-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  color: var(--qvm-text-2);
+  font-size: 12.5px;
+}
+.net-port-mirror-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.net-port-mirror-option {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+}
+.net-port-mirror-option > span:last-child {
+  color: var(--qvm-text-2);
+  font-size: 12px;
+}
+.net-port-mirror-hint {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--qvm-text-2);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+.net-port-mirror-selected-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--qvm-stroke);
+  border-radius: 8px;
+  background: var(--qvm-hover-bg);
+}
+.net-port-mirror-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 8px;
+}
+.net-port-mirror-detail-item {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--qvm-stroke);
+  border-radius: 8px;
+  color: var(--qvm-text-2);
+  font-size: 12px;
+}
+.net-port-mirror-detail-item strong {
+  color: var(--qvm-text-1);
+}
+body[theme-mode='dark'] .net-port-mirror-route,
+body[theme-mode='dark'] .net-port-mirror-form {
+  color: #b8c1cf;
+}
+body[theme-mode='dark'] .net-port-mirror-detail-item strong {
+  color: #b8c1cf;
+}
+
 /* ==================== 创建交换机弹窗：两列折叠布局 ==================== */
 .net-switch-mode-banner {
   display: grid;

@@ -184,6 +184,7 @@ export const TASK_TYPE_TEXT: Record<string, string> = {
   storage_create_partition: '创建分区',
   storage_delete_partitions: '删除分区',
   ovs_repair: 'OVS 修复',
+  port_mirror: '端口镜像',
   network_capture: '网络抓包',
   vm_schedule_action: '虚拟机定时任务',
   password_breach_scan: '泄露密码扫描',
@@ -211,6 +212,7 @@ export function taskTypeColor(type: string): { color: string; bg: string; border
     delete: { color: '#FDA4AF', bg: 'rgba(251,113,133,.12)', border: 'rgba(251,113,133,.25)' },
     delete_template: { color: '#FDA4AF', bg: 'rgba(251,113,133,.12)', border: 'rgba(251,113,133,.25)' },
     network_capture: { color: '#FCD34D', bg: 'rgba(251,191,36,.12)', border: 'rgba(251,191,36,.25)' },
+    port_mirror: { color: '#67E8F9', bg: 'rgba(34,211,238,.12)', border: 'rgba(34,211,238,.25)' },
   }
   return (
     palette[type] || {

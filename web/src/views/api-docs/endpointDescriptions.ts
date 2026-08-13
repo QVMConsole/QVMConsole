@@ -716,6 +716,22 @@ export const endpointDescriptions: Record<string, EndpointDescription> = {
   'POST /ovs/port-security/reconcile': { summary: '异步协调全部端口安全策略' },
   'POST /ovs/port-security/ports/:port/isolate': { summary: '异步手工隔离 OVS 端口' },
   'POST /ovs/port-security/ports/:port/release': { summary: '异步释放手工隔离的 OVS 端口' },
+  'GET /ovs/port-mirror/options': {
+    summary: '读取端口镜像源接口和目标空交换机选项',
+    response: 'data: sources[], targets[]。源接口会标注 NAT 前后位置与默认路由风险。',
+  },
+  'GET /ovs/port-mirror/status': {
+    summary: '读取端口镜像运行状态与实时计数',
+    response: 'data: enabled, healthy, source_interfaces[], targets[], sources[], target_stats[], ingress, egress, ovs_packets, issues。',
+  },
+  'POST /ovs/port-mirror/enable': {
+    summary: '异步启用或更新端口镜像',
+    body: 'JSON: source_interfaces[], target_switch_ids[], direction(ingress/egress/both)。',
+    notes: ['支持多来源和多目标的连接矩阵；只允许目标为空交换机；操作前建立 systemd 自动回滚看门狗并要求二次验证。'],
+  },
+  'POST /ovs/port-mirror/disable': {
+    summary: '异步停用端口镜像并清理运行态',
+  },
 
   // ==================== 存储池 ====================
   'GET /storage-pool/list': { summary: '获取存储池列表' },
