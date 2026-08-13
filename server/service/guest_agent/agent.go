@@ -5,11 +5,48 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync"
+	"time"
 
 	"kvm_console/logger"
 	"kvm_console/service/libvirt_rpc"
 	"kvm_console/utils"
 )
+
+const guestAgentFailureRetryInterval = 30 * time.Second
+
+type guestAgentFailure struct {
+	retryAfter time.Time
+	err        error
+}
+
+// guestAgentFailures 仅用于详情与网络状态等被动查询。
+// 主动来宾操作直接调用 Client，不受该等待窗口影响。
+var guestAgentFailures sync.Map
+
+func getGuestAgentFailure(vmName string) error {
+	value, ok := guestAgentFailures.Load(vmName)
+	if !ok {
+		return nil
+	}
+	failure := value.(guestAgentFailure)
+	if time.Now().Before(failure.retryAfter) {
+		return fmt.Errorf("QEMU Guest Agent 暂未连接，等待后重试: %w", failure.err)
+	}
+	guestAgentFailures.Delete(vmName)
+	return nil
+}
+
+func recordGuestAgentFailure(vmName string, err error) {
+	guestAgentFailures.Store(vmName, guestAgentFailure{
+		retryAfter: time.Now().Add(guestAgentFailureRetryInterval),
+		err:        err,
+	})
+}
+
+func clearGuestAgentFailure(vmName string) {
+	guestAgentFailures.Delete(vmName)
+}
 
 // GuestAgentStatus 描述虚拟机 QEMU Guest Agent 的当前状态
 type GuestAgentStatus struct {
@@ -102,12 +139,18 @@ func CheckVMGuestAgentStatus(vmName string) *GuestAgentStatus {
 	if !status.Configured {
 		return status
 	}
+	if getGuestAgentFailure(vmName) != nil {
+		return status
+	}
 
 	client := NewClient(vmName)
 	ctx, cancel := context.WithTimeout(context.Background(), ConnectTimeout)
 	defer cancel()
-	if client.Ping(ctx) == nil {
+	if err := client.Ping(ctx); err == nil {
 		status.Connected = true
+		clearGuestAgentFailure(vmName)
+	} else {
+		recordGuestAgentFailure(vmName, err)
 	}
 
 	// 获取版本号
@@ -123,12 +166,23 @@ func CheckVMGuestAgentStatus(vmName string) *GuestAgentStatus {
 // GetVMGuestAgentIPs 从 QEMU Guest Agent 获取虚拟机所有网口的 IP 地址
 // 返回按 MAC 分组的 IPv4/IPv6 地址列表，自动过滤 loopback 和 link-local 地址
 func GetVMGuestAgentIPs(vmName string) ([]GuestAgentIPResult, error) {
+	vmName = strings.TrimSpace(vmName)
+	if vmName == "" {
+		return nil, fmt.Errorf("虚拟机名称不能为空")
+	}
+
+	if err := getGuestAgentFailure(vmName); err != nil {
+		return nil, err
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), ConnectTimeout)
 	defer cancel()
 	var interfaces []guestNetworkInterface
 	if err := NewClient(vmName).Command(ctx, "guest-network-get-interfaces", nil, &interfaces, ConnectTimeout); err != nil {
+		recordGuestAgentFailure(vmName, err)
 		return nil, err
 	}
+	clearGuestAgentFailure(vmName)
 
 	var results []GuestAgentIPResult
 	for _, iface := range interfaces {

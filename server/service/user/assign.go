@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"kvm_console/config"
 	"kvm_console/model"
-	"kvm_console/utils"
 )
 
 // AssignVMsToUser 分配虚拟机给用户
@@ -21,9 +19,9 @@ func AssignVMsToUserWithQuotas(username string, vmNames []string, lightweightQuo
 	}
 
 	// 写入分配文件
-	content := strings.Join(vmNames, "\n")
-	utils.ExecShell(fmt.Sprintf("echo %s > %s/%s",
-		utils.ShellSingleQuote(content), config.GlobalConfig.VMAccessDir, utils.ShellSingleQuote(username)))
+	if err := writeUserVMAccessList(username, vmNames); err != nil {
+		return err
+	}
 
 	// 重新生成 polkit 规则
 	if err := regeneratePolkitRules(); err != nil {

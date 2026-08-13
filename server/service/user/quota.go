@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"kvm_console/config"
 	"kvm_console/logger"
 	"kvm_console/model"
 	"kvm_console/service/snapshot"
@@ -14,18 +13,10 @@ import (
 
 // GetUserVMList 获取用户拥有的VM列表（从访问列表文件读取）
 func GetUserVMList(username string) []string {
-	vmsResult := utils.ExecShell(fmt.Sprintf("cat %s/%s 2>/dev/null",
-		utils.ShellSingleQuote(config.GlobalConfig.VMAccessDir), username))
-	if vmsResult.Error != nil || vmsResult.Stdout == "" {
+	vms, err := readUserVMAccessList(username)
+	if err != nil {
+		logger.App.Warn("读取用户虚拟机访问清单失败", "user", username, "error", err)
 		return nil
-	}
-
-	var vms []string
-	for _, vm := range strings.Split(vmsResult.Stdout, "\n") {
-		vm = strings.TrimSpace(vm)
-		if vm != "" {
-			vms = append(vms, vm)
-		}
 	}
 	return vms
 }
@@ -245,9 +236,9 @@ func AddVMToUser(username, vmName string) error {
 	}
 
 	vms = append(vms, vmName)
-	content := strings.Join(vms, "\n")
-	utils.ExecShell(fmt.Sprintf("echo %s > %s/%s",
-		utils.ShellSingleQuote(content), utils.ShellSingleQuote(config.GlobalConfig.VMAccessDir), username))
+	if err := writeUserVMAccessList(username, vms); err != nil {
+		return err
+	}
 
 	// 重新生成 polkit 规则
 	if err := regeneratePolkitRules(); err != nil {
@@ -268,13 +259,8 @@ func RemoveVMFromUser(username, vmName string) error {
 		}
 	}
 
-	if len(newVMs) == 0 {
-		// 清空文件
-		utils.ExecShell(fmt.Sprintf("> %s/%s", utils.ShellSingleQuote(config.GlobalConfig.VMAccessDir), username))
-	} else {
-		content := strings.Join(newVMs, "\n")
-		utils.ExecShell(fmt.Sprintf("echo %s > %s/%s",
-			utils.ShellSingleQuote(content), utils.ShellSingleQuote(config.GlobalConfig.VMAccessDir), username))
+	if err := writeUserVMAccessList(username, newVMs); err != nil {
+		return err
 	}
 
 	// 重新生成 polkit 规则

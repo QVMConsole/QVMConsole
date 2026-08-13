@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -193,11 +192,10 @@ func ProvisionSystemUserResources(user *model.User, password string) error {
 			}
 		}
 
-		// 创建 VM 访问配置目录
-		utils.ExecCommand("mkdir", "-p", config.GlobalConfig.VMAccessDir)
-
 		// 初始化空的 VM 分配文件
-		utils.ExecShell(fmt.Sprintf("touch %s/%s", config.GlobalConfig.VMAccessDir, utils.ShellSingleQuote(user.Username)))
+		if err := writeUserVMAccessList(user.Username, nil); err != nil {
+			return fmt.Errorf("初始化虚拟机访问清单失败: %w", err)
+		}
 
 		// 创建用户后同步 SSH 拒绝配置（默认禁止 SSH）
 		regenerateSSHDenyConfig()
@@ -416,7 +414,9 @@ func DeleteSystemUser(username string, progressFn func(int, string)) error {
 
 	// 第七步：删除 VM 分配文件
 	progressFn(85, "正在清理 VM 访问配置...")
-	_ = os.Remove(filepath.Join(config.GlobalConfig.VMAccessDir, username))
+	if accessListPath, err := vmAccessListPath(username); err == nil {
+		_ = os.Remove(accessListPath)
+	}
 
 	// 第八步：删除系统用户
 	progressFn(90, "正在删除系统用户...")
@@ -461,17 +461,15 @@ func regeneratePolkitRules() error {
 		}
 
 		// 读取该用户的 VM 列表
-		vmsResult := utils.ExecShell(fmt.Sprintf("cat %s/%s 2>/dev/null", vmAccessDir, utils.ShellSingleQuote(username)))
-		if vmsResult.Error != nil || vmsResult.Stdout == "" {
+		vms, err := readUserVMAccessList(username)
+		if err != nil {
+			logger.App.Warn("读取用户虚拟机访问清单失败", "user", username, "error", err)
 			continue
 		}
 
 		var jsArr []string
-		for _, vm := range strings.Split(vmsResult.Stdout, "\n") {
-			vm = strings.TrimSpace(vm)
-			if vm != "" {
-				jsArr = append(jsArr, fmt.Sprintf(`"%s"`, vm))
-			}
+		for _, vm := range vms {
+			jsArr = append(jsArr, fmt.Sprintf(`"%s"`, vm))
 		}
 		if len(jsArr) > 0 {
 			mappings = append(mappings, fmt.Sprintf(`        "%s": [%s],`, username, strings.Join(jsArr, ", ")))

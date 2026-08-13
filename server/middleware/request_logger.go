@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"net/url"
+	"strings"
 	"time"
 
 	"kvm_console/logger"
@@ -8,12 +10,58 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const redactedQueryValue = "[REDACTED]"
+
+// requestLogSensitiveQueryKeys 是请求日志中不能记录原文的查询参数。
+// WebSocket/SSE 连接会在查询参数中携带访问令牌，日志中只能保留其是否存在。
+var requestLogSensitiveQueryKeys = map[string]struct{}{
+	"access_token":  {},
+	"api_key":       {},
+	"apikey":        {},
+	"authorization": {},
+	"code":          {},
+	"key":           {},
+	"password":      {},
+	"passwd":        {},
+	"refresh_token": {},
+	"secret":        {},
+	"token":         {},
+}
+
+func isSensitiveRequestLogQueryKey(key string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(key))
+	if _, ok := requestLogSensitiveQueryKeys[normalized]; ok {
+		return true
+	}
+	return strings.Contains(normalized, "token") ||
+		strings.Contains(normalized, "secret") ||
+		strings.Contains(normalized, "password") ||
+		strings.HasSuffix(normalized, "_key")
+}
+
+func requestLogPath(path, rawQuery string) string {
+	if rawQuery == "" {
+		return path
+	}
+
+	query, err := url.ParseQuery(rawQuery)
+	if err != nil {
+		// 非法查询串不写入日志，避免绕过脱敏规则。
+		return path
+	}
+	for key := range query {
+		if isSensitiveRequestLogQueryKey(key) {
+			query[key] = []string{redactedQueryValue}
+		}
+	}
+	return path + "?" + query.Encode()
+}
+
 // RequestLoggerMiddleware 自定义 GIN 请求日志中间件，使用 slog 按状态码分级记录
 func RequestLoggerMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
-		path := c.Request.URL.Path
-		raw := c.Request.URL.RawQuery
+		path := requestLogPath(c.Request.URL.Path, c.Request.URL.RawQuery)
 
 		c.Next()
 
@@ -29,10 +77,6 @@ func RequestLoggerMiddleware() gin.HandlerFunc {
 			if u, ok := username.(string); ok {
 				user = u
 			}
-		}
-
-		if raw != "" {
-			path = path + "?" + raw
 		}
 
 		// 根据状态码选择日志级别
