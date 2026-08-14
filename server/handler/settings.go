@@ -34,6 +34,7 @@ type SettingsResponse struct {
 	NetworkBackend                        string `json:"network_backend"`
 	OVSBridge                             string `json:"ovs_bridge"`
 	OVSUplink                             string `json:"ovs_uplink"`
+	ElasticCloudUplink                    string `json:"elastic_cloud_uplink"`
 	OVSDHCPStart                          string `json:"ovs_dhcp_start"`
 	OVSDHCPEnd                            string `json:"ovs_dhcp_end"`
 	SubnetPrefix                          string `json:"subnet_prefix"`
@@ -115,6 +116,7 @@ type UpdateSettingsRequest struct {
 	NetworkBackend                        *string `json:"network_backend"`
 	OVSBridge                             *string `json:"ovs_bridge"`
 	OVSUplink                             *string `json:"ovs_uplink"`
+	ElasticCloudUplink                    *string `json:"elastic_cloud_uplink"`
 	OVSDHCPStart                          *string `json:"ovs_dhcp_start"`
 	OVSDHCPEnd                            *string `json:"ovs_dhcp_end"`
 	SubnetPrefix                          *string `json:"subnet_prefix"`
@@ -242,6 +244,7 @@ func GetSettings(c *gin.Context) {
 			NetworkBackend:                        cfg.NetworkBackend,
 			OVSBridge:                             cfg.OVSBridge,
 			OVSUplink:                             cfg.OVSUplink,
+			ElasticCloudUplink:                    cfg.ElasticCloudUplink,
 			OVSDHCPStart:                          cfg.OVSDHCPStart,
 			OVSDHCPEnd:                            cfg.OVSDHCPEnd,
 			SubnetPrefix:                          cfg.SubnetPrefix,
@@ -320,6 +323,27 @@ func UpdateSettings(c *gin.Context) {
 		req.PortSecurityNeighborPPS != nil || req.PortSecurityNeighborBurstPackets != nil ||
 		req.PortSecurityBroadcastPPS != nil || req.PortSecurityBroadcastBurstPackets != nil ||
 		req.PortSecurityReconcileIntervalSeconds != nil
+	if req.ElasticCloudUplink != nil {
+		uplink := strings.TrimSpace(*req.ElasticCloudUplink)
+		if uplink != "" {
+			interfaces, err := service.ListHostPhysicalInterfaces()
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "读取宿主机物理网卡失败: " + err.Error()})
+				return
+			}
+			valid := false
+			for _, item := range interfaces {
+				if item.Name == uplink && item.Physical && item.CanUseNAT {
+					valid = true
+					break
+				}
+			}
+			if !valid {
+				c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "所选网卡当前不可作为弹性云互联网出口"})
+				return
+			}
+		}
+	}
 
 	maintenanceChanged := req.MaintenanceMode != nil && *req.MaintenanceMode != previousMaintenanceMode
 	if maintenanceChanged {
@@ -369,6 +393,9 @@ func UpdateSettings(c *gin.Context) {
 	}
 	if req.OVSUplink != nil {
 		cfg.OVSUplink = strings.TrimSpace(*req.OVSUplink)
+	}
+	if req.ElasticCloudUplink != nil {
+		cfg.ElasticCloudUplink = strings.TrimSpace(*req.ElasticCloudUplink)
 	}
 	if req.OVSDHCPStart != nil {
 		cfg.OVSDHCPStart = strings.TrimSpace(*req.OVSDHCPStart)

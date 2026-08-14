@@ -1257,6 +1257,7 @@ write_env() {
         env_default "KVM_NETWORK_BACKEND" "ovs"
         env_default "KVM_OVS_BRIDGE" "br-ovs"
         env_default "KVM_OVS_UPLINK" ""
+        env_default "KVM_ELASTIC_CLOUD_UPLINK" ""
         env_default "KVM_OVS_DHCP_START" ""
         env_default "KVM_OVS_DHCP_END" ""
         env_default "KVM_SUBNET_PREFIX" "192.168.122"

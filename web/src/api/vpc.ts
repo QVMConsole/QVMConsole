@@ -53,6 +53,7 @@ export interface VpcSwitchPayload {
   username?: string
   name: string
   dhcp_enabled?: boolean
+  internet_enabled?: boolean
   uplink_mode?: 'none' | 'physical' | 'system'
   uplink_if?: string
   uplink_gateway?: string
@@ -102,6 +103,7 @@ export function vpcSwitchModeDetail(item: VpcSwitch): string {
 /** VPC 流量/带宽配额 */
 export interface VpcQuota {
   username: string
+  internet_available: boolean
   max_traffic_down: number
   max_traffic_up: number
   allocated_traffic_down: number

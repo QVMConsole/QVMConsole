@@ -61,7 +61,7 @@ const publicIPBody = 'JSON: ip(IPv4/IPv6), cidr, gateway, uplink_if, supported_m
 const firewallPolicyBody =
   'JSON: policy 或完整防火墙策略对象，包含 default_action, rules, region_rules, port_forward_policy 等'
 const vpcSwitchBody =
-  'JSON: name, username, uplink_mode(none/physical/system), uplink_if, uplink_gateway, dhcp_enabled, migrate_host_ip, bridge_vlan_id, cidr, gateway_ip, dhcp_start, dhcp_end, ipv6_security_enabled, trusted_ipv6_prefixes, allow_promiscuous, allow_mac_change, allow_forged_transmits'
+  'JSON: name, username, internet_enabled(普通用户互联网开关), uplink_mode(none/physical/system), uplink_if, uplink_gateway, dhcp_enabled, migrate_host_ip, bridge_vlan_id, cidr, gateway_ip, dhcp_start, dhcp_end, ipv6_security_enabled, trusted_ipv6_prefixes, allow_promiscuous, allow_mac_change, allow_forged_transmits'
 const securityGroupBody = 'JSON: name, remark, username'
 const securityRuleBody =
   'JSON: direction, address_family(ipv4/ipv6), protocol(tcp/udp/icmp/icmpv6/all), port_start, port_end, target_type(cidr/switch/security_group), target_value, action, remark'
@@ -643,7 +643,11 @@ export const endpointDescriptions: Record<string, EndpointDescription> = {
   'DELETE /network/captures/:task_id': { summary: '删除抓包会话文件' },
 
   // ==================== VPC ====================
-  'GET /vpc/quota': { summary: '读取 VPC 配额', query: ['username(管理员可选)'] },
+  'GET /vpc/quota': {
+    summary: '读取 VPC 配额与互联网可用状态',
+    query: ['username(管理员可选)'],
+    response: 'data: 配额分配与剩余量、internet_available（管理员是否已配置弹性云互联网出口）。',
+  },
   'GET /vpc/switches': { summary: '列出 VPC 交换机', query: ['username(管理员可选)'] },
   'POST /vpc/switches': { summary: '创建 VPC 交换机', body: vpcSwitchBody },
   'PUT /vpc/switches/:id': { summary: '更新 VPC 交换机', body: vpcSwitchBody },
@@ -651,7 +655,10 @@ export const endpointDescriptions: Record<string, EndpointDescription> = {
     summary: '异步重配置交换机拓扑',
     body: vpcSwitchBody,
     response: 'data: task_id, status。',
-    notes: ['在线切换保留网口 MAC、型号、interface ID 和带宽配置；热插失败时任务恢复旧网络。'],
+    notes: [
+      '在线切换保留网口 MAC、型号、interface ID 和带宽配置；热插失败时任务恢复旧网络。',
+      '普通用户仅可重配置自己的交换机；internet_enabled=true 时后端强制使用管理员设置的弹性云出口，并启用托管 DHCP/NAT。',
+    ],
   },
   'POST /vpc/switches/:id/traffic/reset': { summary: '重置交换机流量统计' },
   'DELETE /vpc/switches/:id': { summary: '删除 VPC 交换机' },

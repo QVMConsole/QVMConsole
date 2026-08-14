@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"kvm_console/config"
 	"kvm_console/model"
 )
 
@@ -36,21 +37,40 @@ func normalizeUplinkMode(value, uplink string, managed bool) string {
 	return UplinkModeNone
 }
 
-func normalizeCreateTopology(role string, req *VPCSwitchRequest) {
+func normalizeCreateTopology(role string, req *VPCSwitchRequest) error {
 	if req == nil {
-		return
+		return fmt.Errorf("交换机拓扑参数为空")
 	}
 	req.UplinkIF = strings.TrimSpace(req.UplinkIF)
 	req.UplinkGateway = strings.TrimSpace(req.UplinkGateway)
 	if role != "admin" {
-		req.DHCPEnabled = false
-		req.UplinkIF = ""
-		req.UplinkGateway = ""
-		req.UplinkMode = UplinkModeNone
+		internetEnabled := req.InternetEnabled != nil && *req.InternetEnabled
+		uplink := ""
+		if config.GlobalConfig != nil {
+			uplink = strings.TrimSpace(config.GlobalConfig.ElasticCloudUplink)
+		}
+		if internetEnabled && uplink == "" {
+			return fmt.Errorf("管理员尚未配置弹性云互联网出口网卡")
+		}
+		req.DHCPEnabled = internetEnabled
+		req.UplinkIF = uplink
+		req.UplinkMode = normalizeUplinkMode("", uplink, internetEnabled)
+		if !internetEnabled {
+			req.UplinkIF = ""
+			req.UplinkGateway = ""
+			req.UplinkMode = UplinkModeNone
+		}
 		req.MigrateHostIP = false
-		return
+		req.BridgeVLANID = 0
+		req.AllowPromiscuous = false
+		req.AllowMACChange = false
+		req.AllowForgedTx = false
+		req.IPv6SecurityEnabled = false
+		req.TrustedIPv6Prefixes = ""
+		return nil
 	}
 	req.UplinkMode = normalizeUplinkMode(req.UplinkMode, req.UplinkIF, req.DHCPEnabled)
+	return nil
 }
 
 func topologyRequestChanged(sw model.VPCSwitch, req VPCSwitchRequest) bool {

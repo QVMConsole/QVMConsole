@@ -18,6 +18,7 @@ type VPCSwitchRequest struct {
 	Name                string  `json:"name"`
 	BridgeName          string  `json:"bridge_name"`
 	DHCPEnabled         bool    `json:"dhcp_enabled"`
+	InternetEnabled     *bool   `json:"internet_enabled,omitempty"` // 普通用户仅提交开关，物理出口由系统设置决定
 	UplinkMode          string  `json:"uplink_mode"`
 	UplinkIF            string  `json:"uplink_if"`
 	UplinkGateway       string  `json:"uplink_gateway"` // 自动检测不到默认路由时使用的物理出口网关
@@ -58,6 +59,7 @@ type VPCSecurityGroupRuleRequest struct {
 
 type VPCQuotaInfo struct {
 	Username               string  `json:"username"`
+	InternetAvailable      bool    `json:"internet_available"`
 	MaxTrafficDown         float64 `json:"max_traffic_down"`
 	MaxTrafficUp           float64 `json:"max_traffic_up"`
 	AllocatedTrafficDown   float64 `json:"allocated_traffic_down"`

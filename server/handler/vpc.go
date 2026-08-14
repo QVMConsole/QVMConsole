@@ -51,7 +51,7 @@ func CreateVPCSwitch(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
 		return
 	}
-	if role == "admin" && strings.TrimSpace(req.UplinkIF) != "" {
+	if (role == "admin" && strings.TrimSpace(req.UplinkIF) != "") || (role != "admin" && req.InternetEnabled != nil && *req.InternetEnabled) {
 		if !requireHighRiskVerification(c, "create_vpc_switch_physical_uplink") {
 			return
 		}
@@ -83,10 +83,6 @@ func UpdateVPCSwitch(c *gin.Context) {
 // ReconfigureVPCSwitch 提交交换机上行链路和 DHCP/NAT 拓扑重配置任务。
 func ReconfigureVPCSwitch(c *gin.Context) {
 	username, role := currentUserAndRole(c)
-	if role != "admin" {
-		c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": "仅管理员可重配置交换机拓扑"})
-		return
-	}
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil || id <= 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "交换机 ID 无效"})
@@ -104,7 +100,7 @@ func ReconfigureVPCSwitch(c *gin.Context) {
 	if !requireHighRiskVerification(c, "vpc_switch_reconfigure") {
 		return
 	}
-	params := service.VPCSwitchReconfigureParams{SwitchID: uint(id), Request: req, Operator: username}
+	params := service.VPCSwitchReconfigureParams{SwitchID: uint(id), Request: req, Operator: username, Role: role}
 	task, err := taskqueue.SubmitWithStruct(model.TaskTypeVPCSwitchReconfigure, params, username)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "提交交换机重配置任务失败: " + err.Error()})

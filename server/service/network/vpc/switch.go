@@ -37,7 +37,9 @@ func CreateVPCSwitch(operator, role string, req VPCSwitchRequest) (*model.VPCSwi
 	if err != nil {
 		return nil, err
 	}
-	normalizeCreateTopology(role, &req)
+	if err := normalizeCreateTopology(role, &req); err != nil {
+		return nil, err
+	}
 	if _, err := EnsureDefaultSecurityGroup(username); err != nil {
 		return nil, err
 	}

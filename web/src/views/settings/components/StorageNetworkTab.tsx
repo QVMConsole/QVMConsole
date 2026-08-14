@@ -1,16 +1,48 @@
 /**
  * 存储与网络 Tab：存储路径 / 网络设置 / 全局带宽限制 / 默认磁盘 IOPS
  */
-import { useState } from 'react'
-import { Banner, Button, Input, Toast } from '@douyinfe/semi-ui'
+import { useEffect, useMemo, useState } from 'react'
+import { Banner, Button, Input, Select, Toast } from '@douyinfe/semi-ui'
 import { IconBranch, IconFolder, IconPulse, IconSafeStroked, IconSetting } from '@douyinfe/semi-icons'
 import { getUserStorageISOPath } from '@/api/settings'
+import { getHostInterfaces, type HostInterface } from '@/api/network'
 import { SectionHead, SettingRow } from './SettingRow'
 import NumField from './NumField'
 import type { SettingsTabProps } from '../types'
 
 export default function StorageNetworkTab({ form, patch }: SettingsTabProps) {
   const [isoPathLoading, setIsoPathLoading] = useState(false)
+  const [hostInterfaces, setHostInterfaces] = useState<HostInterface[]>([])
+  const [hostInterfacesLoading, setHostInterfacesLoading] = useState(false)
+
+  useEffect(() => {
+    setHostInterfacesLoading(true)
+    getHostInterfaces()
+      .then((res) => setHostInterfaces(res.data || []))
+      .catch(() => setHostInterfaces([]))
+      .finally(() => setHostInterfacesLoading(false))
+  }, [])
+
+  const elasticCloudUplinkOptions = useMemo(() => {
+    const options = hostInterfaces
+      .filter((item) => item.physical !== false && item.can_use_nat !== false)
+      .map((item) => {
+        const detail = [
+          item.state,
+          item.effective_l3_if && item.effective_l3_if !== item.name ? `经 ${item.effective_l3_if}` : '',
+          item.gateway ? `网关 ${item.gateway}` : '未检测到网关',
+          item.nat_switch_count ? `${item.nat_switch_count} 个托管交换机` : '',
+        ].filter(Boolean).join(' · ')
+        return { value: item.name, label: `${item.name}${detail ? `（${detail}）` : ''}` }
+      })
+    if (form.elastic_cloud_uplink && !options.some((item) => item.value === form.elastic_cloud_uplink)) {
+      options.unshift({
+        value: form.elastic_cloud_uplink,
+        label: `${form.elastic_cloud_uplink}（当前配置，网卡暂不可用）`,
+      })
+    }
+    return options
+  }, [form.elastic_cloud_uplink, hostInterfaces])
 
   // 一键替换 ISO 存放位置为当前用户存储 ISO 目录
   const handleUseUserStorageISO = async () => {
@@ -140,6 +172,22 @@ export default function StorageNetworkTab({ form, patch }: SettingsTabProps) {
           value={form.ovs_uplink}
           onChange={(v) => patch({ ovs_uplink: v })}
           placeholder="留空自动检测默认路由网卡"
+        />
+      </SettingRow>
+
+      <SettingRow
+        label="弹性云互联网出口"
+        tip="弹性云用户开启互联网后，交换机将通过该物理网卡启用托管 DHCP/NAT；留空时用户默认交换机为纯二层 | 环境变量: KVM_ELASTIC_CLOUD_UPLINK"
+      >
+        <Select
+          style={{ width: '100%' }}
+          value={form.elastic_cloud_uplink || undefined}
+          placeholder="不提供互联网，默认交换机保持纯二层"
+          showClear
+          filter
+          loading={hostInterfacesLoading}
+          optionList={elasticCloudUplinkOptions}
+          onChange={(value) => patch({ elastic_cloud_uplink: String(value || '') })}
         />
       </SettingRow>
 

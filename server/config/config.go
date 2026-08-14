@@ -64,6 +64,8 @@ type Config struct {
 	OVSBridge string `json:"ovs_bridge"`
 	// OVS NAT 出口网卡，留空自动检测默认路由
 	OVSUplink string `json:"ovs_uplink"`
+	// 弹性云用户托管 DHCP/NAT 交换机统一使用的物理上联网卡；留空时用户交换机保持纯二层
+	ElasticCloudUplink string `json:"elastic_cloud_uplink"`
 	// OVS DHCP 起始地址
 	OVSDHCPStart string `json:"ovs_dhcp_start"`
 	// OVS DHCP 结束地址
@@ -241,6 +243,7 @@ func Init() {
 		NetworkBackend:                        getEnv("KVM_NETWORK_BACKEND", "ovs"),
 		OVSBridge:                             getEnv("KVM_OVS_BRIDGE", "br-ovs"),
 		OVSUplink:                             getEnv("KVM_OVS_UPLINK", ""),
+		ElasticCloudUplink:                    getEnv("KVM_ELASTIC_CLOUD_UPLINK", ""),
 		OVSDHCPStart:                          getEnv("KVM_OVS_DHCP_START", ""),
 		OVSDHCPEnd:                            getEnv("KVM_OVS_DHCP_END", ""),
 		SubnetPrefix:                          getEnv("KVM_SUBNET_PREFIX", "192.168.122"),
@@ -581,6 +584,7 @@ var keyToEnvVar = map[string]string{
 	"network_backend":           "KVM_NETWORK_BACKEND",
 	"ovs_bridge":                "KVM_OVS_BRIDGE",
 	"ovs_uplink":                "KVM_OVS_UPLINK",
+	"elastic_cloud_uplink":      "KVM_ELASTIC_CLOUD_UPLINK",
 	"ovs_dhcp_start":            "KVM_OVS_DHCP_START",
 	"ovs_dhcp_end":              "KVM_OVS_DHCP_END",
 	"subnet_prefix":             "KVM_SUBNET_PREFIX",
@@ -691,6 +695,8 @@ func (c *Config) LoadFromDB(settings map[string]string) {
 			c.OVSBridge = value
 		case "ovs_uplink":
 			c.OVSUplink = value
+		case "elastic_cloud_uplink":
+			c.ElasticCloudUplink = value
 		case "ovs_dhcp_start":
 			c.OVSDHCPStart = value
 		case "ovs_dhcp_end":
@@ -938,6 +944,7 @@ func (c *Config) ToSettingsMap() map[string]string {
 		"network_backend":           c.NetworkBackend,
 		"ovs_bridge":                c.OVSBridge,
 		"ovs_uplink":                c.OVSUplink,
+		"elastic_cloud_uplink":      c.ElasticCloudUplink,
 		"ovs_dhcp_start":            c.OVSDHCPStart,
 		"ovs_dhcp_end":              c.OVSDHCPEnd,
 		"subnet_prefix":             c.SubnetPrefix,

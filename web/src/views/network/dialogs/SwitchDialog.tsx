@@ -1,6 +1,6 @@
 /**
  * ESXi 风格交换机创建/编辑弹窗。
- * 交换机直接管理零或一个物理上行；管理员可配置托管 DHCP/NAT，普通用户固定创建空交换机。
+ * 交换机直接管理零或一个物理上行；普通用户通过“开启互联网”使用管理员预设出口。
  */
 import { useEffect, useMemo, useState } from 'react'
 import { Collapse, Input, InputNumber, Modal, Select, Switch, TextArea, Toast } from '@douyinfe/semi-ui'
@@ -34,6 +34,7 @@ interface SwitchFormState {
   uplink_if: string
   uplink_gateway: string
   dhcp_enabled: boolean
+  internet_enabled: boolean
   migrate_host_ip: boolean
   bridge_vlan_id: number
   allow_promiscuous: boolean
@@ -111,6 +112,7 @@ export default function SwitchDialog({
       uplink_if: row?.uplink_if || '',
       uplink_gateway: row?.uplink_gateway || hostInterfaces.find((item) => item.name === row?.uplink_if)?.gateway || '',
       dhcp_enabled: !!row?.dhcp_enabled,
+      internet_enabled: !!row?.dhcp_enabled && row?.uplink_mode === 'physical',
       migrate_host_ip: !!row?.migrate_host_ip,
       bridge_vlan_id: row?.bridge_vlan_id || 0,
       allow_promiscuous: !!row?.allow_promiscuous,
@@ -140,7 +142,7 @@ export default function SwitchDialog({
 
   const patch = (value: Partial<SwitchFormState>) => setForm((current) => ({ ...current, ...value }))
   const hasPhysicalUplink = isAdmin && !!form.uplink_if
-  const isManaged = hasPhysicalUplink && form.dhcp_enabled
+  const isManaged = isAdmin ? hasPhysicalUplink && form.dhcp_enabled : form.internet_enabled
   const isPhysicalDirect = hasPhysicalUplink && !form.dhcp_enabled
   const modeText = isManaged ? '内置 DHCP/NAT' : isPhysicalDirect ? '物理直通' : '空交换机'
 
@@ -175,8 +177,9 @@ export default function SwitchDialog({
   const buildPayload = (): VpcSwitchPayload => ({
     username: form.username,
     name: form.name.trim(),
-    uplink_mode: hasPhysicalUplink ? 'physical' : 'none',
-    uplink_if: hasPhysicalUplink ? form.uplink_if : '',
+    internet_enabled: isAdmin ? undefined : form.internet_enabled,
+    uplink_mode: isAdmin ? (hasPhysicalUplink ? 'physical' : 'none') : undefined,
+    uplink_if: isAdmin ? (hasPhysicalUplink ? form.uplink_if : '') : undefined,
     uplink_gateway: isManaged ? form.uplink_gateway.trim() : '',
     dhcp_enabled: isManaged,
     migrate_host_ip: isPhysicalDirect && form.migrate_host_ip,
@@ -197,13 +200,25 @@ export default function SwitchDialog({
     bandwidth_up_mbps: form.bandwidth_up_mbps,
   })
 
-  const topologyChanged = (payload: VpcSwitchPayload) => !!row && (
-    !!row.dhcp_enabled !== !!payload.dhcp_enabled ||
-    (row.uplink_if || '') !== (payload.uplink_if || '') ||
-    (row.uplink_gateway || '') !== (payload.uplink_gateway || '') ||
-    !!row.migrate_host_ip !== !!payload.migrate_host_ip ||
-    Number(row.bridge_vlan_id || 0) !== Number(payload.bridge_vlan_id || 0)
-  )
+  const topologyChanged = (payload: VpcSwitchPayload) => {
+    if (!row) return false
+    const managedFieldsChanged = isManaged && (
+      (row.uplink_gateway || '') !== (payload.uplink_gateway || '') ||
+      (row.cidr || '') !== (payload.cidr || '') ||
+      (row.gateway_ip || '') !== (payload.gateway_ip || '') ||
+      (row.dhcp_start || '') !== (payload.dhcp_start || '') ||
+      (row.dhcp_end || '') !== (payload.dhcp_end || '')
+    )
+    if (!isAdmin) {
+      return !!row.dhcp_enabled !== !!payload.internet_enabled || managedFieldsChanged
+    }
+    return !!row.dhcp_enabled !== !!payload.dhcp_enabled ||
+      (row.uplink_if || '') !== (payload.uplink_if || '') ||
+      (row.uplink_gateway || '') !== (payload.uplink_gateway || '') ||
+      !!row.migrate_host_ip !== !!payload.migrate_host_ip ||
+      Number(row.bridge_vlan_id || 0) !== Number(payload.bridge_vlan_id || 0) ||
+      managedFieldsChanged
+  }
 
   const handleSubmit = async () => {
     if (!form.name.trim()) {
@@ -227,7 +242,7 @@ export default function SwitchDialog({
       Toast.warning(`该物理口的 VLAN ID ${form.bridge_vlan_id} 已被其它直通交换机使用`)
       return
     }
-    if (isManaged && !form.uplink_gateway.trim() && !selectedUplink?.gateway) {
+    if (isAdmin && isManaged && !form.uplink_gateway.trim() && !selectedUplink?.gateway) {
       Toast.warning('当前物理出口未检测到默认网关，请填写上行网关')
       return
     }
@@ -256,7 +271,7 @@ export default function SwitchDialog({
           ipv6_security_enabled: payload.ipv6_security_enabled,
           trusted_ipv6_prefixes: payload.trusted_ipv6_prefixes,
         })
-        if (isAdmin && topologyChanged(payload)) {
+        if (topologyChanged(payload)) {
           const response = await reconfigureVPCSwitch(row.id, payload)
           const taskId = response.data?.task_id
           if (taskId) onTaskSubmitted(row.id, taskId)
@@ -281,7 +296,7 @@ export default function SwitchDialog({
       afterClose={afterModalClose}
       onCancel={requestClose}
       onOk={() => void handleSubmit()}
-      okText={editing && isAdmin && topologyChanged(buildPayload()) ? '提交重配置' : '保存'}
+      okText={editing && topologyChanged(buildPayload()) ? '提交重配置' : '保存'}
       cancelText="取消"
       confirmLoading={submitting}
       width={860}
@@ -372,7 +387,25 @@ export default function SwitchDialog({
                   )}
                 </>
               ) : (
-                <div className="net-switch-inline-note">普通用户创建的交换机固定为空交换机；仍可在虚拟机网络设置中选择系统基础网络。</div>
+                <div className="qvm-form-item">
+                  <div className="net-switch-row">
+                    <div>
+                      <div className="qvm-form-label">开启互联网</div>
+                      <div className="qvm-form-tip">
+                        {quota?.internet_available
+                          ? '开启后使用管理员设置的物理出口，并启用网关、DNS、DHCP 与 NAT。'
+                          : '管理员尚未配置弹性云互联网出口，当前交换机保持纯二层。'}
+                      </div>
+                    </div>
+                    <Switch
+                      checked={form.internet_enabled}
+                      disabled={!quota?.internet_available && !form.internet_enabled}
+                      onChange={(value) => patch({ internet_enabled: value })}
+                      checkedText="开"
+                      uncheckedText="关"
+                    />
+                  </div>
+                </div>
               )}
             </Collapse.Panel>
           </Collapse>

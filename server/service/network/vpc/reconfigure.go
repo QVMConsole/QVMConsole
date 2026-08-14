@@ -17,6 +17,7 @@ type VPCSwitchReconfigureParams struct {
 	SwitchID uint             `json:"switch_id"`
 	Request  VPCSwitchRequest `json:"request"`
 	Operator string           `json:"operator"`
+	Role     string           `json:"role"`
 }
 
 var vpcSwitchLocks sync.Map
@@ -29,9 +30,6 @@ func switchOperationLock(id uint) *sync.Mutex {
 
 // ValidateVPCSwitchReconfigure 在任务入队前执行权限和目标拓扑预检。
 func ValidateVPCSwitchReconfigure(operator, role string, id uint, req VPCSwitchRequest) (*model.VPCSwitch, error) {
-	if role != "admin" {
-		return nil, fmt.Errorf("仅管理员可重配置交换机拓扑")
-	}
 	var current model.VPCSwitch
 	if err := model.DB.First(&current, id).Error; err != nil {
 		return nil, fmt.Errorf("交换机不存在")
@@ -39,7 +37,10 @@ func ValidateVPCSwitchReconfigure(operator, role string, id uint, req VPCSwitchR
 	if current.IsSystem {
 		return nil, fmt.Errorf("系统基础网络交换机不可重配置")
 	}
-	target, err := buildReconfiguredSwitch(current, req)
+	if role != "admin" && current.Username != operator {
+		return nil, fmt.Errorf("无权操作此交换机")
+	}
+	target, err := buildReconfiguredSwitch(current, req, role)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +89,10 @@ func ExecuteVPCSwitchReconfigure(ctx context.Context, params VPCSwitchReconfigur
 	if current.IsSystem {
 		return "", fmt.Errorf("系统基础网络交换机不可重配置")
 	}
-	target, err := buildReconfiguredSwitch(current, params.Request)
+	if params.Role != "admin" && current.Username != params.Operator {
+		return "", fmt.Errorf("无权操作此交换机")
+	}
+	target, err := buildReconfiguredSwitch(current, params.Request, params.Role)
 	if err != nil {
 		return "", err
 	}
@@ -213,8 +217,10 @@ func ExecuteVPCSwitchReconfigure(ctx context.Context, params VPCSwitchReconfigur
 	return string(result), nil
 }
 
-func buildReconfiguredSwitch(current model.VPCSwitch, req VPCSwitchRequest) (model.VPCSwitch, error) {
-	normalizeCreateTopology("admin", &req)
+func buildReconfiguredSwitch(current model.VPCSwitch, req VPCSwitchRequest, role string) (model.VPCSwitch, error) {
+	if err := normalizeCreateTopology(role, &req); err != nil {
+		return current, err
+	}
 	target := current
 	target.DHCPEnabled = req.DHCPEnabled
 	target.UplinkMode = normalizeUplinkMode(req.UplinkMode, req.UplinkIF, req.DHCPEnabled)

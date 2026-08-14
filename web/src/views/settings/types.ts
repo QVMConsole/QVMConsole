@@ -34,6 +34,7 @@ export interface SettingsForm {
   network_backend: string
   ovs_bridge: string
   ovs_uplink: string
+  elastic_cloud_uplink: string
   ovs_dhcp_start: string
   ovs_dhcp_end: string
   subnet_prefix: string
@@ -112,6 +113,7 @@ export const DEFAULT_SETTINGS_FORM: SettingsForm = {
   network_backend: 'ovs',
   ovs_bridge: 'br-ovs',
   ovs_uplink: '',
+  elastic_cloud_uplink: '',
   ovs_dhcp_start: '',
   ovs_dhcp_end: '',
   subnet_prefix: '',
@@ -243,6 +245,7 @@ export function buildSettingsPayload(form: SettingsForm): Record<string, unknown
     network_backend: form.network_backend || 'ovs',
     ovs_bridge: form.ovs_bridge,
     ovs_uplink: form.ovs_uplink,
+    elastic_cloud_uplink: form.elastic_cloud_uplink,
     ovs_dhcp_start: form.ovs_dhcp_start,
     ovs_dhcp_end: form.ovs_dhcp_end,
     subnet_prefix: form.subnet_prefix,
