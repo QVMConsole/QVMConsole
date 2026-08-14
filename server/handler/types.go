@@ -2,7 +2,6 @@ package handler
 
 import (
 	"kvm_console/service"
-	vm_memory "kvm_console/service/vm/memory"
 	"kvm_console/service/vm_xml"
 )
 
@@ -41,9 +40,8 @@ type VmEditRequest struct {
 	VideoModel      string                            `json:"video_model"`        // 视频模型: virtio/vga/vmvga/cirrus/ramfb/none
 	CPUTopologyMode string                            `json:"cpu_topology_mode"`  // CPU 拓扑模式
 	CPULimitPercent *int                              `json:"cpu_limit_percent"`  // CPU 限制百分比（仅管理员，0 表示无限制）
-	CPUAffinity     *string                           `json:"cpu_affinity"`       // CPU 亲和性（仅管理员，null 表示不修改，空字符串表示清除）
-	MemoryDynamic   *vm_memory.VMMemoryDynamicRequest `json:"memory_dynamic"`     // 动态内存配置（管理员）
-	HostDevices     []service.HostDeviceParam         `json:"host_devices"`       // 硬件直通设备
+	CPUAffinity     *string                   `json:"cpu_affinity"` // CPU 亲和性（仅管理员，null 表示不修改，空字符串表示清除）
+	HostDevices     []service.HostDeviceParam `json:"host_devices"` // 硬件直通设备
 	// 磁盘操作
 	AddDisks []VmAddDiskItem `json:"add_disks"` // 新增磁盘
 	// 磁盘 IOPS 限制（仅管理员，key 为设备名如 vda）

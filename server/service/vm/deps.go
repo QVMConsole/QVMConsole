@@ -10,7 +10,6 @@ import (
 	"kvm_console/service/network/vpc"
 	"kvm_console/service/storage/disk"
 	"kvm_console/service/storage/pool"
-	"kvm_console/service/vm/memory"
 	"kvm_console/service/vm_xml"
 )
 
@@ -204,9 +203,6 @@ type (
 
 	// VPC types
 	AddVMInterfaceRequest = vpc.AddVMInterfaceRequest
-
-	// Memory types
-	VMMemoryDynamicRequest = memory.VMMemoryDynamicRequest
 
 	// vm_xml types
 	VMGuestAgentConfig = vm_xml.VMGuestAgentConfig

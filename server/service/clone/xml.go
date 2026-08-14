@@ -8,7 +8,6 @@ import (
 	"kvm_console/logger"
 	"kvm_console/service/arch"
 	"kvm_console/service/libvirt_rpc"
-	"kvm_console/service/vm/memory"
 	"kvm_console/service/vm_xml"
 	"kvm_console/utils"
 )
@@ -92,7 +91,7 @@ func setCloneShimFallbackNoReboot(vmName, domainXML string) {
 
 // defineAndStartNonWindowsClone 为 Linux/FnOS/OpenWrt/Other 类型生成 XML、注入配置、定义并启动虚拟机
 // extraDiskDir: 额外磁盘的存储目录
-func defineAndStartNonWindowsClone(params *CloneParams, cloneDisk string, ramMB int, memoryMeta *memory.VMMemoryMetadata, tplType string, cloneBootType string, needUEFI bool, templateNVRAMPath string, extraDiskDir string) error {
+func defineAndStartNonWindowsClone(params *CloneParams, cloneDisk string, ramMB int, tplType string, cloneBootType string, needUEFI bool, templateNVRAMPath string, extraDiskDir string) error {
 	isOther := tplType == "other"
 
 	bootOpt := ""
@@ -135,12 +134,6 @@ func defineAndStartNonWindowsClone(params *CloneParams, cloneDisk string, ramMB 
 	vmXML = D.InjectPCIERootPorts(vmXML, pciePortCount)
 
 	var err error
-	if memoryMeta != nil {
-		vmXML, err = memory.ApplyMemoryMetadataToDomainXML(vmXML, memoryMeta, !isOther)
-		if err != nil {
-			return err
-		}
-	}
 	vmXML, err = D.ApplyRTCConfigToDomainXML(vmXML, params.RTCOffset, params.RTCStartDate, tplType)
 	if err != nil {
 		return err
@@ -251,11 +244,6 @@ func defineAndStartNonWindowsClone(params *CloneParams, cloneDisk string, ramMB 
 
 	if _, err := libvirt_rpc.DefineDomainXMLRPC(vmXML); err != nil {
 		return fmt.Errorf("定义虚拟机失败: %w", err)
-	}
-	if memoryMeta != nil {
-		if err := memory.WriteVMMemoryMetadata(params.Name, memoryMeta); err != nil {
-			return err
-		}
 	}
 	cloneMode := params.CloneMode
 	if cloneMode == "" {

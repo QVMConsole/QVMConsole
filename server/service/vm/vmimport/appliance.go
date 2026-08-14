@@ -234,7 +234,6 @@ func applyApplianceOVFConfig(params *ImportApplianceParams, metadata *appliance.
 	}
 	if metadata.RAM > 0 {
 		params.RAM = metadata.RAM
-		params.MemoryDynamic = nil
 	}
 	params.BootType = strings.TrimSpace(metadata.BootType)
 	params.MachineType = strings.TrimSpace(metadata.MachineType)

@@ -12,7 +12,6 @@ import (
 	"kvm_console/logger"
 	"kvm_console/service/ip_resolver"
 	"kvm_console/service/libvirt_rpc"
-	"kvm_console/service/vm/memory"
 	"kvm_console/service/vm_xml"
 	"kvm_console/taskqueue"
 	"kvm_console/utils"
@@ -272,11 +271,7 @@ func CloneVM(ctx context.Context, params *CloneParams, progressFn func(int, stri
 		return nil, err
 	}
 
-	memoryMeta, ramMB, _, err := memory.BuildVMMemoryMetadataForCreate(params.RAM, params.MemoryDynamic)
-	if err != nil {
-		_ = os.Remove(cloneDisk)
-		return nil, err
-	}
+	ramMB := params.RAM * 1024
 
 	// 克隆前检查宿主机可用内存
 	if err := D.CheckHostMemory(ramMB); err != nil {
@@ -307,13 +302,13 @@ func CloneVM(ctx context.Context, params *CloneParams, progressFn func(int, stri
 
 	if isWindows {
 		// ===== Windows 克隆 =====
-		if err := cloneWindows(ctx, params, cloneDisk, ramMB, memoryMeta, needUEFI, isNoInit, progressFn, cloneDir); err != nil {
+		if err := cloneWindows(ctx, params, cloneDisk, ramMB, needUEFI, isNoInit, progressFn, cloneDir); err != nil {
 			_ = os.Remove(cloneDisk)
 			return nil, err
 		}
 	} else {
 		// ===== Linux / FnOS / Other 克隆 =====
-		if err := defineAndStartNonWindowsClone(params, cloneDisk, ramMB, memoryMeta, tplType, cloneBootType, needUEFI, meta.NVRAMPath, cloneDir); err != nil {
+		if err := defineAndStartNonWindowsClone(params, cloneDisk, ramMB, tplType, cloneBootType, needUEFI, meta.NVRAMPath, cloneDir); err != nil {
 			_ = os.Remove(cloneDisk)
 			return nil, err
 		}

@@ -28,7 +28,6 @@ type LightweightVMRegistration struct {
 	CPULimitPercent      int        `json:"cpu_limit_percent" gorm:"default:0"`
 	CPUAffinity          string     `json:"cpu_affinity" gorm:"size:255"`
 	FirstBootRebootMode  string     `json:"first_boot_reboot_mode" gorm:"size:32"`
-	MemoryDynamicJSON    string     `json:"-" gorm:"type:text"`
 	NicModel             string     `json:"nic_model" gorm:"size:32;default:virtio"`
 	StoragePoolID        string     `json:"storage_pool_id" gorm:"size:255"`
 	PreserveFnOSDeviceID bool       `json:"preserve_fnos_device_id" gorm:"default:false"`

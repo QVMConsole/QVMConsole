@@ -1,5 +1,5 @@
 /**
- * 调度与高级 Tab：动态内存调度 / 显示协议 / 批量克隆 / 救援系统 / CPU 亲和性预设
+ * 调度与高级 Tab：调度事件 / 显示协议 / 批量克隆 / 救援系统 / CPU 亲和性预设
  */
 import { useEffect, useState } from 'react'
 import { Button, Input, InputNumber, Select, Toast, Tooltip } from '@douyinfe/semi-ui'
@@ -65,82 +65,9 @@ export default function AdvancedTab({ form, patch }: SettingsTabProps) {
 
   return (
     <div className="stg-tab-pane">
-      <SectionHead icon={<IconClockStroked />} title="动态内存调度" />
-
-      <SettingRow
-        label="启用自动调度"
-        tip="仅对已启用动态内存且允许自动气球调度的 VM 生效 | 环境变量: KVM_DYNAMIC_MEMORY_SCHEDULER_ENABLED"
-      >
-        <TextSwitch
-          checked={form.dynamic_memory_scheduler_enabled}
-          onChange={(v) => patch({ dynamic_memory_scheduler_enabled: v })}
-        />
-      </SettingRow>
+      <SectionHead icon={<IconClockStroked />} title="调度事件" />
 
       <div className="stg-field-grid">
-        <NumField
-          label="调度间隔"
-          suffix="秒"
-          value={form.dynamic_memory_interval_seconds}
-          onChange={(v) => patch({ dynamic_memory_interval_seconds: v })}
-          min={10}
-          max={3600}
-          tip="默认 30"
-        />
-        <NumField
-          label="调整冷却"
-          suffix="秒"
-          value={form.dynamic_memory_cooldown_seconds}
-          onChange={(v) => patch({ dynamic_memory_cooldown_seconds: v })}
-          min={30}
-          max={7200}
-          tip="同一 VM 两次调整之间的最短间隔"
-        />
-        <NumField
-          label="宿主保留内存"
-          suffix="MB"
-          value={form.dynamic_memory_host_reserve_mb}
-          onChange={(v) => patch({ dynamic_memory_host_reserve_mb: v })}
-          min={512}
-          max={1048576}
-          tip="默认 2048"
-        />
-        <NumField
-          label="宿主保留比例"
-          suffix="%"
-          value={form.dynamic_memory_host_reserve_percent}
-          onChange={(v) => patch({ dynamic_memory_host_reserve_percent: v })}
-          min={5}
-          max={80}
-          tip="最终保留值取固定值与比例值中的较大者"
-        />
-        <NumField
-          label="增长阈值"
-          suffix="%"
-          value={form.dynamic_memory_increase_threshold_percent}
-          onChange={(v) => patch({ dynamic_memory_increase_threshold_percent: v })}
-          min={5}
-          max={50}
-          tip="可用内存比例低于该值时尝试增长"
-        />
-        <NumField
-          label="回收阈值"
-          suffix="%"
-          value={form.dynamic_memory_reclaim_threshold_percent}
-          onChange={(v) => patch({ dynamic_memory_reclaim_threshold_percent: v })}
-          min={10}
-          max={90}
-          tip="空闲内存比例高于该值时才考虑回收"
-        />
-        <NumField
-          label="首次观察期"
-          suffix="小时"
-          value={form.dynamic_memory_observation_hours}
-          onChange={(v) => patch({ dynamic_memory_observation_hours: v })}
-          min={0}
-          max={168}
-          tip="观察期内不自动回收到启动内存以下"
-        />
         <NumField
           label="调度事件保留"
           suffix="小时"
@@ -152,7 +79,7 @@ export default function AdvancedTab({ form, patch }: SettingsTabProps) {
         />
       </div>
       <div className="stg-plain-tip">
-        环境变量前缀: KVM_DYNAMIC_MEMORY_* | 调度事件保留: KVM_SCHEDULER_EVENT_RETENTION_HOURS
+        环境变量: KVM_SCHEDULER_EVENT_RETENTION_HOURS
       </div>
 
       <SectionHead icon={<IconDesktop />} title="显示协议" />

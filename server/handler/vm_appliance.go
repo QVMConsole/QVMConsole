@@ -151,7 +151,6 @@ func importApplianceHandler(c *gin.Context, admin bool) {
 			params.SwitchID = switchID
 			params.SecurityGroupID = securityGroupID
 		}
-		params.MemoryDynamic = sanitizeUserMemoryDynamicRequest(req.MemoryDynamic, req.RAM)
 	}
 	if !validateSwitchBridges(c, params.SwitchID, params.ExtraNics) {
 		return
@@ -199,7 +198,7 @@ func buildImportApplianceParams(req ImportApplianceRequest, username string, adm
 			SpiceEnabled: req.SpiceEnabled, CPUTopologyMode: req.CPUTopologyMode,
 			CPULimitPercent: req.CPULimitPercent, CPUAffinity: req.CPUAffinity,
 			TemplateRootPass: req.TemplateRootPass, TemplateUser: req.TemplateUser,
-			MemoryDynamic: req.MemoryDynamic, SwitchID: req.SwitchID, SecurityGroupID: req.SecurityGroupID,
+			SwitchID: req.SwitchID, SecurityGroupID: req.SecurityGroupID,
 			AllowedIPv4Addresses: req.AllowedIPv4Addresses, AllowedIPv6Addresses: req.AllowedIPv6Addresses,
 			ExtraNics: req.ExtraNics, SystemDiskIOPS: req.SystemDiskIOPS,
 			StartAfterImport: startAfterImport, KVMHidden: req.KVMHidden, VendorID: req.VendorID,

@@ -7,7 +7,6 @@ import (
 
 	"kvm_console/model"
 	"kvm_console/service"
-	vm_memory "kvm_console/service/vm/memory"
 	"kvm_console/service/vm_xml"
 	"kvm_console/taskqueue"
 )
@@ -37,7 +36,6 @@ type LinkedCloneVmRequest struct {
 	CPULimitPercent      int                               `json:"cpu_limit_percent"`
 	CPUAffinity          string                            `json:"cpu_affinity"` // CPU 亲和性，如 "0,2,4"
 	FirstBootRebootMode  string                            `json:"first_boot_reboot_mode"`
-	MemoryDynamic        *vm_memory.VMMemoryDynamicRequest `json:"memory_dynamic"`
 	SwitchID             uint                              `json:"switch_id"`
 	SecurityGroupID      uint                              `json:"security_group_id"`
 	AllowedIPv4Addresses string                            `json:"allowed_ipv4_addresses"`
@@ -130,7 +128,6 @@ func LinkedCloneVm(c *gin.Context) {
 		CPULimitPercent:      req.CPULimitPercent,
 		CPUAffinity:          req.CPUAffinity,
 		FirstBootRebootMode:  req.FirstBootRebootMode,
-		MemoryDynamic:        req.MemoryDynamic,
 		SwitchID:             req.SwitchID,
 		SecurityGroupID:      req.SecurityGroupID,
 		AllowedIPv4Addresses: req.AllowedIPv4Addresses,

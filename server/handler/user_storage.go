@@ -13,7 +13,6 @@ import (
 
 	"kvm_console/model"
 	"kvm_console/service"
-	vm_memory "kvm_console/service/vm/memory"
 	"kvm_console/service/vm_xml"
 	"kvm_console/taskqueue"
 	"kvm_console/utils"
@@ -467,7 +466,6 @@ type SelfCreateVmRequest struct {
 	VideoModel           string                            `json:"video_model"`
 	SpiceEnabled         *bool                             `json:"spice_enabled"` // 是否启用 SPICE 显示协议（不传=回退全局默认）
 	CPUTopologyMode      string                            `json:"cpu_topology_mode"`
-	MemoryDynamic        *vm_memory.VMMemoryDynamicRequest `json:"memory_dynamic"`
 	SwitchID             uint                              `json:"switch_id"`
 	SecurityGroupID      uint                              `json:"security_group_id"`
 	AllowedIPv4Addresses string                            `json:"allowed_ipv4_addresses"`
@@ -629,10 +627,6 @@ func SelfCreateVm(c *gin.Context) {
 		IsAdmin:              false,
 		ExtraNics:            req.ExtraNics,
 		PCIERootPorts:        req.PCIERootPorts,
-		MemoryDynamic: sanitizeUserMemoryDynamicRequest(
-			req.MemoryDynamic,
-			req.RAM,
-		),
 	}
 	for _, disk := range req.ExtraDisks {
 		if disk.Size <= 0 {

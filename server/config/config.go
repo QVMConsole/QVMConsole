@@ -117,16 +117,7 @@ type Config struct {
 	SMTPFromAddress    string `json:"smtp_from_address"`
 	SMTPSecurity       string `json:"smtp_security"`
 	SMTPTimeoutSeconds int    `json:"smtp_timeout_seconds"`
-	// 动态内存调度配置
-	DynamicMemorySchedulerEnabled         bool `json:"dynamic_memory_scheduler_enabled"`
-	DynamicMemoryIntervalSeconds          int  `json:"dynamic_memory_interval_seconds"`
-	DynamicMemoryHostReserveMB            int  `json:"dynamic_memory_host_reserve_mb"`
-	DynamicMemoryHostReservePercent       int  `json:"dynamic_memory_host_reserve_percent"`
-	DynamicMemoryIncreaseThresholdPercent int  `json:"dynamic_memory_increase_threshold_percent"`
-	DynamicMemoryReclaimThresholdPercent  int  `json:"dynamic_memory_reclaim_threshold_percent"`
-	DynamicMemoryCooldownSeconds          int  `json:"dynamic_memory_cooldown_seconds"`
-	DynamicMemoryObservationHours         int  `json:"dynamic_memory_observation_hours"`
-	SchedulerEventRetentionHours          int  `json:"scheduler_event_retention_hours"`
+	SchedulerEventRetentionHours int `json:"scheduler_event_retention_hours"`
 	// VPC 逻辑交换机配置
 	VPCSubnetPrefix string `json:"vpc_subnet_prefix"`
 	VPCVLANStart    int    `json:"vpc_vlan_start"`
@@ -274,14 +265,6 @@ func Init() {
 		SMTPFromAddress:                       getEnv("KVM_SMTP_FROM_ADDRESS", ""),
 		SMTPSecurity:                          getEnv("KVM_SMTP_SECURITY", "starttls"),
 		SMTPTimeoutSeconds:                    getEnvInt("KVM_SMTP_TIMEOUT_SECONDS", 15),
-		DynamicMemorySchedulerEnabled:         getEnvBool("KVM_DYNAMIC_MEMORY_SCHEDULER_ENABLED", true),
-		DynamicMemoryIntervalSeconds:          getEnvInt("KVM_DYNAMIC_MEMORY_INTERVAL_SECONDS", 30),
-		DynamicMemoryHostReserveMB:            getEnvInt("KVM_DYNAMIC_MEMORY_HOST_RESERVE_MB", 2048),
-		DynamicMemoryHostReservePercent:       getEnvInt("KVM_DYNAMIC_MEMORY_HOST_RESERVE_PERCENT", 20),
-		DynamicMemoryIncreaseThresholdPercent: getEnvInt("KVM_DYNAMIC_MEMORY_INCREASE_THRESHOLD_PERCENT", 15),
-		DynamicMemoryReclaimThresholdPercent:  getEnvInt("KVM_DYNAMIC_MEMORY_RECLAIM_THRESHOLD_PERCENT", 35),
-		DynamicMemoryCooldownSeconds:          getEnvInt("KVM_DYNAMIC_MEMORY_COOLDOWN_SECONDS", 120),
-		DynamicMemoryObservationHours:         getEnvInt("KVM_DYNAMIC_MEMORY_OBSERVATION_HOURS", 24),
 		SchedulerEventRetentionHours:          getEnvInt("KVM_SCHEDULER_EVENT_RETENTION_HOURS", 168),
 		VPCSubnetPrefix:                       getEnv("KVM_VPC_SUBNET_PREFIX", "10.200"),
 		VPCVLANStart:                          getEnvInt("KVM_VPC_VLAN_START", 100),
@@ -521,14 +504,6 @@ var PersistableKeys = []string{
 	"smtp_from_address",
 	"smtp_security",
 	"smtp_timeout_seconds",
-	"dynamic_memory_scheduler_enabled",
-	"dynamic_memory_interval_seconds",
-	"dynamic_memory_host_reserve_mb",
-	"dynamic_memory_host_reserve_percent",
-	"dynamic_memory_increase_threshold_percent",
-	"dynamic_memory_reclaim_threshold_percent",
-	"dynamic_memory_cooldown_seconds",
-	"dynamic_memory_observation_hours",
 	"scheduler_event_retention_hours",
 	"port_forward_http_probe_enabled",
 	"port_forward_http_probe_interval_minutes",
@@ -609,14 +584,6 @@ var keyToEnvVar = map[string]string{
 	"smtp_from_address":                         "KVM_SMTP_FROM_ADDRESS",
 	"smtp_security":                             "KVM_SMTP_SECURITY",
 	"smtp_timeout_seconds":                      "KVM_SMTP_TIMEOUT_SECONDS",
-	"dynamic_memory_scheduler_enabled":          "KVM_DYNAMIC_MEMORY_SCHEDULER_ENABLED",
-	"dynamic_memory_interval_seconds":           "KVM_DYNAMIC_MEMORY_INTERVAL_SECONDS",
-	"dynamic_memory_host_reserve_mb":            "KVM_DYNAMIC_MEMORY_HOST_RESERVE_MB",
-	"dynamic_memory_host_reserve_percent":       "KVM_DYNAMIC_MEMORY_HOST_RESERVE_PERCENT",
-	"dynamic_memory_increase_threshold_percent": "KVM_DYNAMIC_MEMORY_INCREASE_THRESHOLD_PERCENT",
-	"dynamic_memory_reclaim_threshold_percent":  "KVM_DYNAMIC_MEMORY_RECLAIM_THRESHOLD_PERCENT",
-	"dynamic_memory_cooldown_seconds":           "KVM_DYNAMIC_MEMORY_COOLDOWN_SECONDS",
-	"dynamic_memory_observation_hours":          "KVM_DYNAMIC_MEMORY_OBSERVATION_HOURS",
 	"scheduler_event_retention_hours":           "KVM_SCHEDULER_EVENT_RETENTION_HOURS",
 	"port_forward_http_probe_enabled":           "KVM_PORT_FORWARD_HTTP_PROBE_ENABLED",
 	"port_forward_http_probe_interval_minutes":  "KVM_PORT_FORWARD_HTTP_PROBE_INTERVAL_MINUTES",
@@ -766,38 +733,6 @@ func (c *Config) LoadFromDB(settings map[string]string) {
 		case "smtp_timeout_seconds":
 			if v, err := strconv.Atoi(value); err == nil {
 				c.SMTPTimeoutSeconds = v
-			}
-		case "dynamic_memory_scheduler_enabled":
-			if v, err := strconv.ParseBool(value); err == nil {
-				c.DynamicMemorySchedulerEnabled = v
-			}
-		case "dynamic_memory_interval_seconds":
-			if v, err := strconv.Atoi(value); err == nil {
-				c.DynamicMemoryIntervalSeconds = v
-			}
-		case "dynamic_memory_host_reserve_mb":
-			if v, err := strconv.Atoi(value); err == nil {
-				c.DynamicMemoryHostReserveMB = v
-			}
-		case "dynamic_memory_host_reserve_percent":
-			if v, err := strconv.Atoi(value); err == nil {
-				c.DynamicMemoryHostReservePercent = v
-			}
-		case "dynamic_memory_increase_threshold_percent":
-			if v, err := strconv.Atoi(value); err == nil {
-				c.DynamicMemoryIncreaseThresholdPercent = v
-			}
-		case "dynamic_memory_reclaim_threshold_percent":
-			if v, err := strconv.Atoi(value); err == nil {
-				c.DynamicMemoryReclaimThresholdPercent = v
-			}
-		case "dynamic_memory_cooldown_seconds":
-			if v, err := strconv.Atoi(value); err == nil {
-				c.DynamicMemoryCooldownSeconds = v
-			}
-		case "dynamic_memory_observation_hours":
-			if v, err := strconv.Atoi(value); err == nil {
-				c.DynamicMemoryObservationHours = v
 			}
 		case "scheduler_event_retention_hours":
 			if v, err := strconv.Atoi(value); err == nil {
@@ -970,14 +905,6 @@ func (c *Config) ToSettingsMap() map[string]string {
 		"smtp_from_address":                         c.SMTPFromAddress,
 		"smtp_security":                             c.SMTPSecurity,
 		"smtp_timeout_seconds":                      strconv.Itoa(c.SMTPTimeoutSeconds),
-		"dynamic_memory_scheduler_enabled":          strconv.FormatBool(c.DynamicMemorySchedulerEnabled),
-		"dynamic_memory_interval_seconds":           strconv.Itoa(c.DynamicMemoryIntervalSeconds),
-		"dynamic_memory_host_reserve_mb":            strconv.Itoa(c.DynamicMemoryHostReserveMB),
-		"dynamic_memory_host_reserve_percent":       strconv.Itoa(c.DynamicMemoryHostReservePercent),
-		"dynamic_memory_increase_threshold_percent": strconv.Itoa(c.DynamicMemoryIncreaseThresholdPercent),
-		"dynamic_memory_reclaim_threshold_percent":  strconv.Itoa(c.DynamicMemoryReclaimThresholdPercent),
-		"dynamic_memory_cooldown_seconds":           strconv.Itoa(c.DynamicMemoryCooldownSeconds),
-		"dynamic_memory_observation_hours":          strconv.Itoa(c.DynamicMemoryObservationHours),
 		"scheduler_event_retention_hours":           strconv.Itoa(c.SchedulerEventRetentionHours),
 		"vpc_subnet_prefix":                         c.VPCSubnetPrefix,
 		"vpc_vlan_start":                            strconv.Itoa(c.VPCVLANStart),

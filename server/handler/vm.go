@@ -15,63 +15,12 @@ import (
 	"kvm_console/service"
 	bw "kvm_console/service/bandwidth"
 	guestautomation "kvm_console/service/guest_automation"
-	vm_memory "kvm_console/service/vm/memory"
 	"kvm_console/taskqueue"
 	"kvm_console/utils"
 )
 
 type VmXMLUpdateRequest struct {
 	XML string `json:"xml" binding:"required"`
-}
-
-func buildVirtioMemRequestFromSpec(specMemoryGB int) *vm_memory.VMMemoryDynamicRequest {
-	if specMemoryGB <= 0 {
-		specMemoryGB = 1
-	}
-	enabled := true
-	autoBalloon := false
-	initialGB := max(1, specMemoryGB/2)
-	maxGB := max(specMemoryGB, (specMemoryGB*13+9)/10)
-	return &vm_memory.VMMemoryDynamicRequest{
-		DynamicEnabled: &enabled,
-		MemoryBackend:  "virtio_mem",
-		MemoryInitial:  initialGB,
-		MemoryMin:      initialGB,
-		MemoryMax:      maxGB,
-		AutoBalloon:    &autoBalloon,
-	}
-}
-
-func getVirtioMemSpecMemoryGB(vm *service.VmDetail) int {
-	if vm == nil || vm.MemoryBackend != "virtio_mem" || !vm.MemoryDynamicEnabled {
-		return 0
-	}
-	initialGB := 0
-	if vm.MemoryInitial > 0 {
-		initialGB = max(1, vm.MemoryInitial/1024)
-	}
-	maxDynamicGB := 0
-	if vm.MemoryMaxDynamic > 0 {
-		maxDynamicGB = max(1, vm.MemoryMaxDynamic/1024)
-	}
-	specFromInitial := 0
-	if initialGB > 0 {
-		specFromInitial = initialGB * 2
-	}
-	specFromMax := 0
-	if maxDynamicGB > 0 {
-		specFromMax = max(1, (maxDynamicGB*10)/13)
-	}
-	fallback := 0
-	if specFromInitial > 0 || specFromMax > 0 {
-		return max(1, max(specFromInitial, specFromMax))
-	}
-	if vm.MaxMemory > 0 {
-		fallback = max(1, vm.MaxMemory/1024)
-	} else if vm.Memory > 0 {
-		fallback = max(1, vm.Memory/1024)
-	}
-	return max(1, fallback)
 }
 
 // VmAddDiskItem 编辑时新增磁盘的单项
@@ -391,8 +340,6 @@ func EditVm(c *gin.Context) {
 	username, _ := c.Get("username")
 	isAdmin := role == "admin"
 	existingVM, _ := service.GetVM(name)
-	existingVirtioMem := existingVM != nil && existingVM.MemoryDynamicEnabled && existingVM.MemoryBackend == "virtio_mem"
-	existingVirtioMemSpecGB := getVirtioMemSpecMemoryGB(existingVM)
 	var targetCPULimitPercent *int
 
 	if req.CPULimitPercent != nil {
@@ -430,9 +377,6 @@ func EditVm(c *gin.Context) {
 			}
 			if req.Memory > 0 {
 				oldMemoryGB := oldMemMB / 1024
-				if existingVirtioMemSpecGB > 0 {
-					oldMemoryGB = existingVirtioMemSpecGB
-				}
 				deltaMemoryGB = req.Memory - oldMemoryGB // GB
 			}
 		}
@@ -457,25 +401,8 @@ func EditVm(c *gin.Context) {
 		}
 	}
 
-	// 修改 CPU 和内存。动态内存配置存在时，传统 memory 字段只作为动态配置的一部分处理。
-	if existingVirtioMem && req.MemoryDynamic == nil && req.Memory > 0 && existingVirtioMemSpecGB > 0 && req.Memory != existingVirtioMemSpecGB {
-		req.MemoryDynamic = buildVirtioMemRequestFromSpec(req.Memory)
-	}
-	if req.MemoryDynamic != nil && !isAdmin {
-		baseMemoryGB := req.Memory
-		if baseMemoryGB <= 0 {
-			baseMemoryGB = existingVirtioMemSpecGB
-		}
-		if baseMemoryGB <= 0 {
-			_, oldMemMB := service.GetVMCPUAndMemory(name)
-			baseMemoryGB = max(1, oldMemMB/1024)
-		}
-		req.MemoryDynamic = sanitizeUserMemoryDynamicRequest(req.MemoryDynamic, baseMemoryGB)
-	}
+	// 修改 CPU 和内存
 	legacyMemoryMB := req.Memory * 1024
-	if req.MemoryDynamic != nil || existingVirtioMem {
-		legacyMemoryMB = 0
-	}
 	if req.VCPU > 0 || legacyMemoryMB > 0 {
 		if err := service.EditVMConfig(name, req.VCPU, req.MaxVCPU, legacyMemoryMB); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
@@ -517,31 +444,6 @@ func EditVm(c *gin.Context) {
 			return
 		}
 	}
-	if req.MemoryDynamic != nil {
-		if req.MemoryDynamic.MemoryCurrent > 0 {
-			if err := vm_memory.SetVMMemoryCurrent(name, req.MemoryDynamic.MemoryCurrent*1024, true); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{
-					"code":    500,
-					"message": "调整当前内存失败: " + err.Error(),
-				})
-				return
-			}
-		}
-		if req.MemoryDynamic.DynamicEnabled != nil || req.MemoryDynamic.MemoryInitial > 0 || req.MemoryDynamic.MemoryMax > 0 || req.MemoryDynamic.MemoryMin > 0 || req.MemoryDynamic.AutoBalloon != nil {
-			msg, err := vm_memory.SetVMMemoryDynamicConfig(name, req.MemoryDynamic)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{
-					"code":    500,
-					"message": "设置动态内存失败: " + err.Error(),
-				})
-				return
-			}
-			if msg != "" {
-				logger.App.Info("动态内存调整", "vm", name, "message", msg)
-			}
-		}
-	}
-
 	// 修改 PCIe 热插槽数量（仅关机时可修改）
 	if req.PCIERootPorts != nil {
 		if err := service.SetVMPCIERootPorts(name, *req.PCIERootPorts); err != nil {

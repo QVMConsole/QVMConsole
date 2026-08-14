@@ -8,7 +8,6 @@ import (
 
 	"kvm_console/logger"
 	"kvm_console/service/libvirt_rpc"
-	"kvm_console/service/vm/memory"
 	"kvm_console/service/vm_xml"
 	"kvm_console/utils"
 )
@@ -140,9 +139,6 @@ func startVM(name string, fixOnReboot bool) error {
 
 	// 启动前清理不完整的 backingStore XML（防止 AppArmor 拦截 backing chain 访问）
 	fixBackingStoreXML(name)
-	if err := memory.ApplyPendingVMMemoryConfig(name); err != nil {
-		return fmt.Errorf("应用动态内存待迁移配置失败: %w", err)
-	}
 	if err := syncVMInactiveVPCBindingBeforeStart(name); err != nil {
 		return err
 	}

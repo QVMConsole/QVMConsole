@@ -162,10 +162,6 @@ func normalizeLightweightVMRegistrationRequest(user model.User, req LightweightV
 	if err != nil {
 		return nil, fmt.Errorf("序列化 SMBIOS 配置失败: %w", err)
 	}
-	memoryJSON, err := createJSONText(req.MemoryDynamic)
-	if err != nil {
-		return nil, fmt.Errorf("序列化动态内存配置失败: %w", err)
-	}
 	if strings.TrimSpace(req.FnOSDeviceID) != "" {
 		if _, _, err := clonepkg.NormalizeFnOSDeviceID(req.FnOSDeviceID); err != nil {
 			return nil, err
@@ -196,7 +192,6 @@ func normalizeLightweightVMRegistrationRequest(user model.User, req LightweightV
 		CPULimitPercent:      req.CPULimitPercent,
 		CPUAffinity:          req.CPUAffinity,
 		FirstBootRebootMode:  req.FirstBootRebootMode,
-		MemoryDynamicJSON:    memoryJSON,
 		NicModel:             req.NicModel,
 		StoragePoolID:        req.StoragePoolID,
 		PreserveFnOSDeviceID: req.PreserveFnOSDeviceID,

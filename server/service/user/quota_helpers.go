@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"strings"
 
-	"kvm_console/service/vm/memory"
 	"kvm_console/utils"
 )
 
@@ -57,9 +56,6 @@ func GetVMCPUAndMemory(vmName string) (cpu int, memMB int) {
 	cpu = parseInfoInt(infoResult.Stdout, "CPU(s):")
 	maxMem := parseInfoInt(infoResult.Stdout, "Max memory:")
 	memMB = maxMem / 1024 // KiB -> MB
-	if meta, err := memory.ReadVMMemoryMetadata(vmName); err == nil && meta != nil && meta.DynamicEnabled && meta.MemoryInitialMB > 0 {
-		memMB = meta.MemoryInitialMB
-	}
 
 	return cpu, memMB
 }

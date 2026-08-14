@@ -14,7 +14,6 @@ import (
 	"kvm_console/service"
 	"kvm_console/service/arch"
 	"kvm_console/service/ip_resolver"
-	vm_memory "kvm_console/service/vm/memory"
 	"kvm_console/service/vm_xml"
 	"kvm_console/taskqueue"
 	"kvm_console/utils"
@@ -128,11 +127,7 @@ func ImportVM(ctx context.Context, params *ImportVMParams, progressFn func(int, 
 
 	progressFn(30, "创建虚拟机定义...")
 
-	memoryMeta, ramMB, _, err := vm_memory.BuildVMMemoryMetadataForCreate(params.RAM, params.MemoryDynamic)
-	if err != nil {
-		_ = os.Remove(destDiskPath)
-		return nil, err
-	}
+	ramMB := params.RAM * 1024
 
 	// 检测是否为 UEFI 磁盘
 	normalizedBootType := vm_xml.NormalizeVMBootType(params.BootType)
@@ -153,11 +148,11 @@ func ImportVM(ctx context.Context, params *ImportVMParams, progressFn func(int, 
 	isWindows := initType == "windows"
 
 	if isWindows {
-		if err := importVMWindowsDefine(params, destDiskPath, format, ramMB, memoryMeta, srcDiskPath, needUEFI); err != nil {
+		if err := importVMWindowsDefine(params, destDiskPath, format, ramMB, srcDiskPath, needUEFI); err != nil {
 			return nil, err
 		}
 	} else {
-		if err := importVMLinuxDefine(params, destDiskPath, format, ramMB, memoryMeta, srcDiskPath, needUEFI, normalizedBootType, initType); err != nil {
+		if err := importVMLinuxDefine(params, destDiskPath, format, ramMB, srcDiskPath, needUEFI, normalizedBootType, initType); err != nil {
 			return nil, err
 		}
 	}
@@ -229,15 +224,9 @@ func importVMInitByType(_ context.Context, params *ImportVMParams, _ string, _ s
 }
 
 // importVMPostDefine handles post-define steps shared by Windows and Linux import paths
-func importVMPostDefine(vmName, srcDiskPath, destDiskPath string, copyDisk bool, memoryMeta *vm_memory.VMMemoryMetadata, remark string, freeze, startAfterImport bool, owner string, switchID, securityGroupID uint, allowedIPv4, allowedIPv6 string) error {
+func importVMPostDefine(vmName, srcDiskPath, destDiskPath string, copyDisk bool, remark string, freeze, startAfterImport bool, owner string, switchID, securityGroupID uint, allowedIPv4, allowedIPv6 string) error {
 	if !copyDisk {
 		_ = os.Remove(srcDiskPath)
-	}
-	if memoryMeta != nil {
-		if err := vm_memory.WriteVMMemoryMetadata(vmName, memoryMeta); err != nil {
-			_ = os.Remove(destDiskPath)
-			return err
-		}
 	}
 	if err := service.SetVMRemark(vmName, remark); err != nil {
 		_ = os.Remove(destDiskPath)

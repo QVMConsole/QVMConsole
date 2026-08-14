@@ -143,19 +143,6 @@ export interface VmFormModel {
   cpu_affinity: string
   cpu_topology_mode: string
   first_boot_reboot_mode: string
-  memory_dynamic_enabled: boolean
-  memory_backend: string // balloon / virtio_mem
-  memory_initial: number // GB
-  memory_min: number // GB
-  memory_max_dynamic: number // GB
-  memory_auto_balloon: boolean
-  memory_current: number // GB
-  memory_virtio_mem_current: number // GB
-  memory_dynamic_touched: boolean
-  memory_pending_apply: boolean
-  memory_compat_mode: string
-  memory_balloon_supported: boolean
-  memory_balloon_status: string
 
   // ===== 开发者选项 =====
   freeze: boolean

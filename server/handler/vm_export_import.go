@@ -12,7 +12,6 @@ import (
 
 	"kvm_console/model"
 	"kvm_console/service"
-	vm_memory "kvm_console/service/vm/memory"
 	"kvm_console/service/vm/vmimport"
 	"kvm_console/service/vm_xml"
 	"kvm_console/taskqueue"
@@ -180,7 +179,6 @@ type ImportVMRequest struct {
 	CPUAffinity          string                            `json:"cpu_affinity"` // CPU 亲和性，如 "0,2,4"
 	TemplateRootPass     string                            `json:"template_root_pass"`
 	TemplateUser         string                            `json:"template_user"`
-	MemoryDynamic        *vm_memory.VMMemoryDynamicRequest `json:"memory_dynamic"`
 	SwitchID             uint                              `json:"switch_id"`
 	SecurityGroupID      uint                              `json:"security_group_id"`
 	AllowedIPv4Addresses string                            `json:"allowed_ipv4_addresses"`
@@ -289,7 +287,6 @@ func ImportVMHandler(c *gin.Context) {
 		CPUAffinity:          req.CPUAffinity,
 		TemplateRootPass:     req.TemplateRootPass,
 		TemplateUser:         req.TemplateUser,
-		MemoryDynamic:        req.MemoryDynamic,
 		SwitchID:             req.SwitchID,
 		SecurityGroupID:      req.SecurityGroupID,
 		AllowedIPv4Addresses: req.AllowedIPv4Addresses,
@@ -301,9 +298,6 @@ func ImportVMHandler(c *gin.Context) {
 		params.StartAfterImport = *req.StartAfterImport
 	} else {
 		params.StartAfterImport = true
-	}
-	if role != "admin" {
-		params.MemoryDynamic = sanitizeUserMemoryDynamicRequest(req.MemoryDynamic, req.RAM)
 	}
 
 	task, err := taskqueue.SubmitWithStruct(model.TaskTypeImport, params, usernameStr)

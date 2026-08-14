@@ -14,7 +14,6 @@ import (
 	"kvm_console/service/guest_agent"
 	"kvm_console/service/ip_resolver"
 	"kvm_console/service/libvirt_rpc"
-	"kvm_console/service/vm/memory"
 	"kvm_console/service/vm_xml"
 	"kvm_console/utils"
 )
@@ -130,12 +129,6 @@ func GetVM(name string) (*VmDetail, error) {
 	vm.GuestAgent = vm_xml.ParseVMGuestAgentConfigFromDomainXML(xmlStr)
 	vm.GuestAgentStatus = guest_agent.CheckVMGuestAgentStatus(name)
 	vm.SMBIOS1 = vm_xml.ParseSMBIOS1ConfigFromDomainXML(xmlStr)
-	memInfo := memory.GetVMMemoryDynamicInfo(name, xmlStr, vm.Status)
-	applyMemoryDynamicInfoToVMInfo(&vm.VmInfo, memInfo)
-	if memInfo != nil {
-		vm.MemoryObservationUntil = memInfo.ObservationUntil
-		vm.MemoryManualPauseUntil = memInfo.ManualPauseUntil
-	}
 
 	// 解析引导顺序（OS 级别 <boot dev='xxx'/>）
 	bootDevRe := regexp.MustCompile(`<boot dev='([^']+)'/>`)

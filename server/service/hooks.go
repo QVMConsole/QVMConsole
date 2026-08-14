@@ -22,12 +22,6 @@ var (
 	HookEnsureVMNotSnapshotting func(vmName, action string) error
 )
 
-// Memory Hooks - 由 service/vm/memory 子包注册
-var (
-	HookApplyPendingVMMemoryConfig func(vmName string) error
-	HookGetVMMemoryDynamicInfo     func(name, xmlStr, state string) any
-)
-
 // EnsureVMNotSnapshotting delegates to HookEnsureVMNotSnapshotting for handler layer compatibility
 func EnsureVMNotSnapshotting(vmName, action string) error {
 	if HookEnsureVMNotSnapshotting != nil {

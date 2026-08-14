@@ -11,7 +11,6 @@ import (
 	"kvm_console/service"
 	clonepkg "kvm_console/service/clone"
 	libvirt_rpc "kvm_console/service/libvirt_rpc"
-	vm_memory "kvm_console/service/vm/memory"
 	"kvm_console/service/vm/migration"
 	"kvm_console/service/vm_xml"
 	"kvm_console/taskqueue"
@@ -57,7 +56,6 @@ type CloneVmRequest struct {
 	CPULimitPercent      int                               `json:"cpu_limit_percent"`
 	CPUAffinity          string                            `json:"cpu_affinity"` // CPU 亲和性，如 "0,2,4"
 	FirstBootRebootMode  string                            `json:"first_boot_reboot_mode"`
-	MemoryDynamic        *vm_memory.VMMemoryDynamicRequest `json:"memory_dynamic"`
 	SwitchID             uint                              `json:"switch_id"`
 	SecurityGroupID      uint                              `json:"security_group_id"`
 	AllowedIPv4Addresses string                            `json:"allowed_ipv4_addresses"`
@@ -277,7 +275,6 @@ func CloneVm(c *gin.Context) {
 		CPULimitPercent:      req.CPULimitPercent,
 		CPUAffinity:          req.CPUAffinity,
 		FirstBootRebootMode:  req.FirstBootRebootMode,
-		MemoryDynamic:        req.MemoryDynamic,
 		SwitchID:             req.SwitchID,
 		SecurityGroupID:      req.SecurityGroupID,
 		AllowedIPv4Addresses: req.AllowedIPv4Addresses,
@@ -305,9 +302,6 @@ func CloneVm(c *gin.Context) {
 		return
 	}
 	params.DisableSystemInit = req.DisableSystemInit
-	if !isAdmin {
-		params.MemoryDynamic = sanitizeUserMemoryDynamicRequest(req.MemoryDynamic, req.RAM)
-	}
 
 	// 如果是普通用户，检查配额
 	if role == "user" {

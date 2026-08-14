@@ -21,7 +21,6 @@ import (
 	"kvm_console/service/libvirt_rpc"
 	netpkg "kvm_console/service/network"
 	"kvm_console/service/snapshot"
-	vmmemory "kvm_console/service/vm/memory"
 	vmmigration "kvm_console/service/vm/migration"
 	vmimport "kvm_console/service/vm/vmimport"
 	"kvm_console/taskqueue"
@@ -113,7 +112,6 @@ func main() {
 
 	// 启动资源采集器（后台定时采集VM资源数据）
 	service.StartStatsCollector()
-	vmmemory.StartMemoryBalloonScheduler()
 	service.StartSchedulerEventCleanup()
 	service.StartVMScheduleRunner()
 	service.StartJWTSecretRotator()

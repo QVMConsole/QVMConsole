@@ -73,7 +73,6 @@ export interface RegistrationDraft {
   rtc_startdate: string
   guest_agent: unknown
   smbios1: unknown
-  memory_dynamic: unknown
   disk_bus: string
   video_model: string
   cpu_topology_mode: string
@@ -342,7 +341,6 @@ export default function CreateVmWizard({
               rtc_startdate: payload.rtc_startdate || 'now',
               guest_agent: payload.guest_agent,
               smbios1: payload.smbios1,
-              memory_dynamic: payload.memory_dynamic,
               disk_bus: payload.disk_bus || 'virtio',
               video_model: payload.video_model || 'virtio',
               cpu_topology_mode: payload.cpu_topology_mode || 'auto',

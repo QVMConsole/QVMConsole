@@ -11,7 +11,6 @@ import (
 
 	"kvm_console/model"
 	"kvm_console/service"
-	vm_memory "kvm_console/service/vm/memory"
 )
 
 // respondVMListError 统一处理虚拟机列表查询失败的响应（区分 libvirt 不可用与其他错误）
@@ -45,55 +44,6 @@ func buildVMListOptions(c *gin.Context) service.VMListOptions {
 	return service.VMListOptions{
 		IncludeResourceUsage: parseBoolQuery(c, "include_resource_usage"),
 		IncludeIP:            parseBoolQuery(c, "include_ip"),
-	}
-}
-
-// sanitizeUserMemoryDynamicRequest 对非管理员用户提交的动态内存请求进行安全校验与默认值填充
-func sanitizeUserMemoryDynamicRequest(req *vm_memory.VMMemoryDynamicRequest, baseMemoryGB int) *vm_memory.VMMemoryDynamicRequest {
-	if req == nil || req.DynamicEnabled == nil {
-		return nil
-	}
-	if baseMemoryGB <= 0 {
-		baseMemoryGB = 1
-	}
-	enabled := *req.DynamicEnabled
-	backend := req.MemoryBackend
-	if backend != "virtio_mem" {
-		backend = "balloon"
-	}
-	if !enabled {
-		return &vm_memory.VMMemoryDynamicRequest{
-			DynamicEnabled: &enabled,
-			MemoryBackend:  backend,
-			MemoryInitial:  baseMemoryGB,
-		}
-	}
-	memoryMin := max(1, baseMemoryGB/2)
-	memoryMax := max(baseMemoryGB, (baseMemoryGB*13+9)/10)
-	memoryInitial := baseMemoryGB
-	autoBalloon := true
-	if backend == "virtio_mem" {
-		memoryInitial = memoryMin
-		autoBalloon = false
-	}
-	memoryCurrent := 0
-	if req.MemoryCurrent > 0 {
-		memoryCurrent = req.MemoryCurrent
-		if memoryCurrent < memoryInitial {
-			memoryCurrent = memoryInitial
-		}
-		if memoryCurrent > memoryMax {
-			memoryCurrent = memoryMax
-		}
-	}
-	return &vm_memory.VMMemoryDynamicRequest{
-		DynamicEnabled: &enabled,
-		MemoryBackend:  backend,
-		MemoryInitial:  memoryInitial,
-		MemoryMin:      memoryMin,
-		MemoryMax:      memoryMax,
-		AutoBalloon:    &autoBalloon,
-		MemoryCurrent:  memoryCurrent,
 	}
 }
 

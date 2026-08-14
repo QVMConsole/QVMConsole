@@ -11,7 +11,6 @@ import type {
   ExtraNicPayload,
   GuestAgentPayload,
   ImportVmPayload,
-  MemoryDynamicPayload,
   Smbios1Payload,
   UpdateVmPayload,
   VmDiskItem,
@@ -42,32 +41,6 @@ export const buildSMBIOS1Payload = (form: VmFormModel): Smbios1Payload => ({
   uuid: (form.smbios1.uuid || '').trim(),
   version: (form.smbios1.version || '').trim(),
 })
-
-/** 动态内存载荷（创建：仅启用时；编辑：仅用户触碰过时） */
-export const buildMemoryDynamicPayload = (
-  form: VmFormModel,
-  isEdit: boolean,
-): MemoryDynamicPayload | undefined => {
-  if (!isEdit && !form.memory_dynamic_enabled) return undefined
-  if (isEdit && !form.memory_dynamic_touched) return undefined
-  const baseMemory = isEdit ? form.memory || form.ram || 1 : form.ram || 1
-  if (!form.memory_dynamic_enabled) {
-    return {
-      dynamic_enabled: false,
-      memory_backend: form.memory_backend || 'balloon',
-      memory_initial: baseMemory,
-    }
-  }
-  return {
-    dynamic_enabled: true,
-    memory_backend: form.memory_backend || 'balloon',
-    memory_initial: form.memory_initial,
-    memory_min: form.memory_backend === 'virtio_mem' ? form.memory_initial : form.memory_min,
-    memory_max: form.memory_max_dynamic,
-    memory_auto_balloon: form.memory_backend === 'virtio_mem' ? false : !!form.memory_auto_balloon,
-    memory_current: form.memory_current || 0,
-  }
-}
 
 /** CPU 限制百分比（仅管理员；未启用返回 0） */
 export const buildCPULimitPercentPayload = (
@@ -233,8 +206,6 @@ export const buildCreatePayload = (
   const cpuLimitPercent = buildCPULimitPercentPayload(form, ctx.isAdmin)
   if (cpuLimitPercent !== undefined) payload.cpu_limit_percent = cpuLimitPercent
   if (ctx.isAdmin) payload.cpu_affinity = (form.cpu_affinity || '').trim()
-  const memoryPayload = buildMemoryDynamicPayload(form, false)
-  if (memoryPayload) payload.memory_dynamic = memoryPayload
   return payload
 }
 
@@ -318,8 +289,6 @@ export const buildClonePayload = (form: VmFormModel, ctx: CloneBuildContext): Cl
   const cpuLimitPercent = buildCPULimitPercentPayload(form, ctx.isAdmin)
   if (cpuLimitPercent !== undefined) payload.cpu_limit_percent = cpuLimitPercent
   if (ctx.isAdmin) payload.cpu_affinity = (form.cpu_affinity || '').trim()
-  const memoryPayload = buildMemoryDynamicPayload(form, false)
-  if (memoryPayload) payload.memory_dynamic = memoryPayload
   return payload
 }
 
@@ -411,8 +380,6 @@ export const buildImportPayload = (form: VmFormModel, ctx: CreateBuildContext): 
   const cpuLimitPercent = buildCPULimitPercentPayload(form, ctx.isAdmin)
   if (cpuLimitPercent !== undefined) payload.cpu_limit_percent = cpuLimitPercent
   if (ctx.isAdmin) payload.cpu_affinity = (form.cpu_affinity || '').trim()
-  const memoryPayload = buildMemoryDynamicPayload(form, false)
-  if (memoryPayload) payload.memory_dynamic = memoryPayload
   return payload
 }
 
@@ -560,8 +527,6 @@ export const buildEditPayload = (form: VmFormModel, ctx: EditBuildContext): Upda
   if (form.video_model && !runningOrPaused && form.video_model !== snap.video_model) {
     payload.video_model = form.video_model
   }
-  const memoryPayload = buildMemoryDynamicPayload(form, true)
-  if (memoryPayload) payload.memory_dynamic = memoryPayload
   return payload
 }
 

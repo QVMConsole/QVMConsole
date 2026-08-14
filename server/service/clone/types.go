@@ -6,7 +6,6 @@ import (
 	"regexp"
 
 	vmpkg "kvm_console/service/vm"
-	"kvm_console/service/vm/memory"
 	"kvm_console/service/vm_xml"
 )
 
@@ -51,7 +50,6 @@ type CloneParams struct {
 	CPULimitPercent       int                            `json:"cpu_limit_percent,omitempty"`      // CPU 限制百分比，0 表示无限制
 	CPUAffinity           string                         `json:"cpu_affinity,omitempty"`           // CPU 亲和性，如 "0,2,4"
 	FirstBootRebootMode   string                         `json:"first_boot_reboot_mode,omitempty"` // 首次重启策略: normal/cold
-	MemoryDynamic         *memory.VMMemoryDynamicRequest `json:"memory_dynamic,omitempty"`
 	SwitchID              uint                           `json:"switch_id,omitempty"`
 	SecurityGroupID       uint                           `json:"security_group_id,omitempty"`
 	AllowedIPv4Addresses  string                         `json:"allowed_ipv4_addresses,omitempty"`

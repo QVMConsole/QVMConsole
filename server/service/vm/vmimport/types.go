@@ -6,7 +6,6 @@ import (
 
 	"kvm_console/service"
 	guestautomation "kvm_console/service/guest_automation"
-	vm_memory "kvm_console/service/vm/memory"
 	"kvm_console/service/vm_xml"
 )
 
@@ -43,7 +42,6 @@ type ImportVMParams struct {
 	CPUAffinity          string                            `json:"cpu_affinity,omitempty"`       // CPU 亲和性，如 "0,2,4"
 	TemplateRootPass     string                            `json:"template_root_pass,omitempty"` // 模板 root 密码（SSH 初始化用）
 	TemplateUser         string                            `json:"template_user,omitempty"`      // 模板用户名
-	MemoryDynamic        *vm_memory.VMMemoryDynamicRequest `json:"memory_dynamic,omitempty"`
 	SwitchID             uint                              `json:"switch_id,omitempty"`
 	SecurityGroupID      uint                              `json:"security_group_id,omitempty"`
 	AllowedIPv4Addresses string                            `json:"allowed_ipv4_addresses,omitempty"`
@@ -96,7 +94,6 @@ type ImportDiskByPathParams struct {
 	CPUAffinity          string                            `json:"cpu_affinity,omitempty"` // CPU 亲和性，如 "0,2,4"
 	TemplateRootPass     string                            `json:"template_root_pass,omitempty"`
 	TemplateUser         string                            `json:"template_user,omitempty"`
-	MemoryDynamic        *vm_memory.VMMemoryDynamicRequest `json:"memory_dynamic,omitempty"`
 	SwitchID             uint                              `json:"switch_id,omitempty"`
 	SecurityGroupID      uint                              `json:"security_group_id,omitempty"`
 	AllowedIPv4Addresses string                            `json:"allowed_ipv4_addresses,omitempty"`

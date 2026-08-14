@@ -71,15 +71,7 @@ type SettingsResponse struct {
 	SMTPTimeoutSeconds                    int    `json:"smtp_timeout_seconds"`
 	SMTPPasswordConfigured                bool   `json:"smtp_password_configured"`
 	SMTPConfigured                        bool   `json:"smtp_configured"`
-	DynamicMemorySchedulerEnabled         bool   `json:"dynamic_memory_scheduler_enabled"`
-	DynamicMemoryIntervalSeconds          int    `json:"dynamic_memory_interval_seconds"`
-	DynamicMemoryHostReserveMB            int    `json:"dynamic_memory_host_reserve_mb"`
-	DynamicMemoryHostReservePercent       int    `json:"dynamic_memory_host_reserve_percent"`
-	DynamicMemoryIncreaseThresholdPercent int    `json:"dynamic_memory_increase_threshold_percent"`
-	DynamicMemoryReclaimThresholdPercent  int    `json:"dynamic_memory_reclaim_threshold_percent"`
-	DynamicMemoryCooldownSeconds          int    `json:"dynamic_memory_cooldown_seconds"`
-	DynamicMemoryObservationHours         int    `json:"dynamic_memory_observation_hours"`
-	SchedulerEventRetentionHours          int    `json:"scheduler_event_retention_hours"`
+	SchedulerEventRetentionHours int `json:"scheduler_event_retention_hours"`
 	// 虚拟机磁盘 IOPS 默认限制
 	DefaultDiskIOPSTotal int `json:"default_disk_iops_total"` // 默认总 IOPS 限制（0 表示不限制）
 	DefaultDiskIOPSRead  int `json:"default_disk_iops_read"`  // 默认读 IOPS 限制（0 表示不限制）
@@ -150,14 +142,6 @@ type UpdateSettingsRequest struct {
 	SMTPFromAddress                       *string `json:"smtp_from_address"`
 	SMTPSecurity                          *string `json:"smtp_security"`
 	SMTPTimeoutSeconds                    *int    `json:"smtp_timeout_seconds"`
-	DynamicMemorySchedulerEnabled         *bool   `json:"dynamic_memory_scheduler_enabled"`
-	DynamicMemoryIntervalSeconds          *int    `json:"dynamic_memory_interval_seconds"`
-	DynamicMemoryHostReserveMB            *int    `json:"dynamic_memory_host_reserve_mb"`
-	DynamicMemoryHostReservePercent       *int    `json:"dynamic_memory_host_reserve_percent"`
-	DynamicMemoryIncreaseThresholdPercent *int    `json:"dynamic_memory_increase_threshold_percent"`
-	DynamicMemoryReclaimThresholdPercent  *int    `json:"dynamic_memory_reclaim_threshold_percent"`
-	DynamicMemoryCooldownSeconds          *int    `json:"dynamic_memory_cooldown_seconds"`
-	DynamicMemoryObservationHours         *int    `json:"dynamic_memory_observation_hours"`
 	SchedulerEventRetentionHours          *int    `json:"scheduler_event_retention_hours"`
 	// 虚拟机磁盘 IOPS 默认限制
 	DefaultDiskIOPSTotal *int `json:"default_disk_iops_total"` // 默认总 IOPS 限制（0 表示不限制）
@@ -281,14 +265,6 @@ func GetSettings(c *gin.Context) {
 			SMTPTimeoutSeconds:                    smtpView.TimeoutSeconds,
 			SMTPPasswordConfigured:                smtpView.PasswordConfigured,
 			SMTPConfigured:                        smtpView.Configured,
-			DynamicMemorySchedulerEnabled:         cfg.DynamicMemorySchedulerEnabled,
-			DynamicMemoryIntervalSeconds:          cfg.DynamicMemoryIntervalSeconds,
-			DynamicMemoryHostReserveMB:            cfg.DynamicMemoryHostReserveMB,
-			DynamicMemoryHostReservePercent:       cfg.DynamicMemoryHostReservePercent,
-			DynamicMemoryIncreaseThresholdPercent: cfg.DynamicMemoryIncreaseThresholdPercent,
-			DynamicMemoryReclaimThresholdPercent:  cfg.DynamicMemoryReclaimThresholdPercent,
-			DynamicMemoryCooldownSeconds:          cfg.DynamicMemoryCooldownSeconds,
-			DynamicMemoryObservationHours:         cfg.DynamicMemoryObservationHours,
 			SchedulerEventRetentionHours:          cfg.SchedulerEventRetentionHours,
 			DefaultDiskIOPSTotal:                  cfg.DefaultDiskIOPSTotal,
 			DefaultDiskIOPSRead:                   cfg.DefaultDiskIOPSRead,
@@ -571,58 +547,6 @@ func UpdateSettings(c *gin.Context) {
 			return
 		}
 	}
-	if req.DynamicMemorySchedulerEnabled != nil {
-		cfg.DynamicMemorySchedulerEnabled = *req.DynamicMemorySchedulerEnabled
-	}
-	if req.DynamicMemoryIntervalSeconds != nil {
-		if *req.DynamicMemoryIntervalSeconds < 10 {
-			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "动态内存调度间隔不能小于 10 秒"})
-			return
-		}
-		cfg.DynamicMemoryIntervalSeconds = *req.DynamicMemoryIntervalSeconds
-	}
-	if req.DynamicMemoryHostReserveMB != nil {
-		if *req.DynamicMemoryHostReserveMB < 512 {
-			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "宿主机保留内存不能小于 512MB"})
-			return
-		}
-		cfg.DynamicMemoryHostReserveMB = *req.DynamicMemoryHostReserveMB
-	}
-	if req.DynamicMemoryHostReservePercent != nil {
-		if *req.DynamicMemoryHostReservePercent < 5 || *req.DynamicMemoryHostReservePercent > 80 {
-			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "宿主机保留比例需在 5% - 80% 之间"})
-			return
-		}
-		cfg.DynamicMemoryHostReservePercent = *req.DynamicMemoryHostReservePercent
-	}
-	if req.DynamicMemoryIncreaseThresholdPercent != nil {
-		if *req.DynamicMemoryIncreaseThresholdPercent < 5 || *req.DynamicMemoryIncreaseThresholdPercent > 50 {
-			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "增长触发阈值需在 5% - 50% 之间"})
-			return
-		}
-		cfg.DynamicMemoryIncreaseThresholdPercent = *req.DynamicMemoryIncreaseThresholdPercent
-	}
-	if req.DynamicMemoryReclaimThresholdPercent != nil {
-		if *req.DynamicMemoryReclaimThresholdPercent < 10 || *req.DynamicMemoryReclaimThresholdPercent > 90 {
-			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "回收触发阈值需在 10% - 90% 之间"})
-			return
-		}
-		cfg.DynamicMemoryReclaimThresholdPercent = *req.DynamicMemoryReclaimThresholdPercent
-	}
-	if req.DynamicMemoryCooldownSeconds != nil {
-		if *req.DynamicMemoryCooldownSeconds < 30 {
-			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "动态内存冷却时间不能小于 30 秒"})
-			return
-		}
-		cfg.DynamicMemoryCooldownSeconds = *req.DynamicMemoryCooldownSeconds
-	}
-	if req.DynamicMemoryObservationHours != nil {
-		if *req.DynamicMemoryObservationHours < 0 || *req.DynamicMemoryObservationHours > 168 {
-			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "观察期需在 0 - 168 小时之间"})
-			return
-		}
-		cfg.DynamicMemoryObservationHours = *req.DynamicMemoryObservationHours
-	}
 	if req.SchedulerEventRetentionHours != nil {
 		if *req.SchedulerEventRetentionHours < 1 || *req.SchedulerEventRetentionHours > 2160 {
 			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "调度事件保留时长需在 1 - 2160 小时之间"})
@@ -833,7 +757,7 @@ func persistSettings(cfg *config.Config) []string {
 	settingsMap := cfg.ToSettingsMap()
 	var persistErrors []string
 	for key, value := range settingsMap {
-		if value == "" || (value == "0" && key != "dynamic_memory_observation_hours" && key != "spice_enabled_by_default") {
+		if value == "" || (value == "0" && key != "spice_enabled_by_default") {
 			_ = model.DeleteSetting(key)
 			continue
 		}

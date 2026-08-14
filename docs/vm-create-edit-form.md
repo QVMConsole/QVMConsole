@@ -29,12 +29,12 @@ web/src/features/vm-form/
 ├── constants.ts              # 常量选项（总线/网卡/显示设备/引导/机型/OS/拓扑/帮助文案）
 ├── defaults.ts               # 默认值工厂、随机名称/主机名生成
 ├── templateUtils.ts          # 模板默认配置解析（vcpu/ram/disk/bus/nic/video/拓扑/重启模式/引导）
-├── recommend.ts              # 联动推荐（RTC/显示设备/引导/动态内存推荐值/归一化）
+├── recommend.ts              # 联动推荐（RTC/显示设备/引导/归一化）
 ├── validators.ts             # 校验规则（名称/主机名/用户名/密码/FnOS ID/磁盘/IP + 步骤校验 + 必填汇总）
 ├── payload.ts                # 提交载荷构建（创建三链路 + 批量 + 编辑差异快照捕获）
 ├── scope.tsx                 # VmFormProvider + useVmFormScope（向 Section 注入表单/选项/上下文）
 ├── vpcOptionUtils.ts         # VPC 交换机归属解析、安全组选项过滤与标签格式化
-├── useVmForm.ts              # 核心 hook：表单状态 + 全部联动（OS/ISO/模板/架构/机型/引导/动态内存）
+├── useVmForm.ts              # 核心 hook：表单状态 + 全部联动（OS/ISO/模板/架构/机型/引导）
 │                             #   + buildEditFormState（编辑回填纯函数）
 ├── useVmFormOptions.ts       # 选项数据加载（ISO/模板/存储池/VPC/磁盘文件/直通设备/宿主信息）
 ├── useVmEditDevices.ts       # 编辑设备管理（磁盘/光驱/软盘列表与纯数据操作，无 JSX）
@@ -55,7 +55,7 @@ web/src/features/vm-form/
 │   ├── ImportStorageSection.tsx # 【创建】导入磁盘（来源/处理/IOPS/导入后操作/额外导入磁盘）
 │   ├── ExtraDiskSection.tsx  # 【创建】额外数据盘（ISO/模板共用）
 │   ├── ConfirmSection.tsx    # 【创建】最后一步：配置确认摘要
-│   ├── CpuMemorySection.tsx  # 【共用】CPU/内存/热添加/CPU 限制(管理员)/动态内存
+│   ├── CpuMemorySection.tsx  # 【共用】CPU/内存/热添加/CPU 限制(管理员)
 │   ├── VirtEngineSection.tsx # 【共用】虚拟化方案/架构/机型/引导类型
 │   ├── NicSection.tsx        # 【共用】网卡类型（编辑运行中禁用）+ 网口列表（创建）
 │   ├── BootOrderSection.tsx  # 【共用】引导顺序（创建类型排序 / 编辑设备列表）
@@ -67,8 +67,6 @@ web/src/features/vm-form/
 └── dialogs/
     ├── RtcConfigDialog.tsx   # 【共用】RTC 配置
     ├── GuestAgentDialog.tsx  # 【共用】QEMU Guest Agent
-    ├── MemoryDynamicDialog.tsx   # 【共用】动态内存详细配置
-    ├── VirtioMemDetailDialog.tsx # 【共用】Windows 弹性内存说明
     ├── SmbiosDialog.tsx      # 【共用】SMBIOS 类型 1
     ├── DiskIopsDialog.tsx    # 【共用】磁盘 IOPS（受控通用组件）
     ├── PassthroughPickerDialog.tsx # 【共用·管理员】直通设备选择
@@ -97,7 +95,6 @@ web/src/features/vm-form/
 
 - **校验**：`validators.ts` 全部字段校验函数 + `validateCreateStep`（向导按步阻断）+ `collectMissingRequired`（提交按钮禁用与缺失清单）
 - **联动**：`useVmForm` 集中处理 OS 类型 / ISO 选择 / 模板切换 / 虚拟化方案 / 架构 / 机型 / 引导切换的全部推荐逻辑（含 bootTypeTouched：用户手动改过引导后不再自动推荐）
-- **动态内存**：`recommend.ts` 推荐值计算（balloon：启动=规格、最小=50%、最大=+30%；virtio_mem：基础=50%、最大=+30%）
 - **模板默认值**：`templateUtils.ts` 从模板 `default_config` 带出 vcpu/ram/disk/bus/nic/video/拓扑/重启模式
 - **提交载荷**：`payload.ts` 五条链路各自独立构建函数（`buildCreatePayload` / `buildClonePayload` / `buildBatchClonePayload` / `buildImportPayload` / `buildEditPayload`）
 
@@ -110,7 +107,7 @@ web/src/features/vm-form/
 | 创建方式 | ISO 镜像安装 / 模板快速克隆 / 导入已有磁盘 / 导入虚拟机 四卡 | - |
 | 虚拟机包 | 仅导入虚拟机模式：使用大卡片选择“跟随 OVF 配置 / 自定义”；创建向导不读取包内容 | 必须选择源文件；跟随模式直接提交，自定义模式继续完整向导；包校验由异步任务执行 |
 | 基础信息 | 名称、批量数量（模板）、备注、系统类型/版本（ISO）、导入初始化（导入）、模板与凭据（模板） | 名称格式、模板/磁盘/凭据按模式分支 |
-| 硬件规格 | CPU/内存/热添加/CPU 限制/动态内存 + 虚拟化方案/架构/机型/引导 | vcpu、ram > 0 |
+| 硬件规格 | CPU/内存/热添加/CPU 限制 + 虚拟化方案/架构/机型/引导 | vcpu、ram > 0 |
 | 存储介质 | 存储位置 + ISO/系统盘（ISO）、导入磁盘（导入）、额外数据盘（模板） | ISO 磁盘大小、导入磁盘文件/路径 |
 | 网络设置 | 默认网卡型号 + 网口列表（交换机/安全组/型号） | - |
 | 系统配置 | 引导顺序、Watchdog、开机自启 | - |
@@ -133,7 +130,6 @@ web/src/features/vm-form/
 - Windows（ISO/OS 卡/ISO 自动识别）：UEFI 引导 + SATA 磁盘 + e1000e 网卡；i440FX + Windows 强制 BIOS
 - ARM（aarch64）：强制 virt 机型 + UEFI + ramfb 显示；KVM 模式回宿主机架构
 - 模板切换：带出默认 vcpu/ram/disk/bus/nic/video/拓扑/重启模式；Windows 模板固定 administrator；UEFI 模板自动升级安全引导（Windows）
-- 非 Windows 目标禁用 virtio_mem 弹性内存（自动回退 balloon）
 - 选择 ISO 自动补全系统类型/版本/最小磁盘，首个 ISO 为主安装盘，启动顺序自动 cdrom 优先
 
 ## 5. 编辑表单（EditVmForm · 详情页「编辑」）
@@ -142,7 +138,7 @@ web/src/features/vm-form/
 
 | 选项卡 | 内容 |
 |--------|------|
-| 基础配置 | 名称（只读）、状态、CPU/内存/热添加/CPU 限制/动态内存 |
+| 基础配置 | 名称（只读）、状态、CPU/内存/热添加/CPU 限制 |
 | 磁盘与驱动器 | 现有磁盘表（扩容/删除/驱动/IOPS）、新建磁盘、挂载已有磁盘、光驱、软盘 |
 | 启动与安全 | 网卡类型（运行中禁用）、机型（只读）、引导方式（关机可改）、引导顺序（Cockpit 风格设备列表）、开机自启 |
 | 网口管理 | 主网口 VPC 绑定切换（交换机/安全组，轻量云禁用）+ 多网口列表（添加/编辑/删除，仅管理员，运行态实时 IP，热插拔提示）。运行态 IP 优先按 MAC 与 `network/status` 匹配，删除前序网卡后即使绑定序号保留空洞，也能显示剩余网卡 IP。当模板未预置网卡时，保存主网口 VPC 绑定会先创建实体主网卡，再保存绑定；网卡统一使用 virtio。 |

@@ -30,49 +30,6 @@ export const getRecommendedWindowsBootType = (
   isEdit: boolean,
 ): string => (shouldUseBIOSForI440FXWindows(form, isEdit) ? 'bios' : 'uefi')
 
-// ==================== 动态内存推荐 ====================
-
-/** 推荐最大内存：基础值上浮 30%（至少等于基础值） */
-export const getRecommendedMemoryMax = (base: number): number =>
-  Math.max(base, Math.ceil(base * 1.3))
-
-/** 弹性内存推荐基础内存：规格的一半（最低 1GB） */
-export const getRecommendedElasticMemoryInitial = (spec: number): number =>
-  Math.max(1, Math.floor(spec / 2))
-
-/** 由弹性内存配置反推规格内存 */
-export const getElasticMemorySpecFromConfig = (
-  initial: number,
-  maxDynamic: number,
-  fallback: number,
-): number => {
-  const initialSpec = initial > 0 ? initial * 2 : 0
-  const maxSpec = maxDynamic > 0 ? Math.max(1, Math.floor((maxDynamic * 10) / 13)) : 0
-  return Math.max(1, initialSpec, maxSpec, fallback || 0)
-}
-
-/** 按后端类型应用动态内存推荐值 */
-export const recommendedMemoryDynamicValues = (
-  backend: string,
-  spec: number,
-): { memory_initial: number; memory_min: number; memory_max_dynamic: number; memory_auto_balloon: boolean } => {
-  if (backend === 'virtio_mem') {
-    const initial = getRecommendedElasticMemoryInitial(spec)
-    return {
-      memory_initial: initial,
-      memory_min: initial,
-      memory_max_dynamic: getRecommendedMemoryMax(spec),
-      memory_auto_balloon: false,
-    }
-  }
-  return {
-    memory_initial: spec,
-    memory_min: Math.max(1, Math.floor(spec / 2)),
-    memory_max_dynamic: getRecommendedMemoryMax(spec),
-    memory_auto_balloon: true,
-  }
-}
-
 // ==================== 归一化工具 ====================
 
 export const normalizeRTCOffsetForForm = (value?: string): string =>

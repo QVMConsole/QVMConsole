@@ -14,7 +14,6 @@ import (
 	"kvm_console/service"
 	"kvm_console/service/arch"
 	"kvm_console/service/ip_resolver"
-	vm_memory "kvm_console/service/vm/memory"
 	"kvm_console/service/vm_xml"
 	"kvm_console/taskqueue"
 	"kvm_console/utils"
@@ -191,11 +190,7 @@ func ImportDiskByPath(ctx context.Context, params *ImportDiskByPathParams, progr
 
 	progressFn(30, "创建虚拟机定义...")
 
-	memoryMeta, ramMB, _, err := vm_memory.BuildVMMemoryMetadataForCreate(params.RAM, params.MemoryDynamic)
-	if err != nil {
-		_ = os.Remove(destDiskPath)
-		return nil, err
-	}
+	ramMB := params.RAM * 1024
 
 	// 检测是否为 UEFI 磁盘
 	normalizedBootType := vm_xml.NormalizeVMBootType(params.BootType)
@@ -216,11 +211,11 @@ func ImportDiskByPath(ctx context.Context, params *ImportDiskByPathParams, progr
 	format := "qcow2" // 目标格式始终是 qcow2
 
 	if isWindows {
-		if err := importDiskByPathWindowsDefine(params, destDiskPath, format, ramMB, memoryMeta, mainDiskSrc); err != nil {
+		if err := importDiskByPathWindowsDefine(params, destDiskPath, format, ramMB, mainDiskSrc); err != nil {
 			return nil, err
 		}
 	} else {
-		if err := importDiskByPathLinuxDefine(params, destDiskPath, format, ramMB, memoryMeta, mainDiskSrc, needUEFI, normalizedBootType, initType); err != nil {
+		if err := importDiskByPathLinuxDefine(params, destDiskPath, format, ramMB, mainDiskSrc, needUEFI, normalizedBootType, initType); err != nil {
 			return nil, err
 		}
 	}

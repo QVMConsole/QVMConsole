@@ -141,19 +141,11 @@ export default function EditVmForm({ vm, live, liveTick, onSaved }: EditVmFormPr
       const normalDisks = await devices.refreshEditDisks(true)
       setLoadedStatus(detail.status || vmStatus)
       setGuestAgentConnected(!!detail.guest_agent_status?.connected)
-      form.patch({
-        memory_virtio_mem_current: Math.max(
-          0,
-          Math.round(Number(detail.memory_virtio_mem_current || 0) / 1024),
-        ),
-        memory_balloon_supported: !!detail.memory_balloon_supported,
-        memory_balloon_status: detail.memory_balloon_status || 'not_running',
-      })
 
       const detailConfig = {
         name: detail.name,
         vcpu: detail.vcpu,
-        memory: detail.memory_dynamic_enabled ? undefined : detail.memory,
+        memory: detail.memory,
         max_memory: detail.max_memory,
         autostart: detail.autostart,
         freeze: detail.freeze,
@@ -164,14 +156,6 @@ export default function EditVmForm({ vm, live, liveTick, onSaved }: EditVmFormPr
         os_type: detail.os_type,
         guest_agent: detail.guest_agent,
         smbios1: detail.smbios1,
-        memory_dynamic_enabled: detail.memory_dynamic_enabled,
-        memory_backend: detail.memory_backend,
-        memory_initial: detail.memory_initial,
-        memory_min: detail.memory_min,
-        memory_max_dynamic: detail.memory_max_dynamic,
-        memory_auto_balloon: detail.memory_auto_balloon,
-        memory_pending_apply: detail.memory_pending_apply,
-        memory_compat_mode: detail.memory_compat_mode,
         cpu_limit_percent: detail.cpu_limit_percent,
         cpu_affinity: detail.cpu_affinity,
         nic_model: detail.nic_model,
@@ -332,7 +316,6 @@ export default function EditVmForm({ vm, live, liveTick, onSaved }: EditVmFormPr
                 <FormField label="状态">
                   <div className="qvm-vf-switch-row">
                     <Tag color={running ? 'green' : 'grey'}>{running ? '运行中' : '已关机'}</Tag>
-                    {form.form.memory_pending_apply && <Tag color="orange">动态内存待迁移应用</Tag>}
                   </div>
                 </FormField>
               </div>

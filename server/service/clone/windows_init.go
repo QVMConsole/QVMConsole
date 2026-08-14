@@ -13,7 +13,6 @@ import (
 	"kvm_console/logger"
 	"kvm_console/service/arch"
 	"kvm_console/service/libvirt_rpc"
-	"kvm_console/service/vm/memory"
 	"kvm_console/service/vm_xml"
 	"kvm_console/utils"
 )
@@ -258,7 +257,7 @@ func windowsDiskControllerXML(bus string) string {
 
 // cloneWindows Windows 克隆逻辑
 // cloneDir: 虚拟机磁盘所在的存储目录，额外磁盘也会创建在此目录
-func cloneWindows(ctx context.Context, params *CloneParams, cloneDisk string, ramMB int, memoryMeta *memory.VMMemoryMetadata, needUEFI bool, isNoInit bool, progressFn func(int, string), cloneDir string) error {
+func cloneWindows(ctx context.Context, params *CloneParams, cloneDisk string, ramMB int, needUEFI bool, isNoInit bool, progressFn func(int, string), cloneDir string) error {
 	templateDir := config.GlobalConfig.TemplateDir
 
 	// 获取宿主机架构 Profile，参数化 arch/machine/emulator/watchdog
@@ -405,12 +404,6 @@ func cloneWindows(ctx context.Context, params *CloneParams, cloneDisk string, ra
 	pciePortCount := vm_xml.ResolveCreatePCIERootPortCount(vmXML, params.PCIERootPorts, additionalPCIEDevices)
 	vmXML = D.InjectPCIERootPorts(vmXML, pciePortCount)
 	var err error
-	if memoryMeta != nil {
-		vmXML, err = memory.ApplyMemoryMetadataToDomainXML(vmXML, memoryMeta, false)
-		if err != nil {
-			return err
-		}
-	}
 	vmXML, err = vm_xml.ApplyVMGuestAgentConfigToDomainXML(vmXML, params.GuestAgent)
 	if err != nil {
 		return err
@@ -492,11 +485,6 @@ func cloneWindows(ctx context.Context, params *CloneParams, cloneDisk string, ra
 
 	if _, err := libvirt_rpc.DefineDomainXMLRPC(vmXML); err != nil {
 		return fmt.Errorf("定义虚拟机失败: %w", err)
-	}
-	if memoryMeta != nil {
-		if err := memory.WriteVMMemoryMetadata(params.Name, memoryMeta); err != nil {
-			return err
-		}
 	}
 	cloneMode := params.CloneMode
 	if cloneMode == "" {

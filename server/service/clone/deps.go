@@ -6,7 +6,6 @@ import (
 
 	"kvm_console/service/network/vpc"
 	"kvm_console/service/storage/disk"
-	"kvm_console/service/vm/memory"
 	"kvm_console/service/vm_xml"
 )
 
@@ -168,11 +167,10 @@ type (
 	DiskIOPSTune          = disk.DiskIOPSTune
 )
 
-// Re-export memory and vm_xml types used in clone params
+// Re-export vm_xml types used in clone params
 type (
-	VMMemoryDynamicRequest = memory.VMMemoryDynamicRequest
-	VMGuestAgentConfig     = vm_xml.VMGuestAgentConfig
-	VMSMBIOS1Config        = vm_xml.VMSMBIOS1Config
+	VMGuestAgentConfig = vm_xml.VMGuestAgentConfig
+	VMSMBIOS1Config    = vm_xml.VMSMBIOS1Config
 )
 
 // Re-export constants from vm_xml

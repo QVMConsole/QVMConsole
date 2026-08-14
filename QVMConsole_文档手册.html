@@ -558,7 +558,6 @@ sudo reboot</pre>
 <li><strong>CPU 限制</strong>：基于 Linux CFS 带宽控制</li>
 <li><strong>CPU 拓扑</strong>：自动/宿主默认/自定义（插槽+核心）</li>
 <li><strong>CPU 亲和性</strong>：绑定到特定物理核心</li>
-<li><strong>动态内存</strong>：气球调度（virtio-balloon）/ 弹性内存（virtio-mem）</li>
 <li><strong>虚拟化引擎</strong>：KVM 硬件虚拟化 / QEMU 软件虚拟化（x86_64/aarch64/riscv64）</li>
 <li><strong>引导方式</strong>：BIOS / UEFI / UEFI+安全引导</li>
 <li><strong>显示设备</strong>：VirtIO / VGA / VMVGA / QXL / Cirrus</li>
@@ -597,7 +596,6 @@ sudo reboot</pre>
 <li><strong>开发者选项</strong>：CPU 冻结、APIC、PAE</li>
 <li><strong>RTC 时钟</strong>：UTC/本地时间/自定义偏移，起始日期</li>
 <li><strong>QEMU Guest Agent</strong>：文件系统冻结/解冻、网络信息、密码设置</li>
-<li><strong>动态内存后端</strong>：气球调度 vs 弹性内存</li>
 <li><strong>SMBIOS</strong>：制造商、产品名称、序列号、UUID</li>
 <li><strong>Domain XML 编辑</strong>：管理员完全编辑权限</li>
 <li><strong>首次重启模式</strong>：正常重启 / 宿主冷启动（解决 Sysprep 黑屏）</li>
@@ -852,7 +850,6 @@ sudo reboot</pre>
 
 <h4>调度与高级</h4>
 <ul>
-<li><strong>动态内存调度</strong>：调度间隔、冷却时间、宿主保留内存、增长/回收阈值</li>
 <li><strong>端口转发 HTTP 探测</strong>：自动封禁未命中白名单的 HTTP 服务</li>
 <li><strong>批量克隆</strong>：最大并发数（1-100）</li>
 <li><strong>救援系统</strong>：选择 ISO 用于紧急恢复</li>

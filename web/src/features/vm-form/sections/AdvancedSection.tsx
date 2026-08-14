@@ -2,7 +2,7 @@
  * 高级选项分区（创建 / 编辑共用）
  * 开发者选项与底层参数：冻结 CPU / APIC / PAE / KVM 隐藏 / Vendor ID /
  * 嵌套虚拟化 / CPU 拓扑 / 亲和性 / PCIe 热插槽 / 显示设备 / SPICE /
- * RTC / Guest Agent / 动态内存 / SMBIOS / 直接内核引导 / XML 编辑。
+ * RTC / Guest Agent / SMBIOS / 直接内核引导 / XML 编辑。
  * 含首次进入提醒遮罩（localStorage 按用户记忆）。
  */
 import { useMemo, useState } from 'react'
@@ -21,7 +21,6 @@ import {
 import { normalizeRTCStartDate, normalizeSMBIOS1Value } from '../recommend'
 import RtcConfigDialog from '../dialogs/RtcConfigDialog'
 import GuestAgentDialog from '../dialogs/GuestAgentDialog'
-import MemoryDynamicDialog from '../dialogs/MemoryDynamicDialog'
 import SmbiosDialog from '../dialogs/SmbiosDialog'
 
 interface AdvancedSectionProps {
@@ -52,7 +51,6 @@ export default function AdvancedSection({ currentVmUUID, onOpenXmlEditor }: Adva
 
   const [rtcVisible, setRtcVisible] = useState(false)
   const [guestAgentVisible, setGuestAgentVisible] = useState(false)
-  const [memoryVisible, setMemoryVisible] = useState(false)
   const [smbiosVisible, setSmbiosVisible] = useState(false)
 
   // ===== 首次进入提醒遮罩（按用户记忆） =====
@@ -72,19 +70,6 @@ export default function AdvancedSection({ currentVmUUID, onOpenXmlEditor }: Adva
   }, [f.rtc_offset, f.rtc_startdate])
 
   const guestAgentSummary = f.guest_agent.enabled ? '已启用，需虚拟机内安装 qemu-guest-agent' : '默认（已禁用）'
-
-  const memorySummary = useMemo(() => {
-    if (!f.memory_dynamic_enabled) {
-      if (f.memory_compat_mode === 'legacy_static') return '静态兼容模式，可由管理员启用'
-      return '默认（已关闭）'
-    }
-    if (f.memory_backend === 'virtio_mem') {
-      const status = f.memory_pending_apply ? '待下次启动应用' : '实验'
-      return `${status} / 基础 ${f.memory_initial}GB / 最大 ${f.memory_max_dynamic}GB`
-    }
-    const status = f.memory_pending_apply ? '待下次启动应用' : '已启用'
-    return `${status} / 启动 ${f.memory_initial}GB / 最小 ${f.memory_min}GB / 最大 ${f.memory_max_dynamic}GB`
-  }, [f.memory_dynamic_enabled, f.memory_compat_mode, f.memory_backend, f.memory_pending_apply, f.memory_initial, f.memory_min, f.memory_max_dynamic])
 
   const smbiosSummary = useMemo(() => {
     const parts: string[] = []
@@ -263,12 +248,6 @@ export default function AdvancedSection({ currentVmUUID, onOpenXmlEditor }: Adva
           <ConfigEntry title="配置" summary={guestAgentSummary} onClick={() => setGuestAgentVisible(true)} />
         </FormField>
 
-        {ctx.isAdmin && (
-          <FormField label="动态内存">
-            <ConfigEntry title="配置" summary={memorySummary} onClick={() => setMemoryVisible(true)} />
-          </FormField>
-        )}
-
         <FormField label="SMBIOS">
           <ConfigEntry title="类型 1" summary={smbiosSummary} onClick={() => setSmbiosVisible(true)} />
         </FormField>
@@ -331,7 +310,6 @@ export default function AdvancedSection({ currentVmUUID, onOpenXmlEditor }: Adva
 
       <RtcConfigDialog visible={rtcVisible} onClose={() => setRtcVisible(false)} />
       <GuestAgentDialog visible={guestAgentVisible} onClose={() => setGuestAgentVisible(false)} />
-      <MemoryDynamicDialog visible={memoryVisible} onClose={() => setMemoryVisible(false)} />
       <SmbiosDialog visible={smbiosVisible} onClose={() => setSmbiosVisible(false)} currentVmUUID={currentVmUUID} />
     </SectionCard>
   )

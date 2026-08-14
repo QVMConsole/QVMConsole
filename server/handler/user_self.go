@@ -12,7 +12,6 @@ import (
 	"kvm_console/model"
 	"kvm_console/service"
 	libvirt_rpc "kvm_console/service/libvirt_rpc"
-	vm_memory "kvm_console/service/vm/memory"
 	"kvm_console/service/vm_xml"
 	"kvm_console/taskqueue"
 )
@@ -207,7 +206,6 @@ type SelfCloneVmRequest struct {
 	SpiceEnabled         *bool                             `json:"spice_enabled"` // 是否启用 SPICE 显示协议（不传=回退全局默认）
 	CPUTopologyMode      string                            `json:"cpu_topology_mode"`
 	FirstBootRebootMode  string                            `json:"first_boot_reboot_mode"`
-	MemoryDynamic        *vm_memory.VMMemoryDynamicRequest `json:"memory_dynamic"`
 	SwitchID             uint                              `json:"switch_id"`
 	SecurityGroupID      uint                              `json:"security_group_id"`
 	AllowedIPv4Addresses string                            `json:"allowed_ipv4_addresses"`
@@ -358,7 +356,6 @@ func SelfCloneVm(c *gin.Context) {
 		FirstBootRebootMode:  req.FirstBootRebootMode,
 		TemplateRootPass:     meta.RootPassword,
 		TemplateUser:         meta.TemplateUser,
-		MemoryDynamic:        sanitizeUserMemoryDynamicRequest(req.MemoryDynamic, req.RAM),
 		SwitchID:             req.SwitchID,
 		SecurityGroupID:      req.SecurityGroupID,
 		AllowedIPv4Addresses: req.AllowedIPv4Addresses,

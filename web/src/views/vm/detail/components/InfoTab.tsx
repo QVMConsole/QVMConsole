@@ -218,13 +218,6 @@ export default function InfoTab({
     return { text: '未配置', color: 'grey' as const }
   }, [guestAgentStatus])
 
-  // 内存策略标签
-  const memoryBackendText = vm?.memory_backend === 'virtio_mem' ? 'virtio-mem 弹性' : 'Balloon 动态'
-  const memoryTooltip =
-    vm?.memory_backend === 'virtio_mem'
-      ? 'Windows 弹性内存基于 virtio-mem：主内存为规格值，基础内存自动计算；运行后使用率超过 70% 每次扩容 1GB，低于 50% 时按目标使用率缩容。'
-      : '系统会根据宿主机资源和面板调度策略动态调整：宿主机内存紧张时可能回收，但最低不低于设定内存的 50%；资源充足时可额外调度约 30% 内存应对突发负载。'
-
   if (!vm) {
     return (
       <div className="qvm-tab-loading">
@@ -244,13 +237,6 @@ export default function InfoTab({
         </Row>
         <Row label="内存">
           {formatMemoryMB(vm.memory)}
-          {vm.memory_dynamic_enabled && (
-            <Tooltip content={memoryTooltip} position="top">
-              <Tag size="small" color={vm.memory_backend === 'virtio_mem' ? 'orange' : 'green'}>
-                {vm.memory_backend === 'virtio_mem' ? '弹性内存' : '动态内存'}
-              </Tag>
-            </Tooltip>
-          )}
         </Row>
         <Row label="PCIe 热插槽">
           {vm.machine_type === 'q35' || vm.machine_type === 'virt' ? (
@@ -488,7 +474,6 @@ export default function InfoTab({
         </Row>
         <Row label="CPU 限制">{vm.cpu_limit_percent > 0 ? `${vm.cpu_limit_percent}%` : '无限制'}</Row>
         <Row label="CPU 亲和性">{vm.cpu_affinity || '未设置'}</Row>
-        <Row label="内存策略">{memoryBackendText}</Row>
       </div>
 
       {/* 磁盘 IOPS 限制 */}

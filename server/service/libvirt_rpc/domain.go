@@ -582,62 +582,6 @@ func QemuAgentCommandRPC(name, cmd string, timeoutSeconds int32) (string, error)
 	return result[0], nil
 }
 
-// GetDomainMetadataRPC 获取域元数据（替代 virsh metadata）
-// metadataType: libvirt.DomainMetadataDescription(0) / DomainMetadataTitle(1) / DomainMetadataElement(2)
-func GetDomainMetadataRPC(name string, metadataType int32, uri string, flags uint32) (string, error) {
-	dom, err := lookupDomainByName(name)
-	if err != nil {
-		return "", err
-	}
-	l, err := GetLibvirt()
-	if err != nil {
-		return "", fmt.Errorf("获取域 %s 元数据失败: %w", name, err)
-	}
-	// 将 string 转换为 OptString：空字符串对应 nil（null），非空对应单元素切片
-	var uriOpt libvirt.OptString
-	if uri != "" {
-		uriOpt = libvirt.OptString{uri}
-	}
-	metadata, err := l.DomainGetMetadata(dom, metadataType, uriOpt, libvirt.DomainModificationImpact(flags))
-	if err != nil {
-		return "", fmt.Errorf("获取域 %s 元数据失败: %w", name, err)
-	}
-	logger.Libvirt.Info("RPC: 获取域元数据成功", "domain", name, "type", metadataType)
-	return metadata, nil
-}
-
-// SetDomainMetadataRPC 设置域元数据（替代 virsh metadata --edit）
-// metadataType: libvirt.DomainMetadataDescription(0) / DomainMetadataTitle(1) / DomainMetadataElement(2)
-// 传入空字符串的 metadata 表示删除对应元数据
-func SetDomainMetadataRPC(name string, metadataType int32, metadata string, key string, uri string, flags uint32) error {
-	dom, err := lookupDomainByName(name)
-	if err != nil {
-		return err
-	}
-	l, err := GetLibvirt()
-	if err != nil {
-		return fmt.Errorf("设置域 %s 元数据失败: %w", name, err)
-	}
-	// 将 string 转换为 OptString：空字符串对应 nil（null），非空对应单元素切片
-	var metadataOpt libvirt.OptString
-	if metadata != "" {
-		metadataOpt = libvirt.OptString{metadata}
-	}
-	var keyOpt libvirt.OptString
-	if key != "" {
-		keyOpt = libvirt.OptString{key}
-	}
-	var uriOpt libvirt.OptString
-	if uri != "" {
-		uriOpt = libvirt.OptString{uri}
-	}
-	if err := l.DomainSetMetadata(dom, metadataType, metadataOpt, keyOpt, uriOpt, libvirt.DomainModificationImpact(flags)); err != nil {
-		return fmt.Errorf("设置域 %s 元数据失败: %w", name, err)
-	}
-	logger.Libvirt.Info("RPC: 设置域元数据成功", "domain", name, "type", metadataType)
-	return nil
-}
-
 // AttachDeviceFlagsRPC 热插拔设备（替代 virsh attach-device）
 // flags: libvirt.DomainDeviceModifyLive(1) / DomainDeviceModifyConfig(2) / DomainDeviceModifyForce(4)
 func AttachDeviceFlagsRPC(name string, xmlDesc string, flags uint32) error {

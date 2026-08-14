@@ -1,7 +1,6 @@
 package lightweight
 
 import (
-	"kvm_console/service/vm/memory"
 	"kvm_console/service/vm_xml"
 )
 
@@ -41,7 +40,6 @@ type LightweightVMRegistrationRequest struct {
 	CPULimitPercent      int                        `json:"cpu_limit_percent"`
 	CPUAffinity          string                     `json:"cpu_affinity,omitempty"` // CPU 亲和性，如 "0,2,4"
 	FirstBootRebootMode  string                     `json:"first_boot_reboot_mode"`
-	MemoryDynamic        *memory.VMMemoryDynamicRequest `json:"memory_dynamic"`
 	NicModel             string                     `json:"nic_model"`
 	StoragePoolID        string                     `json:"storage_pool_id"`
 	PreserveFnOSDeviceID bool                       `json:"preserve_fnos_device_id"`

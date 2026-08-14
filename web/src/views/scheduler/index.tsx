@@ -327,7 +327,7 @@ export default function SchedulerPage() {
         <div className="sch-section-head">
           <div>
             <div className="sch-section-title">调度器概览</div>
-            <div className="sch-section-sub">当前先接入动态内存体系下的调度器，后续可继续扩展</div>
+            <div className="sch-section-sub">展示已注册的后台调度器，后续可继续扩展</div>
           </div>
         </div>
         <Spin spinning={overviewLoading}>

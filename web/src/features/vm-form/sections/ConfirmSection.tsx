@@ -94,13 +94,6 @@ export default function ConfirmSection() {
     if (f.firmware_compat) items.push('UEFI 固件兼容')
     if (f.cpu_hotplug_enabled) items.push('CPU 热添加')
     if (f.cpu_limit_enabled) items.push(`CPU 限制 ${f.cpu_limit_percent}%`)
-    if (f.memory_dynamic_enabled) {
-      items.push(
-        f.memory_backend === 'virtio_mem'
-          ? `Windows 弹性内存（基础 ${f.memory_initial}GB / 最大 ${f.memory_max_dynamic}GB）`
-          : `动态内存（启动 ${f.memory_initial}GB / 最大 ${f.memory_max_dynamic}GB）`,
-      )
-    }
     return items
   }, [f])
 

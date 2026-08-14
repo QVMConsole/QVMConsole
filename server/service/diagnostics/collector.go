@@ -399,7 +399,6 @@ func sanitizedSettings(cfg *config.Config) map[string]interface{} {
 		"site_title":                       cfg.SiteTitle,
 		"development_mode":                 cfg.DevelopmentMode,
 		"maintenance_mode":                 cfg.MaintenanceMode,
-		"dynamic_memory_scheduler_enabled": cfg.DynamicMemorySchedulerEnabled,
 		"batch_clone_max_concurrency":      cfg.BatchCloneMaxConcurrency,
 		"jwt_secret_rotate_hours":          cfg.JWTSecretRotateHours,
 		"log_max_backups":                  cfg.LogMaxBackups,

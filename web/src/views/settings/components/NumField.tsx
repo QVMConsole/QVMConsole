@@ -1,6 +1,6 @@
 /**
  * 数字参数字段卡片（label + InputNumber + 提示）
- * 用于动态内存调度 / 带宽限制 / 默认 IOPS 等多数字段的网格布局，
+ * 用于带宽限制 / 默认 IOPS 等多数字段的网格布局，
  * 配合 .stg-field-grid 使用，保证多列排版整齐一致
  */
 import { InputNumber } from '@douyinfe/semi-ui'

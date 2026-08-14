@@ -1,7 +1,7 @@
 /**
  * 虚拟机表单核心 hook
  * 集中管理表单状态与全部联动规则（OS/ISO/模板/架构/机型/引导切换、
- * 动态内存推荐、编辑回填），创建向导与编辑表单共用同一份逻辑。
+ * 编辑回填），创建向导与编辑表单共用同一份逻辑。
  */
 import { useCallback, useMemo, useRef, useState } from 'react'
 import type { TemplateItem } from '@/api/template'
@@ -16,13 +16,11 @@ import {
   type CreateDefaultFormOptions,
 } from './defaults'
 import {
-  getElasticMemorySpecFromConfig,
   getRecommendedRTCOffset,
   getRecommendedVideoModel,
   normalizeAPICForForm,
   normalizePAEForForm,
   normalizeRTCOffsetForForm,
-  recommendedMemoryDynamicValues,
   shouldUseBIOSForI440FXWindows,
 } from './recommend'
 import {
@@ -68,38 +66,10 @@ export function buildEditFormState(
     ...createEmptySMBIOS1Config(),
     ...(detail.smbios1 || {}),
   } as VmFormModel['smbios1']
-  next.memory_dynamic_enabled = !!detail.memory_dynamic_enabled
-  next.memory_backend = detail.memory_backend || 'balloon'
-  next.memory_initial = Math.max(1, Math.round((detail.memory_initial || detail.memory || 1024) / 1024))
-  next.memory_min = Math.max(1, Math.round((detail.memory_min || 1024) / 1024))
-  next.memory_max_dynamic = Math.max(
-    1,
-    Math.round((detail.memory_max_dynamic || detail.max_memory || detail.memory || 1024) / 1024),
-  )
   next.cpu_limit_enabled = Number(detail.cpu_limit_percent || 0) > 0
   next.cpu_limit_percent = next.cpu_limit_enabled ? Number(detail.cpu_limit_percent) : 100
   next.cpu_affinity = detail.cpu_affinity || ''
-  const rowMemoryGB = Math.max(1, Math.round((detail.memory || row.memory || 1024) / 1024))
-  if (next.memory_dynamic_enabled && next.memory_backend === 'virtio_mem') {
-    next.memory = getElasticMemorySpecFromConfig(
-      next.memory_initial,
-      next.memory_max_dynamic,
-      rowMemoryGB,
-    )
-  } else {
-    next.memory = rowMemoryGB
-  }
-  next.memory_auto_balloon = !!detail.memory_auto_balloon
-  next.memory_current = 0
-  next.memory_virtio_mem_current = Math.max(
-    0,
-    Math.round((detail.memory_virtio_mem_current || 0) / 1024),
-  )
-  next.memory_dynamic_touched = false
-  next.memory_pending_apply = !!detail.memory_pending_apply
-  next.memory_compat_mode = detail.memory_compat_mode || 'legacy_static'
-  next.memory_balloon_supported = !!detail.memory_balloon_supported
-  next.memory_balloon_status = detail.memory_balloon_status || 'not_running'
+  next.memory = Math.max(1, Math.round((detail.memory || row.memory || 1024) / 1024))
   if (detail.nic_model) next.nic_model = detail.nic_model
   next.arch = detail.arch || prev.arch || 'x86_64'
   next.machine_type = detail.machine_type || prev.machine_type || 'q35'
@@ -175,15 +145,6 @@ export function useVmForm({ isEdit, registration, hostArch }: UseVmFormParams) {
     )
   }, [isFnOSTemplate, disableSystemInit, form.fnos_device_id_mode, hasCustomFnosDeviceId])
 
-  /** 是否为 Windows 内存目标（决定是否可用 virtio_mem 弹性内存） */
-  const isWindowsMemoryTarget = useMemo(() => {
-    if (isEdit) return form.os_type === 'windows' || form.memory_backend === 'virtio_mem'
-    if (isTemplateSourceMode) return form.template_type === 'windows'
-    if (form.create_mode === 'import') return false
-    return form.os_type === 'windows'
-  }, [isEdit, form.os_type, form.memory_backend, isTemplateSourceMode, form.template_type, form.create_mode])
-
-  const windowsElasticMemoryDisabled = !isWindowsMemoryTarget
   const i440fxWindowsBios = shouldUseBIOSForI440FXWindows(form, isEdit)
 
   // ==================== 模板联动 ====================
@@ -268,12 +229,6 @@ export function useVmForm({ isEdit, registration, hostArch }: UseVmFormParams) {
         const guestType = tpl.type === 'windows' ? 'windows' : 'linux'
         next.rtc_offset = getRecommendedRTCOffset(guestType)
         next.video_model = getRecommendedVideoModel(guestType, next.arch)
-        // 非 Windows 目标不允许 virtio_mem，回退 balloon
-        if (guestType !== 'windows' && next.memory_backend === 'virtio_mem') {
-          next.memory_backend = 'balloon'
-          const spec = next.ram || 1
-          Object.assign(next, recommendedMemoryDynamicValues('balloon', spec))
-        }
         return next
       })
       applySelectedTemplateSettings(tpl, true)
@@ -318,10 +273,6 @@ export function useVmForm({ isEdit, registration, hostArch }: UseVmFormParams) {
         next.rtc_offset = getRecommendedRTCOffset(osType)
         next.video_model =
           next.arch === 'aarch64' ? 'ramfb' : getRecommendedVideoModel(osType, next.arch)
-        if (osType !== 'windows' && next.memory_backend === 'virtio_mem') {
-          next.memory_backend = 'balloon'
-          Object.assign(next, recommendedMemoryDynamicValues('balloon', next.ram || 1))
-        }
         return next
       })
     },
@@ -341,10 +292,6 @@ export function useVmForm({ isEdit, registration, hostArch }: UseVmFormParams) {
           next.os_type = iso.os_type
           next.rtc_offset = getRecommendedRTCOffset(iso.os_type)
           next.video_model = getRecommendedVideoModel(iso.os_type, next.arch)
-          if (iso.os_type !== 'windows' && next.memory_backend === 'virtio_mem') {
-            next.memory_backend = 'balloon'
-            Object.assign(next, recommendedMemoryDynamicValues('balloon', next.ram || 1))
-          }
         }
         if (iso.os_variant) next.os_variant = iso.os_variant
         const minDisk = iso.min_disk || (iso.os_type === 'windows' ? 20 : 10)
@@ -402,10 +349,6 @@ export function useVmForm({ isEdit, registration, hostArch }: UseVmFormParams) {
               : next.os_type
         next.rtc_offset = getRecommendedRTCOffset(guestType)
         next.video_model = getRecommendedVideoModel(guestType, next.arch)
-        if (guestType !== 'windows' && next.memory_backend === 'virtio_mem') {
-          next.memory_backend = 'balloon'
-          Object.assign(next, recommendedMemoryDynamicValues('balloon', next.ram || 1))
-        }
         return next
       })
       if (mode === 'template') ensureTemplateDefaults(selectedTemplate)
@@ -484,79 +427,6 @@ export function useVmForm({ isEdit, registration, hostArch }: UseVmFormParams) {
     })
   }, [])
 
-  // ==================== 动态内存联动 ====================
-
-  /** 应用动态内存推荐值（按当前后端类型） */
-  const applyRecommendedMemoryDynamicValues = useCallback((spec?: number) => {
-    setForm((prev) => {
-      const base = spec ?? (isEdit ? prev.memory || prev.ram || 1 : prev.ram || 1)
-      return { ...prev, ...recommendedMemoryDynamicValues(prev.memory_backend, base) }
-    })
-  }, [isEdit])
-
-  const handleDynamicMemoryEnabledChange = useCallback(
-    (enabled: boolean) => {
-      setForm((prev) => {
-        const next = { ...prev, memory_dynamic_enabled: enabled, memory_dynamic_touched: true }
-        if (enabled) {
-          const base = isEdit ? prev.memory || prev.ram || 1 : prev.ram || 1
-          Object.assign(next, recommendedMemoryDynamicValues(prev.memory_backend, base))
-        }
-        return next
-      })
-    },
-    [isEdit],
-  )
-
-  const handleMemoryBackendChange = useCallback(
-    (backend: string) => {
-      setForm((prev) => {
-        const base = isEdit ? prev.memory || prev.ram || 1 : prev.ram || 1
-        return {
-          ...prev,
-          memory_backend: backend,
-          memory_dynamic_touched: true,
-          ...recommendedMemoryDynamicValues(backend, base),
-        }
-      })
-    },
-    [isEdit],
-  )
-
-  /** 基础内存变化时，若已启用动态内存则同步推荐值 */
-  const handleBaseMemoryChange = useCallback(() => {
-    setForm((prev) => {
-      if (!prev.memory_dynamic_enabled) return prev
-      const base = isEdit ? prev.memory || 1 : prev.ram || 1
-      return {
-        ...prev,
-        memory_dynamic_touched: true,
-        ...recommendedMemoryDynamicValues(prev.memory_backend, base),
-      }
-    })
-  }, [isEdit])
-
-  /** 打开动态内存配置弹窗前兜底默认值 */
-  const ensureMemoryDynamicDefaults = useCallback(() => {
-    setForm((prev) => {
-      const next = { ...prev }
-      const base = isEdit ? prev.memory || prev.ram || 1 : prev.ram || 1
-      if (!next.memory_initial || next.memory_initial < 1) next.memory_initial = base
-      if (next.memory_backend === 'virtio_mem') {
-        const initial = Math.max(1, Math.floor(base / 2))
-        next.memory_initial = initial
-        next.memory_min = initial
-      } else if (!next.memory_min || next.memory_min < 1) {
-        next.memory_min = Math.max(1, Math.floor(next.memory_initial / 2))
-      }
-      const recommendedMax = Math.max(base, Math.ceil(base * 1.3))
-      if (!next.memory_max_dynamic || next.memory_max_dynamic < next.memory_initial) {
-        next.memory_max_dynamic = recommendedMax
-      }
-      return next
-    })
-  }, [isEdit])
-
   // ==================== 编辑模式回填 ====================
 
   /** 应用虚拟机详情到表单（编辑模式打开/刷新时调用）
@@ -599,8 +469,6 @@ export function useVmForm({ isEdit, registration, hostArch }: UseVmFormParams) {
     normalizedFnosDeviceId,
     hasCustomFnosDeviceId,
     shouldPreserveFnosDeviceId,
-    isWindowsMemoryTarget,
-    windowsElasticMemoryDisabled,
     i440fxWindowsBios,
     // 联动
     applySelectedTemplateSettings,
@@ -613,12 +481,6 @@ export function useVmForm({ isEdit, registration, hostArch }: UseVmFormParams) {
     onMachineTypeChange,
     onVirtTypeChange,
     onArchChange,
-    // 动态内存
-    applyRecommendedMemoryDynamicValues,
-    handleDynamicMemoryEnabledChange,
-    handleMemoryBackendChange,
-    handleBaseMemoryChange,
-    ensureMemoryDynamicDefaults,
     // 编辑
     applyEditVmDetail,
   }

@@ -7,7 +7,6 @@ import (
 
 	"kvm_console/model"
 	"kvm_console/service"
-	vm_memory "kvm_console/service/vm/memory"
 	"kvm_console/service/vm/vmimport"
 	"kvm_console/service/vm_xml"
 	"kvm_console/taskqueue"
@@ -48,7 +47,6 @@ type CreateVmRequest struct {
 	CPUAffinity          string                            `json:"cpu_affinity"` // CPU 亲和性，如 "0,2,4"
 	VirtType             string                            `json:"virt_type"`    // 虚拟化方案: kvm/qemu
 	Arch                 string                            `json:"arch"`         // 目标架构: x86_64/aarch64/riscv64
-	MemoryDynamic        *vm_memory.VMMemoryDynamicRequest `json:"memory_dynamic"`
 	SwitchID             uint                              `json:"switch_id"`
 	SecurityGroupID      uint                              `json:"security_group_id"`
 	AllowedIPv4Addresses string                            `json:"allowed_ipv4_addresses"`
@@ -148,7 +146,6 @@ func CreateVm(c *gin.Context) {
 		CPUAffinity:          req.CPUAffinity,
 		VirtType:             req.VirtType,
 		Arch:                 req.Arch,
-		MemoryDynamic:        req.MemoryDynamic,
 		SwitchID:             req.SwitchID,
 		SecurityGroupID:      req.SecurityGroupID,
 		AllowedIPv4Addresses: req.AllowedIPv4Addresses,
@@ -184,9 +181,6 @@ func CreateVm(c *gin.Context) {
 	usernameStr := username.(string)
 	role, _ := c.Get("role")
 	params.IsAdmin = role == "admin"
-	if role != "admin" {
-		params.MemoryDynamic = sanitizeUserMemoryDynamicRequest(req.MemoryDynamic, req.RAM)
-	}
 
 	// 如果是普通用户，检查配额
 	if role == "user" {
@@ -308,7 +302,6 @@ type ImportDiskByPathRequest struct {
 	CPUAffinity          string                            `json:"cpu_affinity"` // CPU 亲和性，如 "0,2,4"
 	TemplateRootPass     string                            `json:"template_root_pass"`
 	TemplateUser         string                            `json:"template_user"`
-	MemoryDynamic        *vm_memory.VMMemoryDynamicRequest `json:"memory_dynamic"`
 	SwitchID             uint                              `json:"switch_id"`
 	SecurityGroupID      uint                              `json:"security_group_id"`
 	AllowedIPv4Addresses string                            `json:"allowed_ipv4_addresses"`
@@ -397,7 +390,6 @@ func AdminImportDisk(c *gin.Context) {
 		CPUAffinity:          req.CPUAffinity,
 		TemplateRootPass:     req.TemplateRootPass,
 		TemplateUser:         req.TemplateUser,
-		MemoryDynamic:        req.MemoryDynamic,
 		SwitchID:             req.SwitchID,
 		SecurityGroupID:      req.SecurityGroupID,
 		AllowedIPv4Addresses: req.AllowedIPv4Addresses,
