@@ -71,7 +71,7 @@ func (VPCSecurityGroup) TableName() string {
 	return "vpc_security_groups"
 }
 
-// VPCSecurityGroupRule 安全组规则。规则语义为允许，默认拒绝入站、允许出站。
+// VPCSecurityGroupRule 安全组规则。入站规则表示接收，出站规则表示拒绝；未命中规则时默认拒绝入站、允许出站。
 type VPCSecurityGroupRule struct {
 	ID              uint      `json:"id" gorm:"primaryKey"`
 	SecurityGroupID uint      `json:"security_group_id" gorm:"index;not null"`

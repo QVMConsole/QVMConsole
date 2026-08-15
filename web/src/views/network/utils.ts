@@ -64,6 +64,11 @@ export function directionText(direction?: string): string {
   return direction || '-'
 }
 
+/** 安全组规则动作由方向固定决定：入站接收，出站拒绝。 */
+export function securityGroupRuleActionText(direction?: string): string {
+  return direction === 'egress' ? '拒绝' : '接收'
+}
+
 /** 安全组规则地址族文案，兼容没有 address_family 的历史响应。 */
 export function addressFamilyText(rule: VpcSecurityGroupRule): string {
   if (rule.address_family === 'ipv6' || rule.protocol === 'icmpv6') return 'IPv6'

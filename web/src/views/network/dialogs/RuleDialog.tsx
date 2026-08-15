@@ -7,6 +7,7 @@ import { useMemo, useState } from 'react'
 import { Checkbox, Input, Modal, Select, TextArea, Toast } from '@douyinfe/semi-ui'
 import { addVPCSecurityGroupRule, vpcSwitchModeDetail, type VpcSecurityGroup, type VpcSwitch } from '@/api/vpc'
 import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
+import { securityGroupRuleActionText } from '../utils'
 
 interface RuleDialogProps {
   group: VpcSecurityGroup
@@ -62,14 +63,15 @@ export default function RuleDialog({ group, switches, securityGroups, onClose, o
     [securityGroups, group.username],
   )
 
+  const peerText = form.direction === 'egress' ? '目标' : '来源'
   const targetHelp =
     form.target_type === 'cidr'
       ? form.address_family === 'ipv6'
-        ? '支持 IPv6 地址或 CIDR，如 ::/0 表示所有 IPv6 来源'
-        : '支持 IPv4 地址或 CIDR，如 0.0.0.0/0 表示所有 IPv4 来源'
+        ? `支持 IPv6 地址或 CIDR，如 ::/0 表示所有 IPv6 ${peerText}`
+        : `支持 IPv4 地址或 CIDR，如 0.0.0.0/0 表示所有 IPv4 ${peerText}`
       : form.target_type === 'switch'
-        ? `选择当前用户可访问的交换机，仅匹配其中的 ${form.address_family === 'ipv6' ? 'IPv6' : 'IPv4'} 地址`
-        : `选择当前用户拥有的安全组，仅匹配其中的 ${form.address_family === 'ipv6' ? 'IPv6' : 'IPv4'} 地址`
+        ? `选择当前用户可访问的${peerText}交换机，仅匹配其中的 ${form.address_family === 'ipv6' ? 'IPv6' : 'IPv4'} 地址`
+        : `选择当前用户拥有的${peerText}安全组，仅匹配其中的 ${form.address_family === 'ipv6' ? 'IPv6' : 'IPv4'} 地址`
 
   const handleAddressFamilyChange = (family: 'ipv4' | 'ipv6') => {
     patch({
@@ -192,6 +194,14 @@ export default function RuleDialog({ group, switches, securityGroups, onClose, o
           />
         </div>
         <div className="qvm-form-item">
+          <div className="qvm-form-label">动作</div>
+          <Input value={securityGroupRuleActionText(form.direction)} disabled />
+          <div className="qvm-form-tip">动作由方向自动确定，仅供预览</div>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
+        <div className="qvm-form-item">
           <div className="qvm-form-label">IP 版本</div>
           <Select
             style={{ width: '100%' }}
@@ -203,23 +213,22 @@ export default function RuleDialog({ group, switches, securityGroups, onClose, o
             ]}
           />
         </div>
-      </div>
-
-      <div className="qvm-form-item">
-        <div className="qvm-form-label">协议</div>
-        <Select
-          style={{ width: '100%' }}
-          value={form.protocol}
-          onChange={(v) => patch({ protocol: String(v) })}
-          optionList={[
-            { value: 'tcp', label: 'TCP' },
-            { value: 'udp', label: 'UDP' },
-            form.address_family === 'ipv6'
-              ? { value: 'icmpv6', label: 'ICMPv6' }
-              : { value: 'icmp', label: 'ICMP' },
-            { value: 'all', label: '全部' },
-          ]}
-        />
+        <div className="qvm-form-item">
+          <div className="qvm-form-label">协议</div>
+          <Select
+            style={{ width: '100%' }}
+            value={form.protocol}
+            onChange={(v) => patch({ protocol: String(v) })}
+            optionList={[
+              { value: 'tcp', label: 'TCP' },
+              { value: 'udp', label: 'UDP' },
+              form.address_family === 'ipv6'
+                ? { value: 'icmpv6', label: 'ICMPv6' }
+                : { value: 'icmp', label: 'ICMP' },
+              { value: 'all', label: '全部' },
+            ]}
+          />
+        </div>
       </div>
 
       <div className="qvm-form-item">
@@ -269,7 +278,7 @@ export default function RuleDialog({ group, switches, securityGroups, onClose, o
           <Select
             style={{ width: '100%' }}
             filter
-            placeholder="选择允许访问的交换机"
+            placeholder={form.direction === 'egress' ? '选择拒绝访问的目标交换机' : '选择允许访问的来源交换机'}
             emptyContent="当前用户没有可选交换机"
             value={form.target_value}
             onChange={(v) => patch({ target_value: String(v || '') })}
@@ -280,7 +289,7 @@ export default function RuleDialog({ group, switches, securityGroups, onClose, o
           <Select
             style={{ width: '100%' }}
             filter
-            placeholder="选择允许访问的安全组"
+            placeholder={form.direction === 'egress' ? '选择拒绝访问的目标安全组' : '选择允许访问的来源安全组'}
             emptyContent="当前用户没有可选安全组"
             value={form.target_value}
             onChange={(v) => patch({ target_value: String(v || '') })}

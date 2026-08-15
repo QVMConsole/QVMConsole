@@ -64,7 +64,7 @@ const vpcSwitchBody =
   'JSON: name, username, internet_enabled(普通用户互联网开关), uplink_mode(none/physical/system), uplink_if, uplink_gateway, dhcp_enabled, migrate_host_ip, bridge_vlan_id, cidr, gateway_ip, dhcp_start, dhcp_end, ipv6_security_enabled, trusted_ipv6_prefixes, allow_promiscuous, allow_mac_change, allow_forged_transmits'
 const securityGroupBody = 'JSON: name, remark, username'
 const securityRuleBody =
-  'JSON: direction, address_family(ipv4/ipv6), protocol(tcp/udp/icmp/icmpv6/all), port_start, port_end, target_type(cidr/switch/security_group), target_value, action, remark'
+  'JSON: direction(ingress=接收、egress=拒绝), address_family(ipv4/ipv6), protocol(tcp/udp/icmp/icmpv6/all), port_start, port_end, target_type(cidr/switch/security_group), target_value, remark；动作由方向固定推导，无需提交 action。'
 const templateMetaBody =
   'JSON: admin_name, display_name, clone_visible, disabled, category, vcpu, ram, disk_size, disk_bus, nic_model, video_model, cpu_topology_mode, first_boot_reboot_mode'
 const hostRuleBody = 'JSON: name, direction, protocol, port, source, action, enabled'

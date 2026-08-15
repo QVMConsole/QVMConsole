@@ -9,7 +9,14 @@ import { Button, Empty, Input, Pagination, Select, Table, Tag, Tooltip } from '@
 import { IconDelete, IconEdit, IconLock, IconPlus, IconSearch } from '@douyinfe/semi-icons'
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table'
 import type { VpcSecurityGroup, VpcSecurityGroupRule } from '@/api/vpc'
-import { addressFamilyText, directionText, portText, protocolText, targetText } from '../utils'
+import {
+  addressFamilyText,
+  directionText,
+  portText,
+  protocolText,
+  securityGroupRuleActionText,
+  targetText,
+} from '../utils'
 
 const PAGE_SIZE = 100
 
@@ -54,6 +61,18 @@ function RulePanel({
       render: (_text, rule) => (
         <Tag size="small" color={addressFamilyText(rule) === 'IPv6' ? 'violet' : 'blue'}>
           {addressFamilyText(rule)}
+        </Tag>
+      ),
+    },
+    {
+      key: 'rule_action',
+      title: '动作',
+      dataIndex: 'direction',
+      width: 80,
+      align: 'center',
+      render: (text) => (
+        <Tag size="small" color="grey">
+          {securityGroupRuleActionText(text)}
         </Tag>
       ),
     },

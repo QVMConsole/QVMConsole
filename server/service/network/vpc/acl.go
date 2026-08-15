@@ -28,6 +28,9 @@ func BuildVPCACLRules() (string, error) {
 	b.WriteString("  chain forward {\n")
 	b.WriteString("    type filter hook forward priority -40; policy accept;\n")
 	var vmAddresses []string
+	var egressRejects []string
+	var ingressAllows []string
+	var dnatRejects []string
 	for _, binding := range bindings {
 		var sw model.VPCSwitch
 		if err := model.DB.First(&sw, binding.SwitchID).Error; err == nil && HookSwitchUsesDirectBridge(sw) {
@@ -38,28 +41,46 @@ func BuildVPCACLRules() (string, error) {
 			continue
 		}
 		for _, vmAddress := range bindingAddresses {
+			rejects, err := buildVPCEgressRejectRules(binding, vmAddress)
+			if err != nil {
+				return "", err
+			}
+			egressRejects = append(egressRejects, rejects...)
 			allows, err := buildVPCIngressAllowRules(binding, vmAddress)
 			if err != nil {
 				return "", err
 			}
-			for _, line := range allows {
-				b.WriteString(line)
-			}
+			ingressAllows = append(ingressAllows, allows...)
 			// DNAT 仅适用于 IPv4；路由型公网 IPv6 使用普通目的地址规则。
 			if addressFamilyExpression(vmAddress) == "ip" {
-				b.WriteString(fmt.Sprintf("    ct status dnat ip daddr %s reject\n", vmAddress))
+				dnatRejects = append(dnatRejects, fmt.Sprintf("    ct status dnat ip daddr %s reject\n", vmAddress))
 			}
 			vmAddresses = append(vmAddresses, vmAddress)
 		}
 	}
+	// 拒绝规则必须先于接收规则和 established,related，避免已建立连接或另一台 VM 的入站放行绕过出站限制。
+	writeUniqueSortedACLRules(&b, egressRejects)
+	writeUniqueSortedACLRules(&b, ingressAllows)
+	writeUniqueSortedACLRules(&b, dnatRejects)
 	b.WriteString("    ct state established,related accept\n")
-	sort.Strings(vmAddresses)
-	for _, vmAddress := range vmAddresses {
+	for _, vmAddress := range uniqueSortedStrings(vmAddresses) {
 		b.WriteString(fmt.Sprintf("    %s daddr %s reject\n", addressFamilyExpression(vmAddress), vmAddress))
 	}
 	b.WriteString("  }\n")
 	b.WriteString("}\n")
 	return b.String(), nil
+}
+
+func writeUniqueSortedACLRules(builder *strings.Builder, lines []string) {
+	sort.Strings(lines)
+	previous := ""
+	for _, line := range lines {
+		if line == previous {
+			continue
+		}
+		builder.WriteString(line)
+		previous = line
+	}
 }
 
 func vpcFirewallAddressesForVM(vmName string) []string {
@@ -165,6 +186,54 @@ func buildVPCIngressAllowRules(binding model.VPCVMBinding, vmIP string) ([]strin
 				match += " meta l4proto ipv6-icmp accept\n"
 			default:
 				match += " accept\n"
+			}
+			lines = append(lines, match)
+		}
+	}
+	sort.Strings(lines)
+	return lines, nil
+}
+
+// buildVPCEgressRejectRules 将出站规则编译为拒绝动作；未命中的出站流量沿用 forward 链默认接收策略。
+func buildVPCEgressRejectRules(binding model.VPCVMBinding, vmIP string) ([]string, error) {
+	var rules []model.VPCSecurityGroupRule
+	model.DB.Where("security_group_id = ? AND direction = ?", binding.SecurityGroupID, "egress").Find(&rules)
+	var lines []string
+	for _, rule := range rules {
+		family := addressFamilyExpression(vmIP)
+		ruleFamily := "ipv4"
+		if family == "ip6" {
+			ruleFamily = "ipv6"
+		}
+		if effectiveSecurityGroupRuleAddressFamily(rule) != ruleFamily {
+			continue
+		}
+		targets, err := resolveRuleSources(rule)
+		if err != nil {
+			return nil, err
+		}
+		for _, target := range targets {
+			if !sameAddressFamily(vmIP, target) {
+				continue
+			}
+			match := fmt.Sprintf("    %s saddr %s %s daddr %s", family, vmIP, family, target)
+			switch rule.Protocol {
+			case "tcp", "udp":
+				portMatch := strconv.Itoa(rule.PortStart)
+				if rule.PortEnd > rule.PortStart {
+					portMatch = fmt.Sprintf("%d-%d", rule.PortStart, rule.PortEnd)
+				}
+				match += fmt.Sprintf(" %s dport %s reject\n", rule.Protocol, portMatch)
+			case "icmp":
+				if family == "ip6" {
+					match += " meta l4proto ipv6-icmp reject\n"
+				} else {
+					match += " icmp type echo-request reject\n"
+				}
+			case "icmpv6":
+				match += " meta l4proto ipv6-icmp reject\n"
+			default:
+				match += " reject\n"
 			}
 			lines = append(lines, match)
 		}

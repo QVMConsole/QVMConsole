@@ -217,7 +217,10 @@ func AddVPCSecurityGroupRule(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
 		return
 	}
-	_ = service.ApplyVPCACLRules()
+	if err := service.ApplyVPCACLRules(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "规则已保存，但应用 VPC ACL 失败: " + err.Error()})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "规则已添加", "data": rule})
 }
 
@@ -228,7 +231,10 @@ func DeleteVPCSecurityGroupRule(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
 		return
 	}
-	_ = service.ApplyVPCACLRules()
+	if err := service.ApplyVPCACLRules(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "规则已删除，但应用 VPC ACL 失败: " + err.Error()})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "规则已删除"})
 }
 
