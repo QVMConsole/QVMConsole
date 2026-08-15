@@ -297,6 +297,10 @@ func BindVMVPC(c *gin.Context) {
 		c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": "轻量云服务器使用管理员分配的专用 VPC，不能切换 VPC"})
 		return
 	}
+	if service.IsSystemVPCSwitch(req.SwitchID) {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "系统基础网络交换机不可选择，请使用自己的交换机"})
+		return
+	}
 	if err := service.BindVMToVPC(username, vmName, req.SwitchID, req.SecurityGroupID); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
 		return
@@ -322,16 +326,17 @@ func SwitchVMSecurityGroup(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "安全组已切换"})
 }
 
-// ==================== 多网口管理（仅管理员） ====================
+// ==================== 多网口管理（管理员全量；弹性云用户可自助管理本人虚拟机的附加网口） ====================
 
 // ListVMInterfaces 列出虚拟机所有网口绑定
 func ListVMInterfaces(c *gin.Context) {
-	_, role := currentUserAndRole(c)
-	if role != "admin" {
-		c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": "仅管理员可管理多网口"})
+	username, role := currentUserAndRole(c)
+	vmName := c.Param("name")
+	if role != "admin" && !service.UserOwnsVM(username, vmName) {
+		c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": "无权操作此虚拟机"})
 		return
 	}
-	interfaces, err := service.ListVMInterfaces(c.Param("name"))
+	interfaces, err := service.ListVMInterfaces(vmName)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
 		return
@@ -341,17 +346,20 @@ func ListVMInterfaces(c *gin.Context) {
 
 // AddVMInterface 为虚拟机新增网口
 func AddVMInterface(c *gin.Context) {
-	_, role := currentUserAndRole(c)
-	if role != "admin" {
-		c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": "仅管理员可管理多网口"})
-		return
-	}
+	username, role := currentUserAndRole(c)
+	vmName := c.Param("name")
 	var req service.AddVMInterfaceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
 		return
 	}
-	info, err := service.AddVMInterface(c.Param("name"), req)
+	var info *service.VMInterfaceInfo
+	var err error
+	if role == "admin" {
+		info, err = service.AddVMInterface(vmName, req)
+	} else {
+		info, err = service.AddVMInterfaceAsUser(username, vmName, req)
+	}
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
 		return
@@ -361,18 +369,20 @@ func AddVMInterface(c *gin.Context) {
 
 // RemoveVMInterface 删除虚拟机指定网口
 func RemoveVMInterface(c *gin.Context) {
-	_, role := currentUserAndRole(c)
-	if role != "admin" {
-		c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": "仅管理员可管理多网口"})
-		return
-	}
+	username, role := currentUserAndRole(c)
+	vmName := c.Param("name")
 	orderStr := c.Param("order")
 	order, err := strconv.Atoi(orderStr)
 	if err != nil || order < 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "网口序号无效"})
 		return
 	}
-	if err := service.RemoveVMInterface(c.Param("name"), order); err != nil {
+	if role == "admin" {
+		err = service.RemoveVMInterface(vmName, order)
+	} else {
+		err = service.RemoveVMInterfaceAsUser(username, vmName, order)
+	}
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
 		return
 	}
@@ -381,11 +391,8 @@ func RemoveVMInterface(c *gin.Context) {
 
 // UpdateVMInterface 更新虚拟机指定网口的 VPC 绑定
 func UpdateVMInterface(c *gin.Context) {
-	_, role := currentUserAndRole(c)
-	if role != "admin" {
-		c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": "仅管理员可管理多网口"})
-		return
-	}
+	username, role := currentUserAndRole(c)
+	vmName := c.Param("name")
 	orderStr := c.Param("order")
 	order, err := strconv.Atoi(orderStr)
 	if err != nil || order < 0 {
@@ -397,7 +404,12 @@ func UpdateVMInterface(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
 		return
 	}
-	if err := service.UpdateVMInterface(c.Param("name"), order, req); err != nil {
+	if role == "admin" {
+		err = service.UpdateVMInterface(vmName, order, req)
+	} else {
+		err = service.UpdateVMInterfaceAsUser(username, vmName, order, req)
+	}
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
 		return
 	}

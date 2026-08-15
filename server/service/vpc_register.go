@@ -46,6 +46,9 @@ func DeleteVPCSwitch(operator, role string, id uint, force bool) error {
 func GetVPCSwitchVMs(operator, role string, id uint) ([]vpcpkg.VMSwitchInfo, error) {
 	return vpcpkg.GetVPCSwitchVMs(operator, role, id)
 }
+func IsSystemVPCSwitch(id uint) bool {
+	return vpcpkg.IsSystemVPCSwitch(id)
+}
 func ResetVPCSwitchTraffic(operator, role string, id uint) error {
 	return vpcpkg.ResetVPCSwitchTraffic(operator, role, id)
 }
@@ -145,6 +148,20 @@ func AttachExtraNICs(vmName string, extraNics []AddVMInterfaceRequest) error {
 }
 func ListVMInterfaces(vmName string) ([]VMInterfaceInfo, error) {
 	return vpcpkg.ListVMInterfaces(vmName)
+}
+
+// Interface management（普通用户自助：仅限本人虚拟机与本人交换机）
+func ValidateExtraNicsForUser(operator string, extraNics []AddVMInterfaceRequest) error {
+	return vpcpkg.ValidateExtraNicsForUser(operator, extraNics)
+}
+func AddVMInterfaceAsUser(operator, vmName string, req AddVMInterfaceRequest) (*VMInterfaceInfo, error) {
+	return vpcpkg.AddVMInterfaceAsUser(operator, vmName, req)
+}
+func UpdateVMInterfaceAsUser(operator, vmName string, interfaceOrder int, req AddVMInterfaceRequest) error {
+	return vpcpkg.UpdateVMInterfaceAsUser(operator, vmName, interfaceOrder, req)
+}
+func RemoveVMInterfaceAsUser(operator, vmName string, interfaceOrder int) error {
+	return vpcpkg.RemoveVMInterfaceAsUser(operator, vmName, interfaceOrder)
 }
 
 // Helpers

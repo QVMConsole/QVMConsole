@@ -1,6 +1,7 @@
 /**
- * 网口编辑弹窗（编辑模式 · 仅管理员）
- * 添加 / 编辑虚拟机网口：网卡型号 + VPC 交换机 + 安全组 + 上下行速率限制。
+ * 网口编辑弹窗（编辑模式 · 管理员与弹性云用户）
+ * 添加 / 编辑虚拟机网口：网卡型号 + VPC 交换机 + 安全组 + 上下行速率限制（速率限制仅管理员可见）。
+ * 普通用户仅能选择自己的交换机，后端按用户侧规则校验。
  */
 import { useEffect, useMemo, useState } from 'react'
 import { Divider, InputNumber, Modal, Select, Tag, TextArea, Toast } from '@douyinfe/semi-ui'
@@ -44,7 +45,7 @@ export default function NicEditDialog({
   onClose,
   onSaved,
 }: NicEditDialogProps) {
-  const { options } = useVmFormScope()
+  const { options, ctx } = useVmFormScope()
   const [nicModel, setNicModel] = useState('virtio')
   const [switchId, setSwitchId] = useState<number | null>(null)
   const [securityGroupId, setSecurityGroupId] = useState<number | null>(null)
@@ -66,9 +67,12 @@ export default function NicEditDialog({
   useEffect(() => {
     if (!visible) return
     void options.loadVPCOptions()
-    void getPortSecurityStatus()
-      .then((res) => setPortSecurityEnabled(!!res.data?.enabled))
-      .catch(() => setPortSecurityEnabled(false))
+    // 端口安全状态接口仅管理员可访问，普通用户不查询也不展示地址登记表单
+    if (ctx.isAdmin) {
+      void getPortSecurityStatus()
+        .then((res) => setPortSecurityEnabled(!!res.data?.enabled))
+        .catch(() => setPortSecurityEnabled(false))
+    }
     if (editing) {
       setNicModel(editing.binding?.nic_model || 'virtio')
       setSwitchId(editing.binding?.switch_id || editing.switch?.id || null)
@@ -193,7 +197,7 @@ export default function NicEditDialog({
           {availableSwitches.map((item) => (
             <Select.Option key={item.id} value={item.id}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                <span>{item.username ? `${item.username} / ${item.name}` : item.name}</span>
+                <span>{ctx.isAdmin && item.username ? `${item.username} / ${item.name}` : item.name}</span>
                 <Tag size="small" color={item.bridge_mode === 'bridge' ? 'orange' : 'blue'}>
                   {vpcSwitchModeDetail(item)}
                 </Tag>
@@ -245,28 +249,32 @@ export default function NicEditDialog({
           )}
         </>
       )}
-      <Divider margin="12px">速率限制</Divider>
-      <div className="qvm-vf-grid-2">
-        <FormField label="下行速率 (Mbps)">
-          <InputNumber
-            style={{ width: '100%' }}
-            value={bandwidthIn}
-            min={0}
-            max={100000}
-            onChange={(v) => setBandwidthIn(Number(v || 0))}
-          />
-        </FormField>
-        <FormField label="上行速率 (Mbps)">
-          <InputNumber
-            style={{ width: '100%' }}
-            value={bandwidthOut}
-            min={0}
-            max={100000}
-            onChange={(v) => setBandwidthOut(Number(v || 0))}
-          />
-        </FormField>
-      </div>
-      <div className="qvm-vf-tip">0 表示不限制，设置后通过 libvirt domiftune 对该网口生效</div>
+      {ctx.isAdmin && (
+        <>
+          <Divider margin="12px">速率限制</Divider>
+          <div className="qvm-vf-grid-2">
+            <FormField label="下行速率 (Mbps)">
+              <InputNumber
+                style={{ width: '100%' }}
+                value={bandwidthIn}
+                min={0}
+                max={100000}
+                onChange={(v) => setBandwidthIn(Number(v) || 0)}
+              />
+            </FormField>
+            <FormField label="上行速率 (Mbps)">
+              <InputNumber
+                style={{ width: '100%' }}
+                value={bandwidthOut}
+                min={0}
+                max={100000}
+                onChange={(v) => setBandwidthOut(Number(v) || 0)}
+              />
+            </FormField>
+          </div>
+          <div className="qvm-vf-tip">0 表示不限制，设置后通过 libvirt domiftune 对该网口生效</div>
+        </>
+      )}
     </Modal>
   )
 }

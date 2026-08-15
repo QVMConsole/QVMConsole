@@ -156,8 +156,8 @@ func Setup() *gin.Engine {
 				vm.POST("/:name/migration/preview", middleware.AdminMiddleware(), handler.PreviewVMMigration)
 				vm.POST("/:name/migrate", middleware.AdminMiddleware(), handler.MigrateVM)
 				vm.PUT("/:name/security-group", handler.SwitchVMSecurityGroup)
-				// 多网口管理（仅管理员）
-				vm.GET("/:name/interfaces", handler.ListVMInterfaces)
+			// 多网口管理（管理员全量；弹性云用户可自助管理本人虚拟机的附加网口）
+			vm.GET("/:name/interfaces", handler.ListVMInterfaces)
 				vm.POST("/:name/interfaces", handler.AddVMInterface)
 				vm.PUT("/:name/interfaces/:order", handler.UpdateVMInterface)
 				vm.DELETE("/:name/interfaces/:order", handler.RemoveVMInterface)

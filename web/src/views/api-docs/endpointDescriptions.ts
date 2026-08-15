@@ -360,13 +360,24 @@ export const endpointDescriptions: Record<string, EndpointDescription> = {
     notes: ['运行中 VM 自动执行硬盘热迁移，关机 VM 自动执行冷迁移；成功后删除源硬盘文件。'],
   },
   'PUT /vm/:name/security-group': { summary: '切换 VM 安全组', body: 'JSON: security_group_id' },
-  'GET /vm/:name/interfaces': { summary: '列出 VM 所有网口' },
-  'POST /vm/:name/interfaces': { summary: '新增 VM 网口', body: 'JSON: switch_id, security_group_id, nic_model, bandwidth_inbound_avg, bandwidth_outbound_avg, allowed_ipv4_addresses, allowed_ipv6_addresses' },
+  'GET /vm/:name/interfaces': {
+    summary: '列出 VM 所有网口',
+    notes: ['普通用户仅可查看本人虚拟机（需先满足归属校验）。'],
+  },
+  'POST /vm/:name/interfaces': {
+    summary: '新增 VM 网口',
+    body: 'JSON: switch_id, security_group_id, nic_model, bandwidth_inbound_avg, bandwidth_outbound_avg, allowed_ipv4_addresses, allowed_ipv6_addresses',
+    notes: ['普通用户（弹性云）仅能操作本人虚拟机，且只能接入本人的非系统交换机；网口级速率限制仅管理员生效，轻量云用户不允许自助操作。'],
+  },
   'PUT /vm/:name/interfaces/:order': {
     summary: '更新 VM 指定网口',
     body: 'JSON: switch_id, security_group_id, nic_model, bandwidth_inbound_avg, bandwidth_outbound_avg, allowed_ipv4_addresses, allowed_ipv6_addresses',
+    notes: ['普通用户（弹性云）仅能更新本人虚拟机的附加网口（order > 0），主网口请使用 VPC 绑定接口；速率限制保留管理员配置。'],
   },
-  'DELETE /vm/:name/interfaces/:order': { summary: '删除 VM 指定网口' },
+  'DELETE /vm/:name/interfaces/:order': {
+    summary: '删除 VM 指定网口',
+    notes: ['普通用户（弹性云）仅能删除本人虚拟机的附加网口（order > 0），主网口由 VPC 绑定管理。'],
+  },
   'DELETE /vm/:name': { summary: '删除虚拟机', body: 'JSON: delete_disks, transfer_disks, transfer_user' },
   'POST /vm/:name/force-delete': {
     summary: '强制删除虚拟机',

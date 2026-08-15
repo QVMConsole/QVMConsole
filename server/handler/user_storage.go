@@ -575,6 +575,14 @@ func SelfCreateVm(c *gin.Context) {
 		})
 		return
 	}
+	// 附加网口仅允许接入用户自己的交换机
+	if err := service.ValidateExtraNicsForUser(usernameStr, req.ExtraNics); err != nil {
+		c.JSON(http.StatusForbidden, gin.H{
+			"code":    403,
+			"message": err.Error(),
+		})
+		return
+	}
 	// 仅当用户指定了交换机时才解析 VPC
 	if req.SwitchID != 0 || service.IsPortSecurityEnabled() {
 		switchID, securityGroupID, err := service.ResolveVPCForVMCreate(usernameStr, req.SwitchID, req.SecurityGroupID)

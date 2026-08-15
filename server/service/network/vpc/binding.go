@@ -385,7 +385,8 @@ func GetVPCBindingInfo(operator, role, vmName string) (*VPCBindingInfo, error) {
 		model.DB.Order("username ASC, id ASC").Find(&info.Switches)
 		model.DB.Order("username ASC, is_default DESC, id ASC").Find(&info.Groups)
 	} else if username != "" {
-		model.DB.Where("username = ? OR is_system = ?", username, true).Order("is_system DESC, id ASC").Find(&info.Switches)
+		// 普通用户只能查看和使用自己的交换机，系统基础网络交换机仅管理员可选
+		model.DB.Where("username = ?", username).Order("id ASC").Find(&info.Switches)
 		model.DB.Where("username = ?", username).Order("is_default DESC, id ASC").Find(&info.Groups)
 	}
 	for i := range info.Switches {

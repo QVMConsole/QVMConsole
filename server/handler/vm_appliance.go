@@ -142,6 +142,11 @@ func importApplianceHandler(c *gin.Context, admin bool) {
 		return
 	}
 	if !admin {
+		// 附加网口仅允许接入用户自己的交换机
+		if err := service.ValidateExtraNicsForUser(usernameStr, params.ExtraNics); err != nil {
+			c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": err.Error()})
+			return
+		}
 		if req.SwitchID != 0 || service.IsPortSecurityEnabled() {
 			switchID, securityGroupID, err := service.ResolveVPCForVMCreate(usernameStr, req.SwitchID, req.SecurityGroupID)
 			if err != nil {

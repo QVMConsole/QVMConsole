@@ -11,7 +11,7 @@ import (
 	"kvm_console/utils"
 )
 
-// AddVMInterface 为虚拟机新增一个网口并绑定到 VPC 交换机（仅管理员）
+// AddVMInterface 为虚拟机新增一个网口并绑定到 VPC 交换机（管理员原语；普通用户请使用 AddVMInterfaceAsUser）
 func AddVMInterface(vmName string, req AddVMInterfaceRequest) (*VMInterfaceInfo, error) {
 	vmName = strings.TrimSpace(vmName)
 	if vmName == "" {
@@ -193,7 +193,7 @@ func AddVMInterface(vmName string, req AddVMInterfaceRequest) (*VMInterfaceInfo,
 	}, nil
 }
 
-// UpdateVMInterface 更新虚拟机指定网口的 VPC 交换机/安全组绑定（仅管理员）
+// UpdateVMInterface 更新虚拟机指定网口的 VPC 交换机/安全组绑定（管理员原语；普通用户请使用 UpdateVMInterfaceAsUser）
 func UpdateVMInterface(vmName string, interfaceOrder int, req AddVMInterfaceRequest) error {
 	vmName = strings.TrimSpace(vmName)
 	if vmName == "" {
@@ -418,7 +418,7 @@ func setVMInterfaceLink(vmName, interfaceRef, state string, persistent bool) err
 	return nil
 }
 
-// RemoveVMInterface 删除虚拟机的指定网口（仅管理员）
+// RemoveVMInterface 删除虚拟机的指定网口（管理员原语；普通用户请使用 RemoveVMInterfaceAsUser）
 func RemoveVMInterface(vmName string, interfaceOrder int) error {
 	vmName = strings.TrimSpace(vmName)
 	if vmName == "" {
@@ -454,6 +454,109 @@ func RemoveVMInterface(vmName string, interfaceOrder int) error {
 	}
 
 	return nil
+}
+
+// checkUserInterfaceOperationAllowed 校验普通用户能否对虚拟机做网口自助操作。
+// 轻量云网络由管理员分配，不允许自助管理网口。
+func checkUserInterfaceOperationAllowed(operator, vmName string) error {
+	if HookIsLightweightCloudUser != nil && HookIsLightweightCloudUser(operator) {
+		return fmt.Errorf("轻量云服务器网络由管理员分配，不能自行管理网口")
+	}
+	if HookUserOwnsVM == nil || !HookUserOwnsVM(operator, vmName) {
+		return fmt.Errorf("无权操作此虚拟机")
+	}
+	return nil
+}
+
+// validateUserInterfaceSwitchAndGroup 校验普通用户网口操作的目标交换机与安全组归属：
+// 仅允许本人的非系统交换机；非二层交换机必须使用本人安全组（0 由服务层回落到默认安全组）。
+func validateUserInterfaceSwitchAndGroup(operator string, req AddVMInterfaceRequest) (model.VPCSwitch, error) {
+	var sw model.VPCSwitch
+	if err := model.DB.First(&sw, req.SwitchID).Error; err != nil {
+		return sw, fmt.Errorf("交换机不存在")
+	}
+	if sw.IsSystem {
+		return sw, fmt.Errorf("系统基础网络交换机不可选择，请使用自己的交换机")
+	}
+	if sw.Username != operator {
+		return sw, fmt.Errorf("交换机不属于当前用户")
+	}
+	if req.SecurityGroupID != 0 && !HookSwitchUsesDirectBridge(sw) {
+		var group model.VPCSecurityGroup
+		if err := model.DB.First(&group, req.SecurityGroupID).Error; err != nil {
+			return sw, fmt.Errorf("安全组不存在")
+		}
+		if group.Username != operator {
+			return sw, fmt.Errorf("安全组不属于当前用户")
+		}
+	}
+	return sw, nil
+}
+
+// ValidateExtraNicsForUser 校验普通用户创建/克隆链路中附加网口的交换机与安全组归属。
+// 与网口自助管理同规则：仅本人的非系统交换机；轻量云不允许携带附加网口。
+func ValidateExtraNicsForUser(operator string, extraNics []AddVMInterfaceRequest) error {
+	if len(extraNics) == 0 {
+		return nil
+	}
+	if HookIsLightweightCloudUser != nil && HookIsLightweightCloudUser(operator) {
+		return fmt.Errorf("轻量云服务器网络由管理员分配，不能自行添加附加网口")
+	}
+	for i, nic := range extraNics {
+		if nic.SwitchID == 0 {
+			continue
+		}
+		if _, err := validateUserInterfaceSwitchAndGroup(operator, nic); err != nil {
+			return fmt.Errorf("网口 #%d: %w", i+2, err)
+		}
+	}
+	return nil
+}
+
+// AddVMInterfaceAsUser 普通用户为自己的虚拟机新增网口。
+// 仅允许接入本人的非系统交换机；网口级速率限制属管理员能力，用户新增时强制为 0。
+func AddVMInterfaceAsUser(operator, vmName string, req AddVMInterfaceRequest) (*VMInterfaceInfo, error) {
+	if err := checkUserInterfaceOperationAllowed(operator, vmName); err != nil {
+		return nil, err
+	}
+	if _, err := validateUserInterfaceSwitchAndGroup(operator, req); err != nil {
+		return nil, err
+	}
+	req.BandwidthInboundAvg = 0
+	req.BandwidthOutboundAvg = 0
+	return AddVMInterface(vmName, req)
+}
+
+// UpdateVMInterfaceAsUser 普通用户更新自己虚拟机附加网口的交换机/安全组绑定。
+// 主网口由 VPC 网络绑定管理；管理员配置的速率限制保持原值，不允许用户覆盖。
+func UpdateVMInterfaceAsUser(operator, vmName string, interfaceOrder int, req AddVMInterfaceRequest) error {
+	if err := checkUserInterfaceOperationAllowed(operator, vmName); err != nil {
+		return err
+	}
+	if interfaceOrder <= 0 {
+		return fmt.Errorf("主网口不能在此修改，请在 VPC 网络绑定中管理")
+	}
+	if _, err := validateUserInterfaceSwitchAndGroup(operator, req); err != nil {
+		return err
+	}
+	var binding model.VPCVMBinding
+	if err := model.DB.Where("vm_name = ? AND interface_order = ?", vmName, interfaceOrder).First(&binding).Error; err != nil {
+		return fmt.Errorf("未找到指定的网口绑定")
+	}
+	req.BandwidthInboundAvg = binding.BandwidthInboundAvg
+	req.BandwidthOutboundAvg = binding.BandwidthOutboundAvg
+	return UpdateVMInterface(vmName, interfaceOrder, req)
+}
+
+// RemoveVMInterfaceAsUser 普通用户删除自己虚拟机的附加网口（主网口不可直接删除）。
+func RemoveVMInterfaceAsUser(operator, vmName string, interfaceOrder int) error {
+	if err := checkUserInterfaceOperationAllowed(operator, vmName); err != nil {
+		return err
+	}
+	if interfaceOrder <= 0 {
+		return fmt.Errorf("主网口不能直接删除，请在 VPC 网络绑定中管理")
+	}
+	return RemoveVMInterface(vmName, interfaceOrder)
 }
 
 // AttachExtraNICs 批量附加额外网口（用于创建/克隆流程）

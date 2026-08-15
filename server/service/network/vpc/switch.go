@@ -15,8 +15,8 @@ import (
 func ListVPCSwitches(operator, role, requestedUsername string) ([]model.VPCSwitch, error) {
 	query := model.DB.Model(&model.VPCSwitch{})
 	if role != "admin" {
-		// 非管理员可以使用自己的空交换机，以及系统基础网络交换机。
-		query = query.Where("username = ? OR is_system = ?", operator, true)
+		// 非管理员只能查看和使用自己的交换机，系统基础网络交换机仅管理员可见。
+		query = query.Where("username = ?", operator)
 	} else if strings.TrimSpace(requestedUsername) != "" {
 		query = query.Where("username = ?", strings.TrimSpace(requestedUsername))
 	}
@@ -28,6 +28,18 @@ func ListVPCSwitches(operator, role, requestedUsername string) ([]model.VPCSwitc
 		fillVPCSwitchUsageForResponse(&switches[i])
 	}
 	return switches, nil
+}
+
+// IsSystemVPCSwitch 判断指定交换机是否为系统基础网络交换机。
+func IsSystemVPCSwitch(id uint) bool {
+	if id == 0 || model.DB == nil {
+		return false
+	}
+	var sw model.VPCSwitch
+	if err := model.DB.First(&sw, id).Error; err != nil {
+		return false
+	}
+	return sw.IsSystem
 }
 
 func CreateVPCSwitch(operator, role string, req VPCSwitchRequest) (*model.VPCSwitch, error) {

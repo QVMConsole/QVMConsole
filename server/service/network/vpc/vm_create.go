@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"strings"
 
-	"kvm_console/config"
 	"kvm_console/model"
 	"kvm_console/service/ip_resolver"
 )
@@ -56,8 +55,9 @@ func ResolveVPCForVMCreate(username string, switchID, securityGroupID uint) (uin
 	if _, err := EnsureDefaultVPCSwitch(username); err != nil {
 		return 0, 0, err
 	}
+	isAdmin := isAdminVPCOperator(username)
 	if switchID == 0 {
-		resolvedSwitchID, err := resolveDefaultVPCSwitchIDForVMCreate(username)
+		resolvedSwitchID, err := resolveDefaultVPCSwitchIDForVMCreate(username, isAdmin)
 		if err != nil {
 			return 0, 0, err
 		}
@@ -74,8 +74,12 @@ func ResolveVPCForVMCreate(username string, switchID, securityGroupID uint) (uin
 	if err := model.DB.Where("id = ?", switchID).First(&sw).Error; err != nil {
 		return 0, 0, fmt.Errorf("交换机不存在")
 	}
-	// 系统交换机人人可用；用户交换机需要校验归属
-	if !sw.IsSystem && sw.Username != username {
+	// 系统基础网络交换机仅管理员可选；普通用户只能使用自己的交换机
+	if sw.IsSystem {
+		if !isAdmin {
+			return 0, 0, fmt.Errorf("系统基础网络交换机不可选择，请使用自己的交换机")
+		}
+	} else if sw.Username != username {
 		return 0, 0, fmt.Errorf("交换机不属于当前用户")
 	}
 	if HookSwitchUsesDirectBridge(sw) {
@@ -112,38 +116,34 @@ func ResolveVPCForVMCreate(username string, switchID, securityGroupID uint) (uin
 	return switchID, securityGroupID, nil
 }
 
-func resolveDefaultVPCSwitchIDForVMCreate(username string) (uint, error) {
-	// 防护开启后，普通用户新建 VM 默认进入自己的独立 VPC；显式传入系统网络仍按原逻辑支持。
-	if config.GlobalConfig != nil && config.GlobalConfig.PortSecurityEnabled {
-		var userSwitch model.VPCSwitch
-		if err := model.DB.Where("username = ? AND name = ?", username, DefaultVPCSwitchName).Order("id ASC").First(&userSwitch).Error; err == nil {
-			return userSwitch.ID, nil
-		}
-		if err := model.DB.Where("username = ?", username).Order("id ASC").First(&userSwitch).Error; err == nil {
-			return userSwitch.ID, nil
-		}
+// isAdminVPCOperator 判断用户名对应的账户是否为管理员。
+// 创建链路的调用方已在处理器层限定普通用户，这里用账户角色兜底区分管理员自用场景
+// （例如管理员导入虚拟机包时的默认网络解析），管理员保留系统基础网络的使用权限。
+func isAdminVPCOperator(username string) bool {
+	var user model.User
+	if err := model.DB.Where("username = ?", username).First(&user).Error; err != nil {
+		return false
 	}
-	// 优先使用系统基础网络交换机
-	var sysSwitch model.VPCSwitch
-	if err := model.DB.Where("is_system = ?", true).First(&sysSwitch).Error; err == nil {
-		return sysSwitch.ID, nil
+	return user.Role == "admin"
+}
+
+func resolveDefaultVPCSwitchIDForVMCreate(username string, allowSystem bool) (uint, error) {
+	// 优先使用用户自己的交换机：先找名为「默认交换机」的，再取最早创建的
+	var userSwitch model.VPCSwitch
+	if err := model.DB.Where("username = ? AND name = ?", username, DefaultVPCSwitchName).Order("id ASC").First(&userSwitch).Error; err == nil {
+		return userSwitch.ID, nil
 	}
-	var switches []model.VPCSwitch
-	if err := model.DB.Where("username = ?", username).Order("id ASC").Find(&switches).Error; err != nil {
-		return 0, err
+	if err := model.DB.Where("username = ?", username).Order("id ASC").First(&userSwitch).Error; err == nil {
+		return userSwitch.ID, nil
 	}
-	if len(switches) == 0 {
-		return 0, fmt.Errorf("请先在 VPC 网络中创建交换机后再创建虚拟机")
-	}
-	if len(switches) == 1 {
-		return switches[0].ID, nil
-	}
-	for _, sw := range switches {
-		if sw.Name == DefaultVPCSwitchName {
-			return sw.ID, nil
+	if allowSystem {
+		// 仅管理员保留系统基础网络交换机作为兜底
+		var sysSwitch model.VPCSwitch
+		if err := model.DB.Where("is_system = ?", true).First(&sysSwitch).Error; err == nil {
+			return sysSwitch.ID, nil
 		}
 	}
-	return 0, fmt.Errorf("请选择要接入的 VPC 交换机")
+	return 0, fmt.Errorf("请先在 VPC 网络中创建交换机后再创建虚拟机")
 }
 
 func resolveDefaultVPCSecurityGroupIDForVMCreate(username string) (uint, error) {
