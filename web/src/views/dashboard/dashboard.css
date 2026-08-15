@@ -359,6 +359,19 @@ body[theme-mode='dark'] .qvm-status-banner.error {
   padding: 10px 8px 6px;
   min-width: 0;
 }
+/* 网络 / 磁盘卡片顶部的设备选择行 */
+.qvm-hostmon-dev {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px 6px;
+}
+.qvm-hostmon-dev > span {
+  font-size: 12px;
+  color: var(--qvm-text-2);
+  white-space: nowrap;
+  flex: none;
+}
 .qvm-hostmon .qvm-chart-box {
   height: 240px;
   width: 100%;

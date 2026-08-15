@@ -1,6 +1,7 @@
 package host
 
 import (
+	"encoding/json"
 	"regexp"
 	"strings"
 	"sync"
@@ -297,18 +298,29 @@ func persistHostStatsToDB() {
 	}
 
 	record := model.HostStatsRecord{
-		CPUPercent:  stats.CPUPercent,
-		MemUsed:     stats.MemUsed,
-		MemTotal:    stats.MemTotal,
-		NetRxBytes:  stats.NetRxBytes,
-		NetTxBytes:  stats.NetTxBytes,
-		DiskRdBytes: stats.DiskRdBytes,
-		DiskWrBytes: stats.DiskWrBytes,
-		RecordedAt:  time.Now(),
+		CPUPercent:      stats.CPUPercent,
+		MemUsed:         stats.MemUsed,
+		MemTotal:        stats.MemTotal,
+		NetRxBytes:      stats.NetRxBytes,
+		NetTxBytes:      stats.NetTxBytes,
+		DiskRdBytes:     stats.DiskRdBytes,
+		DiskWrBytes:     stats.DiskWrBytes,
+		NetDevicesJSON:  marshalDeviceStatsJSON(stats.NetDevices),
+		DiskDevicesJSON: marshalDeviceStatsJSON(stats.DiskDevices),
+		RecordedAt:      time.Now(),
 	}
 	if err := model.DB.Create(&record).Error; err != nil {
 		logger.App.Error("持久化宿主机资源记录失败", "error", err)
 	}
+}
+
+// marshalDeviceStatsJSON 将设备级统计序列化为 JSON 字符串（失败时返回空串）
+func marshalDeviceStatsJSON(v interface{}) string {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return ""
+	}
+	return string(data)
 }
 
 // GetCachedStats 从缓存获取指定VM的最新资源数据（列表展示用）
@@ -360,7 +372,20 @@ func QueryHostStatsHistory(start, end time.Time) ([]model.HostStatsRecord, error
 	err := model.DB.Where("recorded_at >= ? AND recorded_at <= ?", start, end).
 		Order("recorded_at ASC").
 		Find(&records).Error
-	return records, err
+	if err != nil {
+		return nil, err
+	}
+
+	// 反序列化设备级统计（历史数据包含各物理网卡/硬盘的累计值，供前端按设备渲染）
+	for i := range records {
+		if records[i].NetDevicesJSON != "" {
+			_ = json.Unmarshal([]byte(records[i].NetDevicesJSON), &records[i].NetDevices)
+		}
+		if records[i].DiskDevicesJSON != "" {
+			_ = json.Unmarshal([]byte(records[i].DiskDevicesJSON), &records[i].DiskDevices)
+		}
+	}
+	return records, nil
 }
 
 // ClearRuntimeCachesForMaintenance 清理运行时缓存（维护模式调用，同包可直接访问 statsCache）

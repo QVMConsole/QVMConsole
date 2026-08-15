@@ -101,6 +101,8 @@ type Deps struct {
 
 	// ---- Host (additional) ----
 	CollectHostDiskIOBytes func() (int64, int64, error)
+	CollectHostNetDevices  func() ([]model.HostNetDeviceStat, error)
+	CollectHostDiskDevices func() ([]model.HostDiskDeviceStat, error)
 
 	// ---- Bandwidth (additional) ----
 	RebalanceUserBandwidth func(username string) error

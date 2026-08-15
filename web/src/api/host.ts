@@ -27,6 +27,8 @@ export interface HostStats {
   net_tx_bytes: number
   disk_rd_bytes: number
   disk_wr_bytes: number
+  net_devices: HostNetDeviceStat[] // 各物理网卡累计收发字节
+  disk_devices: HostDiskDeviceStat[] // 各物理硬盘累计读写字节
   hostname: string
   uptime: string
   arch: string
@@ -35,6 +37,20 @@ export interface HostStats {
   ksm_pages_shared: number
   ksm_pages_sharing: number
   disk_io_latency_ms: number
+}
+
+/** 宿主机单个网络接口的累计流量统计 */
+export interface HostNetDeviceStat {
+  name: string
+  rx_bytes: number
+  tx_bytes: number
+}
+
+/** 宿主机单个物理硬盘的累计 IO 统计 */
+export interface HostDiskDeviceStat {
+  name: string
+  rd_bytes: number
+  wr_bytes: number
 }
 
 /** 宿主机历史监控记录 */
@@ -46,6 +62,8 @@ export interface HostStatsRecord {
   net_tx_bytes: number
   disk_rd_bytes: number
   disk_wr_bytes: number
+  net_devices: HostNetDeviceStat[] // 各物理网卡累计收发字节
+  disk_devices: HostDiskDeviceStat[] // 各物理硬盘累计读写字节
   recorded_at: string
 }
 

@@ -183,6 +183,14 @@ func collectHostDiskIOBytes() (int64, int64, error) {
 	return hostpkg.CollectHostDiskIOBytes()
 }
 
+func collectHostNetDevices() ([]model.HostNetDeviceStat, error) {
+	return hostpkg.CollectHostNetIOBytesPerDevice()
+}
+
+func collectHostDiskDevices() ([]model.HostDiskDeviceStat, error) {
+	return hostpkg.CollectHostDiskIOBytesPerDevice()
+}
+
 func isLibvirtUnavailableText(text string) bool {
 	return hostpkg.IsLibvirtUnavailableText(text)
 }

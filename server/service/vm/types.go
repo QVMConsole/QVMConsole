@@ -141,6 +141,8 @@ type HostStats struct {
 	NetTxBytes      int64   `json:"net_tx_bytes"`
 	DiskRdBytes     int64   `json:"disk_rd_bytes"`
 	DiskWrBytes     int64   `json:"disk_wr_bytes"`
+	NetDevices      []model.HostNetDeviceStat  `json:"net_devices"`  // 各物理网卡累计收发字节
+	DiskDevices     []model.HostDiskDeviceStat `json:"disk_devices"` // 各物理硬盘累计读写字节
 	Hostname        string  `json:"hostname"`
 	Uptime          string  `json:"uptime"`
 	Arch            string  `json:"arch"` // 宿主机架构

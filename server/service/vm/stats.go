@@ -260,21 +260,45 @@ func GetHostStats() (*HostStats, error) {
 	// 用于计算存储理论最大值时扣除系统占用部分
 	stats.VMDiskActual = GetTotalVMActualDiskUsage() / 1024 // 字节转 KB
 
-	// 宿主机网络 IO (累加常见物理网卡，排除 virbr, vnet, docker, lo)
-	netIOResult := utils.ExecShell(`awk 'NR>2 {if ($1 !~ /lo|virbr|vnet|docker/) {rx+=$2; tx+=$10}} END {print rx, tx}' /proc/net/dev`)
-	if netIOResult.Error == nil {
-		parts := strings.Fields(netIOResult.Stdout)
-		if len(parts) >= 2 {
-			stats.NetRxBytes, _ = strconv.ParseInt(parts[0], 10, 64)
-			stats.NetTxBytes, _ = strconv.ParseInt(parts[1], 10, 64)
+	// 宿主机网络 IO：按物理网卡逐个采集，汇总值 = 各物理网卡之和
+	// （排除 lo / virbr / vnet / 网桥 / 容器等虚拟接口，避免重复计数）
+	if D != nil && D.CollectHostNetDevices != nil {
+		if netDevices, err := D.CollectHostNetDevices(); err == nil {
+			stats.NetDevices = netDevices
+			for _, dev := range netDevices {
+				stats.NetRxBytes += dev.RxBytes
+				stats.NetTxBytes += dev.TxBytes
+			}
+		}
+	}
+	if stats.NetDevices == nil {
+		// 兜底：设备级采集不可用时退回原有 awk 汇总口径
+		netIOResult := utils.ExecShell(`awk 'NR>2 {if ($1 !~ /lo|virbr|vnet|docker/) {rx+=$2; tx+=$10}} END {print rx, tx}' /proc/net/dev`)
+		if netIOResult.Error == nil {
+			parts := strings.Fields(netIOResult.Stdout)
+			if len(parts) >= 2 {
+				stats.NetRxBytes, _ = strconv.ParseInt(parts[0], 10, 64)
+				stats.NetTxBytes, _ = strconv.ParseInt(parts[1], 10, 64)
+			}
 		}
 	}
 
-	// 宿主机磁盘 IO
-	// 优先通过 lsblk 获取 type=disk 的顶层设备，再从 /proc/diskstats 汇总累计扇区数。
-	if diskRdBytes, diskWrBytes, err := D.CollectHostDiskIOBytes(); err == nil {
-		stats.DiskRdBytes = diskRdBytes
-		stats.DiskWrBytes = diskWrBytes
+	// 宿主机磁盘 IO：按物理硬盘逐个采集（lsblk 枚举顶层设备 + /proc/diskstats 汇总）
+	if D != nil && D.CollectHostDiskDevices != nil {
+		if diskDevices, err := D.CollectHostDiskDevices(); err == nil {
+			stats.DiskDevices = diskDevices
+			for _, dev := range diskDevices {
+				stats.DiskRdBytes += dev.RdBytes
+				stats.DiskWrBytes += dev.WrBytes
+			}
+		}
+	}
+	if stats.DiskDevices == nil && D != nil && D.CollectHostDiskIOBytes != nil {
+		// 兜底：设备级采集失败时退回原有汇总口径
+		if diskRdBytes, diskWrBytes, err := D.CollectHostDiskIOBytes(); err == nil {
+			stats.DiskRdBytes = diskRdBytes
+			stats.DiskWrBytes = diskWrBytes
+		}
 	}
 
 	// 主机名

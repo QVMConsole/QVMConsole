@@ -2,12 +2,13 @@
  * 宿主机资源监控图表区（管理员仪表盘）
  * - 实时监控：由宿主机 SSE 推送驱动（CPU / 内存 / 网络 / 磁盘 IO 四图，5s 一个点）
  * - 历史查询：日期范围 + 近 24 小时快捷查询（基于累计值增量计算速率）
+ * - 网络 / 磁盘卡片支持选择查看的具体物理网卡 / 物理硬盘（实时与历史均生效）
  * - 支持滚轮缩放 + 底部滑块框选（dataZoom），配色跟随明暗主题
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as echarts from 'echarts'
-import { Button, DatePicker, Radio, Toast } from '@douyinfe/semi-ui'
-import type { HostStats, HostStatsRecord } from '@/api/host'
+import { Button, DatePicker, Radio, Select, Toast } from '@douyinfe/semi-ui'
+import type { HostDiskDeviceStat, HostNetDeviceStat, HostStats, HostStatsRecord } from '@/api/host'
 import { getHostStatsHistory } from '@/api/host'
 import { useTheme } from '@/hooks/useTheme'
 
@@ -22,6 +23,8 @@ type ChartMode = 'realtime' | 'history'
 const MAX_REALTIME_POINTS = 60
 /** 宿主机 SSE 推送间隔（秒），与后端保持一致 */
 const SSE_INTERVAL_SECONDS = 5
+/** 设备选择器"全部"占位值 */
+const DEVICE_ALL = 'all'
 
 /** KB/s 流量自动换算 */
 function formatAxisTraffic(valueKB: number): string {
@@ -42,11 +45,39 @@ function formatQueryTime(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
+/** 判断两个设备名列表是否相同（避免选项列表无变化时反复触发重渲染） */
+function sameNames(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false
+  }
+  return true
+}
+
+/** 历史记录中按设备取网络累计值（all 取汇总字段） */
+function pickNetValue(record: HostStatsRecord, device: string): { rx: number; tx: number; exists: boolean } {
+  if (device === DEVICE_ALL) return { rx: record.net_rx_bytes, tx: record.net_tx_bytes, exists: true }
+  const dev = (record.net_devices || []).find((d: HostNetDeviceStat) => d.name === device)
+  return dev ? { rx: dev.rx_bytes, tx: dev.tx_bytes, exists: true } : { rx: 0, tx: 0, exists: false }
+}
+
+/** 历史记录中按设备取磁盘累计值（all 取汇总字段） */
+function pickDiskValue(record: HostStatsRecord, device: string): { rd: number; wr: number; exists: boolean } {
+  if (device === DEVICE_ALL) return { rd: record.disk_rd_bytes, wr: record.disk_wr_bytes, exists: true }
+  const dev = (record.disk_devices || []).find((d: HostDiskDeviceStat) => d.name === device)
+  return dev ? { rd: dev.rd_bytes, wr: dev.wr_bytes, exists: true } : { rd: 0, wr: 0, exists: false }
+}
+
 export default function HostMonitorCharts({ externalStats }: HostMonitorChartsProps) {
   const { isDark } = useTheme()
   const [mode, setMode] = useState<ChartMode>('realtime')
   const [historyRange, setHistoryRange] = useState<Date[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
+  // 网络 / 磁盘设备选择器状态（'all' = 全部设备汇总）
+  const [netDevice, setNetDevice] = useState(DEVICE_ALL)
+  const [diskDevice, setDiskDevice] = useState(DEVICE_ALL)
+  const [netDeviceNames, setNetDeviceNames] = useState<string[]>([])
+  const [diskDeviceNames, setDiskDeviceNames] = useState<string[]>([])
 
   const cpuRef = useRef<HTMLDivElement>(null)
   const memRef = useRef<HTMLDivElement>(null)
@@ -202,6 +233,22 @@ export default function HostMonitorCharts({ externalStats }: HostMonitorChartsPr
     const [cpu, mem, net, disk] = chartsRef.current
     if (!cpu || !mem || !net || !disk) return
 
+    // 同步物理网卡 / 物理硬盘下拉选项；所选设备已不存在时退回"全部"并跳过本次推送
+    const netNames = (externalStats.net_devices || []).map((d) => d.name)
+    const diskNames = (externalStats.disk_devices || []).map((d) => d.name)
+    setNetDeviceNames((prev) => (sameNames(prev, netNames) ? prev : netNames))
+    setDiskDeviceNames((prev) => (sameNames(prev, diskNames) ? prev : diskNames))
+    if (netDevice !== DEVICE_ALL && !netNames.includes(netDevice)) {
+      setNetDevice(DEVICE_ALL)
+      prevNetRef.current = { rx: 0, tx: 0 }
+      return
+    }
+    if (diskDevice !== DEVICE_ALL && !diskNames.includes(diskDevice)) {
+      setDiskDevice(DEVICE_ALL)
+      prevDiskRef.current = { rd: 0, wr: 0 }
+      return
+    }
+
     const now = new Date()
     const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`
 
@@ -227,34 +274,56 @@ export default function HostMonitorCharts({ externalStats }: HostMonitorChartsPr
         : 0,
     ])
 
-    // 网络 / 磁盘速率：基于累计字节数增量计算（KB/s），首个点跳过
+    // 网络速率：按所选物理网卡取累计值（all = 汇总字段），基于增量计算（KB/s）
+    let rxBase = externalStats.net_rx_bytes
+    let txBase = externalStats.net_tx_bytes
+    if (netDevice !== DEVICE_ALL) {
+      const dev = (externalStats.net_devices || []).find((d) => d.name === netDevice)
+      rxBase = dev ? dev.rx_bytes : 0
+      txBase = dev ? dev.tx_bytes : 0
+    }
     const rxRate =
-      prevNetRef.current.rx > 0
-        ? Math.max(0, (externalStats.net_rx_bytes - prevNetRef.current.rx) / 1024 / SSE_INTERVAL_SECONDS)
-        : 0
+      prevNetRef.current.rx > 0 ? Math.max(0, (rxBase - prevNetRef.current.rx) / 1024 / SSE_INTERVAL_SECONDS) : 0
     const txRate =
-      prevNetRef.current.tx > 0
-        ? Math.max(0, (externalStats.net_tx_bytes - prevNetRef.current.tx) / 1024 / SSE_INTERVAL_SECONDS)
-        : 0
-    prevNetRef.current = { rx: externalStats.net_rx_bytes, tx: externalStats.net_tx_bytes }
+      prevNetRef.current.tx > 0 ? Math.max(0, (txBase - prevNetRef.current.tx) / 1024 / SSE_INTERVAL_SECONDS) : 0
+    prevNetRef.current = { rx: rxBase, tx: txBase }
     pushPoint(net, [Number(rxRate.toFixed(1)), Number(txRate.toFixed(1))])
 
+    // 磁盘速率：按所选物理硬盘取累计值（all = 汇总字段），基于增量计算（KB/s）
+    let rdBase = externalStats.disk_rd_bytes
+    let wrBase = externalStats.disk_wr_bytes
+    if (diskDevice !== DEVICE_ALL) {
+      const dev = (externalStats.disk_devices || []).find((d) => d.name === diskDevice)
+      rdBase = dev ? dev.rd_bytes : 0
+      wrBase = dev ? dev.wr_bytes : 0
+    }
     const rdRate =
-      prevDiskRef.current.rd > 0
-        ? Math.max(0, (externalStats.disk_rd_bytes - prevDiskRef.current.rd) / 1024 / SSE_INTERVAL_SECONDS)
-        : 0
+      prevDiskRef.current.rd > 0 ? Math.max(0, (rdBase - prevDiskRef.current.rd) / 1024 / SSE_INTERVAL_SECONDS) : 0
     const wrRate =
-      prevDiskRef.current.wr > 0
-        ? Math.max(0, (externalStats.disk_wr_bytes - prevDiskRef.current.wr) / 1024 / SSE_INTERVAL_SECONDS)
-        : 0
-    prevDiskRef.current = { rd: externalStats.disk_rd_bytes, wr: externalStats.disk_wr_bytes }
+      prevDiskRef.current.wr > 0 ? Math.max(0, (wrBase - prevDiskRef.current.wr) / 1024 / SSE_INTERVAL_SECONDS) : 0
+    prevDiskRef.current = { rd: rdBase, wr: wrBase }
     pushPoint(disk, [Number(rdRate.toFixed(1)), Number(wrRate.toFixed(1))])
-  }, [externalStats])
+  }, [externalStats, netDevice, diskDevice])
 
   // ============ 历史查询渲染 ============
+  // 保存最近一次成功查询的历史记录，供切换设备时立即重渲染
+  const historyRecordsRef = useRef<HostStatsRecord[]>([])
+  // 设备选择的 ref 同步，供 renderHistory 等回调即时读取（避免闭包捕获旧值）
+  const netDeviceRef = useRef(DEVICE_ALL)
+  const diskDeviceRef = useRef(DEVICE_ALL)
+  netDeviceRef.current = netDevice
+  diskDeviceRef.current = diskDevice
+
   const renderHistory = useCallback((records: HostStatsRecord[]) => {
     const [cpu, mem, net, disk] = chartsRef.current
     if (!cpu || !mem || !net || !disk || records.length === 0) return
+    historyRecordsRef.current = records
+
+    // 同步设备下拉选项（来自历史记录中的设备数据）
+    const netNames = Array.from(new Set(records.flatMap((r) => (r.net_devices || []).map((d) => d.name))))
+    const diskNames = Array.from(new Set(records.flatMap((r) => (r.disk_devices || []).map((d) => d.name))))
+    setNetDeviceNames((prev) => (sameNames(prev, netNames) ? prev : netNames))
+    setDiskDeviceNames((prev) => (sameNames(prev, diskNames) ? prev : diskNames))
 
     const timeLabels = records.map((r) => {
       const d = new Date(r.recorded_at)
@@ -276,7 +345,9 @@ export default function HostMonitorCharts({ externalStats }: HostMonitorChartsPr
       ],
     })
 
-    // 累计值增量计算速率（KB/s）
+    // 累计值增量计算速率（KB/s），按所选设备取值（all = 汇总字段）
+    const activeNetDevice = netDeviceRef.current
+    const activeDiskDevice = diskDeviceRef.current
     const netRx: number[] = [0]
     const netTx: number[] = [0]
     const diskRd: number[] = [0]
@@ -285,15 +356,30 @@ export default function HostMonitorCharts({ externalStats }: HostMonitorChartsPr
       const dt =
         (new Date(records[i].recorded_at).getTime() - new Date(records[i - 1].recorded_at).getTime()) / 1000
       if (dt > 0) {
-        netRx.push(Number(Math.max(0, (records[i].net_rx_bytes - records[i - 1].net_rx_bytes) / 1024 / dt).toFixed(1)))
-        netTx.push(Number(Math.max(0, (records[i].net_tx_bytes - records[i - 1].net_tx_bytes) / 1024 / dt).toFixed(1)))
-        let rd = Math.max(0, (records[i].disk_rd_bytes - records[i - 1].disk_rd_bytes) / 1024 / dt)
-        let wr = Math.max(0, (records[i].disk_wr_bytes - records[i - 1].disk_wr_bytes) / 1024 / dt)
-        // 防抖动限制（异常尖峰置零）
-        if (rd > 10 * 1024 * 1024) rd = 0
-        if (wr > 10 * 1024 * 1024) wr = 0
-        diskRd.push(Number(rd.toFixed(1)))
-        diskWr.push(Number(wr.toFixed(1)))
+        const prevNet = pickNetValue(records[i - 1], activeNetDevice)
+        const curNet = pickNetValue(records[i], activeNetDevice)
+        const prevDisk = pickDiskValue(records[i - 1], activeDiskDevice)
+        const curDisk = pickDiskValue(records[i], activeDiskDevice)
+        // 设备数据缺失（如记录点早于设备上线）时该点速率为 0，避免假尖峰
+        if (prevNet.exists && curNet.exists) {
+          netRx.push(Number(Math.max(0, (curNet.rx - prevNet.rx) / 1024 / dt).toFixed(1)))
+          netTx.push(Number(Math.max(0, (curNet.tx - prevNet.tx) / 1024 / dt).toFixed(1)))
+        } else {
+          netRx.push(0)
+          netTx.push(0)
+        }
+        if (prevDisk.exists && curDisk.exists) {
+          let rd = Math.max(0, (curDisk.rd - prevDisk.rd) / 1024 / dt)
+          let wr = Math.max(0, (curDisk.wr - prevDisk.wr) / 1024 / dt)
+          // 防抖动限制（异常尖峰置零）
+          if (rd > 10 * 1024 * 1024) rd = 0
+          if (wr > 10 * 1024 * 1024) wr = 0
+          diskRd.push(Number(rd.toFixed(1)))
+          diskWr.push(Number(wr.toFixed(1)))
+        } else {
+          diskRd.push(0)
+          diskWr.push(0)
+        }
       } else {
         netRx.push(0)
         netTx.push(0)
@@ -338,6 +424,26 @@ export default function HostMonitorCharts({ externalStats }: HostMonitorChartsPr
     const end = new Date()
     const start = new Date(end.getTime() - 24 * 3600 * 1000)
     void fetchHistory(formatQueryTime(start), formatQueryTime(end))
+  }
+
+  /** 切换查看的物理网卡：重置实时差分基准，历史模式立即按新设备重渲染 */
+  const handleNetDeviceChange = (value: string) => {
+    setNetDevice(value)
+    netDeviceRef.current = value
+    prevNetRef.current = { rx: 0, tx: 0 }
+    if (modeRef.current === 'history' && historyRecordsRef.current.length > 0) {
+      renderHistory(historyRecordsRef.current)
+    }
+  }
+
+  /** 切换查看的物理硬盘：重置实时差分基准，历史模式立即按新设备重渲染 */
+  const handleDiskDeviceChange = (value: string) => {
+    setDiskDevice(value)
+    diskDeviceRef.current = value
+    prevDiskRef.current = { rd: 0, wr: 0 }
+    if (modeRef.current === 'history' && historyRecordsRef.current.length > 0) {
+      renderHistory(historyRecordsRef.current)
+    }
   }
 
   const handleModeChange = (next: ChartMode) => {
@@ -405,9 +511,43 @@ export default function HostMonitorCharts({ externalStats }: HostMonitorChartsPr
           <div ref={memRef} className="qvm-chart-box" />
         </div>
         <div className="qvm-hostmon-card">
+          <div className="qvm-hostmon-dev">
+            <span>网卡</span>
+            <Select
+              size="small"
+              value={netDevice}
+              onChange={(v) => handleNetDeviceChange(String(v))}
+              style={{ width: 170 }}
+              placeholder="选择网卡"
+            >
+              <Select.Option value={DEVICE_ALL}>全部网卡</Select.Option>
+              {netDeviceNames.map((name) => (
+                <Select.Option key={name} value={name}>
+                  {name}
+                </Select.Option>
+              ))}
+            </Select>
+          </div>
           <div ref={netRef} className="qvm-chart-box" />
         </div>
         <div className="qvm-hostmon-card">
+          <div className="qvm-hostmon-dev">
+            <span>硬盘</span>
+            <Select
+              size="small"
+              value={diskDevice}
+              onChange={(v) => handleDiskDeviceChange(String(v))}
+              style={{ width: 170 }}
+              placeholder="选择硬盘"
+            >
+              <Select.Option value={DEVICE_ALL}>全部硬盘</Select.Option>
+              {diskDeviceNames.map((name) => (
+                <Select.Option key={name} value={name}>
+                  {name}
+                </Select.Option>
+              ))}
+            </Select>
+          </div>
           <div ref={diskRef} className="qvm-chart-box" />
         </div>
       </div>

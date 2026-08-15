@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"kvm_console/model"
 	"kvm_console/utils"
 )
 
@@ -24,22 +25,34 @@ var fallbackHostDiskNamePatterns = []*regexp.Regexp{
 // CollectHostDiskIOBytes 汇总宿主机物理磁盘的累计读写字节数。
 // 优先使用 lsblk 枚举 type=disk 的顶层设备，避免硬编码设备名规则；
 // 若 lsblk 不可用或返回空，则退回到 /proc/diskstats 的常见顶层磁盘名匹配。
+// 汇总值等于各物理硬盘之和，与 CollectHostDiskIOBytesPerDevice 口径一致。
 func CollectHostDiskIOBytes() (int64, int64, error) {
-	diskstatsContent, err := os.ReadFile("/proc/diskstats")
+	devices, err := CollectHostDiskIOBytesPerDevice()
 	if err != nil {
 		return 0, 0, err
+	}
+
+	var readBytes, writeBytes int64
+	for _, dev := range devices {
+		readBytes += dev.RdBytes
+		writeBytes += dev.WrBytes
+	}
+	return readBytes, writeBytes, nil
+}
+
+// CollectHostDiskIOBytesPerDevice 采集宿主机各物理硬盘的累计读写字节数。
+// 设备列表优先来自 lsblk（type=disk 顶层设备），为空时退回 /proc/diskstats 常见磁盘名匹配。
+func CollectHostDiskIOBytesPerDevice() ([]model.HostDiskDeviceStat, error) {
+	diskstatsContent, err := os.ReadFile("/proc/diskstats")
+	if err != nil {
+		return nil, err
 	}
 
 	deviceNames := loadHostDiskDeviceNames()
 	if len(deviceNames) == 0 {
 		deviceNames = detectTopLevelDiskDevicesFromDiskstats(string(diskstatsContent))
 	}
-	if len(deviceNames) == 0 {
-		return 0, 0, nil
-	}
-
-	readSectors, writeSectors := parseDiskStatsSectors(string(diskstatsContent), deviceNames)
-	return readSectors * 512, writeSectors * 512, nil
+	return parseDiskStatsPerDevice(string(diskstatsContent), deviceNames), nil
 }
 
 func loadHostDiskDeviceNames() []string {
@@ -95,9 +108,10 @@ func isLikelyTopLevelDiskDevice(deviceName string) bool {
 	return false
 }
 
-func parseDiskStatsSectors(content string, deviceNames []string) (int64, int64) {
+// parseDiskStatsPerDevice 从 /proc/diskstats 解析每个目标磁盘的累计读写字节数
+func parseDiskStatsPerDevice(content string, deviceNames []string) []model.HostDiskDeviceStat {
 	if len(deviceNames) == 0 {
-		return 0, 0
+		return nil
 	}
 
 	targets := make(map[string]struct{}, len(deviceNames))
@@ -109,9 +123,7 @@ func parseDiskStatsSectors(content string, deviceNames []string) (int64, int64) 
 		targets[name] = struct{}{}
 	}
 
-	var readSectors int64
-	var writeSectors int64
-
+	var devices []model.HostDiskDeviceStat
 	scanner := bufio.NewScanner(strings.NewReader(content))
 	for scanner.Scan() {
 		fields := strings.Fields(scanner.Text())
@@ -132,11 +144,14 @@ func parseDiskStatsSectors(content string, deviceNames []string) (int64, int64) 
 			continue
 		}
 
-		readSectors += rd
-		writeSectors += wr
+		devices = append(devices, model.HostDiskDeviceStat{
+			Name:    deviceName,
+			RdBytes: rd * 512,
+			WrBytes: wr * 512,
+		})
 	}
 
-	return readSectors, writeSectors
+	return devices
 }
 
 // GetHostDiskInfos 获取宿主机所有挂载磁盘信息
