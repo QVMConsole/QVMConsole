@@ -1,16 +1,19 @@
 /**
- * 存储管理 Tab：用户存储维护（存储回收 fstrim + fallocate --dig-holes）
+ * 存储管理 Tab：用户存储维护（存储回收 fstrim + fallocate --dig-holes + 自动定时回收开关）
  */
 import { useState } from 'react'
 import { Banner, Button, Toast } from '@douyinfe/semi-ui'
 import { IconFolder, IconRefresh } from '@douyinfe/semi-icons'
-import { trimUserStorage, type TrimStorageResult } from '@/api/settings'
+import { trimUserStorage, updateSettings, type TrimStorageResult } from '@/api/settings'
 import { confirmModal } from '@/utils/confirm'
 import { formatFileSize } from '@/utils/format'
+import TextSwitch from '@/features/vm-form/sections/TextSwitch'
 import { SectionHead, SettingRow } from './SettingRow'
+import type { SettingsTabProps } from '../types'
 
-export default function StorageMaintainTab() {
+export default function StorageMaintainTab({ form, patch }: SettingsTabProps) {
   const [trimming, setTrimming] = useState(false)
+  const [autoSaving, setAutoSaving] = useState(false)
   const [trimResult, setTrimResult] = useState<TrimStorageResult | null>(null)
 
   const handleTrim = async () => {
@@ -35,6 +38,21 @@ export default function StorageMaintainTab() {
     }
   }
 
+  /** 自动定时回收开关：存储管理 Tab 为独立操作区，切换后即时保存 */
+  const handleAutoTrimChange = async (checked: boolean) => {
+    patch({ scheduled_storage_trim_enabled: checked })
+    setAutoSaving(true)
+    try {
+      const res = await updateSettings({ scheduled_storage_trim_enabled: checked })
+      Toast.success(res.message || (checked ? '已开启自动定时回收' : '已关闭自动定时回收'))
+    } catch {
+      // 保存失败时回滚开关状态（请求层已统一提示）
+      patch({ scheduled_storage_trim_enabled: !checked })
+    } finally {
+      setAutoSaving(false)
+    }
+  }
+
   return (
     <div className="stg-tab-pane">
       <SectionHead icon={<IconFolder />} title="用户存储维护" />
@@ -45,6 +63,17 @@ export default function StorageMaintainTab() {
 
       <SettingRow label="挂载点">
         <span className="stg-mono-text">/var/lib/kvm-user-storage</span>
+      </SettingRow>
+
+      <SettingRow
+        label="自动定时回收"
+        tip="默认开启，每天凌晨 2:00 自动执行用户存储回收（fstrim + fallocate --dig-holes），执行结果记录在调度事件中心"
+      >
+        <TextSwitch
+          checked={form.scheduled_storage_trim_enabled}
+          onChange={(v) => void handleAutoTrimChange(v)}
+          disabled={autoSaving}
+        />
       </SettingRow>
 
       <SettingRow

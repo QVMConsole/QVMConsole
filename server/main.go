@@ -117,6 +117,7 @@ func main() {
 	service.StartJWTSecretRotator()
 	service.StartExpiredUploadSessionCleanup() // 清理过期分片上传会话
 	service.StartPasswordBreachScheduler()
+	service.StartStorageTrimScheduler()
 
 	// 同步 SSH 拒绝配置（确保与数据库状态一致）
 	service.SyncSSHDenyConfig()
@@ -1089,6 +1090,18 @@ func registerTaskHandlers() {
 			return "", fmt.Errorf("解析参数失败: %w", err)
 		}
 		return service.ExecutePasswordBreachNotification(ctx, params, progress)
+	})
+	taskqueue.RegisterHandler(model.TaskTypeStorageTrim, func(ctx context.Context, task *model.Task, progress func(int, string)) (string, error) {
+		result, err := service.ExecuteStorageTrim(ctx, progress)
+		if err != nil {
+			return "", err
+		}
+		if result == nil {
+			// 存储文件系统未挂载，本次跳过
+			return `{"skipped":true}`, nil
+		}
+		resultJSON, _ := json.Marshal(result)
+		return string(resultJSON), nil
 	})
 	logger.App.Info("任务处理器注册完成")
 }

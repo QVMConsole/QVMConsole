@@ -173,6 +173,8 @@ type Config struct {
 	PasswordBreachCheckEnabled bool `json:"password_breach_check_enabled"`
 	// 定时泄露密码检测开关（默认开启，每天本地时间 00:00 执行）
 	ScheduledPasswordBreachCheckEnabled bool `json:"scheduled_password_breach_check_enabled"`
+	// 用户存储自动定时回收开关（默认开启，每天本地时间 02:00 执行 fstrim + fallocate --dig-holes）
+	ScheduledStorageTrimEnabled bool `json:"scheduled_storage_trim_enabled"`
 	// 硬件直通开关（默认关闭，开启后启用 IOMMU 和 vfio-pci 支持）
 	HardwarePassthroughEnabled bool `json:"hardware_passthrough_enabled"`
 	// 安全组默认全放通开关（默认关闭，开启后新建安全组自动添加 IPv4/IPv6 全放通入站规则）
@@ -305,6 +307,7 @@ func Init() {
 		SessionFingerprintEnabled:             getEnvBool("KVM_SESSION_FINGERPRINT_ENABLED", true),
 		PasswordBreachCheckEnabled:            getEnvBool("KVM_PASSWORD_BREACH_CHECK_ENABLED", true),
 		ScheduledPasswordBreachCheckEnabled:   getEnvBool("KVM_SCHEDULED_PASSWORD_BREACH_CHECK_ENABLED", true),
+		ScheduledStorageTrimEnabled:           getEnvBool("KVM_SCHEDULED_STORAGE_TRIM_ENABLED", true),
 		HardwarePassthroughEnabled:            getEnvBool("KVM_HARDWARE_PASSTHROUGH_ENABLED", false),
 		SecurityGroupDefaultAllowAll:          getEnvBool("KVM_SECURITY_GROUP_DEFAULT_ALLOW_ALL", false),
 		CORSAllowedOrigins:                    getEnv("KVM_CORS_ALLOWED_ORIGINS", ""),
@@ -542,6 +545,7 @@ var PersistableKeys = []string{
 	"request_filter_enabled",
 	"password_breach_check_enabled",
 	"scheduled_password_breach_check_enabled",
+	"scheduled_storage_trim_enabled",
 	"igpu_passthrough_enabled",
 	"hardware_passthrough_enabled",
 	"security_group_default_allow_all",
@@ -622,6 +626,7 @@ var keyToEnvVar = map[string]string{
 	"request_filter_enabled":                    "KVM_REQUEST_FILTER_ENABLED",
 	"password_breach_check_enabled":             "KVM_PASSWORD_BREACH_CHECK_ENABLED",
 	"scheduled_password_breach_check_enabled":   "KVM_SCHEDULED_PASSWORD_BREACH_CHECK_ENABLED",
+	"scheduled_storage_trim_enabled":            "KVM_SCHEDULED_STORAGE_TRIM_ENABLED",
 	"igpu_passthrough_enabled":                  "KVM_IGPU_PASSTHROUGH_ENABLED",
 	"hardware_passthrough_enabled":              "KVM_HARDWARE_PASSTHROUGH_ENABLED",
 	"security_group_default_allow_all":          "KVM_SECURITY_GROUP_DEFAULT_ALLOW_ALL",
@@ -852,6 +857,8 @@ func (c *Config) LoadFromDB(settings map[string]string) {
 			c.PasswordBreachCheckEnabled = value != "false"
 		case "scheduled_password_breach_check_enabled":
 			c.ScheduledPasswordBreachCheckEnabled = value != "false"
+		case "scheduled_storage_trim_enabled":
+			c.ScheduledStorageTrimEnabled = value != "false"
 		case "hardware_passthrough_enabled":
 			c.HardwarePassthroughEnabled = value == "true"
 		case "security_group_default_allow_all":
@@ -940,6 +947,7 @@ func (c *Config) ToSettingsMap() map[string]string {
 		"request_filter_enabled":                    strconv.FormatBool(c.RequestFilterEnabled),
 		"password_breach_check_enabled":             strconv.FormatBool(c.PasswordBreachCheckEnabled),
 		"scheduled_password_breach_check_enabled":   strconv.FormatBool(c.ScheduledPasswordBreachCheckEnabled),
+		"scheduled_storage_trim_enabled":            strconv.FormatBool(c.ScheduledStorageTrimEnabled),
 		"hardware_passthrough_enabled":              strconv.FormatBool(c.HardwarePassthroughEnabled),
 		"security_group_default_allow_all":          strconv.FormatBool(c.SecurityGroupDefaultAllowAll),
 	}

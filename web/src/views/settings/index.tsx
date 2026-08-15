@@ -204,7 +204,7 @@ export default function SettingsPage() {
               <DiagnosticsTab />
             </Tabs.TabPane>
             <Tabs.TabPane tab="存储管理" itemKey="storage" icon={<IconFolder />}>
-              <StorageMaintainTab />
+              <StorageMaintainTab form={form} patch={patch} />
             </Tabs.TabPane>
           </Tabs>
 

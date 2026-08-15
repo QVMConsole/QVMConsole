@@ -67,6 +67,7 @@ export interface SettingsForm {
   request_filter_enabled: boolean
   password_breach_check_enabled: boolean
   scheduled_password_breach_check_enabled: boolean
+  scheduled_storage_trim_enabled: boolean
   maintenance_mode: boolean
   maintenance_service_units: string
   maintenance_vm_shutdown_timeout_seconds: number
@@ -138,6 +139,7 @@ export const DEFAULT_SETTINGS_FORM: SettingsForm = {
   request_filter_enabled: true,
   password_breach_check_enabled: true,
   scheduled_password_breach_check_enabled: true,
+  scheduled_storage_trim_enabled: true,
   maintenance_mode: false,
   maintenance_service_units: DEFAULT_MAINTENANCE_SERVICE_UNITS,
   maintenance_vm_shutdown_timeout_seconds: 40,
@@ -247,6 +249,7 @@ export function buildSettingsPayload(form: SettingsForm): Record<string, unknown
     request_filter_enabled: form.request_filter_enabled,
     password_breach_check_enabled: form.password_breach_check_enabled,
     scheduled_password_breach_check_enabled: form.scheduled_password_breach_check_enabled,
+    scheduled_storage_trim_enabled: form.scheduled_storage_trim_enabled,
     maintenance_mode: form.maintenance_mode,
     maintenance_service_units:
       form.maintenance_service_units?.trim() || DEFAULT_MAINTENANCE_SERVICE_UNITS,

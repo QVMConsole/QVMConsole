@@ -16,7 +16,7 @@
 | `security` | 安全与维护 | 开发环境开关、SMTP 配置与测试发信、会话指纹/请求过滤/泄露密码检测、安全组默认全放通、JWT 密钥轮换、维护模式 |
 | `log` | 日志管理 | 日志最大备份数、磁盘占用统计、日志文件多选删除 / 导出 ZIP |
 | `diagnostics` | 诊断导出 | 按类别收集诊断信息并导出 ZIP |
-| `storage` | 存储管理 | 用户存储镜像信息、存储回收（fstrim + fallocate --dig-holes） |
+| `storage` | 存储管理 | 用户存储镜像信息、自动定时回收开关（每天凌晨 2:00）、存储回收（fstrim + fallocate --dig-holes） |
 
 ## 文件结构
 
@@ -53,8 +53,9 @@ web/src/views/settings/
 
 ## 交互与保存机制
 
-- **整体保存**：底部"保存设置"按钮提交 `buildSettingsPayload(form)`，校验逻辑集中在 `validateSettingsForm`（与旧前端一致的边界值）。诊断导出 / 存储管理 Tab 为独立操作区，不显示保存按钮。
+- **整体保存**：底部"保存设置"按钮提交 `buildSettingsPayload(form)`，校验逻辑集中在 `validateSettingsForm`（与旧前端一致的边界值）。诊断导出 / 存储管理 Tab 为独立操作区，不显示保存按钮，其中的开关以即时保存方式生效。
 - **即时保存项**（不随整体表单提交，操作前有二次确认弹窗）：
+  - 存储管理 Tab 的"自动定时回收"开关（`PUT /settings`，仅提交 `scheduled_storage_trim_enabled`），默认开启；关闭后每天凌晨 2:00 不再自动执行存储回收，失败自动回滚开关状态
   - KSM / zRAM 挡位切换（`PUT /host/ksm`、`PUT /host/zram`），取消或失败会回滚选中态并重新拉取状态
   - KVM Unrestricted Guest 开关（`PUT /host/kvm-intel-unrestricted-guest`）
   - CPU 亲和性预设（`PUT /settings/cpu-affinity-presets`，独立"保存预设"按钮）
@@ -80,7 +81,7 @@ web/src/views/settings/
 
 | 接口 | 方法 | 说明 |
 |------|------|------|
-| `/settings` | GET / PUT | 获取 / 更新系统设置（含定时泄露检测开关） |
+| `/settings` | GET / PUT | 获取 / 更新系统设置（含定时泄露检测、用户存储自动定时回收开关） |
 | `/security/password-breach/status` | GET | 获取泄露扫描状态与受影响账户 |
 | `/security/password-breach/scan` | POST | 立即提交完整扫描任务（高风险） |
 | `/settings/smtp/test` | POST | 测试发信 |

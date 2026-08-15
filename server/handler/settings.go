@@ -91,6 +91,8 @@ type SettingsResponse struct {
 	RequestFilterEnabled                bool `json:"request_filter_enabled"`
 	PasswordBreachCheckEnabled          bool `json:"password_breach_check_enabled"`
 	ScheduledPasswordBreachCheckEnabled bool `json:"scheduled_password_breach_check_enabled"`
+	// 用户存储自动定时回收（默认开启，每天凌晨 2:00 执行）
+	ScheduledStorageTrimEnabled bool `json:"scheduled_storage_trim_enabled"`
 	// 硬件直通
 	HardwarePassthroughEnabled bool `json:"hardware_passthrough_enabled"`
 	// 安全组默认全放通（默认关闭，开启后新建安全组自动添加 IPv4/IPv6 全放通入站规则）
@@ -160,6 +162,8 @@ type UpdateSettingsRequest struct {
 	RequestFilterEnabled                *bool `json:"request_filter_enabled"`
 	PasswordBreachCheckEnabled          *bool `json:"password_breach_check_enabled"`
 	ScheduledPasswordBreachCheckEnabled *bool `json:"scheduled_password_breach_check_enabled"`
+	// 用户存储自动定时回收
+	ScheduledStorageTrimEnabled *bool `json:"scheduled_storage_trim_enabled"`
 	// 硬件直通
 	HardwarePassthroughEnabled *bool `json:"hardware_passthrough_enabled"`
 	// 安全组默认全放通
@@ -279,6 +283,7 @@ func GetSettings(c *gin.Context) {
 			RequestFilterEnabled:                  cfg.RequestFilterEnabled,
 			PasswordBreachCheckEnabled:            cfg.PasswordBreachCheckEnabled,
 			ScheduledPasswordBreachCheckEnabled:   cfg.ScheduledPasswordBreachCheckEnabled,
+			ScheduledStorageTrimEnabled:           cfg.ScheduledStorageTrimEnabled,
 			HardwarePassthroughEnabled:            cfg.HardwarePassthroughEnabled,
 			SecurityGroupDefaultAllowAll:          cfg.SecurityGroupDefaultAllowAll,
 		},
@@ -612,6 +617,9 @@ func UpdateSettings(c *gin.Context) {
 	}
 	if req.ScheduledPasswordBreachCheckEnabled != nil {
 		cfg.ScheduledPasswordBreachCheckEnabled = *req.ScheduledPasswordBreachCheckEnabled
+	}
+	if req.ScheduledStorageTrimEnabled != nil {
+		cfg.ScheduledStorageTrimEnabled = *req.ScheduledStorageTrimEnabled
 	}
 	if req.HardwarePassthroughEnabled != nil {
 		cfg.HardwarePassthroughEnabled = *req.HardwarePassthroughEnabled
