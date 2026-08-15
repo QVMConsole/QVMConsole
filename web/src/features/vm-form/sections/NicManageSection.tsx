@@ -282,6 +282,13 @@ export default function NicManageSection({ vmName, vmStatus, live, liveTick }: N
       render: (_: unknown, row: VMInterfaceInfo) => row.binding?.nic_model || 'virtio',
     },
     {
+      title: 'MAC 地址',
+      width: 165,
+      render: (_: unknown, row: VMInterfaceInfo) => (
+        <span className="qvm-mono">{row.mac || '-'}</span>
+      ),
+    },
+    {
       title: 'IP 地址',
       render: (_: unknown, row: VMInterfaceInfo) => {
         const ip = getInterfaceIP(row)
