@@ -679,6 +679,7 @@ export const endpointDescriptions: Record<string, EndpointDescription> = {
   'PUT /vpc/security-groups/:id': { summary: '更新安全组', body: securityGroupBody },
   'DELETE /vpc/security-groups/:id': { summary: '删除安全组' },
   'POST /vpc/security-groups/:id/rules': { summary: '新增安全组规则', body: securityRuleBody },
+  'PUT /vpc/security-groups/rules/:id': { summary: '编辑安全组规则', body: securityRuleBody },
   'DELETE /vpc/security-groups/rules/:id': { summary: '删除安全组规则' },
   'GET /vpc/acl/preview': { summary: '预览 VPC ACL 规则', response: 'data: ACL 预览文本或结构。' },
   'POST /vpc/acl/apply': { summary: '应用 VPC ACL 规则' },

@@ -250,6 +250,46 @@ func AddVPCSecurityGroupRule(operator, role string, groupID uint, req VPCSecurit
 	return rule, nil
 }
 
+// UpdateVPCSecurityGroupRule 编辑安全组规则：按规则 ID 定位并校验归属后，整体替换规则字段。
+func UpdateVPCSecurityGroupRule(operator, role string, ruleID uint, req VPCSecurityGroupRuleRequest) (*model.VPCSecurityGroupRule, error) {
+	var rule model.VPCSecurityGroupRule
+	if err := model.DB.First(&rule, ruleID).Error; err != nil {
+		return nil, fmt.Errorf("安全组规则不存在")
+	}
+	var group model.VPCSecurityGroup
+	if err := model.DB.First(&group, rule.SecurityGroupID).Error; err != nil {
+		if role == "admin" {
+			return nil, fmt.Errorf("规则所属安全组不存在")
+		}
+		return nil, fmt.Errorf("安全组不存在")
+	}
+	if role != "admin" && group.Username != operator && !(group.IsVMScoped && HookUserOwnsVM(operator, group.VMName)) {
+		return nil, fmt.Errorf("无权操作此安全组规则")
+	}
+	if role != "admin" && HookIsLightweightCloudUser(operator) {
+		targetType := strings.ToLower(strings.TrimSpace(req.TargetType))
+		if targetType == "" {
+			targetType = "cidr"
+		}
+		if targetType != "cidr" {
+			return nil, fmt.Errorf("轻量云安全组规则仅支持 CIDR 目标")
+		}
+	}
+	next, err := normalizeSecurityGroupRule(group.ID, req)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateSecurityGroupRuleTarget(group.Username, next.TargetType, next.TargetValue); err != nil {
+		return nil, err
+	}
+	next.ID = rule.ID
+	next.CreatedAt = rule.CreatedAt
+	if err := model.DB.Save(next).Error; err != nil {
+		return nil, err
+	}
+	return next, nil
+}
+
 func DeleteVPCSecurityGroupRule(operator, role string, ruleID uint) error {
 	var rule model.VPCSecurityGroupRule
 	if err := model.DB.First(&rule, ruleID).Error; err != nil {

@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-15T10:13:04.658Z",
-  "count": 336,
+  "generated_at": "2026-08-16T08:58:37.377Z",
+  "count": 337,
   "endpoints": [
     {
       "method": "POST",
@@ -3620,6 +3620,17 @@
       "vmAccess": false,
       "highRisk": "",
       "comment": ""
+    },
+    {
+      "method": "PUT",
+      "path": "/vpc/security-groups/rules/:id",
+      "handler": "UpdateVPCSecurityGroupRule",
+      "auth": "jwt",
+      "admin": false,
+      "elasticOnly": false,
+      "vmAccess": false,
+      "highRisk": "",
+      "comment": "编辑安全组规则（保存后重建 VPC ACL）"
     },
     {
       "method": "GET",

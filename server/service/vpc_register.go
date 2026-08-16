@@ -98,6 +98,9 @@ func DeleteVPCSecurityGroup(operator, role string, id uint) error {
 func AddVPCSecurityGroupRule(operator, role string, groupID uint, req VPCSecurityGroupRuleRequest) (*model.VPCSecurityGroupRule, error) {
 	return vpcpkg.AddVPCSecurityGroupRule(operator, role, groupID, req)
 }
+func UpdateVPCSecurityGroupRule(operator, role string, ruleID uint, req VPCSecurityGroupRuleRequest) (*model.VPCSecurityGroupRule, error) {
+	return vpcpkg.UpdateVPCSecurityGroupRule(operator, role, ruleID, req)
+}
 func DeleteVPCSecurityGroupRule(operator, role string, ruleID uint) error {
 	return vpcpkg.DeleteVPCSecurityGroupRule(operator, role, ruleID)
 }

@@ -304,6 +304,23 @@ export function addVPCSecurityGroupRule(
   return service.post<unknown, ApiResponse<unknown>>(`/vpc/security-groups/${id}/rules`, data)
 }
 
+/** 更新安全组规则 */
+export function updateVPCSecurityGroupRule(
+  id: number,
+  data: {
+    direction: string
+    address_family: string
+    protocol: string
+    port_start: number
+    port_end: number
+    target_type: string
+    target_value: string
+    remark: string
+  },
+) {
+  return service.put<unknown, ApiResponse<unknown>>(`/vpc/security-groups/rules/${id}`, data)
+}
+
 /** 删除安全组规则 */
 export function deleteVPCSecurityGroupRule(id: number) {
   return service.delete<unknown, ApiResponse<unknown>>(`/vpc/security-groups/rules/${id}`)

@@ -352,6 +352,7 @@ func Setup() *gin.Engine {
 				vpc.PUT("/security-groups/:id", middleware.ElasticCloudOnlyMiddleware(), handler.UpdateVPCSecurityGroup)
 				vpc.DELETE("/security-groups/:id", middleware.ElasticCloudOnlyMiddleware(), handler.DeleteVPCSecurityGroup)
 				vpc.POST("/security-groups/:id/rules", handler.AddVPCSecurityGroupRule)
+				vpc.PUT("/security-groups/rules/:id", handler.UpdateVPCSecurityGroupRule) // 编辑安全组规则（保存后重建 VPC ACL）
 				vpc.DELETE("/security-groups/rules/:id", handler.DeleteVPCSecurityGroupRule)
 				vpc.GET("/acl/preview", handler.PreviewVPCACL)
 				vpc.POST("/acl/apply", handler.ApplyVPCACL)

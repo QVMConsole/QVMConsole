@@ -1,16 +1,25 @@
 /**
- * 添加安全组规则对话框
+ * 添加 / 编辑安全组规则对话框
  * - 方向 / 协议 / 端口（支持单端口、范围、全端口）
  * - 目标类型：CIDR/IP、指定交换机、指定安全组（仅允许选择当前用户可见资源）
+ * - 传入 rule 时进入编辑模式：回填规则字段，保存走更新接口
  */
 import { useMemo, useState } from 'react'
 import { Checkbox, Input, Modal, Select, TextArea, Toast } from '@douyinfe/semi-ui'
-import { addVPCSecurityGroupRule, vpcSwitchModeDetail, type VpcSecurityGroup, type VpcSwitch } from '@/api/vpc'
+import {
+  addVPCSecurityGroupRule,
+  updateVPCSecurityGroupRule,
+  vpcSwitchModeDetail,
+  type VpcSecurityGroup,
+  type VpcSecurityGroupRule,
+  type VpcSwitch,
+} from '@/api/vpc'
 import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
 import { securityGroupRuleActionText } from '../utils'
 
 interface RuleDialogProps {
   group: VpcSecurityGroup
+  rule?: VpcSecurityGroupRule
   switches: VpcSwitch[]
   securityGroups: VpcSecurityGroup[]
   onClose: () => void
@@ -39,10 +48,39 @@ const INITIAL_FORM: RuleFormState = {
   remark: '',
 }
 
-export default function RuleDialog({ group, switches, securityGroups, onClose, onSaved }: RuleDialogProps) {
+/** 由已有规则回填表单：端口 1-65535 或 ICMP/全部协议统一回填为「全端口」 */
+function formFromRule(rule: VpcSecurityGroupRule): RuleFormState {
+  const protocol = rule.protocol || 'tcp'
+  const icmpLike = protocol === 'icmp' || protocol === 'icmpv6' || protocol === 'all'
+  const portAll = icmpLike || (rule.port_start === 1 && rule.port_end === 65535)
+  const portText = portAll
+    ? ''
+    : rule.port_start === rule.port_end
+      ? String(rule.port_start)
+      : `${rule.port_start}-${rule.port_end}`
+  return {
+    direction: rule.direction || 'ingress',
+    address_family: rule.address_family === 'ipv6' ? 'ipv6' : 'ipv4',
+    protocol,
+    port_text: portText,
+    port_all: portAll,
+    target_type: rule.target_type || 'cidr',
+    target_value: rule.target_value || '',
+    remark: rule.remark || '',
+  }
+}
+
+export default function RuleDialog({
+  group,
+  rule,
+  switches,
+  securityGroups,
+  onClose,
+  onSaved,
+}: RuleDialogProps) {
   const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const [submitting, setSubmitting] = useState(false)
-  const [form, setForm] = useState<RuleFormState>(INITIAL_FORM)
+  const [form, setForm] = useState<RuleFormState>(() => (rule ? formFromRule(rule) : INITIAL_FORM))
 
   const patch = (p: Partial<RuleFormState>) => setForm((f) => ({ ...f, ...p }))
 
@@ -147,7 +185,7 @@ export default function RuleDialog({ group, switches, securityGroups, onClose, o
 
     setSubmitting(true)
     try {
-      await addVPCSecurityGroupRule(group.id, {
+      const payload = {
         direction: form.direction,
         address_family: form.address_family,
         protocol: form.protocol,
@@ -156,8 +194,14 @@ export default function RuleDialog({ group, switches, securityGroups, onClose, o
         target_type: form.target_type,
         target_value: targetValue,
         remark: form.remark,
-      })
-      Toast.success('规则已添加')
+      }
+      if (rule) {
+        await updateVPCSecurityGroupRule(rule.id, payload)
+        Toast.success('规则已更新')
+      } else {
+        await addVPCSecurityGroupRule(group.id, payload)
+        Toast.success('规则已添加')
+      }
       onSaved()
       requestClose()
     } catch {
@@ -169,7 +213,7 @@ export default function RuleDialog({ group, switches, securityGroups, onClose, o
 
   return (
     <Modal
-      title={`添加规则 — ${group.name}`}
+      title={`${rule ? '编辑规则' : '添加规则'} — ${group.name}`}
       visible={modalVisible}
       afterClose={afterModalClose}
       onCancel={requestClose}

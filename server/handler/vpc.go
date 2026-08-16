@@ -224,6 +224,26 @@ func AddVPCSecurityGroupRule(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "规则已添加", "data": rule})
 }
 
+func UpdateVPCSecurityGroupRule(c *gin.Context) {
+	username, role := currentUserAndRole(c)
+	id, _ := strconv.Atoi(c.Param("id"))
+	var req service.VPCSecurityGroupRuleRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		return
+	}
+	rule, err := service.UpdateVPCSecurityGroupRule(username, role, uint(id), req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+	if err := service.ApplyVPCACLRules(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "规则已保存，但应用 VPC ACL 失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "规则已更新", "data": rule})
+}
+
 func DeleteVPCSecurityGroupRule(c *gin.Context) {
 	username, role := currentUserAndRole(c)
 	id, _ := strconv.Atoi(c.Param("id"))

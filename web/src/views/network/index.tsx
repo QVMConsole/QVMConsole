@@ -82,7 +82,7 @@ type DialogState =
   | { type: 'switchVMs'; row: VpcSwitch }
   | { type: 'ifaceConfig'; name: string }
   | { type: 'group'; row?: VpcSecurityGroup }
-  | { type: 'rule'; group: VpcSecurityGroup }
+  | { type: 'rule'; group: VpcSecurityGroup; rule?: VpcSecurityGroupRule }
   | { type: 'portMirror'; options: PortMirrorOptions }
   | null
 
@@ -701,6 +701,7 @@ export default function NetworkPage() {
             onEdit={(row) => setDialog({ type: 'group', row })}
             onDelete={(row) => void handleDeleteGroup(row)}
             onAddRule={(group) => setDialog({ type: 'rule', group })}
+            onEditRule={(group, rule) => setDialog({ type: 'rule', group, rule })}
             onDeleteRule={(rule) => void handleDeleteRule(rule)}
           />
         </Tabs.TabPane>
@@ -760,6 +761,7 @@ export default function NetworkPage() {
       {dialog?.type === 'rule' && (
         <RuleDialog
           group={dialog.group}
+          rule={dialog.rule}
           switches={switches}
           securityGroups={securityGroups}
           onClose={() => setDialog(null)}
