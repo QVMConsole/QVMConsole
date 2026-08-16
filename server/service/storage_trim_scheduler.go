@@ -40,7 +40,7 @@ func StartStorageTrimScheduler() {
 				timer := time.NewTimer(time.Until(next))
 				<-timer.C
 				if config.GlobalConfig != nil && config.GlobalConfig.ScheduledStorageTrimEnabled {
-					if _, _, err := SubmitStorageTrim(); err != nil {
+					if _, _, err := SubmitStorageTrim("system:scheduler", "每日 02:00 自动回收"); err != nil {
 						logger.App.Warn("提交用户存储自动回收任务失败", "error", err)
 					}
 				}
@@ -50,22 +50,38 @@ func StartStorageTrimScheduler() {
 }
 
 // SubmitStorageTrim 提交用户存储回收任务（已有运行中任务则复用）
-func SubmitStorageTrim() (*model.Task, bool, error) {
+type StorageTrimTaskParams struct {
+	TriggerReason string `json:"trigger_reason"`
+}
+
+func SubmitStorageTrim(createdBy, triggerReason string) (*model.Task, bool, error) {
 	storageTrimSubmitMu.Lock()
 	defer storageTrimSubmitMu.Unlock()
 	if active, ok := taskqueue.GetActiveTask(model.TaskTypeStorageTrim); ok {
 		return active, true, nil
 	}
-	task, err := taskqueue.SubmitWithStruct(model.TaskTypeStorageTrim, struct{}{}, "system:scheduler")
+	if createdBy == "" {
+		createdBy = "system:scheduler"
+	}
+	if triggerReason == "" {
+		triggerReason = "用户存储回收"
+	}
+	task, err := taskqueue.SubmitWithStruct(model.TaskTypeStorageTrim, StorageTrimTaskParams{
+		TriggerReason: triggerReason,
+	}, createdBy)
 	return task, false, err
 }
 
-// ExecuteStorageTrim 执行用户存储回收（定时任务入口）
+// ExecuteStorageTrim 执行用户存储回收（任务队列入口）
 // 用户存储文件系统未挂载时跳过本次执行，不视为失败
-func ExecuteStorageTrim(_ context.Context, progress func(int, string)) (*quota.TrimStorageResult, error) {
+func ExecuteStorageTrim(ctx context.Context, params StorageTrimTaskParams, progress func(int, string)) (*quota.TrimStorageResult, error) {
+	triggerReason := params.TriggerReason
+	if triggerReason == "" {
+		triggerReason = "用户存储回收"
+	}
 	event, _ := StartSchedulerEvent(SchedulerEventStartInput{
 		SchedulerKey: storageTrimSchedulerKey, SchedulerName: "用户存储自动回收",
-		SchedulerGroup: "存储维护", TriggerReason: "每日 02:00 自动回收",
+		SchedulerGroup: "存储维护", TriggerReason: triggerReason,
 	})
 	if !quota.IsStorageFilesystemMounted() {
 		if event != nil {
@@ -76,7 +92,7 @@ func ExecuteStorageTrim(_ context.Context, progress func(int, string)) (*quota.T
 	if progress != nil {
 		progress(20, "正在执行用户存储回收")
 	}
-	result, err := quota.TrimStorage()
+	result, err := quota.TrimStorage(ctx)
 	if event != nil {
 		if err != nil {
 			_ = FinishSchedulerEventFailed(event, err.Error())

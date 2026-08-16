@@ -94,7 +94,7 @@ web/src/views/settings/
 | `/settings/log/export` | POST | 导出日志（blob ZIP） |
 | `/settings/diagnostics/categories` | GET | 诊断类别 |
 | `/settings/diagnostics/export` | POST | 导出诊断（blob ZIP，120s 超时） |
-| `/settings/storage/trim` | POST | 用户存储回收 |
+| `/settings/storage/trim` | POST | 提交用户存储回收任务；返回 `task` 与 `reused` |
 | `/host/ksm` | GET / PUT | KSM 状态 / 挡位 |
 | `/host/zram` | GET / PUT | zRAM 状态 / 挡位 |
 | `/host/kvm-intel-unrestricted-guest` | GET / PUT | KVM 兼容性参数 |
@@ -102,6 +102,8 @@ web/src/views/settings/
 | `/host/hardware-passthrough/enable-iommu` | POST | 一键开启 IOMMU |
 | `/host/hardware-passthrough/load-vfio` | POST | 一键加载 vfio-pci |
 | `/storage-pool/all-isos` | GET | 救援系统 ISO 候选列表 |
+
+存储回收通过 `storage_trim` 任务异步执行，重复提交时复用正在运行的任务。任务会优先解析当前挂载点对应 loop 设备的真实 backing file；未挂载时依次读取 `KVM_USER_STORAGE_IMAGE` 与 `/etc/fstab`。因此镜像位于非根磁盘、环境变量路径过期时，仍会对当前实际镜像执行回收。回收占用量按 `stat` 返回的块大小换算为 1K blocks，`fstrim` 与 `fallocate --dig-holes` 均不设置 IO 超时。
 
 ## 设计规范落实
 

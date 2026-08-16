@@ -1,7 +1,9 @@
 package quota
 
 import (
+	"context"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -52,10 +54,95 @@ func GetStorageMountPoint() string {
 
 // GetStorageImagePath 获取存储镜像文件路径
 func GetStorageImagePath() string {
+	// 挂载中的 loop 设备代表当前实际使用的镜像，应优先于可能过期的环境变量。
+	if mountedPath := getMountedStorageImagePath(); mountedPath != "" {
+		return mountedPath
+	}
+
+	if configuredPath := strings.TrimSpace(os.Getenv("KVM_USER_STORAGE_IMAGE")); configuredPath != "" && filepath.IsAbs(configuredPath) {
+		configuredPath = filepath.Clean(configuredPath)
+		if isStorageImageFile(configuredPath) {
+			return configuredPath
+		}
+	}
+
+	// 未挂载时从 fstab 恢复安装阶段持久化的镜像路径，避免磁盘位置变更后回退到默认路径。
+	if fstabPath := getStorageImagePathFromFstab(); fstabPath != "" {
+		return fstabPath
+	}
+
 	if configuredPath := strings.TrimSpace(os.Getenv("KVM_USER_STORAGE_IMAGE")); configuredPath != "" && filepath.IsAbs(configuredPath) {
 		return filepath.Clean(configuredPath)
 	}
 	return defaultStorageImagePath
+}
+
+func getMountedStorageImagePath() string {
+	data, err := os.ReadFile("/proc/self/mounts")
+	if err != nil {
+		return ""
+	}
+
+	for _, line := range strings.Split(string(data), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 2 || decodeMountField(fields[1]) != defaultStorageMountPoint {
+			continue
+		}
+
+		source := decodeMountField(fields[0])
+		loopName := filepath.Base(source)
+		if !strings.HasPrefix(loopName, "loop") {
+			return ""
+		}
+
+		backingFile, readErr := os.ReadFile(filepath.Join("/sys/class/block", loopName, "loop/backing_file"))
+		if readErr != nil {
+			return ""
+		}
+		path := filepath.Clean(decodeMountField(strings.TrimSpace(string(backingFile))))
+		if filepath.IsAbs(path) && isStorageImageFile(path) {
+			return path
+		}
+		return ""
+	}
+	return ""
+}
+
+func getStorageImagePathFromFstab() string {
+	data, err := os.ReadFile("/etc/fstab")
+	if err != nil {
+		return ""
+	}
+
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 2 || decodeMountField(fields[1]) != defaultStorageMountPoint {
+			continue
+		}
+		path := filepath.Clean(decodeMountField(fields[0]))
+		if filepath.IsAbs(path) && isStorageImageFile(path) {
+			return path
+		}
+	}
+	return ""
+}
+
+func decodeMountField(value string) string {
+	return strings.NewReplacer(
+		`\040`, " ",
+		`\011`, "\t",
+		`\012`, "\n",
+		`\134`, `\`,
+	).Replace(value)
+}
+
+func isStorageImageFile(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
 }
 
 // GetProjectID 获取用户的 project ID（基于系统 UID）
@@ -458,6 +545,8 @@ func SyncAllUserQuotas() error {
 
 // TrimStorageResult 存储回收结果
 type TrimStorageResult struct {
+	ImagePath    string `json:"image_path"`    // 实际执行回收的镜像路径
+	MountPoint   string `json:"mount_point"`   // 用户存储挂载点
 	BeforeBlocks int64  `json:"before_blocks"` // 回收前实际占用块数（1K blocks）
 	AfterBlocks  int64  `json:"after_blocks"`  // 回收后实际占用块数（1K blocks）
 	TrimmedBytes int64  `json:"trimmed_bytes"` // 回收的字节数
@@ -466,7 +555,7 @@ type TrimStorageResult struct {
 
 // TrimStorage 执行存储回收
 // 先对挂载点执行 fstrim，再对镜像文件执行 fallocate --dig-holes
-func TrimStorage() (*TrimStorageResult, error) {
+func TrimStorage(ctx context.Context) (*TrimStorageResult, error) {
 	imgPath := GetStorageImagePath()
 	mountPoint := GetStorageMountPoint()
 
@@ -477,14 +566,14 @@ func TrimStorage() (*TrimStorageResult, error) {
 	}
 
 	// 1. 对挂载点执行 fstrim
-	fstrimResult := utils.ExecShellQuiet(fmt.Sprintf("fstrim -v %s 2>&1", utils.ShellSingleQuote(mountPoint)))
+	fstrimResult := utils.ExecCommandContextWithTimeout(ctx, "fstrim", 0, "-v", mountPoint)
 	if fstrimResult.Error != nil {
 		// fstrim 失败不阻断，继续执行 fallocate
 		logger.App.Warn("fstrim 执行失败，将继续执行 fallocate --dig-holes", "error", fstrimResult.Error, "stderr", fstrimResult.Stderr)
 	}
 
 	// 2. 对镜像文件执行 fallocate --dig-holes 释放稀疏文件空洞
-	digResult := utils.ExecShellQuiet(fmt.Sprintf("fallocate --dig-holes %s 2>&1", utils.ShellSingleQuote(imgPath)))
+	digResult := utils.ExecCommandContextWithTimeout(ctx, "fallocate", 0, "--dig-holes", imgPath)
 	if digResult.Error != nil {
 		return nil, fmt.Errorf("fallocate --dig-holes 执行失败: %s", digResult.Stderr)
 	}
@@ -501,6 +590,8 @@ func TrimStorage() (*TrimStorageResult, error) {
 	}
 
 	return &TrimStorageResult{
+		ImagePath:    imgPath,
+		MountPoint:   mountPoint,
 		BeforeBlocks: beforeBlocks,
 		AfterBlocks:  afterBlocks,
 		TrimmedBytes: trimmedBytes,
@@ -508,17 +599,35 @@ func TrimStorage() (*TrimStorageResult, error) {
 	}, nil
 }
 
-// getFileBlocks 获取文件占用的 1K 块数（通过 stat 或 ls -ls）
+// getFileBlocks 获取文件实际占用的 1K 块数。
+// stat 的 %b 单位由 %B 指定，Linux 通常为 512 字节，不能直接按 1K 计算。
 func getFileBlocks(path string) (int64, error) {
-	result := utils.ExecShellQuiet(fmt.Sprintf("stat --format='%%b' %s 2>/dev/null", utils.ShellSingleQuote(path)))
-	if result.Error != nil || strings.TrimSpace(result.Stdout) == "" {
-		return 0, fmt.Errorf("获取文件块数失败: %s", result.Stderr)
+	result := utils.ExecCommandQuiet("stat", "--format=%b %B", path)
+	if result.Error != nil {
+		detail := strings.TrimSpace(result.Stderr)
+		if detail == "" {
+			detail = result.Error.Error()
+		}
+		return 0, fmt.Errorf("获取文件块数失败: %s", detail)
 	}
-	blocks, err := strconv.ParseInt(strings.TrimSpace(result.Stdout), 10, 64)
+
+	fields := strings.Fields(result.Stdout)
+	if len(fields) != 2 {
+		return 0, fmt.Errorf("解析文件块数失败: stat 返回格式异常 %q", result.Stdout)
+	}
+	blocks, err := strconv.ParseInt(fields[0], 10, 64)
 	if err != nil {
 		return 0, fmt.Errorf("解析文件块数失败: %w", err)
 	}
-	return blocks, nil
+	blockSize, err := strconv.ParseInt(fields[1], 10, 64)
+	if err != nil || blockSize <= 0 {
+		return 0, fmt.Errorf("解析文件块大小失败: %q", fields[1])
+	}
+	if blocks < 0 || blocks > math.MaxInt64/blockSize {
+		return 0, fmt.Errorf("文件块数超出可计算范围")
+	}
+	allocatedBytes := blocks * blockSize
+	return (allocatedBytes + 1023) / 1024, nil
 }
 
 // formatBytes 将字节数转换为人类可读格式

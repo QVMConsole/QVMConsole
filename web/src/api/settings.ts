@@ -292,17 +292,25 @@ export function exportDiagnostics(data: { categories: string[] }) {
 
 /** 存储回收结果 */
 export interface TrimStorageResult {
+  image_path: string
+  mount_point: string
   before_blocks: number
   after_blocks: number
   trimmed_bytes: number
   trimmed_human: string
 }
 
+export interface TrimStorageTask {
+  id: number
+  status: string
+}
+
 /** 执行用户存储回收（fstrim + fallocate --dig-holes） */
 export function trimUserStorage() {
-  return service.post<unknown, ApiResponse<TrimStorageResult>>('/settings/storage/trim', {}, {
-    timeout: 120000,
-  })
+  return service.post<unknown, ApiResponse<{ task: TrimStorageTask; reused: boolean }>>(
+    '/settings/storage/trim',
+    {},
+  )
 }
 
 /** 宿主机公开信息（架构 / SPICE 支持等） */

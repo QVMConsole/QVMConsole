@@ -277,8 +277,8 @@ export const endpointDescriptions: Record<string, EndpointDescription> = {
   },
   'POST /settings/storage/trim': {
     summary: '执行用户存储空间回收',
-    response: 'data: before_blocks, after_blocks, trimmed_bytes, trimmed_human。',
-    notes: ['执行 fstrim 与稀疏化回收，耗时较长。'],
+    response: 'data: task, reused。任务完成结果包含 image_path、mount_point、before_blocks、after_blocks、trimmed_bytes、trimmed_human。',
+    notes: ['异步执行 fstrim 与稀疏化回收；已有同类任务运行时复用现有任务。'],
   },
 
   // ==================== 虚拟机 ====================

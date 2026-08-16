@@ -17,7 +17,6 @@ import (
 	"kvm_console/logger"
 	"kvm_console/model"
 	"kvm_console/service"
-	"kvm_console/service/storage/quota"
 	"kvm_console/taskqueue"
 	"kvm_console/utils"
 )
@@ -1067,16 +1066,23 @@ func ExportLogs(c *gin.Context) {
 
 // TrimUserStorage 执行用户存储回收（fstrim + fallocate --dig-holes）
 func TrimUserStorage(c *gin.Context) {
-	result, err := quota.TrimStorage()
+	createdBy := c.GetString("username")
+	if createdBy == "" {
+		createdBy = "admin"
+	}
+	task, reused, err := service.SubmitStorageTrim(createdBy, "管理员手动执行")
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "存储回收失败: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "提交存储回收任务失败: " + err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    200,
-		"message": "存储回收完成",
-		"data":    result,
+	message := "存储回收任务已提交"
+	if reused {
+		message = "已有存储回收任务正在执行，已返回现有任务"
+	}
+	c.JSON(http.StatusAccepted, gin.H{
+		"code": 202, "message": message,
+		"data": gin.H{"task": task, "reused": reused},
 	})
 }
 

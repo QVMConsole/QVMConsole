@@ -1092,7 +1092,11 @@ func registerTaskHandlers() {
 		return service.ExecutePasswordBreachNotification(ctx, params, progress)
 	})
 	taskqueue.RegisterHandler(model.TaskTypeStorageTrim, func(ctx context.Context, task *model.Task, progress func(int, string)) (string, error) {
-		result, err := service.ExecuteStorageTrim(ctx, progress)
+		var params service.StorageTrimTaskParams
+		if err := json.Unmarshal([]byte(task.Params), &params); err != nil {
+			return "", fmt.Errorf("解析存储回收参数失败: %w", err)
+		}
+		result, err := service.ExecuteStorageTrim(ctx, params, progress)
 		if err != nil {
 			return "", err
 		}
