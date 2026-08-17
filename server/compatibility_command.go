@@ -102,10 +102,12 @@ func runSystemCompatibilityCheckCommand(args []string) int {
 		if report.DiagnosticLog != "" {
 			_, _ = fmt.Fprintf(os.Stdout, "诊断日志: %s\n", report.DiagnosticLog)
 		}
-		for index := len(report.Stages) - 1; index >= 0; index-- {
-			if report.Stages[index].Status == "failed" {
-				_, _ = fmt.Fprintf(os.Stderr, "失败阶段: %s（%s）\n", report.Stages[index].Name, report.Stages[index].Message)
-				break
+		for _, stage := range report.Stages {
+			switch stage.Status {
+			case "failed":
+				_, _ = fmt.Fprintf(os.Stderr, "失败阶段: %s（%s）\n", stage.Name, stage.Message)
+			case "skipped":
+				_, _ = fmt.Fprintf(os.Stderr, "跳过阶段: %s（%s）\n", stage.Name, stage.Message)
 			}
 		}
 	}

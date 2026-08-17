@@ -23,8 +23,9 @@ import (
 )
 
 const (
-	stagePassed = "passed"
-	stageFailed = "failed"
+	stagePassed  = "passed"
+	stageFailed  = "failed"
+	stageSkipped = "skipped"
 )
 
 // Options 描述安装兼容性实机测试使用的最小资源参数。
@@ -187,7 +188,7 @@ func RunSystemCheck(options Options, progress func(string)) (report *Report, ret
 		progress: progress,
 		vmName:   vmName,
 		report: &Report{
-			Version:    1,
+			Version:    2,
 			StartedAt:  startedAt,
 			VM:         VMParameters{Name: vmName},
 			ReportPath: reportPath,
@@ -253,60 +254,169 @@ func (r *runner) run() error {
 	hostArch := arch.DetectHostArch()
 	r.report.HostArch = hostArch
 	r.report.VM = vmParametersFromCreateParams(r.buildCreateParams(hostArch, 0, 0), "")
+
+	var failures []error
+	recordFailure := func(name string, err error) {
+		failures = append(failures, r.fail(name, err))
+	}
+
+	libvirtReady := r.options.InitError == nil
 	if r.options.InitError != nil {
-		return r.fail("libvirt RPC 初始化", r.options.InitError)
+		recordFailure("libvirt RPC 初始化", r.options.InitError)
+	} else {
+		r.pass("libvirt RPC 初始化", "libvirt RPC 连接初始化成功", nil)
 	}
+
 	r.progress("检查 KVM、libvirt、QEMU 与 OVS 命令...")
+	runtimeReady := true
 	if err := r.checkRequiredRuntime(); err != nil {
-		return r.fail("运行环境检查", err)
+		runtimeReady = false
+		recordFailure("运行环境检查", err)
+	} else {
+		r.pass("运行环境检查", "KVM 设备及虚拟化命令均可用", nil)
 	}
-	r.pass("运行环境检查", "KVM 设备及虚拟化命令均可用", nil)
 	if err := r.checkInterrupted(); err != nil {
 		return r.fail("用户中断", err)
 	}
 
 	r.progress("检查并准备基础 OVS 网络...")
+	ovsReady := false
 	if err := rootservice.EnsureOVSNetworkReady(); err != nil {
-		return r.fail("OVS 基础网络", err)
+		recordFailure("OVS 基础网络", err)
+	} else {
+		ovsStatus, err := rootservice.GetOVSStatus()
+		if err != nil {
+			recordFailure("OVS 基础网络", err)
+		} else {
+			if data, marshalErr := json.Marshal(ovsStatus); marshalErr == nil {
+				_ = json.Unmarshal(data, &r.report.OVSStatus)
+			}
+			if !ovsStatus.Healthy {
+				recordFailure("OVS 基础网络", fmt.Errorf("OVS 基础网络检查未通过: %s", strings.Join(ovsStatus.Issues, "；")))
+			} else {
+				ovsReady = true
+				r.pass("OVS 基础网络", "OVS 服务、网桥、网关、DHCP、转发与 NAT 规则均正常", map[string]string{
+					"bridge":  ovsStatus.Bridge,
+					"gateway": ovsStatus.GatewayIP,
+					"uplink":  ovsStatus.Uplink,
+				})
+			}
+		}
 	}
-	ovsStatus, err := rootservice.GetOVSStatus()
-	if err != nil {
-		return r.fail("OVS 基础网络", err)
-	}
-	if data, marshalErr := json.Marshal(ovsStatus); marshalErr == nil {
-		_ = json.Unmarshal(data, &r.report.OVSStatus)
-	}
-	if !ovsStatus.Healthy {
-		return r.fail("OVS 基础网络", fmt.Errorf("OVS 基础网络检查未通过: %s", strings.Join(ovsStatus.Issues, "；")))
-	}
-	r.pass("OVS 基础网络", "OVS 服务、网桥、网关、DHCP、转发与 NAT 规则均正常", map[string]string{
-		"bridge":  ovsStatus.Bridge,
-		"gateway": ovsStatus.GatewayIP,
-		"uplink":  ovsStatus.Uplink,
-	})
 
 	r.progress("验证 OVS 端口安全所需的 meter、包速率 policing 与 OpenFlow 流表能力...")
 	portSecurityDetails, err := r.checkPortSecurityRuntime()
 	if err != nil {
-		return r.fail("OVS 端口安全能力", err)
+		recordFailure("OVS 端口安全能力", err)
+	} else {
+		r.pass("OVS 端口安全能力", "packet meter、包速率 policing 与策略流表均已实际落地验证", portSecurityDetails)
 	}
-	r.pass("OVS 端口安全能力", "packet meter、包速率 policing 与策略流表均已实际落地验证", portSecurityDetails)
 	if err := r.checkInterrupted(); err != nil {
 		return r.fail("用户中断", err)
 	}
 
-	r.progress("准备系统基础交换机和测试安全组...")
-	if err := rootservice.EnsureSystemBaseNetwork(); err != nil {
-		return r.fail("基础交换机准备", err)
-	}
 	var systemSwitch model.VPCSwitch
+	var securityGroupID uint
+	var systemBridge string
+	baseNetworkReady := false
+	if !ovsReady {
+		r.skip("基础交换机准备", "依赖阶段“OVS 基础网络”未通过")
+	} else {
+		r.progress("准备系统基础交换机和测试安全组...")
+		var prepareErr error
+		systemSwitch, securityGroupID, systemBridge, prepareErr = r.prepareSystemBaseNetwork()
+		if prepareErr != nil {
+			recordFailure("基础交换机准备", prepareErr)
+		} else {
+			baseNetworkReady = true
+			r.pass("基础交换机准备", "系统基础交换机和默认安全组已就绪", map[string]string{
+				"switch_id":         strconv.FormatUint(uint64(systemSwitch.ID), 10),
+				"security_group_id": strconv.FormatUint(uint64(securityGroupID), 10),
+				"bridge":            systemBridge,
+			})
+		}
+	}
+	if err := r.checkInterrupted(); err != nil {
+		return r.fail("用户中断", err)
+	}
+
+	var blockedBy []string
+	if !libvirtReady {
+		blockedBy = append(blockedBy, "libvirt RPC 初始化")
+	}
+	if !runtimeReady {
+		blockedBy = append(blockedBy, "运行环境检查")
+	}
+	if !ovsReady {
+		blockedBy = append(blockedBy, "OVS 基础网络")
+	}
+	if !baseNetworkReady {
+		blockedBy = append(blockedBy, "基础交换机准备")
+	}
+
+	vmCreated := false
+	if len(blockedBy) > 0 {
+		r.skip("虚拟机创建与启动", "依赖阶段未通过："+strings.Join(blockedBy, "、"))
+	} else {
+		params := r.buildCreateParams(hostArch, systemSwitch.ID, securityGroupID)
+		r.expectedDisk = filepath.Join(config.GlobalConfig.CloneDir, r.vmName+".qcow2")
+		r.report.VM = vmParametersFromCreateParams(params, systemBridge)
+
+		r.progress("通过面板正式链路创建并启动测试虚拟机...")
+		diskPath, createErr := rootservice.CreateVM(params, func(percent int, message string) {
+			r.progress(fmt.Sprintf("[%d%%] %s", percent, message))
+		})
+		if createErr != nil {
+			recordFailure("虚拟机创建与启动", createErr)
+		} else {
+			r.created = true
+			r.diskPath = diskPath
+			r.report.VM.StoragePath = diskPath
+			r.report.VM.StoragePool = params.StoragePoolID
+			vmCreated = true
+			if err := r.checkInterrupted(); err != nil {
+				return r.fail("用户中断", err)
+			}
+
+			bindingErr := r.bindVMToBaseNetwork(params)
+			if bindingErr != nil {
+				recordFailure("虚拟机创建与启动", bindingErr)
+			} else {
+				r.pass("虚拟机创建与启动", "测试虚拟机已通过正式创建链路启动并完成 VPC 绑定", map[string]string{
+					"disk_path": diskPath,
+				})
+			}
+		}
+	}
+	if err := r.checkInterrupted(); err != nil {
+		return r.fail("用户中断", err)
+	}
+
+	if !vmCreated {
+		r.skip("虚拟机与 OVS 联合验证", "依赖阶段未创建出可验证的测试虚拟机")
+	} else {
+		r.progress("验证虚拟机状态、XML 与 OVS 运行端口...")
+		if err := r.verifyVM(systemBridge); err != nil {
+			recordFailure("虚拟机与 OVS 联合验证", err)
+		} else {
+			r.pass("虚拟机与 OVS 联合验证", "虚拟机处于运行态，XML 与运行端口均已接入基础 OVS 网桥", nil)
+		}
+	}
+	return summarizeStageFailures(failures)
+}
+
+func (r *runner) prepareSystemBaseNetwork() (model.VPCSwitch, uint, string, error) {
+	var systemSwitch model.VPCSwitch
+	if err := rootservice.EnsureSystemBaseNetwork(); err != nil {
+		return systemSwitch, 0, "", err
+	}
 	if err := model.DB.Where("is_system = ?", true).Order("id ASC").First(&systemSwitch).Error; err != nil {
-		return r.fail("基础交换机准备", fmt.Errorf("读取系统基础交换机失败: %w", err))
+		return systemSwitch, 0, "", fmt.Errorf("读取系统基础交换机失败: %w", err)
 	}
 	systemBridge := rootservice.BridgeNameForSwitch(systemSwitch)
 	configuredBridge := strings.TrimSpace(config.GlobalConfig.OVSBridge)
 	if configuredBridge == "" || systemBridge != configuredBridge {
-		return r.fail("基础交换机准备", fmt.Errorf("系统基础交换机网桥与 OVS 配置不一致: switch=%s config=%s", systemBridge, configuredBridge))
+		return systemSwitch, 0, systemBridge, fmt.Errorf("系统基础交换机网桥与 OVS 配置不一致: switch=%s config=%s", systemBridge, configuredBridge)
 	}
 	adminUsername := strings.TrimSpace(config.GlobalConfig.DefaultAdminUser)
 	if adminUsername == "" {
@@ -314,60 +424,25 @@ func (r *runner) run() error {
 	}
 	securityGroup, err := rootservice.EnsureDefaultSecurityGroup(adminUsername)
 	if err != nil {
-		return r.fail("基础交换机准备", err)
+		return systemSwitch, 0, systemBridge, err
 	}
-	r.pass("基础交换机准备", "系统基础交换机和默认安全组已就绪", map[string]string{
-		"switch_id":         strconv.FormatUint(uint64(systemSwitch.ID), 10),
-		"security_group_id": strconv.FormatUint(uint64(securityGroup.ID), 10),
-		"bridge":            systemBridge,
-	})
-	if err := r.checkInterrupted(); err != nil {
-		return r.fail("用户中断", err)
-	}
+	return systemSwitch, securityGroup.ID, systemBridge, nil
+}
 
-	params := r.buildCreateParams(hostArch, systemSwitch.ID, securityGroup.ID)
-	r.expectedDisk = filepath.Join(config.GlobalConfig.CloneDir, r.vmName+".qcow2")
-	r.report.VM = vmParametersFromCreateParams(params, systemBridge)
-
-	r.progress("通过面板正式链路创建并启动测试虚拟机...")
-	diskPath, err := rootservice.CreateVM(params, func(percent int, message string) {
-		r.progress(fmt.Sprintf("[%d%%] %s", percent, message))
-	})
-	if err != nil {
-		return r.fail("虚拟机创建与启动", err)
-	}
-	r.created = true
-	r.diskPath = diskPath
-	r.report.VM.StoragePath = diskPath
-	r.report.VM.StoragePool = params.StoragePoolID
-	if err := r.checkInterrupted(); err != nil {
-		return r.fail("用户中断", err)
-	}
+func (r *runner) bindVMToBaseNetwork(params *rootservice.CreateVMParams) error {
 	if err := rootservice.BindVMToVPCAsAdmin(params.Name, params.SwitchID, params.SecurityGroupID); err != nil {
-		return r.fail("虚拟机创建与启动", fmt.Errorf("虚拟机已启动，但绑定基础 OVS 网络失败: %w", err))
+		return fmt.Errorf("虚拟机已启动，但绑定基础 OVS 网络失败: %w", err)
 	}
 	var binding model.VPCVMBinding
 	if err := model.DB.Where("vm_name = ? AND interface_order = ?", params.Name, 0).First(&binding).Error; err != nil {
-		return r.fail("虚拟机创建与启动", fmt.Errorf("读取测试虚拟机 VPC 绑定失败: %w", err))
+		return fmt.Errorf("读取测试虚拟机 VPC 绑定失败: %w", err)
 	}
 	if binding.SwitchID != params.SwitchID || binding.SecurityGroupID != params.SecurityGroupID {
-		return r.fail("虚拟机创建与启动", fmt.Errorf(
+		return fmt.Errorf(
 			"测试虚拟机 VPC 绑定与创建参数不一致: switch=%d/%d security_group=%d/%d",
 			binding.SwitchID, params.SwitchID, binding.SecurityGroupID, params.SecurityGroupID,
-		))
+		)
 	}
-	r.pass("虚拟机创建与启动", "测试虚拟机已通过正式创建链路启动并完成 VPC 绑定", map[string]string{
-		"disk_path": diskPath,
-	})
-	if err := r.checkInterrupted(); err != nil {
-		return r.fail("用户中断", err)
-	}
-
-	r.progress("验证虚拟机状态、XML 与 OVS 运行端口...")
-	if err := r.verifyVM(systemBridge); err != nil {
-		return r.fail("虚拟机与 OVS 联合验证", err)
-	}
-	r.pass("虚拟机与 OVS 联合验证", "虚拟机处于运行态，XML 与运行端口均已接入基础 OVS 网桥", nil)
 	return nil
 }
 
@@ -396,28 +471,39 @@ func vmParametersFromCreateParams(params *rootservice.CreateVMParams, ovsBridge 
 }
 
 func (r *runner) checkRequiredRuntime() error {
+	var issues []string
 	info, err := os.Stat("/dev/kvm")
 	if err != nil {
-		return fmt.Errorf("读取 /dev/kvm 失败: %w", err)
+		issues = append(issues, fmt.Sprintf("读取 /dev/kvm 失败: %v", err))
+	} else if info.IsDir() {
+		issues = append(issues, "/dev/kvm 不是有效的 KVM 设备")
+	} else {
+		kvmDevice, openErr := os.OpenFile("/dev/kvm", os.O_RDWR, 0)
+		if openErr != nil {
+			issues = append(issues, fmt.Sprintf("打开 /dev/kvm 失败: %v", openErr))
+		} else {
+			_ = kvmDevice.Close()
+		}
 	}
-	if info.IsDir() {
-		return fmt.Errorf("/dev/kvm 不是有效的 KVM 设备")
-	}
-	kvmDevice, err := os.OpenFile("/dev/kvm", os.O_RDWR, 0)
-	if err != nil {
-		return fmt.Errorf("打开 /dev/kvm 失败: %w", err)
-	}
-	_ = kvmDevice.Close()
 
 	qemuCandidates := []string{arch.GetProfile(arch.DetectHostArch()).EmulatorPath(), "qemu-system-x86_64", "qemu-kvm", "/usr/libexec/qemu-kvm"}
 	if arch.DetectHostArch() == arch.ArchAarch64 {
 		qemuCandidates = []string{arch.GetProfile(arch.ArchAarch64).EmulatorPath(), "qemu-system-aarch64", "qemu-kvm", "/usr/libexec/qemu-kvm"}
 	}
 	commands := []string{"virsh", "virt-install", "qemu-img", "ovs-vsctl", "ovs-ofctl", "ovsdb-client", "ip", "iptables", "ip6tables", "dnsmasq"}
+	var missingCommands []string
+	virshAvailable := true
 	for _, command := range commands {
 		if _, err := exec.LookPath(command); err != nil {
-			return fmt.Errorf("未找到必要命令 %s", command)
+			missingCommands = append(missingCommands, command)
+			if command == "virsh" {
+				virshAvailable = false
+			}
 		}
+	}
+	if len(missingCommands) > 0 {
+		r.report.Extra["missing_commands"] = strings.Join(missingCommands, ",")
+		issues = append(issues, "未找到必要命令 "+strings.Join(missingCommands, "、"))
 	}
 	qemuBinary := ""
 	for _, command := range qemuCandidates {
@@ -427,11 +513,17 @@ func (r *runner) checkRequiredRuntime() error {
 		}
 	}
 	if qemuBinary == "" {
-		return fmt.Errorf("未找到必要的 QEMU 命令（已检查 %s）", strings.Join(qemuCandidates, "、"))
+		issues = append(issues, fmt.Sprintf("未找到必要的 QEMU 命令（已检查 %s）", strings.Join(qemuCandidates, "、")))
+	} else {
+		r.report.Extra["qemu_binary"] = qemuBinary
 	}
-	r.report.Extra["qemu_binary"] = qemuBinary
-	if result := utils.ExecCommandQuiet("virsh", "uri"); result.Error != nil {
-		return fmt.Errorf("libvirt system 连接检查失败: %s", firstNonEmpty(result.Stderr, result.Error.Error()))
+	if virshAvailable {
+		if result := utils.ExecCommandQuiet("virsh", "uri"); result.Error != nil {
+			issues = append(issues, "libvirt system 连接检查失败: "+firstNonEmpty(result.Stderr, result.Error.Error()))
+		}
+	}
+	if len(issues) > 0 {
+		return fmt.Errorf("%s", strings.Join(issues, "；"))
 	}
 	return nil
 }
@@ -924,11 +1016,30 @@ func (r *runner) pass(name, message string, details map[string]string) {
 	})
 }
 
+func (r *runner) skip(name, message string) {
+	r.report.Stages = append(r.report.Stages, StageResult{
+		Name: name, Status: stageSkipped, Message: message, CheckedAt: time.Now(),
+	})
+}
+
 func (r *runner) fail(name string, err error) error {
 	r.report.Stages = append(r.report.Stages, StageResult{
 		Name: name, Status: stageFailed, Message: err.Error(), CheckedAt: time.Now(),
 	})
 	return fmt.Errorf("%s失败: %w", name, err)
+}
+
+func summarizeStageFailures(failures []error) error {
+	if len(failures) == 0 {
+		return nil
+	}
+	messages := make([]string, 0, len(failures))
+	for _, err := range failures {
+		if err != nil {
+			messages = append(messages, err.Error())
+		}
+	}
+	return fmt.Errorf("共有 %d 个兼容性阶段未通过：%s", len(messages), strings.Join(messages, "；"))
 }
 
 func (r *runner) checkInterrupted() error {

@@ -31,6 +31,8 @@ COMPATIBILITY_DOWNLOAD_TMP=""
 COMPATIBILITY_WARNING=0
 COMPATIBILITY_SKIPPED=0
 COMPATIBILITY_FAILURE_STAGE=""
+COMPATIBILITY_CHECK_STATUS=0
+COMPATIBILITY_INTERRUPTED=0
 # 开源版官方下载源（按架构区分）
 DOWNLOAD_URL_AMD64="https://download.xiaozhuhouses.asia/download/v1/links/YsxWkWgFPiZFrc8I0r2F8SpdLbhBA_O7PMnD0TDS0wM"
 DOWNLOAD_URL_ARM64="https://download.xiaozhuhouses.asia/download/v1/links/SSr8OGj6KLbxHHKK746R_-CvpoFj1Skh9XIkjkNNzZ0"
@@ -1925,6 +1927,29 @@ deploy_compatibility_script() {
     success "兼容性测试脚本已部署到 ${INSTALL_DIR}/scripts/${COMPATIBILITY_CHECK_SCRIPT}"
 }
 
+execute_compatibility_check() {
+    local script_path="$1"
+    COMPATIBILITY_CHECK_STATUS=0
+    COMPATIBILITY_INTERRUPTED=0
+
+    info "开始创建 1 vCPU / 1GB 内存 / 1GB 磁盘的临时测试虚拟机..."
+    trap 'COMPATIBILITY_INTERRUPTED=1; warn "收到中断信号，正在等待兼容性测试清理临时资源"' INT TERM
+    set +e
+    bash "$script_path" \
+        --binary "${INSTALL_DIR}/kvm-console" \
+        --report-dir "$COMPATIBILITY_REPORT_DIR" \
+        --vcpu 1 \
+        --ram-gb 1 \
+        --disk-gb 1
+    COMPATIBILITY_CHECK_STATUS=$?
+    set -e
+    trap - INT TERM
+
+    if [ "$COMPATIBILITY_INTERRUPTED" -eq 1 ]; then
+        COMPATIBILITY_CHECK_STATUS=130
+    fi
+}
+
 rollback_first_install_program_files() {
     warn "正在撤回本次复制的程序文件；依赖、网络地基、配置和诊断报告将保留"
     rm -f \
@@ -1960,7 +1985,6 @@ run_first_install_compatibility_check() {
 
     local run_check
     local check_status
-    local compatibility_interrupted=0
     echo ""
     read -rp "是否运行系统兼容性测试？首次安装强烈推荐 [Y/n]: " run_check
     run_check=${run_check:-Y}
@@ -1977,30 +2001,73 @@ run_first_install_compatibility_check() {
     fi
 
     deploy_compatibility_script "$COMPATIBILITY_SCRIPT_PATH"
-    info "开始创建 1 vCPU / 1GB 内存 / 1GB 磁盘的临时测试虚拟机..."
-    trap 'compatibility_interrupted=1; warn "收到中断信号，正在等待兼容性测试清理临时资源"' INT TERM
-    set +e
-    bash "$COMPATIBILITY_SCRIPT_PATH" \
-        --binary "${INSTALL_DIR}/kvm-console" \
-        --report-dir "$COMPATIBILITY_REPORT_DIR" \
-        --vcpu 1 \
-        --ram-gb 1 \
-        --disk-gb 1
-    check_status=$?
-    set -e
-    trap - INT TERM
+    execute_compatibility_check "${INSTALL_DIR}/scripts/${COMPATIBILITY_CHECK_SCRIPT}"
+    check_status=$COMPATIBILITY_CHECK_STATUS
 
-    if [ "$check_status" -eq 0 ] && [ "$compatibility_interrupted" -eq 0 ]; then
+    if [ "$check_status" -eq 0 ]; then
         success "宿主机虚拟机创建与基础 OVS 网络兼容性测试通过"
         return 0
     fi
 
-    if [ "$compatibility_interrupted" -eq 1 ] || [ "$check_status" -eq 130 ]; then
+    if [ "$check_status" -eq 130 ]; then
         COMPATIBILITY_FAILURE_STAGE="用户中断"
     else
-        COMPATIBILITY_FAILURE_STAGE="虚拟机创建、启动或 OVS 联合验证"
+        COMPATIBILITY_FAILURE_STAGE="一个或多个兼容性测试阶段"
     fi
     confirm_continue_after_compatibility_failure
+}
+
+run_update_compatibility_check() {
+    [ "$MODE" = "update" ] || return 0
+
+    local run_check
+    local release_script="${RELEASE_SOURCE_DIR}/${COMPATIBILITY_CHECK_SCRIPT}"
+    local installed_script="${INSTALL_DIR}/scripts/${COMPATIBILITY_CHECK_SCRIPT}"
+    echo ""
+    read -rp "是否使用本次更新的新版本代码重新运行系统兼容性测试？[y/N]: " run_check
+    run_check=${run_check:-N}
+    if [[ ! "$run_check" =~ ^[Yy]$ ]]; then
+        info "已跳过更新后的系统兼容性测试"
+        return 0
+    fi
+
+    if ! validate_compatibility_script "$release_script"; then
+        COMPATIBILITY_WARNING=1
+        COMPATIBILITY_FAILURE_STAGE="新版本兼容性测试脚本校验"
+        warn "本次发行包中的兼容性测试脚本缺失或校验失败，未使用已安装的旧脚本替代"
+        return 0
+    fi
+    if [ ! -x "${INSTALL_DIR}/kvm-console" ]; then
+        COMPATIBILITY_WARNING=1
+        COMPATIBILITY_FAILURE_STAGE="新版本后端程序校验"
+        warn "本次更新后的后端程序不存在或不可执行"
+        return 0
+    fi
+
+    deploy_compatibility_script "$release_script"
+    if ! validate_compatibility_script "$installed_script" || ! cmp -s "$release_script" "$installed_script"; then
+        COMPATIBILITY_WARNING=1
+        COMPATIBILITY_FAILURE_STAGE="新版本兼容性测试脚本部署"
+        warn "新版本兼容性测试脚本部署校验失败"
+        return 0
+    fi
+
+    info "将使用本次发行包部署的兼容性脚本和更新后的后端程序执行测试"
+    execute_compatibility_check "$installed_script"
+    if [ "$COMPATIBILITY_CHECK_STATUS" -eq 0 ]; then
+        success "更新后的系统兼容性测试通过"
+        return 0
+    fi
+
+    COMPATIBILITY_WARNING=1
+    if [ "$COMPATIBILITY_CHECK_STATUS" -eq 130 ]; then
+        COMPATIBILITY_FAILURE_STAGE="用户中断"
+        warn "更新后的系统兼容性测试已中断，更新流程将继续启动面板"
+    else
+        COMPATIBILITY_FAILURE_STAGE="一个或多个兼容性测试阶段"
+        warn "更新后的系统兼容性测试未通过，更新流程将继续启动面板"
+    fi
+    warn "诊断报告目录: ${COMPATIBILITY_REPORT_DIR}"
 }
 
 setup_service() {
@@ -2227,6 +2294,7 @@ run_install_or_update() {
     ensure_sysctl_network
     setup_ovs_foundation
     run_first_install_compatibility_check
+    run_update_compatibility_check
     setup_sshd_foundation
     setup_service
     start_service
