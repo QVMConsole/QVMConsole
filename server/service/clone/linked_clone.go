@@ -230,7 +230,7 @@ func LinkedCloneVM(ctx context.Context, params *LinkedCloneParams, progressFn fu
 		cmdParts = append(cmdParts, "--network none")
 	}
 	cmdParts = append(cmdParts,
-		"--graphics vnc,listen=0.0.0.0",
+		"--graphics vnc,listen=127.0.0.1",
 		"--video virtio",
 		"--import",
 		"--cpu host-passthrough",

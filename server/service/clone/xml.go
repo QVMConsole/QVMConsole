@@ -117,7 +117,7 @@ func defineAndStartNonWindowsClone(params *CloneParams, cloneDisk string, ramMB 
 			"--disk %s,format=qcow2,bus=%s,discard=unmap,detect_zeroes=unmap "+
 			"--osinfo detect=on,require=off "+
 			networkArg+
-			"--graphics vnc,listen=0.0.0.0 "+
+			"--graphics vnc,listen=127.0.0.1 "+
 			"--video virtio "+
 			"--import --cpu host-passthrough --print-xml",
 		utils.ShellSingleQuote(params.Name), ramMB, vcpuArg, utils.ShellSingleQuote(cloneDisk), params.DiskBus,

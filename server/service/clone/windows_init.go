@@ -390,8 +390,8 @@ func cloneWindows(ctx context.Context, params *CloneParams, cloneDisk string, ra
 %s
     <input type='tablet' bus='usb'/>
 %s
-    <graphics type='vnc' port='-1' autoport='yes' listen='0.0.0.0'>
-      <listen type='address' address='0.0.0.0'/>
+    <graphics type='vnc' port='-1' autoport='yes' listen='127.0.0.1'>
+      <listen type='address' address='127.0.0.1'/>
     </graphics>
     <video><model type='virtio' heads='1' primary='yes'/></video>
     <watchdog model='%s' action='reset'/>

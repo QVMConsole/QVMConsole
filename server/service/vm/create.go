@@ -334,8 +334,8 @@ func CreateVM(params *CreateVMParams, progressFn func(int, string)) (string, err
 		cmdParts = append(cmdParts, "--network none")
 	}
 
-	// 显示设备
-	cmdParts = append(cmdParts, "--graphics vnc,listen=0.0.0.0")
+	// 显示设备（VNC 默认仅监听 127.0.0.1 不对外暴露，通过面板 WebSocket 代理访问；如需对外暴露可后续开启）
+	cmdParts = append(cmdParts, "--graphics vnc,listen=127.0.0.1")
 	cmdParts = append(cmdParts, "--video virtio")
 
 	// ISO 镜像（如果提供）

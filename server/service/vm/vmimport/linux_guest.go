@@ -37,7 +37,7 @@ func importVMLinuxDefine(params *ImportVMParams, destDiskPath, format string, ra
 			"--disk '%s,format=%s,bus=virtio,discard=unmap,detect_zeroes=unmap' "+
 			"--osinfo detect=on,require=off "+
 			networkArg+
-			"--graphics vnc,listen=0.0.0.0 "+
+			"--graphics vnc,listen=127.0.0.1 "+
 			"--video virtio "+
 			"--import --cpu host-passthrough --print-xml",
 		params.Name, ramMB, vcpuArg, params.MachineType, destDiskPath, format,
@@ -176,7 +176,7 @@ func importDiskByPathLinuxDefine(params *ImportDiskByPathParams, destDiskPath, f
 			"--disk '%s,format=%s,bus=%s,discard=unmap,detect_zeroes=unmap' "+
 			"--osinfo detect=on,require=off "+
 			networkArg+
-			"--graphics vnc,listen=0.0.0.0 "+
+			"--graphics vnc,listen=127.0.0.1 "+
 			"--video virtio "+
 			"--import --cpu host-passthrough --virt-type kvm --print-xml",
 		params.Name, ramMB, vcpuArg, params.MachineType, destDiskPath, format, systemDiskBus,
