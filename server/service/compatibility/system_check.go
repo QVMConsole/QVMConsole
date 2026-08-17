@@ -481,6 +481,7 @@ func (r *runner) checkPortSecurityRuntime() (map[string]string, error) {
 
 	const probeMeter = "1"
 	const probeCookie = "0x51564d434f4d5001"
+	const probeNextTable = "1"
 	meterArg := "meter=" + probeMeter + ",pktps,burst,stats,band=type=drop,rate=10,burst_size=20"
 	if result := utils.ExecCommand("ovs-ofctl", "-O", "OpenFlow13", "add-meter", bridge, meterArg); result.Error != nil {
 		return nil, fmt.Errorf("packet meter 落地失败: %s", firstNonEmpty(result.Stderr, result.Error.Error()))
@@ -495,9 +496,10 @@ func (r *runner) checkPortSecurityRuntime() (map[string]string, error) {
 		return nil, fmt.Errorf("创建端口安全探测流表文件失败: %w", err)
 	}
 	r.portSecurityProbeFile = flowFile.Name()
-	flow := "cookie=" + probeCookie + ",table=0,priority=100,arp,actions=meter:" + probeMeter + ",drop"
+	flow := "cookie=" + probeCookie + ",table=0,priority=100,arp,actions=meter:" + probeMeter + ",goto_table:" + probeNextTable
 	ipv6Flow := "cookie=" + probeCookie + ",table=0,priority=101,icmp6,icmp_type=135,ipv6_src=::,nd_target=2001:db8::1,actions=drop"
-	if _, err := flowFile.WriteString("delete cookie=" + probeCookie + "/0xffffffffffffffff\nadd " + flow + "\nadd " + ipv6Flow + "\n"); err != nil {
+	nextTableFlow := "cookie=" + probeCookie + ",table=" + probeNextTable + ",priority=0,actions=NORMAL"
+	if _, err := flowFile.WriteString("delete cookie=" + probeCookie + "/0xffffffffffffffff\nadd " + flow + "\nadd " + ipv6Flow + "\nadd " + nextTableFlow + "\n"); err != nil {
 		_ = flowFile.Close()
 		return nil, fmt.Errorf("写入端口安全探测流表失败: %w", err)
 	}
@@ -518,9 +520,13 @@ func (r *runner) checkPortSecurityRuntime() (map[string]string, error) {
 		if result := utils.ExecCommand("ovs-ofctl", "-O", "OpenFlow13", "add-flow", bridge, ipv6Flow); result.Error != nil {
 			return nil, fmt.Errorf("IPv6 ND 防伪造流表落地失败: %s", firstNonEmpty(result.Stderr, result.Error.Error()))
 		}
+		if result := utils.ExecCommand("ovs-ofctl", "-O", "OpenFlow13", "add-flow", bridge, nextTableFlow); result.Error != nil {
+			return nil, fmt.Errorf("端口安全探测后续流表落地失败: %s", firstNonEmpty(result.Stderr, result.Error.Error()))
+		}
 	}
 	flowDump := utils.ExecCommand("ovs-ofctl", "-O", "OpenFlow13", "dump-flows", bridge, "cookie="+probeCookie+"/0xffffffffffffffff")
-	if flowDump.Error != nil || !strings.Contains(strings.ToLower(flowDump.Stdout), strings.TrimPrefix(strings.ToLower(probeCookie), "0x")) || !strings.Contains(strings.ToLower(flowDump.Stdout), "meter:1") || !strings.Contains(strings.ToLower(flowDump.Stdout), "icmp6") {
+	lowerFlowDump := strings.ToLower(flowDump.Stdout)
+	if flowDump.Error != nil || !strings.Contains(lowerFlowDump, strings.TrimPrefix(strings.ToLower(probeCookie), "0x")) || !strings.Contains(lowerFlowDump, "meter:"+probeMeter) || !strings.Contains(lowerFlowDump, "goto_table:"+probeNextTable) || !strings.Contains(lowerFlowDump, "icmp6") || !strings.Contains(lowerFlowDump, "actions=normal") {
 		return nil, fmt.Errorf("端口安全探测流表回读校验失败")
 	}
 
