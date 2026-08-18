@@ -66,6 +66,24 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* 保存后自动探测失败的警示内容 */
+.node-probe-err {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--qvm-danger-bg, rgba(230, 70, 70, 0.08));
+  border: 1px solid var(--qvm-danger-stroke, rgba(230, 70, 70, 0.35));
+  color: var(--qvm-danger);
+  font-size: 12.5px;
+  line-height: 1.6;
+  word-break: break-all;
+}
+.node-probe-tip {
+  margin: 4px 0 8px;
+  font-size: 12.5px;
+  color: var(--qvm-warning, #b8860b);
+  line-height: 1.6;
+}
 .node-muted {
   color: var(--qvm-text-2);
   font-size: 12px;

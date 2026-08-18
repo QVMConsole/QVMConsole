@@ -15,6 +15,10 @@ export interface HostNodeItem {
   ssh_host: string
   ssh_port: number
   ssh_user: string
+  /** true 时使用 SSH 密钥免密认证（面板不保存密码，仅检测连通性） */
+  ssh_key_auth: boolean
+  /** 可选本机私钥路径，留空使用默认迁移密钥 */
+  ssh_key_path: string
   enabled: boolean
   status: 'online' | 'error' | 'unknown' | string
   last_probe_message: string
@@ -34,6 +38,10 @@ export interface HostNodePayload {
   ssh_port: number
   ssh_user: string
   ssh_password?: string
+  /** true 时使用 SSH 密钥免密认证，无需密码 */
+  ssh_key_auth: boolean
+  /** 可选本机私钥路径，留空使用默认迁移密钥 */
+  ssh_key_path?: string
   enabled: boolean
 }
 
@@ -42,14 +50,14 @@ export function listHostNodes() {
   return service.get<unknown, ApiResponse<HostNodeItem[]>>('/nodes')
 }
 
-/** 创建节点 */
+/** 创建节点（后端先探测连接，探测通过才创建；探测耗时较长需加大超时） */
 export function createHostNode(data: HostNodePayload) {
-  return service.post<unknown, ApiResponse<HostNodeItem>>('/nodes', data)
+  return service.post<unknown, ApiResponse<HostNodeItem>>('/nodes', data, { timeout: 300000 })
 }
 
-/** 更新节点 */
+/** 更新节点（后端先探测连接，探测通过才更新；探测耗时较长需加大超时） */
 export function updateHostNode(id: number, data: HostNodePayload) {
-  return service.put<unknown, ApiResponse<HostNodeItem>>(`/nodes/${id}`, data)
+  return service.put<unknown, ApiResponse<HostNodeItem>>(`/nodes/${id}`, data, { timeout: 300000 })
 }
 
 /** 删除节点 */

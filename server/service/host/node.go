@@ -49,11 +49,15 @@ func CreateHostNode(req HostNodeRequest) (*HostNodeView, error) {
 	if err != nil {
 		return nil, err
 	}
+	// 先探测连接，探测通过才允许入库；失败时不保存，由调用方展示失败原因
+	view, err := probeNode(&node, false)
+	if err != nil {
+		return view, err
+	}
 	if err := model.DB.Create(&node).Error; err != nil {
 		return nil, fmt.Errorf("保存节点失败: %w", err)
 	}
-	view := BuildHostNodeView(node)
-	return &view, nil
+	return view, nil
 }
 
 func UpdateHostNode(id uint, req HostNodeRequest) (*HostNodeView, error) {
@@ -65,11 +69,15 @@ func UpdateHostNode(id uint, req HostNodeRequest) (*HostNodeView, error) {
 	if err != nil {
 		return nil, err
 	}
+	// 先探测连接，探测通过才允许更新；失败时不保存，由调用方展示失败原因
+	view, err := probeNode(&node, false)
+	if err != nil {
+		return view, err
+	}
 	if err := model.DB.Save(&node).Error; err != nil {
 		return nil, fmt.Errorf("更新节点失败: %w", err)
 	}
-	view := BuildHostNodeView(node)
-	return &view, nil
+	return view, nil
 }
 
 func DeleteHostNode(id uint) error {
@@ -84,11 +92,18 @@ func ProbeHostNode(id uint) (*HostNodeView, error) {
 	if err != nil {
 		return nil, err
 	}
+	return probeNode(node, true)
+}
+
+// probeNode 探测节点的 SSH 与面板 API 双通道连接，并更新节点的探测状态字段。
+// persist 为 true 时把探测结果落库（手动/行内探测），false 时只返回结果（保存前预检，不落库）。
+func probeNode(node *model.HostNode, persist bool) (*HostNodeView, error) {
 	if strings.TrimSpace(node.SSHUser) != requiredNodeSSHUser {
 		message := "节点 SSH 用户必须为 root，非 root 用户没有迁移虚拟机所需的 libvirt、OVS 与存储目录权限"
-		updateHostNodeProbe(node, HostNodeStatusError, message, map[string]interface{}{
+		applyHostNodeProbe(node, HostNodeStatusError, message, map[string]interface{}{
 			"ssh_user": "必须为 root",
 		})
+		persistProbeIfNeeded(node, persist)
 		view := BuildHostNodeView(*node)
 		return &view, fmt.Errorf("%s", message)
 	}
@@ -109,7 +124,12 @@ func ProbeHostNode(id uint) (*HostNodeView, error) {
 		out, err := HookRemoteSSHExec(nil, *node, check, 30*time.Second, true)
 		key := fmt.Sprintf("check_%02d", i+1)
 		if err != nil {
-			updateHostNodeProbe(node, HostNodeStatusError, "节点探测失败: "+err.Error(), caps)
+			message := "节点探测失败: " + err.Error()
+			if node.SSHKeyAuth {
+				message += "（SSH 密钥认证：请确认面板所在系统的公钥已加入目标节点 root 的 ~/.ssh/authorized_keys，面板仅检测连通性）"
+			}
+			applyHostNodeProbe(node, HostNodeStatusError, message, caps)
+			persistProbeIfNeeded(node, persist)
 			view := BuildHostNodeView(*node)
 			return &view, err
 		}
@@ -124,18 +144,30 @@ func ProbeHostNode(id uint) (*HostNodeView, error) {
 		}
 	}
 	if _, err := HookCallNodeAPI(*node, "GET", "/api/public/settings", nil, nil); err != nil {
-		updateHostNodeProbe(node, HostNodeStatusError, "面板 API 探测失败: "+err.Error(), caps)
+		message := "面板 API 探测失败: " + err.Error()
+		applyHostNodeProbe(node, HostNodeStatusError, message, caps)
+		persistProbeIfNeeded(node, persist)
 		view := BuildHostNodeView(*node)
 		return &view, err
 	}
 	if firstSSHErr != "" {
-		updateHostNodeProbe(node, HostNodeStatusError, "部分检查未通过: "+firstSSHErr, caps)
+		message := "部分检查未通过: " + firstSSHErr
+		applyHostNodeProbe(node, HostNodeStatusError, message, caps)
+		persistProbeIfNeeded(node, persist)
 		view := BuildHostNodeView(*node)
-		return &view, fmt.Errorf("部分检查未通过: %s", firstSSHErr)
+		return &view, fmt.Errorf("%s", message)
 	}
-	updateHostNodeProbe(node, HostNodeStatusOnline, "节点探测通过", caps)
+	applyHostNodeProbe(node, HostNodeStatusOnline, "节点探测通过", caps)
+	persistProbeIfNeeded(node, persist)
 	view := BuildHostNodeView(*node)
 	return &view, nil
+}
+
+// persistProbeIfNeeded 手动探测时把探测结果落库（保存前预检不落库）
+func persistProbeIfNeeded(node *model.HostNode, persist bool) {
+	if persist {
+		_ = model.DB.Save(node).Error
+	}
 }
 
 func buildHostNodeFromRequest(current model.HostNode, req HostNodeRequest, creating bool) (model.HostNode, error) {
@@ -162,12 +194,18 @@ func buildHostNodeFromRequest(current model.HostNode, req HostNodeRequest, creat
 	if _, err := url.ParseRequestURI(req.APIBaseURL); err != nil {
 		return current, fmt.Errorf("面板 API 地址格式无效")
 	}
+	req.SSHKeyPath = strings.TrimSpace(req.SSHKeyPath)
+	if req.SSHKeyAuth && req.SSHKeyPath != "" && !strings.HasPrefix(req.SSHKeyPath, "/") {
+		return current, fmt.Errorf("SSH 密钥路径必须为绝对路径（以 / 开头），留空则使用默认迁移密钥")
+	}
 	current.Name = req.Name
 	current.APIBaseURL = strings.TrimRight(req.APIBaseURL, "/")
 	current.APIKeyID = req.APIKeyID
 	current.SSHHost = req.SSHHost
 	current.SSHPort = req.SSHPort
 	current.SSHUser = req.SSHUser
+	current.SSHKeyAuth = req.SSHKeyAuth
+	current.SSHKeyPath = req.SSHKeyPath
 	if req.Enabled != nil {
 		current.Enabled = *req.Enabled
 	} else if creating {
@@ -186,15 +224,18 @@ func buildHostNodeFromRequest(current model.HostNode, req HostNodeRequest, creat
 	if creating && strings.TrimSpace(current.APIKeyEnc) == "" {
 		return current, fmt.Errorf("目标面板 API Key 不能为空")
 	}
-	if strings.TrimSpace(req.SSHPassword) != "" {
+	if req.SSHKeyAuth {
+		// 密钥认证：面板不保存密码，切换后清空旧密码密文
+		current.SSHPasswordEnc = ""
+	} else if strings.TrimSpace(req.SSHPassword) != "" {
 		enc, err := EncryptNodeSecret(req.SSHPassword)
 		if err != nil {
 			return current, fmt.Errorf("加密 root 密码失败: %w", err)
 		}
 		current.SSHPasswordEnc = enc
 	}
-	if creating && strings.TrimSpace(current.SSHPasswordEnc) == "" {
-		return current, fmt.Errorf("SSH root 密码不能为空")
+	if !req.SSHKeyAuth && strings.TrimSpace(current.SSHPasswordEnc) == "" {
+		return current, fmt.Errorf("SSH 认证方式为「密码」时，root 密码不能为空；如已配置免密登录请选择「SSH 密钥」认证")
 	}
 	return current, nil
 }
@@ -212,6 +253,8 @@ func BuildHostNodeView(node model.HostNode) HostNodeView {
 		SSHHost:          node.SSHHost,
 		SSHPort:          node.SSHPort,
 		SSHUser:          node.SSHUser,
+		SSHKeyAuth:       node.SSHKeyAuth,
+		SSHKeyPath:       node.SSHKeyPath,
 		Enabled:          node.Enabled,
 		Status:           node.Status,
 		LastProbeMessage: node.LastProbeMessage,
@@ -222,14 +265,14 @@ func BuildHostNodeView(node model.HostNode) HostNodeView {
 	}
 }
 
-func updateHostNodeProbe(node *model.HostNode, status, message string, caps map[string]interface{}) {
+// applyHostNodeProbe 只更新节点探测状态字段（不落库）；落库与否由调用方决定
+func applyHostNodeProbe(node *model.HostNode, status, message string, caps map[string]interface{}) {
 	now := time.Now()
 	payload, _ := json.Marshal(caps)
 	node.Status = status
 	node.LastProbeMessage = message
 	node.CapabilitiesJSON = string(payload)
 	node.LastProbedAt = &now
-	_ = model.DB.Save(node).Error
 }
 
 func normalizeNodeBaseURL(raw string) string {

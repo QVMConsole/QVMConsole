@@ -30,7 +30,7 @@ func CreateHostNode(c *gin.Context) {
 	}
 	node, err := service.CreateHostNode(req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error(), "data": node})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "节点已创建", "data": node})
@@ -45,7 +45,7 @@ func UpdateHostNode(c *gin.Context) {
 	}
 	node, err := service.UpdateHostNode(uint(id), req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error(), "data": node})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "节点已更新", "data": node})

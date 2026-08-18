@@ -119,6 +119,7 @@ export default function NodePage() {
   )
 
   // ==================== 操作 ====================
+  /** 手动探测节点连接（行内「探测」按钮） */
   const handleProbe = useCallback(
     async (row: HostNodeItem) => {
       setProbing((p) => ({ ...p, [row.id]: true }))
@@ -134,6 +135,11 @@ export default function NodePage() {
     },
     [loadData],
   )
+
+  /** 保存回调（保存弹窗内已完成连接探测，通过才保存）：仅刷新列表 */
+  const handleSaved = useCallback(() => {
+    void loadData()
+  }, [loadData])
 
   const handleDelete = useCallback(
     async (row: HostNodeItem) => {
@@ -414,9 +420,7 @@ export default function NodePage() {
         <NodeDialog
           row={dialog.row}
           onClose={() => setDialog(null)}
-          onSaved={() => {
-            void loadData()
-          }}
+          onSaved={handleSaved}
         />
       )}
     </div>

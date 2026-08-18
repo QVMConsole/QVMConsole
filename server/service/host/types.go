@@ -13,6 +13,8 @@ type HostNodeRequest struct {
 	SSHPort     int    `json:"ssh_port"`
 	SSHUser     string `json:"ssh_user"`
 	SSHPassword string `json:"ssh_password"`
+	SSHKeyAuth  bool   `json:"ssh_key_auth"` // true 时使用 SSH 密钥免密认证，面板不保存密码
+	SSHKeyPath  string `json:"ssh_key_path"` // 可选：本机私钥路径，留空使用默认迁移密钥
 	Enabled     *bool  `json:"enabled"`
 }
 
@@ -24,6 +26,8 @@ type HostNodeView struct {
 	SSHHost          string                 `json:"ssh_host"`
 	SSHPort          int                    `json:"ssh_port"`
 	SSHUser          string                 `json:"ssh_user"`
+	SSHKeyAuth       bool                   `json:"ssh_key_auth"`
+	SSHKeyPath       string                 `json:"ssh_key_path"`
 	Enabled          bool                   `json:"enabled"`
 	Status           string                 `json:"status"`
 	LastProbeMessage string                 `json:"last_probe_message"`

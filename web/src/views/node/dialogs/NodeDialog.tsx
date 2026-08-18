@@ -2,20 +2,29 @@
  * 添加/编辑节点对话框
  * - 编辑时 API Key 与 root 密码留空表示不修改
  * - 节点 SSH 用户固定为 root，避免迁移写入存储目录或调用 libvirt/OVS 时权限不足
- * - root 密码接入统一密码泄露检测（本地弱密码 + HIBP k-匿名），泄露时警示确认后可继续保存
+ * - SSH 认证方式二选一：
+ *   - 密码认证：root 密码接入统一密码泄露检测（本地弱密码 + HIBP k-匿名），泄露时警示确认后可继续保存
+ *   - SSH 密钥认证：面板不保存密钥，由用户自行在系统中配置免密登录，面板仅做连通性检测
+ * - 点击「保存」时后端会先探测节点连接：探测通过才真正保存并关闭弹窗；
+ *   探测失败不保存，弹窗说明失败原因并保留表单，必须解决问题后才能再次保存
  */
 import { useState } from 'react'
-import { Input, InputNumber, Modal, Toast } from '@douyinfe/semi-ui'
+import type { AxiosError } from 'axios'
+import { Button, Input, InputNumber, Modal, Radio, RadioGroup, Toast } from '@douyinfe/semi-ui'
 import {
   createHostNode,
   updateHostNode,
   type HostNodeItem,
   type HostNodePayload,
 } from '@/api/node'
+import type { ApiResponse } from '@/types/api'
 import TextSwitch from '@/features/vm-form/sections/TextSwitch'
 import { checkPasswordBreachAsync, validatePassword } from '@/utils/validate'
 import { confirmModal } from '@/utils/confirm'
 import { useMountModalLifecycle } from '@/hooks/useMountModalLifecycle'
+
+/** 密钥认证默认使用的本机私钥路径（与后端 DefaultNodeSSHKeyPath 对齐） */
+const DEFAULT_SSH_KEY_PATH = '/root/.ssh/id_ed25519'
 
 interface NodeDialogProps {
   row?: HostNodeItem
@@ -27,6 +36,8 @@ export default function NodeDialog({ row, onClose, onSaved }: NodeDialogProps) {
   const { modalVisible, requestClose, afterModalClose } = useMountModalLifecycle(onClose)
   const editing = !!row
   const [submitting, setSubmitting] = useState(false)
+  /** 保存前连接探测失败的原因（非空时展示错误弹窗，表单保留待修改） */
+  const [probeError, setProbeError] = useState('')
   const [form, setForm] = useState({
     name: row?.name || '',
     api_base_url: row?.api_base_url || '',
@@ -36,6 +47,8 @@ export default function NodeDialog({ row, onClose, onSaved }: NodeDialogProps) {
     ssh_port: row?.ssh_port || 22,
     ssh_user: 'root',
     ssh_password: '',
+    ssh_key_auth: row ? row.ssh_key_auth : false,
+    ssh_key_path: row?.ssh_key_path || '',
     enabled: row ? row.enabled : true,
   })
 
@@ -71,9 +84,16 @@ export default function NodeDialog({ row, onClose, onSaved }: NodeDialogProps) {
       Toast.warning('节点 SSH 用户必须为 root')
       return false
     }
-    if (!editing && !form.ssh_password) {
-      Toast.warning('请输入 root 密码')
-      return false
+    if (!form.ssh_key_auth) {
+      // 密码认证：创建时必须输入密码；编辑时若原节点是密钥认证，切换为密码也必须输入
+      if (!editing && !form.ssh_password) {
+        Toast.warning('请输入 root 密码')
+        return false
+      }
+      if (editing && row?.ssh_key_auth && !form.ssh_password) {
+        Toast.warning('SSH 认证方式为「密码」时，必须输入目标节点 root 密码')
+        return false
+      }
     }
     if (editing && row?.ssh_user !== 'root' && !form.ssh_password) {
       Toast.warning('该节点原 SSH 用户不是 root，请输入目标节点 root 密码后保存')
@@ -103,6 +123,7 @@ export default function NodeDialog({ row, onClose, onSaved }: NodeDialogProps) {
 
   const handleSubmit = async () => {
     if (!validateForm()) return
+    setProbeError('')
     setSubmitting(true)
     try {
       if (!(await confirmPasswordSafety())) return
@@ -113,6 +134,8 @@ export default function NodeDialog({ row, onClose, onSaved }: NodeDialogProps) {
         ssh_host: form.ssh_host.trim(),
         ssh_port: form.ssh_port,
         ssh_user: 'root',
+        ssh_key_auth: form.ssh_key_auth,
+        ssh_key_path: form.ssh_key_path.trim() || undefined,
         enabled: form.enabled,
       }
       // 编辑时留空表示不修改，创建时必填（前面已校验）
@@ -120,19 +143,29 @@ export default function NodeDialog({ row, onClose, onSaved }: NodeDialogProps) {
       if (form.ssh_password) payload.ssh_password = form.ssh_password
       if (editing && row) {
         await updateHostNode(row.id, payload)
-        Toast.success('节点已更新')
+        Toast.success('节点已更新，连接正常')
       } else {
         await createHostNode(payload)
-        Toast.success('节点已创建')
+        Toast.success('节点已创建，连接正常')
       }
       onSaved()
       requestClose()
-    } catch {
-      // 请求层已统一提示
+    } catch (e) {
+      // 后端在写入前已完成连接探测：失败时节点未保存，展示原因并保留表单，
+      // 必须修复连接问题后才能再次点击保存成功
+      const respData = (e as AxiosError<ApiResponse<HostNodeItem>>).response?.data
+      setProbeError(
+        respData?.data?.last_probe_message ||
+          respData?.message ||
+          '节点连接探测失败，请检查配置后重试',
+      )
     } finally {
       setSubmitting(false)
     }
   }
+
+  /** 密码必填标记（仅密码认证且当前没有可用密码时显示） */
+  const passwordRequired = !form.ssh_key_auth && (!editing || !!row?.ssh_key_auth)
 
   return (
     <Modal
@@ -202,15 +235,45 @@ export default function NodeDialog({ row, onClose, onSaved }: NodeDialogProps) {
         </div>
       </div>
       <div className="qvm-form-item">
-        <div className={`qvm-form-label${editing ? '' : ' required'}`}>root 密码</div>
-        <Input
-          mode="password"
-          value={form.ssh_password}
-          onChange={(v) => patch({ ssh_password: v })}
-          placeholder={editing ? '留空表示不修改' : '目标节点 root 密码'}
-        />
-        <div className="qvm-form-tip">保存时将进行密码泄露检测，凭据加密存储于面板数据库</div>
+        <div className="qvm-form-label">SSH 认证方式</div>
+        <RadioGroup
+          type="button"
+          value={form.ssh_key_auth ? 'key' : 'password'}
+          onChange={(e) => patch({ ssh_key_auth: e.target.value === 'key' })}
+        >
+          <Radio value="password">密码认证</Radio>
+          <Radio value="key">SSH 密钥认证</Radio>
+        </RadioGroup>
+        {form.ssh_key_auth && (
+          <div className="qvm-form-tip">
+            面板不保存密钥：请自行将面板所在系统的公钥配置到目标节点 root 的 ~/.ssh/authorized_keys，保存后面板仅做免密连通性检测
+          </div>
+        )}
       </div>
+      {form.ssh_key_auth ? (
+        <div className="qvm-form-item">
+          <div className="qvm-form-label">密钥路径（可选）</div>
+          <Input
+            value={form.ssh_key_path}
+            onChange={(v) => patch({ ssh_key_path: v })}
+            placeholder={`留空使用默认 ${DEFAULT_SSH_KEY_PATH}`}
+          />
+          <div className="qvm-form-tip">
+            仅填写面板所在系统的本机私钥绝对路径，例如 /root/.ssh/id_rsa；留空使用默认迁移密钥 {DEFAULT_SSH_KEY_PATH}
+          </div>
+        </div>
+      ) : (
+        <div className="qvm-form-item">
+          <div className={`qvm-form-label${passwordRequired ? ' required' : ''}`}>root 密码</div>
+          <Input
+            mode="password"
+            value={form.ssh_password}
+            onChange={(v) => patch({ ssh_password: v })}
+            placeholder={!editing || row?.ssh_key_auth ? '目标节点 root 密码' : '留空表示不修改'}
+          />
+          <div className="qvm-form-tip">保存时将进行密码泄露检测，凭据加密存储于面板数据库</div>
+        </div>
+      )}
       <div className="qvm-form-item">
         <div className="qvm-form-label">启用节点</div>
         <TextSwitch
@@ -220,6 +283,27 @@ export default function NodeDialog({ row, onClose, onSaved }: NodeDialogProps) {
           uncheckedText="关"
         />
       </div>
+
+      {/* 保存前连接探测失败提示：节点未保存，返回修改后需重新保存 */}
+      <Modal
+        title="节点连接未通过，暂未保存"
+        visible={!!probeError}
+        onCancel={() => setProbeError('')}
+        footer={
+          <Button type="primary" onClick={() => setProbeError('')}>
+            返回修改
+          </Button>
+        }
+        closeOnEsc
+      >
+        <div>节点未保存。请先解决以下连接问题，再次点击「保存」待探测通过后即可成功：</div>
+        <div className="node-probe-err">{probeError}</div>
+        {form.ssh_key_auth && (
+          <div className="node-probe-tip">
+            已选择 SSH 密钥认证：请确认面板所在系统的公钥已加入目标节点 root 的 ~/.ssh/authorized_keys。
+          </div>
+        )}
+      </Modal>
     </Modal>
   )
 }

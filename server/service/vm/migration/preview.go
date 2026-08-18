@@ -247,6 +247,13 @@ func matchTargetSwitch(binding model.VPCVMBinding, switches []model.VPCSwitch, l
 		if lightweight && strings.TrimSpace(sw.BridgeMode) != "" && !strings.EqualFold(sw.BridgeMode, service.BridgeModeNAT) {
 			continue
 		}
+		if source.IsSystem {
+			// 源为系统基础网络交换机（username 为空）：按名称与 CIDR 匹配目标节点的系统基础网络交换机
+			if sw.IsSystem && sw.Name == source.Name && sw.CIDR == source.CIDR {
+				return sw.ID
+			}
+			continue
+		}
 		if sw.Username == binding.Username && sw.Name == source.Name && sw.CIDR == source.CIDR {
 			return sw.ID
 		}

@@ -61,7 +61,7 @@ func AdoptMigratedVM(req MigrationAdoptRequest) (*MigrationAdoptResult, error) {
 		}
 		if switchID > 0 {
 			if err := service.BindVMToVPCAsAdmin(req.VMName, switchID, securityGroupID); err != nil {
-				return nil, fmt.Errorf("绑定目标 VPC 失败: %w", err)
+				return nil, fmt.Errorf("绑定目标交换机失败: %w", err)
 			}
 		}
 	}

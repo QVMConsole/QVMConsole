@@ -28,6 +28,7 @@ import {
   previewVmMigration,
   type HostNode,
   type MigrationStorageTarget,
+  type MigrationSwitchTarget,
   type NodeMigrationOptions,
   type VmMigrationPayload,
   type VmMigrationPreview,
@@ -83,6 +84,10 @@ export default function VmMigrationDialog({ vm, onClose, onSuccess }: VmMigratio
 
   const storageLabel = (item: MigrationStorageTarget) =>
     `${item.display_name || item.id}（可用 ${formatBytes(item.available)}）`
+
+  // 交换机展示：系统基础网络交换机 username 为空，统一显示为「系统」
+  const switchLabel = (item: MigrationSwitchTarget) =>
+    `${item.username || '系统'} / ${item.name} / ${item.cidr || '-'}`
 
   const storageName = useCallback(
     (id: string) =>
@@ -463,7 +468,7 @@ export default function VmMigrationDialog({ vm, onClose, onSuccess }: VmMigratio
                 filter
                 placeholder="请选择目标轻量云 VPC"
                 optionList={lightweightSwitches.map((item) => ({
-                  label: `${item.username} / ${item.name} / ${item.cidr}`,
+                  label: switchLabel(item),
                   value: item.id,
                 }))}
               />
@@ -472,7 +477,7 @@ export default function VmMigrationDialog({ vm, onClose, onSuccess }: VmMigratio
             showTargetNetwork && (
               <>
                 <div className="qvm-form-item">
-                  <div className="qvm-form-label required">目标 VPC</div>
+                  <div className="qvm-form-label required">目标交换机</div>
                   <Select
                     style={{ width: '100%' }}
                     value={targetSwitchId || undefined}
@@ -481,9 +486,9 @@ export default function VmMigrationDialog({ vm, onClose, onSuccess }: VmMigratio
                       setTargetSwitchId(value as number)
                     }}
                     filter
-                    placeholder="请选择目标 VPC"
+                    placeholder="请选择目标交换机"
                     optionList={(optionsData?.target_switches || []).map((item) => ({
-                      label: `${item.username} / ${item.name} / ${item.cidr}`,
+                      label: switchLabel(item),
                       value: item.id,
                     }))}
                   />

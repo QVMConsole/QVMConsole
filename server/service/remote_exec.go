@@ -23,6 +23,21 @@ var sshWarningPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`^Warning: the .+ host key .+$`),
 }
 
+// DefaultNodeSSHKeyPath 节点 SSH 密钥认证默认使用的本机私钥路径（与 EnsureDefaultSSHKeyTrusted 的迁移密钥一致）
+const DefaultNodeSSHKeyPath = "/root/.ssh/id_ed25519"
+
+// resolveNodeSSHKeyPath 解析节点密钥认证使用的本机私钥路径，并校验文件存在
+func resolveNodeSSHKeyPath(node model.HostNode) (string, error) {
+	keyPath := strings.TrimSpace(node.SSHKeyPath)
+	if keyPath == "" {
+		keyPath = DefaultNodeSSHKeyPath
+	}
+	if _, err := os.Stat(keyPath); err != nil {
+		return "", fmt.Errorf("SSH 密钥文件不存在: %s（请先在面板所在系统生成密钥，并将公钥配置到目标节点 root 的 ~/.ssh/authorized_keys）", keyPath)
+	}
+	return keyPath, nil
+}
+
 // stripSSHWarnings 从 stderr 输出中移除 SSH 的警告/信息性消息，保留真正的错误信息
 func stripSSHWarnings(stderr string) string {
 	lines := strings.Split(stderr, "\n")
@@ -57,18 +72,30 @@ func remoteSSHExec(ctx context.Context, node model.HostNode, command string, tim
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	passwordFile, cleanup, err := writeSSHPasswordFile(node)
-	if err != nil {
-		return "", err
-	}
-	defer cleanup()
 	target := fmt.Sprintf("%s@%s", strings.TrimSpace(node.SSHUser), strings.TrimSpace(node.SSHHost))
 	sshPort := node.SSHPort
 	if sshPort <= 0 {
 		sshPort = 22
 	}
-	cmd := fmt.Sprintf("sshpass -f %s ssh -p %d -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=10 %s %s",
-		utils.ShellSingleQuote(passwordFile), sshPort, utils.ShellSingleQuote(target), utils.ShellSingleQuote(command))
+	sshBase := fmt.Sprintf("ssh -p %d -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=10", sshPort)
+	var cmd string
+	if node.SSHKeyAuth {
+		// 密钥认证：默认只允许免密登录（BatchMode），面板不保存密码
+		keyPath, err := resolveNodeSSHKeyPath(node)
+		if err != nil {
+			return "", err
+		}
+		cmd = fmt.Sprintf("%s -i %s -o BatchMode=yes %s %s",
+			sshBase, utils.ShellSingleQuote(keyPath), utils.ShellSingleQuote(target), utils.ShellSingleQuote(command))
+	} else {
+		passwordFile, cleanup, err := writeSSHPasswordFile(node)
+		if err != nil {
+			return "", err
+		}
+		defer cleanup()
+		cmd = fmt.Sprintf("sshpass -f %s %s %s %s",
+			utils.ShellSingleQuote(passwordFile), sshBase, utils.ShellSingleQuote(target), utils.ShellSingleQuote(command))
+	}
 	result := utils.ExecShellContextWithTimeout(ctx, cmd, timeout)
 	if result.Error != nil {
 		if result.ExitCode == 255 {
@@ -90,21 +117,36 @@ func RemoteRsyncFile(ctx context.Context, node model.HostNode, sourcePath, targe
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	passwordFile, cleanup, err := writeSSHPasswordFile(node)
-	if err != nil {
-		return err
-	}
-	defer cleanup()
 	target := fmt.Sprintf("%s@%s:%s", strings.TrimSpace(node.SSHUser), strings.TrimSpace(node.SSHHost), targetPath)
 	sshPort := node.SSHPort
 	if sshPort <= 0 {
 		sshPort = 22
 	}
-	cmd := fmt.Sprintf("sshpass -f %s rsync -aS --numeric-ids -e %s %s %s",
-		utils.ShellSingleQuote(passwordFile),
-		utils.ShellSingleQuote(fmt.Sprintf("ssh -p %d -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null -o LogLevel=ERROR", sshPort)),
-		utils.ShellSingleQuote(sourcePath),
-		utils.ShellSingleQuote(target))
+	sshOpts := "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null -o LogLevel=ERROR"
+	var cmd string
+	if node.SSHKeyAuth {
+		keyPath, err := resolveNodeSSHKeyPath(node)
+		if err != nil {
+			return err
+		}
+		sshE := fmt.Sprintf("ssh -p %d -i %s -o BatchMode=yes %s", sshPort, keyPath, sshOpts)
+		cmd = fmt.Sprintf("rsync -aS --numeric-ids -e %s %s %s",
+			utils.ShellSingleQuote(sshE),
+			utils.ShellSingleQuote(sourcePath),
+			utils.ShellSingleQuote(target))
+	} else {
+		passwordFile, cleanup, err := writeSSHPasswordFile(node)
+		if err != nil {
+			return err
+		}
+		defer cleanup()
+		sshE := fmt.Sprintf("ssh -p %d %s", sshPort, sshOpts)
+		cmd = fmt.Sprintf("sshpass -f %s rsync -aS --numeric-ids -e %s %s %s",
+			utils.ShellSingleQuote(passwordFile),
+			utils.ShellSingleQuote(sshE),
+			utils.ShellSingleQuote(sourcePath),
+			utils.ShellSingleQuote(target))
+	}
 	result := utils.ExecShellContextWithTimeout(ctx, cmd, timeout)
 	if result.Error != nil {
 		cleanStderr := stripSSHWarnings(result.Stderr)

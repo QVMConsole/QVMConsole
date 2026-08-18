@@ -233,11 +233,11 @@ func validateTargetNetwork(preview *VMMigrationPreview, req VMMigrationRequest) 
 		return
 	}
 	if preview.Owner != "admin" && preview.TargetSwitchID == 0 {
-		preview.Blockers = append(preview.Blockers, "目标已有同名用户，请选择该用户下的目标 VPC")
+		preview.Blockers = append(preview.Blockers, "目标已有同名用户，请选择该用户下的目标交换机")
 		return
 	}
 	if preview.TargetSwitchID > 0 && !switchExistsInList(preview.TargetSwitchID, preview.TargetSwitches, false) {
-		preview.Blockers = append(preview.Blockers, "目标 VPC 不存在")
+		preview.Blockers = append(preview.Blockers, "目标交换机不存在")
 	}
 	if req.TargetSecurityGroupID > 0 && !securityGroupExistsInList(req.TargetSecurityGroupID, preview.TargetSecurityGroups) {
 		preview.Blockers = append(preview.Blockers, "目标安全组不存在")
@@ -284,7 +284,12 @@ func filterTargetMigrationNetworks(owner string, lightweight, targetUserExists b
 	}
 	filteredSwitches := make([]model.VPCSwitch, 0, len(switches))
 	for _, sw := range switches {
-		if owner != "" && sw.Username != owner {
+		if sw.IsSystem {
+			// 系统基础网络交换机为全局共享资源（username 为空），迁移时仅管理员可选择，与创建 VM 的语义保持一致
+			if owner != "admin" {
+				continue
+			}
+		} else if owner != "" && sw.Username != owner {
 			continue
 		}
 		if lightweight && strings.TrimSpace(sw.BridgeMode) != "" && !strings.EqualFold(sw.BridgeMode, service.BridgeModeNAT) {

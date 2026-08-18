@@ -13,6 +13,8 @@ type HostNode struct {
 	SSHPort          int        `json:"ssh_port" gorm:"default:22"`
 	SSHUser          string     `json:"ssh_user" gorm:"size:64;not null;default:'root'"`
 	SSHPasswordEnc   string     `json:"-" gorm:"type:text"`
+	SSHKeyAuth       bool       `json:"ssh_key_auth" gorm:"default:false"` // true 时使用本机 SSH 密钥免密认证（面板不保存密钥，由用户在系统中自行配置）
+	SSHKeyPath       string     `json:"ssh_key_path" gorm:"size:255"`      // 可选：本机私钥路径，留空使用默认迁移密钥
 	Enabled          bool       `json:"enabled" gorm:"index;default:true"`
 	Status           string     `json:"status" gorm:"index;size:32;default:'unknown'"`
 	LastProbeMessage string     `json:"last_probe_message" gorm:"type:text"`
