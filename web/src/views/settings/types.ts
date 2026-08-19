@@ -85,6 +85,7 @@ export interface SettingsForm {
   jwt_secret_rotate_hours: number
   jwt_secret_last_rotated: string
   log_max_backups: number
+  request_detail_log_enabled: boolean
   network_wait_online_disabled: boolean
   network_wait_online_summary: string
   spice_enabled_by_default: boolean
@@ -157,6 +158,7 @@ export const DEFAULT_SETTINGS_FORM: SettingsForm = {
   jwt_secret_rotate_hours: 24,
   jwt_secret_last_rotated: '',
   log_max_backups: 0,
+  request_detail_log_enabled: true,
   network_wait_online_disabled: false,
   network_wait_online_summary: '',
   spice_enabled_by_default: false,
@@ -264,6 +266,7 @@ export function buildSettingsPayload(form: SettingsForm): Record<string, unknown
     smtp_timeout_seconds: form.smtp_timeout_seconds,
     jwt_secret_rotate_hours: form.jwt_secret_rotate_hours,
     log_max_backups: form.log_max_backups,
+    request_detail_log_enabled: form.request_detail_log_enabled,
     network_wait_online_disabled: form.network_wait_online_disabled,
     spice_enabled_by_default: form.spice_enabled_by_default,
     igpu_passthrough_enabled: form.igpu_passthrough_enabled,

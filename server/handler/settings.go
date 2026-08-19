@@ -82,6 +82,10 @@ type SettingsResponse struct {
 	JWTSecretLastRotated string `json:"jwt_secret_last_rotated"`
 	// 日志管理
 	LogMaxBackups int `json:"log_max_backups"`
+	// 请求日志详情记录开关（默认开启，记录脱敏后的响应体 JSON）
+	RequestDetailLogEnabled bool `json:"request_detail_log_enabled"`
+	// 请求日志响应体捕获上限（字节，仅环境变量可调）
+	RequestLogMaxBodyBytes int `json:"request_log_max_body_bytes"`
 	// 网络等待就绪检测
 	NetworkWaitOnlineDisabled bool   `json:"network_wait_online_disabled"`
 	NetworkWaitOnlineSummary  string `json:"network_wait_online_summary"`
@@ -154,6 +158,10 @@ type UpdateSettingsRequest struct {
 	JWTSecretRotateHours *int `json:"jwt_secret_rotate_hours"`
 	// 日志最大备份数
 	LogMaxBackups *int `json:"log_max_backups"`
+	// 请求日志详情记录开关
+	RequestDetailLogEnabled *bool `json:"request_detail_log_enabled"`
+	// 请求日志响应体捕获上限（字节）
+	RequestLogMaxBodyBytes *int `json:"request_log_max_body_bytes"`
 	// 网络等待就绪检测
 	NetworkWaitOnlineDisabled *bool `json:"network_wait_online_disabled"`
 	// 安全防护
@@ -276,6 +284,8 @@ func GetSettings(c *gin.Context) {
 			JWTSecretRotateHours:                  cfg.JWTSecretRotateHours,
 			JWTSecretLastRotated:                  jwtLastRotated,
 			LogMaxBackups:                         cfg.LogMaxBackups,
+			RequestDetailLogEnabled:               cfg.RequestDetailLogEnabled,
+			RequestLogMaxBodyBytes:                cfg.RequestLogMaxBodyBytes,
 			NetworkWaitOnlineDisabled:             cfg.NetworkWaitOnlineDisabled,
 			NetworkWaitOnlineSummary:              networkWaitOnlineSummary(cfg.NetworkWaitOnlineDisabled),
 			SessionFingerprintEnabled:             cfg.SessionFingerprintEnabled,
@@ -599,6 +609,16 @@ func UpdateSettings(c *gin.Context) {
 			return
 		}
 		cfg.LogMaxBackups = *req.LogMaxBackups
+	}
+	if req.RequestDetailLogEnabled != nil {
+		cfg.RequestDetailLogEnabled = *req.RequestDetailLogEnabled
+	}
+	if req.RequestLogMaxBodyBytes != nil {
+		if *req.RequestLogMaxBodyBytes < 256 || *req.RequestLogMaxBodyBytes > 1024*1024 {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求日志响应体捕获上限需在 256 - 1048576 字节之间"})
+			return
+		}
+		cfg.RequestLogMaxBodyBytes = *req.RequestLogMaxBodyBytes
 	}
 	networkWaitOnlineChanged := false
 	if req.NetworkWaitOnlineDisabled != nil {

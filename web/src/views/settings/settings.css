@@ -299,6 +299,55 @@
   gap: 8px;
 }
 
+/* ==================== 日志内容查看 ==================== */
+.stg-log-viewer-tip {
+  margin-bottom: 10px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--qvm-text-2);
+}
+.stg-log-viewer-banner {
+  margin-bottom: 10px;
+}
+.stg-log-viewer-body {
+  height: 520px;
+  overflow: auto;
+  border: 1px solid var(--qvm-stroke);
+  border-radius: 10px;
+  background: var(--semi-color-fill-0);
+  padding: 12px 14px;
+}
+.stg-log-viewer-body pre {
+  margin: 0;
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 12.5px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--semi-color-text-1);
+}
+.stg-log-viewer-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.stg-log-viewer-meta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 12.5px;
+  color: var(--qvm-text-2);
+}
+.stg-log-viewer-eof {
+  color: var(--qvm-acc-ink);
+}
+.stg-log-viewer-actions {
+  display: flex;
+  gap: 8px;
+}
+
 /* ==================== 诊断导出 ==================== */
 .stg-diag-toolbar {
   margin-bottom: 8px;
@@ -356,6 +405,16 @@ body[theme-mode='dark'] .stg-page-header h2,
 body[theme-mode='dark'] .stg-section-head,
 body[theme-mode='dark'] .stg-profile-item strong,
 body[theme-mode='dark'] .stg-diag-label {
+  color: #b8c1cf;
+}
+body[theme-mode='dark'] .stg-log-viewer-body {
+  color: #9aa4b2;
+  background: rgba(7, 11, 20, 0.55);
+}
+body[theme-mode='dark'] .stg-log-viewer-body pre {
+  color: #9aa4b2;
+}
+body[theme-mode='dark'] .stg-log-viewer-meta {
   color: #b8c1cf;
 }
 

@@ -159,6 +159,10 @@ type Config struct {
 	LogConsoleLevel string `json:"log_console_level"` // 终端输出的日志级别（可独立于文件级别）
 	LogMaxSizeMB    int    `json:"log_max_size_mb"`
 	LogMaxBackups   int    `json:"log_max_backups"` // 日志最大归档备份数（0=不限制）
+	// 请求日志详情记录开关（默认开启，记录脱敏后的响应体 JSON；关闭后仅保留基础请求日志）
+	RequestDetailLogEnabled bool `json:"request_detail_log_enabled"`
+	// 请求日志响应体捕获上限（字节，默认 8192，超出截断；仅环境变量可调）
+	RequestLogMaxBodyBytes int `json:"request_log_max_body_bytes"`
 	// 禁用网络等待就绪检测（解决 OVS 桥接后开机卡 systemd-networkd-wait-online.service）
 	NetworkWaitOnlineDisabled bool `json:"network_wait_online_disabled"`
 	// 请求过滤开关
@@ -300,6 +304,8 @@ func Init() {
 		LogConsoleLevel:                       getEnv("KVM_LOG_CONSOLE_LEVEL", ""),
 		LogMaxSizeMB:                          getEnvInt("KVM_LOG_MAX_SIZE_MB", 100),
 		LogMaxBackups:                         getEnvInt("KVM_LOG_MAX_BACKUPS", 0),
+		RequestDetailLogEnabled:               getEnvBool("KVM_REQUEST_DETAIL_LOG_ENABLED", true),
+		RequestLogMaxBodyBytes:                getEnvInt("KVM_REQUEST_LOG_MAX_BODY_BYTES", 8192),
 		NetworkWaitOnlineDisabled:             getEnvBool("KVM_NETWORK_WAIT_ONLINE_DISABLED", false),
 		RequestFilterEnabled:                  getEnvBool("KVM_REQUEST_FILTER_ENABLED", true),
 		APIMaxBodySizeMB:                      getEnvInt("KVM_API_MAX_BODY_SIZE_MB", 2),
@@ -543,6 +549,8 @@ var PersistableKeys = []string{
 	"network_wait_online_disabled",
 	"session_fingerprint_enabled",
 	"request_filter_enabled",
+	"request_detail_log_enabled",
+	"request_log_max_body_bytes",
 	"password_breach_check_enabled",
 	"scheduled_password_breach_check_enabled",
 	"scheduled_storage_trim_enabled",
@@ -621,6 +629,8 @@ var keyToEnvVar = map[string]string{
 	"log_console_level":                         "KVM_LOG_CONSOLE_LEVEL",
 	"log_max_size_mb":                           "KVM_LOG_MAX_SIZE_MB",
 	"log_max_backups":                           "KVM_LOG_MAX_BACKUPS",
+	"request_detail_log_enabled":                "KVM_REQUEST_DETAIL_LOG_ENABLED",
+	"request_log_max_body_bytes":                "KVM_REQUEST_LOG_MAX_BODY_BYTES",
 	"network_wait_online_disabled":              "KVM_NETWORK_WAIT_ONLINE_DISABLED",
 	"session_fingerprint_enabled":               "KVM_SESSION_FINGERPRINT_ENABLED",
 	"request_filter_enabled":                    "KVM_REQUEST_FILTER_ENABLED",
@@ -845,6 +855,12 @@ func (c *Config) LoadFromDB(settings map[string]string) {
 			if v, err := strconv.Atoi(value); err == nil {
 				c.LogMaxBackups = v
 			}
+		case "request_detail_log_enabled":
+			c.RequestDetailLogEnabled = value != "false"
+		case "request_log_max_body_bytes":
+			if v, err := strconv.Atoi(value); err == nil && v > 0 {
+				c.RequestLogMaxBodyBytes = v
+			}
 		case "network_wait_online_disabled":
 			if v, err := strconv.ParseBool(value); err == nil {
 				c.NetworkWaitOnlineDisabled = v
@@ -942,6 +958,8 @@ func (c *Config) ToSettingsMap() map[string]string {
 		"log_console_level":                         c.LogConsoleLevel,
 		"log_max_size_mb":                           strconv.Itoa(c.LogMaxSizeMB),
 		"log_max_backups":                           strconv.Itoa(c.LogMaxBackups),
+		"request_detail_log_enabled":                strconv.FormatBool(c.RequestDetailLogEnabled),
+		"request_log_max_body_bytes":                strconv.Itoa(c.RequestLogMaxBodyBytes),
 		"network_wait_online_disabled":              strconv.FormatBool(c.NetworkWaitOnlineDisabled),
 		"session_fingerprint_enabled":               strconv.FormatBool(c.SessionFingerprintEnabled),
 		"request_filter_enabled":                    strconv.FormatBool(c.RequestFilterEnabled),

@@ -1,15 +1,29 @@
 /**
- * 日志管理 Tab：日志归档设置 / 磁盘占用 / 文件列表（多选删除、导出 ZIP）
+ * 日志管理 Tab：请求日志详情开关 / 日志归档设置 / 磁盘占用 / 文件列表（在线预览、多选删除、导出 ZIP）
  */
 import { useEffect, useState } from 'react'
-import { Button, Empty, InputNumber, Table, Tag, Toast } from '@douyinfe/semi-ui'
-import { IconDelete, IconDownload, IconFolder, IconPulse, IconRefresh } from '@douyinfe/semi-icons'
+import { Button, Empty, InputNumber, Table, Tag, Toast, Tooltip } from '@douyinfe/semi-ui'
+import {
+  IconDelete,
+  IconDownload,
+  IconEyeOpened,
+  IconFolder,
+  IconPulse,
+  IconRefresh,
+} from '@douyinfe/semi-icons'
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table'
-import { deleteLogs, getLogStatus, type LogFileItem, type LogStatus } from '@/api/settings'
+import {
+  deleteLogs,
+  getLogStatus,
+  type LogFileItem,
+  type LogStatus,
+} from '@/api/settings'
 import { formatFileSize } from '@/utils/format'
 import { confirmModal } from '@/utils/confirm'
 import { SectionHead, SettingRow } from './SettingRow'
 import LogExportDialog from '../dialogs/LogExportDialog'
+import LogViewerDialog from '../dialogs/LogViewerDialog'
+import TextSwitch from '@/features/vm-form/sections/TextSwitch'
 import { categoryTagColor } from '../logUtils'
 import type { SettingsTabProps } from '../types'
 
@@ -23,6 +37,7 @@ export default function LogTab({ form, patch }: SettingsTabProps) {
   const [deleting, setDeleting] = useState(false)
   const [selected, setSelected] = useState<string[]>([])
   const [exportVisible, setExportVisible] = useState(false)
+  const [viewFile, setViewFile] = useState<LogFileItem | null>(null)
 
   const fetchStatus = async () => {
     setLoading(true)
@@ -45,6 +60,15 @@ export default function LogTab({ form, patch }: SettingsTabProps) {
   useEffect(() => {
     void fetchStatus()
   }, [])
+
+  /** 打开日志内容查看对话框（.log.gz 压缩归档不支持在线预览） */
+  const handleView = (row: LogFileItem) => {
+    if (row.name.endsWith('.gz')) {
+      Toast.warning('压缩归档日志不支持在线预览，请下载后查看')
+      return
+    }
+    setViewFile(row)
+  }
 
   const handleDelete = async () => {
     if (selected.length === 0) {
@@ -102,10 +126,40 @@ export default function LogTab({ form, patch }: SettingsTabProps) {
       render: (size) => formatFileSize(size),
     },
     { title: '修改时间', dataIndex: 'mod_time', width: 170 },
+    {
+      title: '操作',
+      dataIndex: 'actions',
+      width: 64,
+      align: 'center',
+      render: (_text, row) => (
+        <Tooltip content="查看内容" position="top">
+          <Button
+            className="qvm-act-ic"
+            size="small"
+            theme="borderless"
+            icon={<IconEyeOpened />}
+            aria-label="查看内容"
+            onClick={() => handleView(row)}
+          />
+        </Tooltip>
+      ),
+    },
   ]
 
   return (
     <div className="stg-tab-pane stg-tab-pane-wide">
+      <SectionHead icon={<IconEyeOpened />} title="请求日志详情" />
+
+      <SettingRow
+        label="记录请求日志"
+        tip="开启后，request.log 记录每个请求的基础信息与脱敏后的响应体 JSON（token、密码、密钥等敏感字段自动替换为 [REDACTED]）；关闭后完全停止请求日志记录（不再产生新记录，已写入的历史记录保留在文件中直至归档清理）。默认开启，运行时生效，无需重启 | 环境变量: KVM_REQUEST_DETAIL_LOG_ENABLED"
+      >
+        <TextSwitch
+          checked={form.request_detail_log_enabled}
+          onChange={(v) => patch({ request_detail_log_enabled: v })}
+        />
+      </SettingRow>
+
       <SectionHead icon={<IconFolder />} title="日志归档设置" />
 
       <SettingRow
@@ -196,6 +250,13 @@ export default function LogTab({ form, patch }: SettingsTabProps) {
         files={status.files}
         initialSelected={selected}
         onClose={() => setExportVisible(false)}
+      />
+
+      <LogViewerDialog
+        visible={viewFile !== null}
+        file={viewFile}
+        detailEnabled={form.request_detail_log_enabled}
+        onClose={() => setViewFile(null)}
       />
     </div>
   )

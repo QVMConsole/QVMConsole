@@ -252,6 +252,15 @@ export const endpointDescriptions: Record<string, EndpointDescription> = {
     response: 'data: total_size, total_size_human, files[{name,size,mod_time,is_today,category}], categories',
     notes: ['返回日志目录下所有日志文件列表及磁盘总占用大小'],
   },
+  'GET /settings/log/read': {
+    summary: '读取日志文件内容',
+    query: ['file', 'lines', 'offset'],
+    response: 'data: name, content（脱敏后的日志文本）, lines, prev_offset, eof',
+    notes: [
+      '在线预览日志文本，从文件尾部向前分页读取：file 为日志文件名（仅 .log，拒绝路径穿越），lines 为每次读取行数（默认 200，上限 1000），offset 传上一页返回的 prev_offset 可加载更早记录',
+      '压缩归档（.log.gz）不支持在线预览；敏感字段（token、密码、密钥等）在记录时已脱敏',
+    ],
+  },
   'POST /settings/log/delete': {
     summary: '删除日志文件',
     body: 'JSON: files[] 文件名列表',

@@ -109,6 +109,7 @@ func Setup() *gin.Engine {
 			settings.PUT("/cpu-affinity-presets", handler.SaveCPUAffinityPresets)
 			settings.POST("/jwt-secret/rotate", handler.RotateJWTSecret)
 			settings.GET("/log/status", handler.GetLogStatus)
+			settings.GET("/log/read", handler.ReadLogFile) // 读取日志文件内容（在线预览，向前分页）
 			settings.POST("/log/delete", handler.DeleteLogs)
 			settings.POST("/log/export", handler.ExportLogs)
 			settings.GET("/diagnostics/categories", handler.GetDiagnosticCategories)

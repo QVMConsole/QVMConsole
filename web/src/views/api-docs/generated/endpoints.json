@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-16T08:58:37.377Z",
-  "count": 337,
+  "generated_at": "2026-08-19T03:31:42.922Z",
+  "count": 338,
   "endpoints": [
     {
       "method": "POST",
@@ -1882,6 +1882,17 @@
       "vmAccess": false,
       "highRisk": "",
       "comment": ""
+    },
+    {
+      "method": "GET",
+      "path": "/settings/log/read",
+      "handler": "ReadLogFile",
+      "auth": "jwt-only",
+      "admin": true,
+      "elasticOnly": false,
+      "vmAccess": false,
+      "highRisk": "",
+      "comment": "读取日志文件内容（在线预览，向前分页）"
     },
     {
       "method": "GET",
