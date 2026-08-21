@@ -45,6 +45,7 @@ OVS_CONFIG_DIR="/etc/kvm-console/ovs"
 OVS_STATE_DIR="/var/lib/kvm-console/ovs"
 OVS_DNSMASQ_UNIT="kvm-console-ovs-dnsmasq.service"
 OVS_DNSMASQ_SERVICE_FILE="/etc/systemd/system/${OVS_DNSMASQ_UNIT}"
+DEFAULT_OVS_SUBNET_PREFIX="192.168.122"
 PORT_FORWARD_DIR="/etc/kvm-portforward"
 VM_ACCESS_DIR="/etc/libvirt/vm-access"
 FIREWALL_DIR="/etc/kvm-console/firewall"
@@ -1198,6 +1199,129 @@ random_secret() {
     printf '%s' "$secret"
 }
 
+ipv4_to_int() {
+    local ip="$1"
+    local a b c d octet
+    IFS=. read -r a b c d <<< "$ip"
+    for octet in "$a" "$b" "$c" "$d"; do
+        if ! [[ "$octet" =~ ^[0-9]{1,3}$ ]] || [ "$((10#$octet))" -gt 255 ]; then
+            return 1
+        fi
+    done
+    printf '%u\n' "$(( (10#$a << 24) + (10#$b << 16) + (10#$c << 8) + 10#$d ))"
+}
+
+cidr_to_range() {
+    local cidr="$1"
+    local ip="${cidr%/*}"
+    local prefix_len="${cidr#*/}"
+    local ip_int mask network broadcast
+    if [ "$ip" = "$cidr" ] || ! [[ "$prefix_len" =~ ^[0-9]{1,2}$ ]] || [ "$prefix_len" -gt 32 ]; then
+        return 1
+    fi
+    ip_int=$(ipv4_to_int "$ip") || return 1
+    if [ "$prefix_len" -eq 0 ]; then
+        mask=0
+    else
+        mask=$(( (0xFFFFFFFF << (32 - prefix_len)) & 0xFFFFFFFF ))
+    fi
+    network=$(( ip_int & mask ))
+    broadcast=$(( network | (0xFFFFFFFF ^ mask) ))
+    printf '%u %u\n' "$network" "$broadcast"
+}
+
+cidr_overlaps() {
+    local left="$1"
+    local right="$2"
+    local left_range right_range left_start left_end right_start right_end
+    left_range=$(cidr_to_range "$left") || return 1
+    right_range=$(cidr_to_range "$right") || return 1
+    read -r left_start left_end <<< "$left_range"
+    read -r right_start right_end <<< "$right_range"
+    [ "$left_start" -le "$right_end" ] && [ "$right_start" -le "$left_end" ]
+}
+
+host_ipv4_cidrs() {
+    { ip -o -4 addr show 2>/dev/null || true; } | awk '
+        $2 != "lo" {
+            for (i = 1; i <= NF; i++) {
+                if ($i == "inet") {
+                    print $2, $(i + 1)
+                    break
+                }
+            }
+        }
+    '
+}
+
+first_ovs_subnet_conflict() {
+    local subnet_prefix="$1"
+    local candidate_cidr="${subnet_prefix}.0/24"
+    local iface iface_cidr
+    while read -r iface iface_cidr; do
+        [ -n "${iface:-}" ] && [ -n "${iface_cidr:-}" ] || continue
+        if cidr_overlaps "$candidate_cidr" "$iface_cidr"; then
+            printf '%s %s' "$iface" "$iface_cidr"
+            return 0
+        fi
+    done < <(host_ipv4_cidrs)
+    return 1
+}
+
+generate_ovs_subnet_candidates() {
+    local third second
+    printf '%s\n' "$DEFAULT_OVS_SUBNET_PREFIX"
+    for third in $(seq 123 254) $(seq 2 121); do
+        printf '192.168.%s\n' "$third"
+    done
+    for second in 250 251 252 253 254 240 241 242 243 244 245 246 247 248 249; do
+        for third in $(seq 0 254); do
+            printf '10.%s.%s\n' "$second" "$third"
+        done
+    done
+    for second in 31 30 29 28 27 26 25 24 23 22 21 20; do
+        for third in $(seq 0 254); do
+            printf '172.%s.%s\n' "$second" "$third"
+        done
+    done
+}
+
+select_available_ovs_subnet_prefix() {
+    local candidate
+    while read -r candidate; do
+        [ -n "$candidate" ] || continue
+        if ! first_ovs_subnet_conflict "$candidate" >/dev/null; then
+            printf '%s' "$candidate"
+            return 0
+        fi
+    done < <(generate_ovs_subnet_candidates)
+    printf '%s' "$DEFAULT_OVS_SUBNET_PREFIX"
+    return 0
+}
+
+write_default_ovs_subnet_prefix() {
+    local existing_value
+    existing_value=$(env_get "KVM_SUBNET_PREFIX")
+    if [ -n "$existing_value" ] || grep -q "^KVM_SUBNET_PREFIX=" "$ENV_FILE" 2>/dev/null; then
+        return
+    fi
+
+    local selected_prefix default_conflict
+    selected_prefix=$(select_available_ovs_subnet_prefix)
+    default_conflict=$(first_ovs_subnet_conflict "$DEFAULT_OVS_SUBNET_PREFIX" || true)
+    env_set "KVM_SUBNET_PREFIX" "$selected_prefix"
+
+    if [ "$selected_prefix" != "$DEFAULT_OVS_SUBNET_PREFIX" ]; then
+        if [ -n "$default_conflict" ]; then
+            warn "检测到默认基础网络 ${DEFAULT_OVS_SUBNET_PREFIX}.0/24 与宿主机网卡 ${default_conflict} 冲突，已自动改用 ${selected_prefix}.0/24"
+        else
+            warn "默认基础网络 ${DEFAULT_OVS_SUBNET_PREFIX}.0/24 不可用，已自动改用 ${selected_prefix}.0/24"
+        fi
+    else
+        success "基础网络默认网段: ${selected_prefix}.0/24"
+    fi
+}
+
 configure_port() {
     local default_port="8080"
     local existing_port
@@ -1262,7 +1386,7 @@ write_env() {
         env_default "KVM_ELASTIC_CLOUD_UPLINK" ""
         env_default "KVM_OVS_DHCP_START" ""
         env_default "KVM_OVS_DHCP_END" ""
-        env_default "KVM_SUBNET_PREFIX" "192.168.122"
+        write_default_ovs_subnet_prefix
         env_default "KVM_AUTO_PORT_START" "10000"
         env_default "KVM_AUTO_PORT_END" "20000"
         env_default "KVM_HOST_IP" ""

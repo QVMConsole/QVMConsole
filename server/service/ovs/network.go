@@ -61,7 +61,7 @@ func OvsBridgeName() string {
 	return "br-ovs"
 }
 
-// OvsSubnetPrefix returns the OVS subnet prefix (e.g. "192.168.122").
+// OvsSubnetPrefix 返回 OVS 基础网络网段前缀。
 func OvsSubnetPrefix() string {
 	if config.GlobalConfig != nil && strings.TrimSpace(config.GlobalConfig.SubnetPrefix) != "" {
 		return strings.TrimSpace(config.GlobalConfig.SubnetPrefix)

@@ -173,7 +173,7 @@ func EnsureAllActiveUsersDefaultSecurityGroup() {
 	}
 }
 
-// EnsureSystemBaseNetwork 确保系统基础网络交换机存在（br-ovs 192.168.122.0/24）。
+// EnsureSystemBaseNetwork 确保系统基础网络交换机存在，网段跟随 KVM_SUBNET_PREFIX。
 // 该交换机为全局共享，不可删除、不可编辑，仅供查看。
 func EnsureSystemBaseNetwork() error {
 	if model.DB == nil {
