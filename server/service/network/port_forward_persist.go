@@ -81,6 +81,120 @@ func restorePortForwardCommand(line, hostIP string) error {
 	return nil
 }
 
+// dnatSRuleSignature 解析 iptables -S 的 DNAT 行：
+// 返回完整签名（协议|宿主机端口|来源|目标IP|目标端口）与目标四元组签名（协议|来源|目标IP|目标端口）。
+func dnatSRuleSignature(line string) (string, string, bool) {
+	args := strings.Fields(strings.TrimSpace(line))
+	joined := strings.Join(args, " ")
+	if !strings.Contains(joined, " -j DNAT") {
+		return "", "", false
+	}
+	proto := strings.ToLower(strings.TrimSpace(iptablesArgValue(args, "-p")))
+	hostPort := strings.TrimSpace(iptablesArgValue(args, "--dport"))
+	source := strings.TrimSpace(iptablesArgValue(args, "-s"))
+	if source == "" {
+		source = "0.0.0.0/0"
+	}
+	dest := strings.TrimSpace(iptablesArgValue(args, "--to-destination"))
+	parts := strings.SplitN(dest, ":", 2)
+	if len(parts) < 2 || hostPort == "" || parts[0] == "" || parts[1] == "" {
+		return "", "", false
+	}
+	sub := proto + "|" + source + "|" + parts[0] + "|" + parts[1]
+	return proto + "|" + hostPort + "|" + source + "|" + parts[0] + "|" + parts[1], sub, true
+}
+
+// forwardAcceptSRuleSignature 解析 iptables -S 的 FORWARD 放行行（端口转发目标），返回目标四元组签名。
+func forwardAcceptSRuleSignature(line string) (string, []string, bool) {
+	args := strings.Fields(strings.TrimSpace(line))
+	joined := strings.Join(args, " ")
+	if !strings.Contains(joined, " -j ACCEPT") || !strings.Contains(joined, " --dport ") {
+		return "", nil, false
+	}
+	proto := strings.ToLower(strings.TrimSpace(iptablesArgValue(args, "-p")))
+	dport := strings.TrimSpace(iptablesArgValue(args, "--dport"))
+	destIP := stripIPTablesCIDR(iptablesArgValue(args, "-d"))
+	source := strings.TrimSpace(iptablesArgValue(args, "-s"))
+	if source == "" {
+		source = "0.0.0.0/0"
+	}
+	if dport == "" || destIP == "" {
+		return "", nil, false
+	}
+	return proto + "|" + source + "|" + destIP + "|" + dport, args, true
+}
+
+// cleanupOrphanPortForwardRules 清理端口转发侧链孤儿规则（随持久化调用）：
+// - OUTPUT 链：无 PREROUTING 配对（协议|宿主机端口|来源|目标均一致）的 DNAT 残留，
+//   这类残留会让宿主机本地访问旧端口仍被转发到旧目标；
+// - FORWARD 链：无任一转发规则指向（协议|来源|目标IP|端口）的 ACCEPT 放行残留，
+//   残留放行会让内网主机绕过白名单直连 VM 端口。
+func cleanupOrphanPortForwardRules() {
+	fullValid := map[string]bool{}
+	subValid := map[string]bool{}
+	if res := utils.ExecShellQuiet("iptables -t nat -S PREROUTING 2>/dev/null | grep DNAT"); res.Error == nil {
+		for _, line := range strings.Split(res.Stdout, "\n") {
+			if full, sub, ok := dnatSRuleSignature(line); ok {
+				fullValid[full] = true
+				subValid[sub] = true
+			}
+		}
+	}
+	// OUTPUT 孤儿 DNAT
+	if res := utils.ExecShellQuiet("iptables -t nat -S OUTPUT 2>/dev/null | grep DNAT"); res.Error == nil {
+		removed := 0
+		for _, line := range strings.Split(res.Stdout, "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			full, _, ok := dnatSRuleSignature(line)
+			if !ok || fullValid[full] {
+				continue
+			}
+			args := strings.Fields(line)
+			if len(args) < 3 || args[0] != "-A" || args[1] != "OUTPUT" {
+				continue
+			}
+			deleteArgs := append([]string{"-t", "nat", "-D", "OUTPUT"}, args[2:]...)
+			if res := utils.ExecCommandQuiet("iptables", deleteArgs...); res.Error == nil {
+				removed++
+			}
+		}
+		if removed > 0 {
+			logger.App.Info("已清理 OUTPUT 链孤儿端口转发规则", "count", removed)
+		}
+	}
+	// FORWARD 孤儿放行（VPC 托管目标由 RemoveVPCPortForwardAcceptRules 统一处理，这里跳过）
+	if res := utils.ExecShellQuiet("iptables -S FORWARD 2>/dev/null | grep -- '-j ACCEPT' | grep -- '-d ' | grep -- '--dport '"); res.Error == nil {
+		removed := 0
+		for _, line := range strings.Split(res.Stdout, "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			sig, args, ok := forwardAcceptSRuleSignature(line)
+			if !ok {
+				continue
+			}
+			destIP := stripIPTablesCIDR(iptablesArgValue(args, "-d"))
+			if isVPCManagedIP(destIP) || subValid[sig] {
+				continue
+			}
+			if len(args) < 3 || args[0] != "-A" || args[1] != "FORWARD" {
+				continue
+			}
+			deleteArgs := append([]string{"-D", "FORWARD"}, args[2:]...)
+			if res := utils.ExecCommandQuiet("iptables", deleteArgs...); res.Error == nil {
+				removed++
+			}
+		}
+		if removed > 0 {
+			logger.App.Info("已清理 FORWARD 链孤儿端口转发放行规则", "count", removed)
+		}
+	}
+}
+
 // RestorePortForwardRules 从持久化脚本恢复端口转发规则。
 func RestorePortForwardRules() error {
 	if err := HookEnsureOVSNetworkReady(); err != nil {
@@ -181,6 +295,9 @@ func SavePortForwardRules() error {
 	if err := os.WriteFile(rulesPath, []byte(script), 0755); err != nil {
 		return fmt.Errorf("保存规则失败: %v", err)
 	}
+
+	// 清理 OUTPUT/FORWARD 链孤儿规则（防止历史残留影响宿主机本地访问与内网直连）
+	cleanupOrphanPortForwardRules()
 
 	// 对账 VPC 安全组自动放行规则（同步入站 IP 白名单，清理残留）
 	if err := syncSecurityGroupPortForwardRules(); err != nil {

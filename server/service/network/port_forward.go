@@ -487,15 +487,16 @@ func deletePortForwardWithOptions(ruleID int) error {
 	utils.ExecShell(fmt.Sprintf("iptables -t nat -D PREROUTING %d", ruleID))
 
 	// 删除 NAT 规则 (OUTPUT - 清理本地流量 DNAT)
+	// 规则可能已被并发对账清理（不存在时 -D 失败属预期），用 Quiet 避免误报 ERROR
 	if hostPort != "" {
-		utils.ExecShell(fmt.Sprintf(
+		utils.ExecShellQuiet(fmt.Sprintf(
 			"iptables -t nat -D OUTPUT%s -d %s -p %s --dport %s -j DNAT --to-destination %s:%s 2>/dev/null",
 			srcArg, utils.ShellSingleQuote(getHostIP()), utils.ShellSingleQuote(proto), utils.ShellSingleQuote(hostPort), utils.ShellSingleQuote(destIP), utils.ShellSingleQuote(destPort)))
 	}
 
-	// 删除 FORWARD 规则
-	if destIP != "" && destPort != "" {
-		utils.ExecShell(fmt.Sprintf(
+	// 删除 FORWARD 规则（VPC 托管 IP 添加时未建 FORWARD 规则，跳过清理避免必然失败）
+	if destIP != "" && destPort != "" && !isVPCManagedIP(destIP) {
+		utils.ExecShellQuiet(fmt.Sprintf(
 			"iptables -D FORWARD%s -d %s -p %s --dport %s -j ACCEPT 2>/dev/null",
 			srcArg, utils.ShellSingleQuote(destIP), utils.ShellSingleQuote(proto), utils.ShellSingleQuote(destPort)))
 	}

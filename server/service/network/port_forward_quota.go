@@ -189,10 +189,11 @@ func detectHostPortListener(protocol string, port int) (bool, string) {
 		ssProcessFlag = "-ulpnH"
 	}
 
-	ssResult := utils.ExecShell(fmt.Sprintf(
+	// 端口未被监听时 grep 无匹配（exit 1）属正常信号，用 Quiet 避免误报 ERROR
+	ssResult := utils.ExecShellQuiet(fmt.Sprintf(
 		"ss %s 2>/dev/null | awk '{print $4}' | grep -P ':%d$'", ssFlag, port))
 	if strings.TrimSpace(ssResult.Stdout) != "" {
-		procResult := utils.ExecShell(fmt.Sprintf(
+		procResult := utils.ExecShellQuiet(fmt.Sprintf(
 			"ss %s 2>/dev/null | grep ':%d ' | head -1",
 			ssProcessFlag, port))
 		procInfo := strings.TrimSpace(procResult.Stdout)
