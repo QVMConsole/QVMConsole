@@ -288,6 +288,7 @@ func Setup() *gin.Engine {
 				network.POST("/static-ip/unbind", middleware.ElasticCloudOnlyMiddleware(), handler.UnbindStaticIP)
 
 				// 端口转发
+				network.GET("/client-ip", handler.GetMyIP) // 获取当前访问面板的客户端 IP（端口转发入站 IP 白名单快速填充）
 				network.GET("/port-forward/list", handler.GetPortForwardList)
 				network.POST("/port-forward/add", handler.AddPortForward)
 				network.PUT("/port-forward/:id", handler.UpdatePortForward)

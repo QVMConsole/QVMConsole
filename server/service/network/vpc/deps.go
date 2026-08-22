@@ -42,6 +42,7 @@ type PortForwardRuleBrief struct {
 	DestIP   string
 	Protocol string
 	DestPort string
+	SourceIP string
 }
 
 // ── Constants (与 service 根包一致，避免循环 import) ──

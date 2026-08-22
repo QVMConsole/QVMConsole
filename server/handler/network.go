@@ -8,10 +8,22 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"kvm_console/middleware"
 	"kvm_console/model"
 	"kvm_console/service"
 	netservice "kvm_console/service/network"
 )
+
+// GetMyIP 获取当前访问面板的客户端 IP（用于端口转发入站 IP 白名单快速填充）
+func GetMyIP(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": "ok",
+		"data": gin.H{
+			"ip": middleware.GetClientIP(c),
+		},
+	})
+}
 
 // GetStaticIPList 获取静态 IP 列表（根据用户权限过滤）
 func GetStaticIPList(c *gin.Context) {
@@ -208,6 +220,7 @@ type AddPortForwardRequest struct {
 	VMPort   string `json:"vm_port" binding:"required"` // 虚拟机端口
 	HostPort string `json:"host_port"`                  // 宿主机端口，留空自动分配
 	Protocol string `json:"protocol"`                   // tcp/udp/both
+	SourceIP string `json:"source_ip"`                  // 入站 IP 白名单（IPv4/CIDR，空或 0.0.0.0/0 = 不限制）
 }
 
 func portForwardProtocolCount(protocol string) int {
@@ -301,6 +314,7 @@ func AddPortForward(c *gin.Context) {
 		HostPort:       hostPort,
 		VMPort:         req.VMPort,
 		Protocol:       req.Protocol,
+		SourceIP:       req.SourceIP,
 		Comment:        req.VMName,
 		CreatedBy:      usernameStr,
 		CreatedByAdmin: roleStr == "admin",
@@ -313,7 +327,7 @@ func AddPortForward(c *gin.Context) {
 		})
 		return
 	}
-	if err := service.EnsureSecurityGroupAllowsPortForward(req.VMName, req.Protocol, req.VMPort); err != nil {
+	if err := service.EnsureSecurityGroupAllowsPortForward(req.VMName, req.Protocol, req.VMPort, req.SourceIP); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"code":    500,
 			"message": "端口转发已添加，但自动补安全组策略失败: " + err.Error(),
@@ -353,6 +367,7 @@ type UpdatePortForwardRequest struct {
 	VMPort   string `json:"vm_port"`
 	HostPort string `json:"host_port"`
 	Protocol string `json:"protocol"`
+	SourceIP string `json:"source_ip"` // 入站 IP 白名单（IPv4/CIDR，空或 0.0.0.0/0 = 不限制）
 }
 
 // UpdatePortForward 编辑单条端口转发
@@ -464,6 +479,7 @@ func UpdatePortForward(c *gin.Context) {
 		VMPort:         req.VMPort,
 		HostPort:       req.HostPort,
 		Protocol:       req.Protocol,
+		SourceIP:       req.SourceIP,
 		Comment:        comment,
 		CreatedBy:      usernameStr,
 		CreatedByAdmin: roleStr == "admin",
@@ -488,7 +504,7 @@ func UpdatePortForward(c *gin.Context) {
 			forwardProto = strings.TrimSpace(currentRule.Protocol)
 		}
 		if forwardVMPort != "" {
-			if err := service.EnsureSecurityGroupAllowsPortForward(comment, forwardProto, forwardVMPort); err != nil {
+			if err := service.EnsureSecurityGroupAllowsPortForward(comment, forwardProto, forwardVMPort, req.SourceIP); err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{
 					"code":    500,
 					"message": "端口转发规则已更新，但自动补安全组策略失败: " + err.Error(),

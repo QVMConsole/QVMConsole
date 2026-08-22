@@ -172,8 +172,8 @@ func isPublicPath(path string) bool {
 	return false
 }
 
-// getClientIP 获取客户端真实 IP，优先取 X-Forwarded-For / X-Real-IP
-func getClientIP(c *gin.Context) string {
+// GetClientIP 获取客户端真实 IP，优先取 X-Forwarded-For / X-Real-IP（仅供可信代理场景）
+func GetClientIP(c *gin.Context) string {
 	// 仅当配置了可信代理且请求来自可信代理时才读取 X-Forwarded-For
 	if len(config.GlobalConfig.TrustedProxies) > 0 {
 		remoteAddr := c.Request.RemoteAddr
@@ -214,7 +214,7 @@ func isTrustedProxy(ip string) bool {
 // RateLimitMiddleware 全局限频中间件
 func RateLimitMiddleware(limiter *RateLimiter) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ip := getClientIP(c)
+		ip := GetClientIP(c)
 		isPublic := isPublicPath(c.Request.URL.Path)
 
 		allowed, remaining, resetSeconds := limiter.Allow(ip, isPublic)

@@ -116,8 +116,13 @@ func ipInCIDR(ip, cidr string) bool {
 	return vpcpkg.IPInCIDR(ip, cidr)
 }
 
-func removeSecurityGroupAllowsPortForwardIfUnused(destIP, protocol, portText string) error {
-	return vpcpkg.RemoveSecurityGroupAllowsPortForwardIfUnused(destIP, protocol, portText)
+func removeSecurityGroupAllowsPortForwardIfUnused(destIP, protocol, portText, sourceIP string) error {
+	return vpcpkg.RemoveSecurityGroupAllowsPortForwardIfUnused(destIP, protocol, portText, sourceIP)
+}
+
+// syncSecurityGroupPortForwardRules 对账安全组自动放行规则与实时端口转发规则
+func syncSecurityGroupPortForwardRules() error {
+	return vpcpkg.SyncSecurityGroupPortForwardRules()
 }
 
 func applyVPCSwitchRuntime(vmName string, sw model.VPCSwitch) error {

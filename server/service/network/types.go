@@ -33,6 +33,7 @@ type PortForwardRule struct {
 	AccessAddress         string `json:"access_address"`          // 对外完整访问地址
 	DestIP                string `json:"dest_ip"`                 // 目标 IP
 	DestPort              string `json:"dest_port"`               // 目标端口
+	SourceIP              string `json:"source_ip"`               // 入站 IP 白名单（CIDR，0.0.0.0/0 = 不限制）
 	VMName                string `json:"vm_name"`                 // 关联虚拟机
 	OwnerUsername         string `json:"owner_username"`          // 归属用户
 	FirewallKey           string `json:"firewall_key"`            // 防火墙豁免使用的稳定标识
@@ -55,6 +56,7 @@ type PortForwardAddParams struct {
 	HostPort       string `json:"host_port"`
 	VMPort         string `json:"vm_port"`
 	Protocol       string `json:"protocol"` // tcp/udp/both
+	SourceIP       string `json:"source_ip"` // 入站 IP 白名单（CIDR，空/0.0.0.0/0 = 不限制）
 	Comment        string `json:"comment"`
 	CreatedBy      string `json:"created_by"`
 	CreatedByAdmin bool   `json:"created_by_admin"`
@@ -74,6 +76,7 @@ type PortForwardUpdateParams struct {
 	HostPort       string `json:"host_port"`
 	VMPort         string `json:"vm_port"`
 	Protocol       string `json:"protocol"`
+	SourceIP       string `json:"source_ip"` // 入站 IP 白名单（CIDR，空/0.0.0.0/0 = 不限制）
 	Comment        string `json:"comment"`
 	CreatedBy      string `json:"created_by"`
 	CreatedByAdmin bool   `json:"created_by_admin"`

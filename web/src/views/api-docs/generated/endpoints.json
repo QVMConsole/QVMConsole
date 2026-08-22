@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-19T03:31:42.922Z",
-  "count": 338,
+  "generated_at": "2026-08-22T10:52:36.792Z",
+  "count": 339,
   "endpoints": [
     {
       "method": "POST",
@@ -804,6 +804,17 @@
       "vmAccess": false,
       "highRisk": "",
       "comment": ""
+    },
+    {
+      "method": "GET",
+      "path": "/network/client-ip",
+      "handler": "GetMyIP",
+      "auth": "jwt",
+      "admin": false,
+      "elasticOnly": false,
+      "vmAccess": false,
+      "highRisk": "",
+      "comment": "获取当前访问面板的客户端 IP（端口转发入站 IP 白名单快速填充）"
     },
     {
       "method": "GET",

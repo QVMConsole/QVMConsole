@@ -2,6 +2,7 @@ package network
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"regexp"
 	"sort"
@@ -12,6 +13,48 @@ import (
 	"kvm_console/model"
 	"kvm_console/utils"
 )
+
+// normalizePortForwardSourceIP 规范化入站 IP 白名单：
+// 空值视为 0.0.0.0/0（不限制）；仅支持 IPv4 单 IP（自动补 /32）或 IPv4 CIDR。
+func normalizePortForwardSourceIP(source string) (string, error) {
+	source = strings.TrimSpace(source)
+	if source == "" {
+		return "0.0.0.0/0", nil
+	}
+	if strings.Contains(source, ":") {
+		return "", fmt.Errorf("入站 IP 仅支持 IPv4 地址，不支持 IPv6")
+	}
+	if !strings.Contains(source, "/") {
+		ip := net.ParseIP(source)
+		if ip == nil {
+			return "", fmt.Errorf("入站 IP 格式无效: %s", source)
+		}
+		return source + "/32", nil
+	}
+	ip, _, err := net.ParseCIDR(source)
+	if err != nil || ip.To4() == nil {
+		return "", fmt.Errorf("入站 IP 格式无效: %s（请输入 IPv4 地址或 CIDR，如 1.2.3.4 或 10.0.0.0/8）", source)
+	}
+	return source, nil
+}
+
+// sourceArgForPortForward 构建 iptables -s 参数片段；0.0.0.0/0（不限制）时返回空串。
+func sourceArgForPortForward(source string) string {
+	normalized, err := normalizePortForwardSourceIP(source)
+	if err != nil || normalized == "0.0.0.0/0" {
+		return ""
+	}
+	return " -s " + utils.ShellSingleQuote(normalized)
+}
+
+// parseSourceIPFromListLine 从 iptables -L -n 列表行中解析源地址列（不带 -v 时第 5 列）。
+// 未显式指定 -s 时 iptables 显示 0.0.0.0/0（即不限制）。
+func parseSourceIPFromListLine(fields []string) string {
+	if len(fields) > 4 {
+		return fields[4]
+	}
+	return "0.0.0.0/0"
+}
 
 func buildVMOwnerMap() map[string]string {
 	owners := make(map[string]string)
@@ -145,6 +188,8 @@ func listLivePortForwardsFromIPTables() ([]PortForwardRule, error) {
 				rule.DestPort = parts[1]
 			}
 		}
+		// 入站 IP 白名单（未显式限制时 iptables 展示 0.0.0.0/0）
+		rule.SourceIP = parseSourceIPFromListLine(fields)
 		rule.FirewallKey = rule.StableKey()
 		rule.RuleKey = rule.StableKey()
 		rule.RegionFilterInherited = true
@@ -227,6 +272,13 @@ func AddPortForward(params *PortForwardAddParams) error {
 		}
 	}
 
+	// 入站 IP 白名单（先校验，避免规则部分添加后再报错）
+	sourceIP, err := normalizePortForwardSourceIP(params.SourceIP)
+	if err != nil {
+		return err
+	}
+	srcArg := sourceArgForPortForward(sourceIP)
+
 	hostIP := getHostIP()
 
 	for _, proto := range protocols {
@@ -234,35 +286,35 @@ func AddPortForward(params *PortForwardAddParams) error {
 		destPort := strings.Replace(params.VMPort, ":", "-", 1)
 
 		// DNAT 规则 (PREROUTING - 外部流量)
-		cmd := fmt.Sprintf("iptables -t nat -A PREROUTING -d %s -p %s --dport %s -j DNAT --to-destination %s:%s",
-			utils.ShellSingleQuote(hostIP), utils.ShellSingleQuote(proto), utils.ShellSingleQuote(params.HostPort), utils.ShellSingleQuote(params.VMIP), destPort)
+		cmd := fmt.Sprintf("iptables -t nat -A PREROUTING%s -d %s -p %s --dport %s -j DNAT --to-destination %s:%s",
+			srcArg, utils.ShellSingleQuote(hostIP), utils.ShellSingleQuote(proto), utils.ShellSingleQuote(params.HostPort), utils.ShellSingleQuote(params.VMIP), destPort)
 		result := utils.ExecShell(cmd)
 		if result.Error != nil {
 			return fmt.Errorf("添加 %s PREROUTING NAT 规则失败: %s", proto, result.Stderr)
 		}
 
 		// DNAT 规则 (OUTPUT - 宿主机本地流量，解决本地访问端口转发不生效问题)
-		outputCmd := fmt.Sprintf("iptables -t nat -A OUTPUT -d %s -p %s --dport %s -j DNAT --to-destination %s:%s",
-			utils.ShellSingleQuote(hostIP), utils.ShellSingleQuote(proto), utils.ShellSingleQuote(params.HostPort), utils.ShellSingleQuote(params.VMIP), destPort)
+		outputCmd := fmt.Sprintf("iptables -t nat -A OUTPUT%s -d %s -p %s --dport %s -j DNAT --to-destination %s:%s",
+			srcArg, utils.ShellSingleQuote(hostIP), utils.ShellSingleQuote(proto), utils.ShellSingleQuote(params.HostPort), utils.ShellSingleQuote(params.VMIP), destPort)
 		outputResult := utils.ExecShell(outputCmd)
 		if outputResult.Error != nil {
 			// 回滚已添加的 PREROUTING DNAT 规则
-			utils.ExecShell(fmt.Sprintf("iptables -t nat -D PREROUTING -d %s -p %s --dport %s -j DNAT --to-destination %s:%s 2>/dev/null",
-				utils.ShellSingleQuote(hostIP), utils.ShellSingleQuote(proto), utils.ShellSingleQuote(params.HostPort), utils.ShellSingleQuote(params.VMIP), destPort))
+			utils.ExecShell(fmt.Sprintf("iptables -t nat -D PREROUTING%s -d %s -p %s --dport %s -j DNAT --to-destination %s:%s 2>/dev/null",
+				srcArg, utils.ShellSingleQuote(hostIP), utils.ShellSingleQuote(proto), utils.ShellSingleQuote(params.HostPort), utils.ShellSingleQuote(params.VMIP), destPort))
 			return fmt.Errorf("添加 %s OUTPUT NAT 规则失败: %s", proto, outputResult.Stderr)
 		}
 
 		// 非 VPC 转发继续使用传统 FORWARD 放行；VPC 转发必须经过安全组 ACL。
 		if !isVPCManagedIP(params.VMIP) {
-			fwdCmd := fmt.Sprintf("iptables -I FORWARD -d %s -p %s --dport %s -j ACCEPT",
-				utils.ShellSingleQuote(params.VMIP), utils.ShellSingleQuote(proto), destPort)
+			fwdCmd := fmt.Sprintf("iptables -I FORWARD%s -d %s -p %s --dport %s -j ACCEPT",
+				srcArg, utils.ShellSingleQuote(params.VMIP), utils.ShellSingleQuote(proto), destPort)
 			fwdResult := utils.ExecShell(fwdCmd)
 			if fwdResult.Error != nil {
 				// 回滚已添加的 PREROUTING 和 OUTPUT DNAT 规则
-				utils.ExecShell(fmt.Sprintf("iptables -t nat -D PREROUTING -d %s -p %s --dport %s -j DNAT --to-destination %s:%s 2>/dev/null",
-					utils.ShellSingleQuote(hostIP), utils.ShellSingleQuote(proto), utils.ShellSingleQuote(params.HostPort), utils.ShellSingleQuote(params.VMIP), destPort))
-				utils.ExecShell(fmt.Sprintf("iptables -t nat -D OUTPUT -d %s -p %s --dport %s -j DNAT --to-destination %s:%s 2>/dev/null",
-					utils.ShellSingleQuote(hostIP), utils.ShellSingleQuote(proto), utils.ShellSingleQuote(params.HostPort), utils.ShellSingleQuote(params.VMIP), destPort))
+				utils.ExecShell(fmt.Sprintf("iptables -t nat -D PREROUTING%s -d %s -p %s --dport %s -j DNAT --to-destination %s:%s 2>/dev/null",
+					srcArg, utils.ShellSingleQuote(hostIP), utils.ShellSingleQuote(proto), utils.ShellSingleQuote(params.HostPort), utils.ShellSingleQuote(params.VMIP), destPort))
+				utils.ExecShell(fmt.Sprintf("iptables -t nat -D OUTPUT%s -d %s -p %s --dport %s -j DNAT --to-destination %s:%s 2>/dev/null",
+					srcArg, utils.ShellSingleQuote(hostIP), utils.ShellSingleQuote(proto), utils.ShellSingleQuote(params.HostPort), utils.ShellSingleQuote(params.VMIP), destPort))
 				return fmt.Errorf("添加 %s FORWARD 放行规则失败: %s", proto, fwdResult.Stderr)
 			}
 		}
@@ -405,6 +457,13 @@ func deletePortForwardWithOptions(ruleID int) error {
 		hostPort = m[1]
 	}
 
+	// 入站 IP 白名单：iptables -D 需与规则参数完全匹配，源地址非 0.0.0.0/0 时必须携带 -s
+	srcArg := ""
+	src := parseSourceIPFromListLine(strings.Fields(ruleInfo.Stdout))
+	if src != "" && src != "0.0.0.0/0" {
+		srcArg = " -s " + utils.ShellSingleQuote(src)
+	}
+
 	protoRe := regexp.MustCompile(`\s+(tcp|udp|6|17)\s+`)
 	proto := "tcp"
 	if m := protoRe.FindStringSubmatch(ruleInfo.Stdout); len(m) > 1 {
@@ -430,15 +489,15 @@ func deletePortForwardWithOptions(ruleID int) error {
 	// 删除 NAT 规则 (OUTPUT - 清理本地流量 DNAT)
 	if hostPort != "" {
 		utils.ExecShell(fmt.Sprintf(
-			"iptables -t nat -D OUTPUT -d %s -p %s --dport %s -j DNAT --to-destination %s:%s 2>/dev/null",
-			utils.ShellSingleQuote(getHostIP()), utils.ShellSingleQuote(proto), utils.ShellSingleQuote(hostPort), utils.ShellSingleQuote(destIP), utils.ShellSingleQuote(destPort)))
+			"iptables -t nat -D OUTPUT%s -d %s -p %s --dport %s -j DNAT --to-destination %s:%s 2>/dev/null",
+			srcArg, utils.ShellSingleQuote(getHostIP()), utils.ShellSingleQuote(proto), utils.ShellSingleQuote(hostPort), utils.ShellSingleQuote(destIP), utils.ShellSingleQuote(destPort)))
 	}
 
 	// 删除 FORWARD 规则
 	if destIP != "" && destPort != "" {
 		utils.ExecShell(fmt.Sprintf(
-			"iptables -D FORWARD -d %s -p %s --dport %s -j ACCEPT 2>/dev/null",
-			utils.ShellSingleQuote(destIP), utils.ShellSingleQuote(proto), utils.ShellSingleQuote(destPort)))
+			"iptables -D FORWARD%s -d %s -p %s --dport %s -j ACCEPT 2>/dev/null",
+			srcArg, utils.ShellSingleQuote(destIP), utils.ShellSingleQuote(proto), utils.ShellSingleQuote(destPort)))
 	}
 
 	// 删除 UFW 规则
@@ -447,7 +506,7 @@ func deletePortForwardWithOptions(ruleID int) error {
 	}
 	_ = HookClearPortForwardFirewallExemption(stableKey)
 
-	cleanupErr := removeSecurityGroupAllowsPortForwardIfUnused(destIP, proto, destPort)
+	cleanupErr := removeSecurityGroupAllowsPortForwardIfUnused(destIP, proto, destPort, src)
 
 	// 自动持久化规则
 	go SavePortForwardRules()
@@ -549,6 +608,7 @@ func UpdatePortForward(ruleID int, params *PortForwardUpdateParams) error {
 		HostPort:       oldRule.HostPort,
 		VMPort:         oldRule.DestPort,
 		Protocol:       oldProtocol,
+		SourceIP:       oldRule.SourceIP,
 		Comment:        comment,
 		CreatedBy:      strings.TrimSpace(params.CreatedBy),
 		CreatedByAdmin: params.CreatedByAdmin,
@@ -563,6 +623,7 @@ func UpdatePortForward(ruleID int, params *PortForwardUpdateParams) error {
 		HostPort:       hostPort,
 		VMPort:         vmPort,
 		Protocol:       newProtocol,
+		SourceIP:       params.SourceIP,
 		Comment:        comment,
 		CreatedBy:      strings.TrimSpace(params.CreatedBy),
 		CreatedByAdmin: params.CreatedByAdmin,

@@ -58,10 +58,16 @@ export interface PortForwardRule {
   host_port: string
   dest_ip: string
   dest_port: string
+  source_ip?: string // 入站 IP 白名单（CIDR，0.0.0.0/0 = 不限制）
   access_ip?: string
   access_address?: string
   firewall_key?: string
   region_filter_enabled?: boolean
+}
+
+/** 获取当前访问面板的客户端 IP（端口转发入站 IP 白名单快速填充） */
+export function getClientIP() {
+  return service.get<unknown, ApiResponse<{ ip: string }>>('/network/client-ip')
 }
 
 /** 获取端口转发列表 */
@@ -69,13 +75,14 @@ export function getPortForwardList() {
   return service.get<unknown, ApiResponse<PortForwardRule[]>>('/network/port-forward/list')
 }
 
-/** 添加端口转发（host_port 留空自动分配） */
+/** 添加端口转发（host_port 留空自动分配；source_ip 留空或不限时填 0.0.0.0/0） */
 export function addPortForward(data: {
   vm_name: string
   vm_ip: string
   host_port: string
   vm_port: string
   protocol: string
+  source_ip?: string
 }) {
   return service.post<unknown, ApiResponse<unknown>>('/network/port-forward/add', data)
 }
@@ -83,7 +90,7 @@ export function addPortForward(data: {
 /** 编辑端口转发 */
 export function updatePortForward(
   id: number,
-  data: { vm_name: string; vm_ip: string; host_port: string; vm_port: string; protocol: string },
+  data: { vm_name: string; vm_ip: string; host_port: string; vm_port: string; protocol: string; source_ip?: string },
 ) {
   return service.put<unknown, ApiResponse<unknown>>(`/network/port-forward/${id}`, data)
 }

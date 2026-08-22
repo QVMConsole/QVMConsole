@@ -182,5 +182,10 @@ func SavePortForwardRules() error {
 		return fmt.Errorf("保存规则失败: %v", err)
 	}
 
+	// 对账 VPC 安全组自动放行规则（同步入站 IP 白名单，清理残留）
+	if err := syncSecurityGroupPortForwardRules(); err != nil {
+		logger.App.Warn("对账安全组端口转发放行规则失败", "error", err)
+	}
+
 	return nil
 }

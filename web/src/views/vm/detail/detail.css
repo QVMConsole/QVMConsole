@@ -545,6 +545,11 @@ body[theme-mode='dark'] .qvm-action-item.lock {
   color: var(--qvm-text-1);
   margin-bottom: 6px;
 }
+.qvm-form-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
 .qvm-form-hint {
   font-size: 12px;
   color: var(--qvm-text-2);

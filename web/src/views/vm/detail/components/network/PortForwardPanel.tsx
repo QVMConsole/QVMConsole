@@ -24,6 +24,7 @@ import {
   batchDeletePortForward,
   bindStaticIP,
   deletePortForward,
+  getClientIP,
   getPortForwardList,
   setPortForwardFirewall,
   updatePortForward,
@@ -47,9 +48,19 @@ interface ForwardFormState {
   host_port: string
   vm_port: string
   protocol: string
+  source_ip: string // 入站 IP 白名单（CIDR，0.0.0.0/0 = 不限制）
 }
 
-const EMPTY_FORM: ForwardFormState = { id: null, vm_ip: '', host_port: '', vm_port: '', protocol: 'tcp' }
+const DEFAULT_SOURCE_IP = '0.0.0.0/0'
+
+const EMPTY_FORM: ForwardFormState = {
+  id: null,
+  vm_ip: '',
+  host_port: '',
+  vm_port: '',
+  protocol: 'tcp',
+  source_ip: DEFAULT_SOURCE_IP,
+}
 
 export default function PortForwardPanel({ vmName, shared, live, liveTick }: PortForwardPanelProps) {
   const username = useUserStore((s) => s.username)
@@ -78,6 +89,7 @@ export default function PortForwardPanel({ vmName, shared, live, liveTick }: Por
   const [form, setForm] = useState<ForwardFormState>(EMPTY_FORM)
   const [opening, setOpening] = useState(false)
   const [showIntro, setShowIntro] = useState(false)
+  const [fetchingIP, setFetchingIP] = useState(false)
 
   // ============ 派生数据 ============
   const currentVmBindings = useMemo(
@@ -205,6 +217,25 @@ export default function PortForwardPanel({ vmName, shared, live, liveTick }: Por
     setDialogVisible(true)
   }
 
+  /** 获取当前访问面板的客户端 IP 并自动填入入站 IP 白名单 */
+  const fillCurrentIP = async () => {
+    setFetchingIP(true)
+    try {
+      const res = await getClientIP()
+      const ip = res.data?.ip
+      if (!ip) {
+        Toast.warning('未能获取当前访问 IP，请手动输入')
+        return
+      }
+      setForm((f) => ({ ...f, source_ip: ip }))
+      Toast.success(`已填入当前访问 IP：${ip}`)
+    } catch {
+      // 请求层已提示
+    } finally {
+      setFetchingIP(false)
+    }
+  }
+
   const openEdit = (row: PortForwardRule) => {
     setForm({
       id: row.id,
@@ -212,6 +243,7 @@ export default function PortForwardPanel({ vmName, shared, live, liveTick }: Por
       host_port: row.host_port || '',
       vm_port: row.dest_port || '',
       protocol: String(row.protocol || 'tcp').toLowerCase(),
+      source_ip: row.source_ip || DEFAULT_SOURCE_IP,
     })
     setDialogVisible(true)
   }
@@ -238,6 +270,7 @@ export default function PortForwardPanel({ vmName, shared, live, liveTick }: Por
           host_port: form.host_port,
           vm_port: form.vm_port,
           protocol: form.protocol,
+          source_ip: form.source_ip,
         })
         Toast.success('端口转发规则已更新')
       } else {
@@ -247,6 +280,7 @@ export default function PortForwardPanel({ vmName, shared, live, liveTick }: Por
           host_port: form.host_port,
           vm_port: form.vm_port,
           protocol: form.protocol,
+          source_ip: form.source_ip,
         })
         Toast.success(res.message || '端口转发规则已添加')
       }
@@ -352,6 +386,12 @@ export default function PortForwardPanel({ vmName, shared, live, liveTick }: Por
     },
     { title: '目标 IP', dataIndex: 'dest_ip', width: 120, render: (text) => <span className="qvm-mono">{text}</span> },
     { title: '目标端口', dataIndex: 'dest_port', width: 90, render: (text) => <span className="qvm-mono">{text}</span> },
+    {
+      title: '入站 IP',
+      dataIndex: 'source_ip',
+      width: 120,
+      render: (text) => <span className="qvm-mono">{String(text || '') || '0.0.0.0/0'}</span>,
+    },
     ...(isAdmin
       ? [
           {
@@ -503,6 +543,28 @@ export default function PortForwardPanel({ vmName, shared, live, liveTick }: Por
                   ]
             }
           />
+        </div>
+        <div className="qvm-form-item">
+          <div className="qvm-form-label qvm-form-label-row">
+            <span>入站 IP</span>
+            <Button
+              size="small"
+              theme="borderless"
+              type="primary"
+              loading={fetchingIP}
+              onClick={() => void fillCurrentIP()}
+            >
+              使用当前访问 IP
+            </Button>
+          </div>
+          <Input
+            value={form.source_ip}
+            onChange={(v) => setForm((f) => ({ ...f, source_ip: v }))}
+            placeholder="如 0.0.0.0/0 或 1.2.3.4"
+          />
+          <div className="qvm-form-hint">
+            可选的入站 IP 白名单：仅允许指定来源访问，支持 IPv4 地址或 CIDR；0.0.0.0/0 表示不限制。
+          </div>
         </div>
       </Modal>
     </div>

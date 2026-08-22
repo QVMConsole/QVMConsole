@@ -111,6 +111,7 @@ func AdoptMigratedVM(req MigrationAdoptRequest) (*MigrationAdoptResult, error) {
 			HostPort:       hostPort,
 			VMPort:         rule.VMPort,
 			Protocol:       rule.Protocol,
+			SourceIP:       rule.SourceIP,
 			Comment:        req.VMName,
 			CreatedBy:      "migration",
 			CreatedByAdmin: true,
@@ -119,7 +120,7 @@ func AdoptMigratedVM(req MigrationAdoptRequest) (*MigrationAdoptResult, error) {
 			continue
 		}
 		result.PortForwards = append(result.PortForwards, applied)
-		_ = service.EnsureSecurityGroupAllowsPortForward(req.VMName, rule.Protocol, rule.VMPort)
+		_ = service.EnsureSecurityGroupAllowsPortForward(req.VMName, rule.Protocol, rule.VMPort, rule.SourceIP)
 	}
 	return result, nil
 }

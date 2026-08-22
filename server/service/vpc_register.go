@@ -208,11 +208,12 @@ func EnsureVPCForVMCreate(username string, switchID, securityGroupID uint) error
 func ResolveVPCForVMCreate(username string, switchID, securityGroupID uint) (uint, uint, error) {
 	return vpcpkg.ResolveVPCForVMCreate(username, switchID, securityGroupID)
 }
-func EnsureSecurityGroupAllowsPortForward(vmName, protocol, portText string) error {
-	return vpcpkg.EnsureSecurityGroupAllowsPortForward(vmName, protocol, portText)
+// EnsureSecurityGroupAllowsPortForward 为 VPC 虚拟机补安全组放行规则（sourceIP 为端口转发入站 IP 白名单）
+func EnsureSecurityGroupAllowsPortForward(vmName, protocol, portText, sourceIP string) error {
+	return vpcpkg.EnsureSecurityGroupAllowsPortForward(vmName, protocol, portText, sourceIP)
 }
-func RemoveSecurityGroupAllowsPortForwardIfUnused(destIP, protocol, portText string) error {
-	return vpcpkg.RemoveSecurityGroupAllowsPortForwardIfUnused(destIP, protocol, portText)
+func RemoveSecurityGroupAllowsPortForwardIfUnused(destIP, protocol, portText, sourceIP string) error {
+	return vpcpkg.RemoveSecurityGroupAllowsPortForwardIfUnused(destIP, protocol, portText, sourceIP)
 }
 
 // Traffic
@@ -404,6 +405,7 @@ func init() {
 				DestIP:   r.DestIP,
 				Protocol: r.Protocol,
 				DestPort: r.DestPort,
+				SourceIP: r.SourceIP,
 			}
 		}
 		return result, nil

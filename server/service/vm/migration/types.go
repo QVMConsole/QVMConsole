@@ -118,6 +118,7 @@ type MigrationPortForwardMap struct {
 	TargetHostPort string `json:"target_host_port"`
 	VMPort         string `json:"vm_port"`
 	DestIP         string `json:"dest_ip"`
+	SourceIP       string `json:"source_ip"` // 入站 IP 白名单（CIDR，0.0.0.0/0 = 不限制）
 	AutoAllocated  bool   `json:"auto_allocated"`
 }
 

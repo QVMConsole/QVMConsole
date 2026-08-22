@@ -56,7 +56,7 @@ const cloneBody =
 const reinstallBody = 'JSON: template, disk_size, hostname, user, password, preserve_fnos_device_id, fnos_device_id'
 const scheduleBody = 'JSON: name, action(start/shutdown/destroy/reboot/delete), cron/execute_at, enabled, timezone, params'
 const portForwardBody =
-  'JSON: vm_name, guest_ip, guest_port, host_port, protocol(tcp/udp), description, target_type, public_ip_id'
+  'JSON: vm_name, vm_ip, host_port(留空自动分配), vm_port, protocol(tcp/udp/both, 编辑仅 tcp/udp), source_ip(可选入站 IP 白名单，IPv4/CIDR，如 1.2.3.4 或 10.0.0.0/8，空或 0.0.0.0/0 = 不限制)'
 const publicIPBody = 'JSON: ip(IPv4/IPv6), cidr, gateway, uplink_if, supported_modes, status, remark'
 const firewallPolicyBody =
   'JSON: policy 或完整防火墙策略对象，包含 default_action, rules, region_rules, port_forward_policy 等'
@@ -621,6 +621,7 @@ export const endpointDescriptions: Record<string, EndpointDescription> = {
   'POST /network/static-ip/bind': { summary: '绑定静态 IP', body: 'JSON: vm_name, ip, mac, network' },
   'POST /network/static-ip/unbind': { summary: '解绑静态 IP', body: 'JSON: vm_name, ip' },
   'GET /network/port-forward/list': { summary: '获取端口转发列表' },
+  'GET /network/client-ip': { summary: '获取当前访问面板的客户端 IP（端口转发入站 IP 白名单快速填充）', response: 'data: { ip }。', },
   'POST /network/port-forward/add': { summary: '新增端口转发', body: portForwardBody },
   'PUT /network/port-forward/:id': { summary: '更新端口转发', body: portForwardBody },
   'DELETE /network/port-forward/:id': { summary: '删除端口转发' },

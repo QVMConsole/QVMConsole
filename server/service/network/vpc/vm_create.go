@@ -157,7 +157,44 @@ func resolveDefaultVPCSecurityGroupIDForVMCreate(username string) (uint, error) 
 	return 0, fmt.Errorf("请选择要应用的安全组")
 }
 
-func EnsureSecurityGroupAllowsPortForward(vmName, protocol, portText string) error {
+// normalizeSecurityGroupSourceIP 规范化安全组放行来源：空视为 0.0.0.0/0（不限制），纯 IP 补 /32。
+func normalizeSecurityGroupSourceIP(source string) string {
+	source = strings.TrimSpace(source)
+	if source == "" {
+		return "0.0.0.0/0"
+	}
+	return normalizeCIDROrIP(source)
+}
+
+// ensureSecurityGroupPortForwardRule 确保安全组存在一条端口转发自动放行规则；返回是否新建。
+func ensureSecurityGroupPortForwardRule(securityGroupID uint, protocol string, portStart, portEnd int, source string) (bool, error) {
+	var count int64
+	model.DB.Model(&model.VPCSecurityGroupRule{}).
+		Where("security_group_id = ? AND direction = ? AND protocol = ? AND port_start <= ? AND port_end >= ? AND target_type = ? AND target_value = ?",
+			securityGroupID, "ingress", protocol, portStart, portEnd, "cidr", source).
+		Count(&count)
+	if count > 0 {
+		return false, nil
+	}
+	rule := model.VPCSecurityGroupRule{
+		SecurityGroupID: securityGroupID,
+		Direction:       "ingress",
+		AddressFamily:   "ipv4",
+		Protocol:        protocol,
+		PortStart:       portStart,
+		PortEnd:         portEnd,
+		TargetType:      "cidr",
+		TargetValue:     source,
+		Remark:          AutoPortForwardSecurityGroupRuleNote,
+	}
+	if err := model.DB.Create(&rule).Error; err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// EnsureSecurityGroupAllowsPortForward 为 VPC 虚拟机自动补安全组入站放行规则（来源为端口转发的入站 IP 白名单）。
+func EnsureSecurityGroupAllowsPortForward(vmName, protocol, portText, sourceIP string) error {
 	var binding model.VPCVMBinding
 	if err := model.DB.Where("vm_name = ?", vmName).First(&binding).Error; err != nil {
 		return nil
@@ -166,6 +203,7 @@ func EnsureSecurityGroupAllowsPortForward(vmName, protocol, portText string) err
 	if err != nil {
 		return err
 	}
+	source := normalizeSecurityGroupSourceIP(sourceIP)
 	protocols := []string{strings.ToLower(strings.TrimSpace(protocol))}
 	if protocols[0] == "" {
 		protocols[0] = "tcp"
@@ -173,29 +211,74 @@ func EnsureSecurityGroupAllowsPortForward(vmName, protocol, portText string) err
 	if protocols[0] == "both" {
 		protocols = []string{"tcp", "udp"}
 	}
+	changed := false
 	for _, proto := range protocols {
-		var count int64
-		model.DB.Model(&model.VPCSecurityGroupRule{}).
-			Where("security_group_id = ? AND direction = ? AND protocol = ? AND port_start <= ? AND port_end >= ? AND target_type = ? AND target_value = ?",
-				binding.SecurityGroupID, "ingress", proto, portStart, portEnd, "cidr", "0.0.0.0/0").
-			Count(&count)
-		if count > 0 {
-			continue
-		}
-		rule := model.VPCSecurityGroupRule{
-			SecurityGroupID: binding.SecurityGroupID,
-			Direction:       "ingress",
-			AddressFamily:   "ipv4",
-			Protocol:        proto,
-			PortStart:       portStart,
-			PortEnd:         portEnd,
-			TargetType:      "cidr",
-			TargetValue:     "0.0.0.0/0",
-			Remark:          AutoPortForwardSecurityGroupRuleNote,
-		}
-		if err := model.DB.Create(&rule).Error; err != nil {
+		created, err := ensureSecurityGroupPortForwardRule(binding.SecurityGroupID, proto, portStart, portEnd, source)
+		if err != nil {
 			return err
 		}
+		if created {
+			changed = true
+		}
+	}
+	if !changed {
+		return nil
+	}
+	return ApplyVPCACLRules()
+}
+
+// SyncSecurityGroupPortForwardRules 对账安全组自动放行规则与实时端口转发规则。
+// 按 (安全组, 协议, 端口, 入站来源) 维度对齐：转发规则在用的缺失放行规则补建，
+// 已无对应转发规则的自动放行规则（含旧版固定 0.0.0.0/0 残留）清理。有变化才应用 ACL。
+func SyncSecurityGroupPortForwardRules() error {
+	rules, err := HookListLivePortForwards()
+	if err != nil {
+		return err
+	}
+	keep := map[string]bool{}
+	changed := false
+	for _, rule := range rules {
+		destIP := strings.TrimSpace(rule.DestIP)
+		if destIP == "" || !IsVPCManagedIP(destIP) {
+			continue
+		}
+		binding, ok, err := findVPCBindingByIP(destIP)
+		if err != nil || !ok {
+			continue
+		}
+		portStart, portEnd, err := parsePortForwardPortRange(rule.DestPort)
+		if err != nil {
+			continue
+		}
+		proto := strings.ToLower(strings.TrimSpace(rule.Protocol))
+		if proto == "" {
+			proto = "tcp"
+		}
+		source := normalizeSecurityGroupSourceIP(rule.SourceIP)
+		created, err := ensureSecurityGroupPortForwardRule(binding.SecurityGroupID, proto, portStart, portEnd, source)
+		if err != nil {
+			return err
+		}
+		if created {
+			changed = true
+		}
+		keep[fmt.Sprintf("%d|%s|%d|%d|%s", binding.SecurityGroupID, proto, portStart, portEnd, source)] = true
+	}
+	var autoRules []model.VPCSecurityGroupRule
+	if err := model.DB.Where("remark = ?", AutoPortForwardSecurityGroupRuleNote).Find(&autoRules).Error; err != nil {
+		return err
+	}
+	for _, r := range autoRules {
+		key := fmt.Sprintf("%d|%s|%d|%d|%s", r.SecurityGroupID, strings.ToLower(strings.TrimSpace(r.Protocol)), r.PortStart, r.PortEnd, strings.TrimSpace(r.TargetValue))
+		if !keep[key] {
+			if err := model.DB.Delete(&model.VPCSecurityGroupRule{}, r.ID).Error; err != nil {
+				return err
+			}
+			changed = true
+		}
+	}
+	if !changed {
+		return nil
 	}
 	return ApplyVPCACLRules()
 }
@@ -222,7 +305,7 @@ func parsePortForwardPortRange(portText string) (int, int, error) {
 	return portStart, portEnd, nil
 }
 
-func RemoveSecurityGroupAllowsPortForwardIfUnused(destIP, protocol, portText string) error {
+func RemoveSecurityGroupAllowsPortForwardIfUnused(destIP, protocol, portText, sourceIP string) error {
 	destIP = strings.TrimSpace(destIP)
 	if destIP == "" || strings.TrimSpace(portText) == "" || !IsVPCManagedIP(destIP) {
 		return nil
@@ -239,17 +322,20 @@ func RemoveSecurityGroupAllowsPortForwardIfUnused(destIP, protocol, portText str
 	if err != nil || !ok {
 		return err
 	}
-	if portForwardTargetStillExists(destIP, protocol, portStart, portEnd) {
+	source := normalizeSecurityGroupSourceIP(sourceIP)
+	if portForwardTargetStillExists(destIP, protocol, portStart, portEnd, source) {
 		return nil
 	}
-	deleted, err := deleteAutoSecurityGroupPortForwardRules(binding.SecurityGroupID, protocol, portStart, portEnd)
+	deleted, err := deleteAutoSecurityGroupPortForwardRules(binding.SecurityGroupID, protocol, portStart, portEnd, source)
 	if err != nil || deleted == 0 {
 		return err
 	}
 	return ApplyVPCACLRules()
 }
 
-func portForwardTargetStillExists(destIP, protocol string, portStart, portEnd int) bool {
+// portForwardTargetStillExists 判断是否存在仍指向同一 (目标 IP, 协议, 端口, 入站来源) 的转发规则；
+// 安全组自动放行规则按该四元组维度共享，来源一致的规则仍存在时不能删除放行规则。
+func portForwardTargetStillExists(destIP, protocol string, portStart, portEnd int, sourceIP string) bool {
 	rules, err := HookListLivePortForwards()
 	if err != nil {
 		return false
@@ -266,16 +352,19 @@ func portForwardTargetStillExists(destIP, protocol string, portStart, portEnd in
 			continue
 		}
 		if ruleStart == portStart && ruleEnd == portEnd {
-			return true
+			if normalizeSecurityGroupSourceIP(rule.SourceIP) == normalizeSecurityGroupSourceIP(sourceIP) {
+				return true
+			}
 		}
 	}
 	return false
 }
 
-func deleteAutoSecurityGroupPortForwardRules(securityGroupID uint, protocol string, portStart, portEnd int) (int64, error) {
+func deleteAutoSecurityGroupPortForwardRules(securityGroupID uint, protocol string, portStart, portEnd int, sourceIP string) (int64, error) {
+	source := normalizeSecurityGroupSourceIP(sourceIP)
 	result := model.DB.Where(
 		"security_group_id = ? AND direction = ? AND protocol = ? AND port_start = ? AND port_end = ? AND target_type = ? AND target_value = ? AND remark = ?",
-		securityGroupID, "ingress", strings.ToLower(strings.TrimSpace(protocol)), portStart, portEnd, "cidr", "0.0.0.0/0", AutoPortForwardSecurityGroupRuleNote,
+		securityGroupID, "ingress", strings.ToLower(strings.TrimSpace(protocol)), portStart, portEnd, "cidr", source, AutoPortForwardSecurityGroupRuleNote,
 	).Delete(&model.VPCSecurityGroupRule{})
 	return result.RowsAffected, result.Error
 }

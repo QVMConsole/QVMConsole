@@ -200,6 +200,7 @@ export const fieldDescriptions: Record<string, string> = {
   source_format: '虚拟机包来源格式，例如 ovf 或 ova。',
   source_type: '虚拟机包来源类型，storage 表示我的存储，path 表示管理员绝对路径。',
   source_cidr: '来源 CIDR。',
+  source_ip: '入站 IP 白名单（IPv4/CIDR，0.0.0.0/0 表示不限制）。',
   source_path: '源文件路径。',
   stage: '登录阶段，可能为 success、login_verify 或 bootstrap_security。',
   start: '查询开始时间。',

@@ -267,6 +267,7 @@ func fillMigrationPortForwards(node model.HostNode, preview *VMMigrationPreview)
 			TargetHostPort: rule.HostPort,
 			VMPort:         rule.DestPort,
 			DestIP:         rule.DestIP,
+			SourceIP:       rule.SourceIP,
 		}
 		if targetUsed[item.Protocol+"|"+item.TargetHostPort] {
 			item.TargetHostPort = ""
