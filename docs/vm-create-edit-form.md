@@ -162,6 +162,12 @@ web/src/features/vm-form/
 3. SPICE 联动：开关变化随保存自动 `enable/disable`（失败仅提示不阻断）
 4. 保存成功后重新加载详情并重捕快照
 
+### 磁盘 IOPS 参数
+
+- 后端通过 libvirt `DomainSetBlockIOTune` 同时更新运行态与持久化配置；关机虚拟机仅更新持久化配置。
+- `total_iops_sec`、`read_iops_sec`、`write_iops_sec` 均按 libvirt 要求使用无符号 64 位参数传输，读取时按相同类型解析。
+- 总 IOPS 与读/写 IOPS 互斥；数值必须为非负整数，`0` 表示不限制。
+
 ### 运行态约束
 
 - CPU：未启用热添加时禁用修改；启用后仅允许增加（下限为原始值）

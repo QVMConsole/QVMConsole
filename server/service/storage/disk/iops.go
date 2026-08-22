@@ -33,6 +33,9 @@ func SetDiskIOPSTune(vmName, dev string, iops *DiskIOPSTune) error {
 		readIops = iops.ReadIopsSec
 		writeIops = iops.WriteIopsSec
 	}
+	if totalIops < 0 || readIops < 0 || writeIops < 0 {
+		return fmt.Errorf("IOPS 限制不能为负数")
+	}
 
 	// build TypedParam list
 	// libvirt does not allow total_iops_sec and read/write_iops_sec to be set simultaneously
@@ -43,16 +46,16 @@ func SetDiskIOPSTune(vmName, dev string, iops *DiskIOPSTune) error {
 		}
 		params = append(params, libvirt.TypedParam{
 			Field: libvirt.DomainBlockIotuneTotalIopsSec,
-			Value: *libvirt.NewTypedParamValueInt(int32(totalIops)),
+			Value: *libvirt.NewTypedParamValueUllong(uint64(totalIops)),
 		})
 	} else {
 		params = append(params, libvirt.TypedParam{
 			Field: libvirt.DomainBlockIotuneReadIopsSec,
-			Value: *libvirt.NewTypedParamValueInt(int32(readIops)),
+			Value: *libvirt.NewTypedParamValueUllong(uint64(readIops)),
 		})
 		params = append(params, libvirt.TypedParam{
 			Field: libvirt.DomainBlockIotuneWriteIopsSec,
-			Value: *libvirt.NewTypedParamValueInt(int32(writeIops)),
+			Value: *libvirt.NewTypedParamValueUllong(uint64(writeIops)),
 		})
 	}
 
@@ -78,15 +81,15 @@ func GetDiskIOPSTune(vmName, dev string) (*DiskIOPSTune, error) {
 	for _, p := range params {
 		switch p.Field {
 		case libvirt.DomainBlockIotuneTotalIopsSec:
-			if v, ok := p.Value.I.(int32); ok {
+			if v, ok := p.Value.I.(uint64); ok {
 				iops.TotalIopsSec = int(v)
 			}
 		case libvirt.DomainBlockIotuneReadIopsSec:
-			if v, ok := p.Value.I.(int32); ok {
+			if v, ok := p.Value.I.(uint64); ok {
 				iops.ReadIopsSec = int(v)
 			}
 		case libvirt.DomainBlockIotuneWriteIopsSec:
-			if v, ok := p.Value.I.(int32); ok {
+			if v, ok := p.Value.I.(uint64); ok {
 				iops.WriteIopsSec = int(v)
 			}
 		}
