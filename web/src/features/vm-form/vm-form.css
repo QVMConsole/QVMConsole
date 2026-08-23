@@ -70,6 +70,8 @@
   border-radius: 12px;
   margin-bottom: 14px;
   backdrop-filter: blur(8px);
+  /* 作为进阶设置提醒遮罩（absolute 覆盖）的定位上下文 */
+  position: relative;
 }
 .qvm-vf-section-header {
   display: flex;
@@ -470,12 +472,16 @@ body[theme-mode='dark'] .qvm-vf-appliance-meta strong {
   user-select: none;
 }
 .qvm-vf-advanced-mask {
-  position: sticky;
-  top: 20px;
+  /* 覆盖整个分区卡片，提醒卡片固定在最顶端（不再上下居中） */
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   display: flex;
   justify-content: center;
-  margin-top: -200px;
-  margin-bottom: 200px;
+  align-items: flex-start;
+  padding-top: 16px;
   z-index: 5;
 }
 .qvm-vf-advanced-intro {
