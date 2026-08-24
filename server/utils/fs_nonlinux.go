@@ -29,6 +29,11 @@ func GetFileCreateTime(path string) int64 {
 	return 0
 }
 
+// GetFileOwnerIDs 在非 Linux 平台不提供 Unix UID/GID。
+func GetFileOwnerIDs(path string) (uid, gid int, ok bool) {
+	return 0, 0, false
+}
+
 // IsTmpOnTmpfs stub for non-linux platforms.
 func IsTmpOnTmpfs() bool {
 	return false

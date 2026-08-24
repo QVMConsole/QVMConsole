@@ -88,7 +88,8 @@ func GetVM(name string) (*VmDetail, error) {
 
 	// VNC 信息
 	if vm.Status == "running" || vm.Status == "paused" {
-		vncResult := utils.ExecCommand("virsh", "vncdisplay", name)
+		// 状态读取与命令执行之间虚拟机可能关机，此类竞争属于预期探测失败。
+		vncResult := utils.ExecCommandQuiet("virsh", "vncdisplay", name)
 		if vncResult.Error == nil {
 			vm.VNCPort = strings.TrimSpace(vncResult.Stdout)
 		}

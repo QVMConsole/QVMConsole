@@ -98,15 +98,15 @@ var libvirtQEMUOwnershipCandidates = [][2]string{
 
 // ResolveLibvirtQEMUUser 返回当前系统实际使用的 QEMU/libvirt 服务账号。
 func ResolveLibvirtQEMUUser() (string, error) {
-	var lastErr error
+	var lookupErrors []string
 	for _, candidate := range libvirtQEMUOwnershipCandidates {
 		if _, _, err := GetUserIDs(candidate[0], candidate[1]); err == nil {
 			return candidate[0], nil
 		} else {
-			lastErr = err
+			lookupErrors = append(lookupErrors, err.Error())
 		}
 	}
-	return "", fmt.Errorf("查找 QEMU/libvirt 服务账号失败: %w", lastErr)
+	return "", fmt.Errorf("查找 QEMU/libvirt 服务账号失败: %s", strings.Join(lookupErrors, "; "))
 }
 
 // ChownLibvirtQEMU 尝试按优先级将文件 chown 为 QEMU/libvirt 进程用户/组
@@ -118,22 +118,39 @@ func ResolveLibvirtQEMUUser() (string, error) {
 //
 // 返回错误仅当所有尝试都失败时
 func ChownLibvirtQEMU(path string) error {
-
-	var lastErr error
+	currentUID, currentGID, ownerKnown := GetFileOwnerIDs(path)
+	resolvedOwners := make(map[string]bool)
+	var lookupErrors []string
+	var chownErrors []string
 	for _, c := range libvirtQEMUOwnershipCandidates {
 		uid, gid, err := GetUserIDs(c[0], c[1])
 		if err != nil {
-			lastErr = err
+			lookupErrors = append(lookupErrors, err.Error())
 			continue
 		}
+
+		ownerKey := fmt.Sprintf("%d:%d", uid, gid)
+		if resolvedOwners[ownerKey] {
+			continue
+		}
+		resolvedOwners[ownerKey] = true
+
+		// 模板文件通常带有不可变属性。属主已经正确时直接返回，避免重复 chown
+		// 被内核拒绝后产生误导性告警。
+		if ownerKnown && currentUID == uid && currentGID == gid {
+			return nil
+		}
 		if err := os.Chown(path, uid, gid); err != nil {
-			lastErr = err
+			chownErrors = append(chownErrors, fmt.Sprintf("目标 %s:%s（%d:%d）: %v", c[0], c[1], uid, gid, err))
 			continue
 		}
 		return nil
 	}
 
-	return fmt.Errorf("chown %s 失败: 无法查找 libvirt-qemu/kvm、libvirt-qemu/libvirt-qemu 或 qemu/qemu: %w", path, lastErr)
+	if len(chownErrors) > 0 {
+		return fmt.Errorf("chown %s 失败: %s", path, strings.Join(chownErrors, "; "))
+	}
+	return fmt.Errorf("chown %s 失败: 未找到可用的 QEMU/libvirt 服务账号: %s", path, strings.Join(lookupErrors, "; "))
 }
 
 // SetFileImmutable 对文件设置 Linux 不可变属性 (chattr +i)

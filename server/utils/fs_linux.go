@@ -132,6 +132,15 @@ func GetFileCreateTime(path string) int64 {
 	return ts
 }
 
+// GetFileOwnerIDs 返回文件当前的 UID 和 GID。
+func GetFileOwnerIDs(path string) (uid, gid int, ok bool) {
+	var stat syscall.Stat_t
+	if err := syscall.Stat(path, &stat); err != nil {
+		return 0, 0, false
+	}
+	return int(stat.Uid), int(stat.Gid), true
+}
+
 // TMPFS_MAGIC 是 Linux tmpfs 文件系统的魔数（来自 linux/magic.h）
 const TMPFS_MAGIC int64 = 0x01021994
 

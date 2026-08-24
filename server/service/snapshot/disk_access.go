@@ -252,7 +252,8 @@ func addProtectedPaths(protected map[string]bool, diskPaths []string) {
 }
 
 func extractCurrentQEMUBlockPaths(vmName string) []string {
-	result := utils.ExecCommand("virsh", "qemu-monitor-command", vmName, "--hmp", "info block")
+	// 残留文件清理期间虚拟机可能已经关机，Monitor 查询失败属于预期情况。
+	result := utils.ExecCommandQuiet("virsh", "qemu-monitor-command", vmName, "--hmp", "info block")
 	if result.Error != nil {
 		return nil
 	}
