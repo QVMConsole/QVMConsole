@@ -303,15 +303,48 @@ func isManagedHostStoragePath(item string) bool {
 
 func managedLibvirtAccessRootsForPaths(paths []string) []string {
 	var roots []string
-	for _, root := range managedLibvirtAccessRoots() {
-		for _, item := range paths {
-			if isPathWithinRoot(item, root) {
-				roots = append(roots, root)
-				break
+	knownRoots := managedLibvirtAccessRoots()
+	for _, item := range uniqueNonEmptyStrings(paths) {
+		matchedKnownRoot := false
+		for _, root := range knownRoots {
+			if !isPathWithinRoot(item, root) {
+				continue
 			}
+			roots = append(roots, root)
+			matchedKnownRoot = true
+			break
+		}
+		if matchedKnownRoot {
+			continue
+		}
+
+		// 管理员可以把已有分区直接挂载到 /data、/data2 等任意路径。
+		// 这类存储池不在固定的 HostStorageRoot 下，需要从实际磁盘路径推导
+		// 最小访问目录，避免 virt-aa-helper 无法读取无扩展名的外部快照层。
+		if root := deriveLibvirtAccessRoot(item); root != "" {
+			roots = append(roots, root)
 		}
 	}
 	return uniqueNonEmptyStrings(roots)
+}
+
+func deriveLibvirtAccessRoot(item string) string {
+	cleanPath := path.Clean(strings.TrimSpace(item))
+	if cleanPath == "." || !path.IsAbs(cleanPath) {
+		return ""
+	}
+	if info, err := os.Stat(cleanPath); err == nil && info.IsDir() {
+		if cleanPath == "/" {
+			return ""
+		}
+		return cleanPath
+	}
+
+	parent := path.Dir(cleanPath)
+	if parent == "." || parent == "/" {
+		return ""
+	}
+	return parent
 }
 
 func managedLibvirtAccessRoots() []string {
