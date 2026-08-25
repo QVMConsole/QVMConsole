@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
+	"kvm_console/logger"
 	"kvm_console/model"
 	"kvm_console/service/ip_resolver"
 	"kvm_console/service/libvirt_rpc"
-	"kvm_console/utils"
 )
 
 // ListStaticIPs 列出静态 IP 绑定
@@ -530,95 +530,17 @@ func UnbindStaticIP(vmName string) error {
 
 // RemovePortForwardsForIP 删除所有指向指定 IP 的端口转发规则
 func RemovePortForwardsForIP(targetIP string) {
-	// 获取所有 DNAT 规则及行号
-	result := utils.ExecShellQuiet("iptables -t nat -L PREROUTING -n --line-numbers 2>/dev/null | grep DNAT")
-	if result.Error != nil || result.Stdout == "" {
+	rules, err := ListPortForwards()
+	if err != nil {
 		return
 	}
 
-	// 收集需要删除的规则行号（倒序删除避免偏移）
-	var ruleIDs []int
-	for _, line := range strings.Split(result.Stdout, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || !strings.Contains(line, targetIP) {
+	for _, rule := range rules {
+		if strings.TrimSpace(rule.DestIP) != strings.TrimSpace(targetIP) {
 			continue
 		}
-		// 检查 to:targetIP: 格式确保精确匹配
-		if !strings.Contains(line, "to:"+targetIP+":") {
-			continue
+		if err := DeletePortForward(rule.ID); err != nil {
+			logger.App.Warn("删除指定 IP 的端口转发规则失败", "target_ip", targetIP, "rule_id", rule.ID, "error", err)
 		}
-		fields := strings.Fields(line)
-		if len(fields) > 0 {
-			var id int
-			fmt.Sscanf(fields[0], "%d", &id)
-			if id > 0 {
-				ruleIDs = append(ruleIDs, id)
-			}
-		}
-	}
-
-	// 倒序删除（从大到小，避免行号偏移）
-	for i := len(ruleIDs) - 1; i >= 0; i-- {
-		id := ruleIDs[i]
-		// 获取规则信息用于清理 FORWARD 和 UFW
-		ruleInfo := utils.ExecShell(fmt.Sprintf("iptables -t nat -L PREROUTING %d -n 2>/dev/null", id))
-
-		// 解析协议
-		protoRe := regexp.MustCompile(`\s+(tcp|udp|6|17)\s+`)
-		proto := "tcp"
-		if m := protoRe.FindStringSubmatch(ruleInfo.Stdout); len(m) > 1 {
-			switch m[1] {
-			case "6":
-				proto = "tcp"
-			case "17":
-				proto = "udp"
-			default:
-				proto = m[1]
-			}
-		}
-
-		// 解析宿主机端口
-		dportRe := regexp.MustCompile(`dpts?:(\S+)`)
-		hostPort := ""
-		if m := dportRe.FindStringSubmatch(ruleInfo.Stdout); len(m) > 1 {
-			hostPort = m[1]
-		}
-
-		// 解析目标端口
-		destRe := regexp.MustCompile(`to:(\S+)`)
-		destPort := ""
-		if m := destRe.FindStringSubmatch(ruleInfo.Stdout); len(m) > 1 {
-			parts := strings.SplitN(m[1], ":", 2)
-			if len(parts) > 1 {
-				destPort = parts[1]
-			}
-		}
-
-		// 删除 NAT 规则 (PREROUTING)
-		utils.ExecShell(fmt.Sprintf("iptables -t nat -D PREROUTING %d", id))
-
-		// 删除 NAT 规则 (OUTPUT - 本地流量 DNAT)
-		if hostPort != "" {
-			utils.ExecShell(fmt.Sprintf(
-				"iptables -t nat -D OUTPUT -d %s -p %s --dport %s -j DNAT --to-destination %s:%s 2>/dev/null",
-				utils.ShellSingleQuote(getHostIP()), utils.ShellSingleQuote(proto), utils.ShellSingleQuote(hostPort), utils.ShellSingleQuote(targetIP), utils.ShellSingleQuote(destPort)))
-		}
-
-		// 删除 FORWARD 规则
-		if destPort != "" {
-			utils.ExecShell(fmt.Sprintf(
-				"iptables -D FORWARD -d %s -p %s --dport %s -j ACCEPT 2>/dev/null",
-				utils.ShellSingleQuote(targetIP), utils.ShellSingleQuote(proto), utils.ShellSingleQuote(destPort)))
-		}
-
-		// 删除 UFW 规则
-		if hostPort != "" {
-			_ = HookDeleteHostFirewallPortForwardRule(hostPort, proto)
-		}
-	}
-
-	// 如果有删除规则，自动持久化
-	if len(ruleIDs) > 0 {
-		go SavePortForwardRules()
 	}
 }

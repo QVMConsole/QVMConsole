@@ -372,15 +372,7 @@ type UpdatePortForwardRequest struct {
 
 // UpdatePortForward 编辑单条端口转发
 func UpdatePortForward(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "无效的规则编号",
-		})
-		return
-	}
+	ruleID := c.Param("id")
 
 	var req UpdatePortForwardRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -391,7 +383,7 @@ func UpdatePortForward(c *gin.Context) {
 		return
 	}
 
-	currentRule, err := netservice.GetPortForwardRuleByID(id)
+	currentRule, err := netservice.GetPortForwardRuleByID(ruleID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"code":    404,
@@ -474,7 +466,7 @@ func UpdatePortForward(c *gin.Context) {
 			return
 		}
 	}
-	if err := netservice.UpdatePortForward(id, &netservice.PortForwardUpdateParams{
+	if err := netservice.UpdatePortForward(ruleID, &netservice.PortForwardUpdateParams{
 		VMIP:           vmIP,
 		VMPort:         req.VMPort,
 		HostPort:       req.HostPort,
@@ -533,7 +525,7 @@ func UpdatePortForward(c *gin.Context) {
 
 // BatchDeletePortForwardRequest 批量删除端口转发请求
 type BatchDeletePortForwardRequest struct {
-	IDs []int `json:"ids" binding:"required"`
+	IDs []string `json:"ids" binding:"required"`
 }
 
 // BatchDeletePortForward 批量删除端口转发
@@ -546,7 +538,7 @@ func BatchDeletePortForward(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil || len(req.IDs) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"code":    400,
-			"message": "参数错误: 需要规则编号列表",
+			"message": "参数错误: 需要规则标识列表",
 		})
 		return
 	}
@@ -555,8 +547,8 @@ func BatchDeletePortForward(c *gin.Context) {
 	if role != "admin" {
 		username, _ := c.Get("username")
 		usernameStr := strings.TrimSpace(username.(string))
-		for _, id := range req.IDs {
-			rule, err := netservice.GetPortForwardRuleByID(id)
+		for _, ruleID := range req.IDs {
+			rule, err := netservice.GetPortForwardRuleByID(ruleID)
 			if err != nil {
 				c.JSON(http.StatusNotFound, gin.H{
 					"code":    404,
@@ -593,21 +585,13 @@ func DeletePortForward(c *gin.Context) {
 	if !requireHighRiskVerification(c, "delete_port_forward") {
 		return
 	}
-	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "无效的规则编号",
-		})
-		return
-	}
+	ruleID := c.Param("id")
 
 	role, _ := c.Get("role")
 	if role != "admin" {
 		username, _ := c.Get("username")
 		usernameStr := strings.TrimSpace(username.(string))
-		rule, err := netservice.GetPortForwardRuleByID(id)
+		rule, err := netservice.GetPortForwardRuleByID(ruleID)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{
 				"code":    404,
@@ -624,7 +608,7 @@ func DeletePortForward(c *gin.Context) {
 		}
 	}
 
-	if err := netservice.DeletePortForward(id); err != nil {
+	if err := netservice.DeletePortForward(ruleID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"code":    500,
 			"message": err.Error(),

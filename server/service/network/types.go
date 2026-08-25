@@ -26,7 +26,7 @@ type DHCPLeaseInfo struct {
 
 // PortForwardRule 端口转发规则
 type PortForwardRule struct {
-	ID                    int    `json:"id"`                      // 规则编号
+	ID                    string `json:"id"`                      // API 稳定规则标识
 	Protocol              string `json:"protocol"`                // tcp/udp
 	HostPort              string `json:"host_port"`               // 宿主机端口
 	AccessIP              string `json:"access_ip"`               // 对外访问 IP
@@ -42,6 +42,12 @@ type PortForwardRule struct {
 	RuleKey               string `json:"rule_key"`                // 稳定规则标识
 }
 
+// APIKey 返回供 API 更新和删除使用的稳定标识。
+// 宿主机端口和协议在同一时刻唯一，避免 iptables 行号在规则变更后发生偏移。
+func (r PortForwardRule) APIKey() string {
+	return strings.ToLower(strings.TrimSpace(r.Protocol)) + "|" + strings.TrimSpace(r.HostPort)
+}
+
 // StableKey 返回端口转发规则的稳定标识，避免依赖 iptables 行号。
 func (r PortForwardRule) StableKey() string {
 	return strings.ToLower(strings.TrimSpace(r.Protocol)) + "|" +
@@ -55,7 +61,7 @@ type PortForwardAddParams struct {
 	VMIP           string `json:"vm_ip"`
 	HostPort       string `json:"host_port"`
 	VMPort         string `json:"vm_port"`
-	Protocol       string `json:"protocol"` // tcp/udp/both
+	Protocol       string `json:"protocol"`  // tcp/udp/both
 	SourceIP       string `json:"source_ip"` // 入站 IP 白名单（CIDR，空/0.0.0.0/0 = 不限制）
 	Comment        string `json:"comment"`
 	CreatedBy      string `json:"created_by"`

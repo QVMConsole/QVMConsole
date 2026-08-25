@@ -5,7 +5,6 @@ import (
 	"net"
 	"os"
 	"regexp"
-	"sort"
 	"strings"
 
 	"kvm_console/config"
@@ -156,9 +155,6 @@ func listLivePortForwardsFromIPTables() ([]PortForwardRule, error) {
 
 		rule := PortForwardRule{}
 
-		// 编号
-		fmt.Sscanf(fields[0], "%d", &rule.ID)
-
 		// 协议
 		proto := fields[2]
 		switch proto {
@@ -190,6 +186,7 @@ func listLivePortForwardsFromIPTables() ([]PortForwardRule, error) {
 		}
 		// 入站 IP 白名单（未显式限制时 iptables 展示 0.0.0.0/0）
 		rule.SourceIP = parseSourceIPFromListLine(fields)
+		rule.ID = rule.APIKey()
 		rule.FirewallKey = rule.StableKey()
 		rule.RuleKey = rule.StableKey()
 		rule.RegionFilterInherited = true
@@ -215,8 +212,12 @@ func ListPortForwards() ([]PortForwardRule, error) {
 	return rules, nil
 }
 
-// GetPortForwardRuleByID 根据当前 iptables 行号获取端口转发规则。
-func GetPortForwardRuleByID(ruleID int) (*PortForwardRule, error) {
+// GetPortForwardRuleByID 根据 API 稳定标识获取端口转发规则。
+func GetPortForwardRuleByID(ruleID string) (*PortForwardRule, error) {
+	ruleID = strings.ToLower(strings.TrimSpace(ruleID))
+	if ruleID == "" {
+		return nil, fmt.Errorf("规则标识不能为空")
+	}
 	rules, err := listLivePortForwardsFromIPTables()
 	if err != nil {
 		return nil, err
@@ -227,7 +228,7 @@ func GetPortForwardRuleByID(ruleID int) (*PortForwardRule, error) {
 			return &rule, nil
 		}
 	}
-	return nil, fmt.Errorf("规则编号 %d 不存在", ruleID)
+	return nil, fmt.Errorf("规则标识 %s 不存在", ruleID)
 }
 
 func findLivePortForwardByStableKey(ruleKey string) (*PortForwardRule, error) {
@@ -377,16 +378,15 @@ func removePortForwardsForCIDR(cidr string) {
 	if err != nil || len(rules) == 0 {
 		return
 	}
-	var ids []int
+	var ruleIDs []string
 	for _, rule := range rules {
 		if ipInCIDR(rule.DestIP, cidr) {
-			ids = append(ids, rule.ID)
+			ruleIDs = append(ruleIDs, rule.ID)
 		}
 	}
-	sort.Sort(sort.Reverse(sort.IntSlice(ids)))
-	for _, id := range ids {
-		if err := DeletePortForward(id); err != nil {
-			logger.App.Warn("删除端口转发规则失败", "cidr", cidr, "id", id, "error", err)
+	for _, ruleID := range ruleIDs {
+		if err := DeletePortForward(ruleID); err != nil {
+			logger.App.Warn("删除端口转发规则失败", "cidr", cidr, "rule_id", ruleID, "error", err)
 		}
 	}
 }
@@ -429,62 +429,26 @@ func cleanupOVSStaticHostsForVMs(vmNames []string) {
 	HookReloadOVSDNSMasq()
 }
 
-func deletePortForwardWithOptions(ruleID int) error {
-	// 直接用 iptables 行号获取规则信息（不过滤 grep，避免行号错位）
-	ruleInfo := utils.ExecShell(fmt.Sprintf(
-		"iptables -t nat -L PREROUTING %d -n 2>/dev/null", ruleID))
-	if ruleInfo.Error != nil || ruleInfo.Stdout == "" {
-		return fmt.Errorf("规则编号 %d 不存在", ruleID)
-	}
-	if !strings.Contains(ruleInfo.Stdout, "DNAT") {
-		return fmt.Errorf("规则编号 %d 不是端口转发规则", ruleID)
+func deletePortForwardWithOptions(ruleID string) error {
+	rule, err := GetPortForwardRuleByID(ruleID)
+	if err != nil {
+		return err
 	}
 
-	// 解析目标信息用于删除 FORWARD 规则
-	destRe := regexp.MustCompile(`to:(\S+)`)
-	var destIP, destPort string
-	if m := destRe.FindStringSubmatch(ruleInfo.Stdout); len(m) > 1 {
-		parts := strings.SplitN(m[1], ":", 2)
-		destIP = parts[0]
-		if len(parts) > 1 {
-			destPort = parts[1]
-		}
-	}
+	proto := strings.ToLower(strings.TrimSpace(rule.Protocol))
+	hostPort := strings.TrimSpace(rule.HostPort)
+	destIP := strings.TrimSpace(rule.DestIP)
+	destPort := strings.TrimSpace(rule.DestPort)
+	src := strings.TrimSpace(rule.SourceIP)
+	srcArg := sourceArgForPortForward(src)
 
-	dportRe := regexp.MustCompile(`dpts?:(\S+)`)
-	var hostPort string
-	if m := dportRe.FindStringSubmatch(ruleInfo.Stdout); len(m) > 1 {
-		hostPort = m[1]
+	// 使用完整规则参数删除，避免并发或批量操作导致 iptables 行号偏移后误删其他规则。
+	deleteResult := utils.ExecShell(fmt.Sprintf(
+		"iptables -t nat -D PREROUTING%s -d %s -p %s --dport %s -j DNAT --to-destination %s:%s",
+		srcArg, utils.ShellSingleQuote(getHostIP()), utils.ShellSingleQuote(proto), utils.ShellSingleQuote(hostPort), utils.ShellSingleQuote(destIP), utils.ShellSingleQuote(destPort)))
+	if deleteResult.Error != nil {
+		return fmt.Errorf("删除端口转发 NAT 规则失败: %s", strings.TrimSpace(deleteResult.Stderr))
 	}
-
-	// 入站 IP 白名单：iptables -D 需与规则参数完全匹配，源地址非 0.0.0.0/0 时必须携带 -s
-	srcArg := ""
-	src := parseSourceIPFromListLine(strings.Fields(ruleInfo.Stdout))
-	if src != "" && src != "0.0.0.0/0" {
-		srcArg = " -s " + utils.ShellSingleQuote(src)
-	}
-
-	protoRe := regexp.MustCompile(`\s+(tcp|udp|6|17)\s+`)
-	proto := "tcp"
-	if m := protoRe.FindStringSubmatch(ruleInfo.Stdout); len(m) > 1 {
-		switch m[1] {
-		case "6":
-			proto = "tcp"
-		case "17":
-			proto = "udp"
-		default:
-			proto = m[1]
-		}
-	}
-	stableKey := PortForwardRule{
-		Protocol: strings.ToLower(proto),
-		HostPort: hostPort,
-		DestIP:   destIP,
-		DestPort: destPort,
-	}.StableKey()
-
-	// 删除 NAT 规则 (PREROUTING)
-	utils.ExecShell(fmt.Sprintf("iptables -t nat -D PREROUTING %d", ruleID))
 
 	// 删除 NAT 规则 (OUTPUT - 清理本地流量 DNAT)
 	// 规则可能已被并发对账清理（不存在时 -D 失败属预期），用 Quiet 避免误报 ERROR
@@ -505,7 +469,7 @@ func deletePortForwardWithOptions(ruleID int) error {
 	if hostPort != "" {
 		_ = HookDeleteHostFirewallPortForwardRule(hostPort, proto)
 	}
-	_ = HookClearPortForwardFirewallExemption(stableKey)
+	_ = HookClearPortForwardFirewallExemption(rule.FirewallKey)
 
 	cleanupErr := removeSecurityGroupAllowsPortForwardIfUnused(destIP, proto, destPort, src)
 
@@ -515,33 +479,33 @@ func deletePortForwardWithOptions(ruleID int) error {
 	return cleanupErr
 }
 
-// DeletePortForward 按编号删除端口转发规则
-func DeletePortForward(ruleID int) error {
+// DeletePortForward 按 API 稳定标识删除端口转发规则。
+func DeletePortForward(ruleID string) error {
 	return deletePortForwardWithOptions(ruleID)
 }
 
-// DeletePortForwards 按批量删除端口转发规则。
-func DeletePortForwards(ruleIDs []int) error {
+// DeletePortForwards 按稳定标识批量删除端口转发规则。
+func DeletePortForwards(ruleIDs []string) error {
 	if len(ruleIDs) == 0 {
 		return nil
 	}
 
-	unique := make(map[int]struct{})
-	var ids []int
-	for _, id := range ruleIDs {
-		if id <= 0 {
+	unique := make(map[string]struct{})
+	var ids []string
+	for _, ruleID := range ruleIDs {
+		ruleID = strings.ToLower(strings.TrimSpace(ruleID))
+		if ruleID == "" {
 			continue
 		}
-		if _, exists := unique[id]; exists {
+		if _, exists := unique[ruleID]; exists {
 			continue
 		}
-		unique[id] = struct{}{}
-		ids = append(ids, id)
+		unique[ruleID] = struct{}{}
+		ids = append(ids, ruleID)
 	}
-	sort.Sort(sort.Reverse(sort.IntSlice(ids)))
 
-	for _, id := range ids {
-		if err := DeletePortForward(id); err != nil {
+	for _, ruleID := range ids {
+		if err := DeletePortForward(ruleID); err != nil {
 			return err
 		}
 	}
@@ -562,7 +526,7 @@ func normalizeEditablePortForwardProtocol(protocol string) (string, error) {
 }
 
 // UpdatePortForward 编辑单条端口转发规则。
-func UpdatePortForward(ruleID int, params *PortForwardUpdateParams) error {
+func UpdatePortForward(ruleID string, params *PortForwardUpdateParams) error {
 	if params == nil {
 		return fmt.Errorf("更新参数不能为空")
 	}

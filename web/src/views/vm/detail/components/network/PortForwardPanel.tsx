@@ -43,7 +43,7 @@ interface PortForwardPanelProps {
 }
 
 interface ForwardFormState {
-  id: number | null
+  id: string | null
   vm_ip: string
   host_port: string
   vm_port: string
@@ -321,7 +321,7 @@ export default function PortForwardPanel({ vmName, shared, live, liveTick }: Por
     })
     if (!ok) return
     try {
-      await batchDeletePortForward({ ids: selectedKeys.map(Number) })
+      await batchDeletePortForward({ ids: selectedKeys })
       Toast.success('端口转发规则已批量删除')
       setSelectedKeys([])
       void fetchRules()
@@ -358,7 +358,6 @@ export default function PortForwardPanel({ vmName, shared, live, liveTick }: Por
 
   // ============ 表格列 ============
   const columns: ColumnProps<PortForwardRule>[] = [
-    { title: '#', dataIndex: 'id', width: 56 },
     {
       title: '协议',
       dataIndex: 'protocol',
@@ -453,7 +452,7 @@ export default function PortForwardPanel({ vmName, shared, live, liveTick }: Por
 
       <div className={showIntro ? 'qvm-content-blurred' : ''}>
         <Table<PortForwardRule>
-          rowKey="rule_key"
+          rowKey="id"
           columns={columns}
           dataSource={currentVmRules}
           loading={loading}

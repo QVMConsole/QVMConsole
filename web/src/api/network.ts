@@ -51,7 +51,7 @@ export function unbindStaticIP(data: { vm_name: string; ip: string }) {
 
 /** 端口转发规则 */
 export interface PortForwardRule {
-  id: number
+  id: string
   rule_key: string
   vm_name: string
   protocol: string // tcp / udp
@@ -89,19 +89,19 @@ export function addPortForward(data: {
 
 /** 编辑端口转发 */
 export function updatePortForward(
-  id: number,
+  id: string,
   data: { vm_name: string; vm_ip: string; host_port: string; vm_port: string; protocol: string; source_ip?: string },
 ) {
-  return service.put<unknown, ApiResponse<unknown>>(`/network/port-forward/${id}`, data)
+  return service.put<unknown, ApiResponse<unknown>>(`/network/port-forward/${encodeURIComponent(id)}`, data)
 }
 
 /** 删除端口转发（按 ID） */
-export function deletePortForward(id: number) {
-  return service.delete<unknown, ApiResponse<unknown>>(`/network/port-forward/${id}`)
+export function deletePortForward(id: string) {
+  return service.delete<unknown, ApiResponse<unknown>>(`/network/port-forward/${encodeURIComponent(id)}`)
 }
 
 /** 批量删除端口转发 */
-export function batchDeletePortForward(data: { ids: number[] }) {
+export function batchDeletePortForward(data: { ids: string[] }) {
   return service.post<unknown, ApiResponse<unknown>>('/network/port-forward/batch-delete', data)
 }
 
