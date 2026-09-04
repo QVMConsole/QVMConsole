@@ -13,33 +13,33 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@douyinfe/semi-icons": "^2.101.1",
-    "@douyinfe/semi-illustrations": "^2.101.1",
-    "@douyinfe/semi-ui": "^2.101.1",
+    "@douyinfe/semi-icons": "^2.103.0",
+    "@douyinfe/semi-illustrations": "^2.103.0",
+    "@douyinfe/semi-ui": "^2.103.0",
     "@novnc/novnc": "^1.7.0",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
-    "axios": "^1.18.1",
+    "axios": "^1.20.0",
     "echarts": "^6.1.0",
     "nprogress": "^0.2.0",
     "qrcode": "^1.5.4",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7",
-    "react-router": "8.3.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router": "8.3.1",
     "spark-md5": "^3.0.2",
-    "zustand": "^5.0.14"
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
-    "@types/node": "^24.13.2",
+    "@types/node": "^26.4.1",
     "@types/nprogress": "^0.2.3",
     "@types/qrcode": "^1.5.6",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
     "@types/spark-md5": "^3.0.5",
-    "@vitejs/plugin-react": "^6.0.3",
-    "oxlint": "^1.71.0",
-    "sass-embedded": "^1.100.0",
-    "typescript": "~6.0.2",
-    "vite": "^8.1.1"
+    "@vitejs/plugin-react": "^6.1.1",
+    "oxlint": "^1.81.0",
+    "sass-embedded": "^1.104.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.2"
   }
 }
