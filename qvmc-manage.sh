@@ -39,11 +39,29 @@ detect_project_dir() {
 PROJECT_DIR="$(detect_project_dir)"
 
 # ---- 加载 .env 文件 ----
-ENV_FILE="${PROJECT_DIR}/.env"
-if [ -f "${PROJECT_DIR}/../.env" ] && [ ! -f "$ENV_FILE" ]; then
-    # 兼容测试机路径: 项目在 /opt/project/QVMConsole/Code/Open 时, .env 在上级
-    ENV_FILE="${PROJECT_DIR}/../.env"
-fi
+detect_env_file() {
+    local candidates=()
+    [ -n "${KVM_ENV_FILE:-}" ] && candidates+=("$KVM_ENV_FILE")
+    candidates+=(
+        "${PROJECT_DIR}/.env"
+        "${PROJECT_DIR}/server/.env"
+        "${PROJECT_DIR}/../.env"
+        "${PROJECT_DIR}/../../.env"
+        "/opt/kvm-console/.env"
+        "/opt/project/QVMConsole/.env"
+        "/opt/project/QVMConsole/server/.env"
+    )
+    local candidate
+    for candidate in "${candidates[@]}"; do
+        if [ -f "$candidate" ]; then
+            printf '%s\n' "$candidate"
+            return
+        fi
+    done
+    printf '%s\n' "${PROJECT_DIR}/.env"
+}
+
+ENV_FILE="$(detect_env_file)"
 
 load_env() {
     if [ -f "$ENV_FILE" ]; then
@@ -54,6 +72,40 @@ load_env() {
     fi
 }
 load_env
+
+env_get() {
+    local key="$1"
+    if [ -f "$ENV_FILE" ]; then
+        awk -F= -v k="$key" '$1 == k { sub(/^[^=]*=/, ""); print; exit }' "$ENV_FILE"
+    fi
+}
+
+env_set() {
+    local key="$1"
+    local value="$2"
+    mkdir -p "$(dirname "$ENV_FILE")"
+    touch "$ENV_FILE"
+    chmod 600 "$ENV_FILE" 2>/dev/null || true
+    if grep -q "^${key}=" "$ENV_FILE"; then
+        sed -i "s|^${key}=.*|${key}=${value}|" "$ENV_FILE"
+    else
+        printf '%s=%s\n' "$key" "$value" >> "$ENV_FILE"
+    fi
+}
+
+current_public_access_enabled() {
+    local configured="${KVM_PUBLIC_ACCESS_ENABLED:-}"
+    if [ -n "$configured" ]; then
+        printf '%s\n' "$configured"
+        return
+    fi
+    if [ -f "$DB_PATH" ]; then
+        local stored
+        stored=$(sqlite3 "$DB_PATH" "SELECT value FROM system_settings WHERE key='public_access_enabled' LIMIT 1;" 2>/dev/null || true)
+        [ -n "$stored" ] && { printf '%s\n' "$stored"; return; }
+    fi
+    printf 'false\n'
+}
 
 # ---- 自动检测数据库路径 ----
 detect_db_path() {
@@ -421,6 +473,12 @@ reset_admin_password() {
         return
     fi
 
+    if [ "$(current_public_access_enabled)" = "true" ]; then
+        if ! disable_public_access_for_safety; then
+            return 1
+        fi
+    fi
+
     echo ""
     echo -ne "正在生成密码哈希..."
 
@@ -620,9 +678,137 @@ clear_totp() {
         return
     fi
 
+    if [ "$sel_role" = "admin" ] && [ "$(current_public_access_enabled)" = "true" ]; then
+        if ! disable_public_access_for_safety; then
+            return 1
+        fi
+    fi
+
     sqlite3 "$DB_PATH" "UPDATE users SET totp_enabled=0, totp_secret_enc='', totp_recovery_codes_enc='', totp_bound_at=NULL, updated_at=datetime('now') WHERE id=$sel_id AND deleted_at IS NULL;"
 
     echo -e "${GREEN}✓ 账户 '${sel_username}' 的 TOTP 令牌已清除${NC}"
+    press_enter
+}
+
+# ---- 功能 6: 开启公网访问 ----
+set_public_access_db() {
+    local enabled="$1"
+    local revoke_keys="${2:-0}"
+    local now_sql="$(date '+%Y-%m-%d %H:%M:%S')"
+    if [ "$revoke_keys" = "1" ]; then
+        sqlite3 "$DB_PATH" <<SQL
+BEGIN IMMEDIATE;
+INSERT INTO system_settings(key, value) VALUES ('public_access_enabled', '$enabled')
+ON CONFLICT(key) DO UPDATE SET value=excluded.value;
+UPDATE user_api_keys
+SET revoked_at='$now_sql', updated_at='$now_sql'
+WHERE revoked_at IS NULL AND user_id IN (SELECT id FROM users WHERE role='admin');
+COMMIT;
+SQL
+    else
+        sqlite3 "$DB_PATH" "INSERT INTO system_settings(key, value) VALUES ('public_access_enabled', '$enabled') ON CONFLICT(key) DO UPDATE SET value=excluded.value;"
+    fi
+}
+
+restart_panel_service() {
+    local service_name="${KVM_SERVICE_UNIT_NAME:-kvm-console.service}"
+    if [ "$(id -u)" -ne 0 ]; then
+        echo -e "${RED}错误: 更新公网访问后需要 root 权限重启 ${service_name}${NC}"
+        return 1
+    fi
+    if ! systemctl restart "$service_name"; then
+        echo -e "${RED}错误: 重启服务失败，请检查: systemctl status ${service_name}${NC}"
+        return 1
+    fi
+    sleep 3
+    if ! systemctl is-active --quiet "$service_name"; then
+        echo -e "${RED}错误: 服务重启后未正常运行，请检查日志${NC}"
+        return 1
+    fi
+    return 0
+}
+
+disable_public_access_for_safety() {
+    echo -e "${YELLOW}检测到公网访问已开启。为避免安全信息被清除后留下不满足要求的状态，将先关闭公网访问。${NC}"
+    if ! set_public_access_db false 0; then
+        echo -e "${RED}错误: 写入公网访问状态失败${NC}"
+        return 1
+    fi
+    env_set "KVM_PUBLIC_ACCESS_ENABLED" "false"
+    KVM_PUBLIC_ACCESS_ENABLED="false"
+    if ! restart_panel_service; then
+        return 1
+    fi
+    echo -e "${GREEN}✓ 公网访问已关闭${NC}"
+    return 0
+}
+
+enable_public_access() {
+    echo ""
+    echo -e "${BOLD}========================================${NC}"
+    echo -e "${BOLD}   开启公网访问${NC}"
+    echo -e "${BOLD}========================================${NC}"
+    echo ""
+
+    if [ "$(id -u)" -ne 0 ]; then
+        echo -e "${RED}错误: 开启公网访问必须使用 root 运行此脚本${NC}"
+        press_enter
+        return
+    fi
+    if [ "$(current_public_access_enabled)" = "true" ]; then
+        echo -e "${GREEN}公网访问当前已开启${NC}"
+        press_enter
+        return
+    fi
+
+    local admins missing=0
+    admins=$(sqlite3 "$DB_PATH" -separator '|' "SELECT id, username, status, totp_enabled, COALESCE(email,'') FROM users WHERE role='admin' AND status='active' AND deleted_at IS NULL ORDER BY id;")
+    if [ -z "$admins" ]; then
+        echo -e "${RED}错误: 未找到有效管理员，不能开启公网访问${NC}"
+        press_enter
+        return
+    fi
+    echo -e "${CYAN}当前有效管理员安全状态:${NC}"
+    while IFS='|' read -r id username status totp email; do
+        [ -n "$username" ] || continue
+        local display="${username}（状态: ${status}）"
+        if [ "$totp" = "1" ]; then
+            display+=" [2FA 已绑定]"
+        else
+            display+=" [2FA 未绑定]"
+            missing=1
+        fi
+        [ -n "$email" ] && display+=" [${email}]"
+        echo "  - ${display}"
+    done <<< "$admins"
+
+    if [ "$missing" -eq 1 ]; then
+        echo ""
+        echo -e "${YELLOW}普通开启要求所有有效管理员先绑定 2FA。${NC}"
+        echo -e "${YELLOW}仅 root 可使用固定确认短语应急绕过；绕过后相关管理员仍必须尽快完成 2FA。${NC}"
+        local phrase
+        read -rp "如确认应急绕过，请输入 ENABLE-PUBLIC-ACCESS（直接回车取消）: " phrase
+        if [ "$phrase" != "ENABLE-PUBLIC-ACCESS" ]; then
+            echo -e "${CYAN}已取消开启公网访问${NC}"
+            press_enter
+            return
+        fi
+    fi
+
+    if ! confirm_action "确认开启公网访问?"; then
+        return
+    fi
+    if ! set_public_access_db true 1; then
+        echo -e "${RED}错误: 更新数据库公网访问状态失败${NC}"
+        press_enter
+        return 1
+    fi
+    env_set "KVM_PUBLIC_ACCESS_ENABLED" "true"
+    KVM_PUBLIC_ACCESS_ENABLED="true"
+    echo -e "${GREEN}✓ 公网访问状态已写入，现有管理员 API Key 已撤销${NC}"
+    if restart_panel_service; then
+        echo -e "${GREEN}✓ 公网访问已开启并已重启服务${NC}"
+    fi
     press_enter
 }
 
@@ -674,10 +860,11 @@ show_menu() {
     echo -e "  ${BOLD}${GREEN}3${NC}. 查看所有用户"
     echo -e "  ${BOLD}${GREEN}4${NC}. 修改服务端口 (自动更新 UFW 防火墙规则)"
     echo -e "  ${BOLD}${GREEN}5${NC}. 修改管理员密码 (保留 TOTP/邮箱绑定)"
+    echo -e "  ${BOLD}${GREEN}6${NC}. 开启公网访问（检查管理员 2FA，撤销现有管理员 API Key）"
     echo ""
     echo -e "  ${BOLD}${RED}0${NC}. 退出"
     echo ""
-    echo -ne "${CYAN}请输入选项 [0-5]: ${NC}"
+    echo -ne "${CYAN}请输入选项 [0-6]: ${NC}"
 }
 
 # ---- 主流程 ----
@@ -695,6 +882,7 @@ main() {
             3) list_users ;;
             4) change_port ;;
             5) change_admin_password ;;
+            6) enable_public_access ;;
             0)
                 echo ""
                 echo -e "${GREEN}再见!${NC}"

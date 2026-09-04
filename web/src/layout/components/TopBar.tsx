@@ -13,6 +13,7 @@ import { useUserStore } from '@/stores/user'
 import { useTaskStore } from '@/stores/task'
 import { usePageTabsStore } from '@/stores/pageTabs'
 import { useNavigate } from 'react-router'
+import { logoutSession } from '@/api/auth'
 import PageTabsBar from './PageTabsBar'
 import SponsorWidget from './SponsorWidget'
 
@@ -46,11 +47,17 @@ export default function TopBar({ onOpenMobile, extra }: TopBarProps) {
       content: '确定要退出当前账号吗？',
       okText: '退出',
       cancelText: '取消',
-      onOk: () => {
-        logout()
-        resetTabs()
-        resetTasks()
-        navigate('/login', { replace: true })
+      onOk: async () => {
+        try {
+          await logoutSession()
+        } catch {
+          // 即使服务端暂时不可用，也应清理本地登录态。
+        } finally {
+          logout()
+          resetTabs()
+          resetTasks()
+          navigate('/login', { replace: true })
+        }
       },
     })
   }

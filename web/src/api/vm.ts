@@ -314,7 +314,7 @@ export function lockVm(name: string) {
   return service.post<unknown, ApiResponse<null>>(`/vm/${encodeURIComponent(name)}/lock`)
 }
 
-/** 解锁虚拟机（高风险操作，428 二次验证由请求层自动处理） */
+/** 解锁虚拟机（JWT 会话为高风险操作；API Key 调用不触发交互式二次验证） */
 export function unlockVm(name: string) {
   return service.post<unknown, ApiResponse<null>>(`/vm/${encodeURIComponent(name)}/unlock`)
 }

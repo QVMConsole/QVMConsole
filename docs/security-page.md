@@ -11,7 +11,7 @@
 |----------|------|------|
 | `email` | 邮箱绑定 | 当前邮箱 / 验证状态展示，新邮箱 + 验证码换绑流程 |
 | `totp` | 两步验证 | 2FA 生成配置（二维码 + 密钥）/ 启用 / 关闭，恢复码状态展示与重新生成 |
-| `api` | API 凭证 | API ID 与 Key 标识展示，生成 / 重新生成 / 撤销 API Key，明文 Key 仅在生成响应后显示一次 |
+| `api` | API 凭证 | API ID 与 Key 标识展示，生成 / 重新生成 / 撤销 API Key，公网模式下固定 30 天有效期并绑定单个固定 IP，明文 Key 仅在生成响应后显示一次 |
 | `password` | 修改密码 | 当前密码 + 新密码（强度校验 + HIBP 泄露检测）+ 确认密码，成功后重新登录 |
 | `username` | 修改用户名 | 新用户名（3-32 字符）+ 密码确认身份，成功后本地同步新 Token |
 
@@ -50,7 +50,8 @@ web/src/views/security/
 - **2FA 启用**：`POST /auth/2fa/setup` 返回 `secret` + `otpauth_url`，前端用 `qrcode` 包本地渲染二维码（深色模式下二维码保持白底确保可扫描）；输入 6 位动态验证码启用，响应顶层 `recovery.recovery_codes` 仅展示一次，弹出恢复码弹窗。
 - **2FA 关闭**：危险操作，需密码 + 动态验证码，提交前 `confirmModal` 二次确认。
 - **恢复码重新生成**：需密码 + 动态验证码；旧码立即失效，新码同样仅展示一次。恢复码弹窗支持一键复制全部与下载为 `qvmconsole-recovery-codes.txt`。
-- **API 凭证**：迁移自旧前端安全设置的 API 标签。可显示 API ID、脱敏 Key 标识、创建/最后使用时间；生成、重新生成与撤销均先经确认，随后由请求层处理 428 高风险二次验证。生成响应中的明文 API Key 使用密码框展示并支持 HTTP 降级复制，仅保留至页面刷新或离开安全中心。
+- **API 凭证**：迁移自旧前端安全设置的 API 标签。可显示 API ID、脱敏 Key 标识、创建/最后使用时间；生成、重新生成与撤销均先经确认，账户安全请求仍由请求层处理 428 高风险二次验证。生成响应中的明文 API Key 使用密码框展示并支持 HTTP 降级复制，仅保留至页面刷新或离开安全中心。API Key 调用允许的业务接口时不会触发交互式二次验证。
+- **公网 API 凭证策略**：公网模式下管理员必须绑定并验证邮箱、启用 2FA、配置可用 SMTP，并填写一个固定 IPv4 或 IPv6 受信任 IP；创建/轮换时同时完成 2FA/恢复码与邮箱验证码。Key 固定 30 天到期，公网来源必须精确匹配受信任 IP；局域网请求不受期限和 IP 限制。详见 [`docs/public-access-security.md`](public-access-security.md)。
 - **修改密码**：新密码依次经过「长度 ≥ 12 → 本地弱密码快检 → 两次输入一致性 → HIBP 泄露检测（后端 k-匿名）」，全部通过后提交；该接口为高风险操作，428 二次验证由请求层（`api/client.ts`）自动弹窗处理；成功后清空登录态并跳转登录页。
 - **泄露登录处置**：普通用户登录后收到可关闭警告并可直接进入密码标签页；已绑定 2FA 的管理员完成登录验证后进入现有强制改密窗口；未绑定 2FA 的管理员须通过 `sudo bash qvmc-manage.sh` 修改密码。
 - **修改用户名**：后端校验唯一性后重新签发访问 Token，前端同步 `setToken` + `setUserInfo`，无需重新登录。
@@ -58,7 +59,7 @@ web/src/views/security/
 
 ## 后端接口清单
 
-均为旧前端已存在的接口，本次未修改后端：
+安全中心使用以下接口（API Key 和公网会话字段为安全加固后行为）：
 
 | 接口 | 方法 | 说明 |
 |------|------|------|
@@ -69,7 +70,9 @@ web/src/views/security/
 | `/auth/2fa/enable` | POST | 启用 2FA（返回一次性恢复码） |
 | `/auth/2fa/disable` | POST | 关闭 2FA |
 | `/auth/2fa/recovery/regen` | POST | 重新生成恢复码 |
-| `/auth/api-key` | GET / POST / DELETE | 读取 API Key 状态 / 生成或重新生成 / 撤销（POST、DELETE 为高风险操作） |
+| `/auth/api-key` | GET / POST / DELETE | 读取 API Key 状态 / 生成或重新生成 / 撤销；GET 可使用 API Key，POST/DELETE 仅 JWT，公网管理员 POST 需要固定 IP 与 2FA+邮箱双重验证 |
+| `/auth/session/activity` | POST | 公网真实用户活动上报，连续空闲 30 分钟失效；局域网不受限制 |
+| `/auth/logout` | POST | 撤销当前 JWT 会话 |
 | `/auth/password` | PUT | 修改密码（高风险，428 二次验证） |
 | `/auth/username` | PUT | 修改用户名（返回新 Token） |
 | `/auth/check-password` | POST | HIBP 泄露密码检测 |

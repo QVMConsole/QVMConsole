@@ -53,6 +53,7 @@ VPC_CONFIG_DIR="/etc/kvm-console/vpc"
 
 MODE=""
 KVM_PORT=""
+KVM_PUBLIC_ACCESS_ENABLED=""
 RELEASE_SOURCE_DIR=""
 
 APT_DEPS=(
@@ -1341,6 +1342,26 @@ configure_port() {
     success "网页端口设置为: $KVM_PORT"
 }
 
+configure_public_access() {
+    # 仅首次安装询问；更新时保留现有配置，避免意外暴露面板。
+    if [ "$MODE" != "install" ]; then
+        return
+    fi
+    local choice
+    echo ""
+    echo -e "${YELLOW}公网访问默认关闭。关闭时所有非局域网请求都会返回 403。${NC}"
+    echo -e "${YELLOW}如当前只能通过公网访问，开启后首次登录必须完成 SMTP、邮箱和 2FA 安全初始化，不能跳过。${NC}"
+    read -rp "安装时是否开启公网访问? [y/N]: " choice
+    choice=${choice:-N}
+    if [[ "$choice" =~ ^[Yy]$ ]]; then
+        KVM_PUBLIC_ACCESS_ENABLED="true"
+        warn "已选择开启公网访问：管理员必须完成邮箱与 2FA，现有管理员 API Key 将在开启时撤销"
+    else
+        KVM_PUBLIC_ACCESS_ENABLED="false"
+        info "公网访问保持关闭（默认）"
+    fi
+}
+
 write_env() {
     info "写入并补齐环境配置..."
     mkdir -p "$INSTALL_DIR"
@@ -1349,6 +1370,11 @@ write_env() {
 
     # === 关键配置：任何模式下都必须写入或补齐 ===
     env_set "KVM_PORT" "$KVM_PORT"
+    if [ "$MODE" = "install" ] && [ -n "$KVM_PUBLIC_ACCESS_ENABLED" ]; then
+        env_set "KVM_PUBLIC_ACCESS_ENABLED" "$KVM_PUBLIC_ACCESS_ENABLED"
+    elif [ "$MODE" = "update" ] || [ "$MODE" = "repair" ]; then
+        env_default "KVM_PUBLIC_ACCESS_ENABLED" "false"
+    fi
     env_default "KVM_DB_PATH" "${INSTALL_DIR}/data/kvm_console.db"
     env_default "KVM_JWT_SECRET" "$(random_secret)"
     env_default "KVM_JWT_SECRET_ROTATE_HOURS" "24"
@@ -2410,6 +2436,7 @@ run_install_or_update() {
     ensure_kvm_runtime
     setup_quota
     configure_port
+    configure_public_access
     get_release
     install_files
     write_env

@@ -637,6 +637,9 @@ func CanEnterBootstrap(user *model.User) bool {
 		return false
 	}
 	if user.Role == "admin" {
+		if D.IsPublicAccessEnabled() {
+			return !IsSMTPConfigured() || user.EmailVerifiedAt == nil || !user.TOTPEnabled
+		}
 		// 管理员如果已跳过安全初始化，不再进入引导
 		if user.BootstrapSkipped {
 			return false

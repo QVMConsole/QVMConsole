@@ -18,6 +18,7 @@ export interface HighRiskChallengeData {
 export interface HighRiskVerifyPayload {
   method: string
   code: string
+  email_code?: string
   challenge_id?: number
   operation?: string
 }

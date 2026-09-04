@@ -41,6 +41,9 @@ async function copyText(text: string) {
 export default function EndpointDetail({ endpoint, apiBase }: { endpoint: DocEndpoint; apiBase: string }) {
   const headers = authHeaders(endpoint.auth)
   const curl = buildCurl(endpoint, apiBase)
+  const apiKeyHighRiskBypass = endpoint.highRisk && endpoint.auth === 'jwt'
+  const highRiskDescription = endpoint.highRiskNote ||
+    `操作标识 ${endpoint.highRisk}，428 后携带 X-High-Risk-Token 重试`
 
   return (
     <div className="api-endpoint-detail">
@@ -67,8 +70,10 @@ export default function EndpointDetail({ endpoint, apiBase }: { endpoint: DocEnd
           ...(endpoint.highRisk
             ? [
                 {
-                  key: '二次验证',
-                  value: endpoint.highRiskNote || `操作标识 ${endpoint.highRisk}，428 后携带 X-High-Risk-Token 重试`,
+                  key: apiKeyHighRiskBypass ? 'JWT 二次验证' : '二次验证',
+                  value: apiKeyHighRiskBypass
+                    ? `${highRiskDescription} API Key 调用不触发 428。`
+                    : highRiskDescription,
                 },
               ]
             : []),

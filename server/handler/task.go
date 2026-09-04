@@ -6,9 +6,11 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
+	"kvm_console/middleware"
 	"kvm_console/taskqueue"
 )
 
@@ -100,6 +102,8 @@ func SSETaskProgress(c *gin.Context) {
 
 	// 客户端断开时清理
 	clientGone := c.Request.Context().Done()
+	sessionTicker := time.NewTicker(15 * time.Second)
+	defer sessionTicker.Stop()
 
 	// 确保退出时注销客户端
 	defer taskqueue.UnregisterSSEClient(eventChan)
@@ -125,6 +129,12 @@ func SSETaskProgress(c *gin.Context) {
 			return true
 		case <-clientGone:
 			return false
+		case <-sessionTicker.C:
+			if !middleware.StreamingSessionValid(c) {
+				c.SSEvent("session_expired", gin.H{"message": "登录会话因长时间未操作已失效，请重新登录"})
+				return false
+			}
+			return true
 		}
 	})
 }

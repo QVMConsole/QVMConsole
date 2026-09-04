@@ -26,12 +26,16 @@ const (
 
 // UserAPIKeyInfo 前端展示用 API Key 信息。
 type UserAPIKeyInfo struct {
-	APIKeyID   string     `json:"api_key_id"`
-	KeyPrefix  string     `json:"key_prefix"`
-	CreatedAt  time.Time  `json:"created_at"`
-	LastUsedAt *time.Time `json:"last_used_at"`
-	RevokedAt  *time.Time `json:"revoked_at,omitempty"`
-	Enabled    bool       `json:"enabled"`
+	APIKeyID            string     `json:"api_key_id"`
+	KeyPrefix           string     `json:"key_prefix"`
+	CreatedAt           time.Time  `json:"created_at"`
+	ExpiresAt           *time.Time `json:"expires_at"`
+	TrustedIP           string     `json:"trusted_ip"`
+	LastUsedAt          *time.Time `json:"last_used_at"`
+	RevokedAt           *time.Time `json:"revoked_at,omitempty"`
+	Enabled             bool       `json:"enabled"`
+	PublicAccessEnabled bool       `json:"public_access_enabled"`
+	PublicUsable        bool       `json:"public_usable"`
 }
 
 // GeneratedAPIKey 仅在生成时返回一次的 API Key。
@@ -45,16 +49,43 @@ func GetUserAPIKeyInfo(userID uint) (*UserAPIKeyInfo, error) {
 	var key model.UserAPIKey
 	if err := model.DB.Where("user_id = ?", userID).First(&key).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
+			var user model.User
+			if userErr := model.DB.First(&user, userID).Error; userErr != nil {
+				return nil, userErr
+			}
+			return &UserAPIKeyInfo{
+				PublicAccessEnabled: config.GlobalConfig.PublicAccessEnabled,
+				PublicUsable:        false,
+			}, nil
 		}
 		return nil, err
 	}
-	info := buildAPIKeyInfo(&key)
+	var user model.User
+	if err := model.DB.First(&user, userID).Error; err != nil {
+		return nil, err
+	}
+	info := buildAPIKeyInfo(&key, &user)
 	return &info, nil
 }
 
 // RotateUserAPIKey 生成或轮换用户 API Key。明文 Key 只返回一次。
-func RotateUserAPIKey(userID uint) (*GeneratedAPIKey, error) {
+func RotateUserAPIKey(user *model.User, trustedIP string) (*GeneratedAPIKey, error) {
+	if user == nil {
+		return nil, fmt.Errorf("用户不存在")
+	}
+	var expiresAt *time.Time
+	trustedIP = strings.TrimSpace(trustedIP)
+	if config.GlobalConfig.PublicAccessEnabled && user.Role == "admin" {
+		normalized, err := NormalizeTrustedIP(trustedIP)
+		if err != nil {
+			return nil, err
+		}
+		trustedIP = normalized
+		expires := time.Now().Add(30 * 24 * time.Hour)
+		expiresAt = &expires
+	} else {
+		trustedIP = ""
+	}
 	apiKeyID, err := randomToken(apiKeyIDPrefix, 18)
 	if err != nil {
 		return nil, err
@@ -65,10 +96,12 @@ func RotateUserAPIKey(userID uint) (*GeneratedAPIKey, error) {
 	}
 	now := time.Now()
 	record := model.UserAPIKey{
-		UserID:     userID,
+		UserID:     user.ID,
 		APIKeyID:   apiKeyID,
 		KeyHash:    hashAPIKey(apiKey),
 		KeyPrefix:  buildKeyPrefix(apiKey),
+		ExpiresAt:  expiresAt,
+		TrustedIP:  trustedIP,
 		LastUsedAt: nil,
 		RevokedAt:  nil,
 		CreatedAt:  now,
@@ -76,12 +109,14 @@ func RotateUserAPIKey(userID uint) (*GeneratedAPIKey, error) {
 	}
 
 	var existing model.UserAPIKey
-	err = model.DB.Where("user_id = ?", userID).First(&existing).Error
+	err = model.DB.Where("user_id = ?", user.ID).First(&existing).Error
 	if err == nil {
 		if err := model.DB.Model(&existing).Updates(map[string]interface{}{
 			"api_key_id":   record.APIKeyID,
 			"key_hash":     record.KeyHash,
 			"key_prefix":   record.KeyPrefix,
+			"expires_at":   record.ExpiresAt,
+			"trusted_ip":   record.TrustedIP,
 			"last_used_at": nil,
 			"revoked_at":   nil,
 			"created_at":   now,
@@ -98,7 +133,7 @@ func RotateUserAPIKey(userID uint) (*GeneratedAPIKey, error) {
 		return nil, err
 	}
 
-	info := buildAPIKeyInfo(&record)
+	info := buildAPIKeyInfo(&record, user)
 	return &GeneratedAPIKey{
 		UserAPIKeyInfo: info,
 		APIKey:         apiKey,
@@ -117,7 +152,7 @@ func RevokeUserAPIKey(userID uint) error {
 }
 
 // AuthenticateAPIKey 校验外部 API 调用凭证。
-func AuthenticateAPIKey(apiKeyID, apiKey string) (*model.User, error) {
+func AuthenticateAPIKey(apiKeyID, apiKey, clientIP string) (*model.User, error) {
 	apiKeyID = strings.TrimSpace(apiKeyID)
 	apiKey = strings.TrimSpace(apiKey)
 	if apiKeyID == "" || apiKey == "" {
@@ -150,6 +185,17 @@ func AuthenticateAPIKey(apiKeyID, apiKey string) (*model.User, error) {
 	if user.Status != UserStatusActive {
 		return nil, fmt.Errorf("账号尚未激活")
 	}
+	if config.GlobalConfig.PublicAccessEnabled && user.Role == "admin" && !IsLANIP(clientIP) {
+		now := time.Now()
+		if record.ExpiresAt == nil || !now.Before(*record.ExpiresAt) || strings.TrimSpace(record.TrustedIP) == "" {
+			return nil, fmt.Errorf("API 凭证无效")
+		}
+		requestIP, requestErr := ParseClientIP(clientIP)
+		trustedIP, trustedErr := ParseClientIP(record.TrustedIP)
+		if requestErr != nil || trustedErr != nil || requestIP != trustedIP {
+			return nil, fmt.Errorf("API 凭证无效")
+		}
+	}
 
 	now := time.Now()
 	if err := model.DB.Model(&record).Update("last_used_at", &now).Error; err != nil {
@@ -158,14 +204,23 @@ func AuthenticateAPIKey(apiKeyID, apiKey string) (*model.User, error) {
 	return &user, nil
 }
 
-func buildAPIKeyInfo(key *model.UserAPIKey) UserAPIKeyInfo {
+func buildAPIKeyInfo(key *model.UserAPIKey, user *model.User) UserAPIKeyInfo {
+	enabled := key.RevokedAt == nil
+	publicUsable := enabled
+	if config.GlobalConfig.PublicAccessEnabled && user != nil && user.Role == "admin" {
+		publicUsable = enabled && key.ExpiresAt != nil && time.Now().Before(*key.ExpiresAt) && strings.TrimSpace(key.TrustedIP) != ""
+	}
 	return UserAPIKeyInfo{
-		APIKeyID:   key.APIKeyID,
-		KeyPrefix:  key.KeyPrefix,
-		CreatedAt:  key.CreatedAt,
-		LastUsedAt: key.LastUsedAt,
-		RevokedAt:  key.RevokedAt,
-		Enabled:    key.RevokedAt == nil,
+		APIKeyID:            key.APIKeyID,
+		KeyPrefix:           key.KeyPrefix,
+		CreatedAt:           key.CreatedAt,
+		ExpiresAt:           key.ExpiresAt,
+		TrustedIP:           key.TrustedIP,
+		LastUsedAt:          key.LastUsedAt,
+		RevokedAt:           key.RevokedAt,
+		Enabled:             enabled,
+		PublicAccessEnabled: config.GlobalConfig.PublicAccessEnabled,
+		PublicUsable:        publicUsable,
 	}
 }
 

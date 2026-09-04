@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"kvm_console/middleware"
 	"kvm_console/model"
 	"kvm_console/service"
 	libvirt_rpc "kvm_console/service/libvirt_rpc"
@@ -113,6 +114,11 @@ func GetSelfVMsSSE(c *gin.Context) {
 		case <-clientGone:
 			return
 		case <-ticker.C:
+			if !middleware.StreamingSessionValid(c) {
+				c.SSEvent("session_expired", gin.H{"message": "登录会话因长时间未操作已失效，请重新登录"})
+				c.Writer.Flush()
+				return
+			}
 			vms, err := getUserVMs()
 			if err != nil {
 				if service.IsLibvirtUnavailableError(err) {
@@ -181,46 +187,46 @@ func ConfirmSelfLightweightVMRegistration(c *gin.Context) {
 
 // SelfCloneVmRequest 用户自助克隆请求
 type SelfCloneVmRequest struct {
-	Name                 string                            `json:"name" binding:"required"`
-	Remark               string                            `json:"remark"`
-	Template             string                            `json:"template" binding:"required"`
-	TemplateType         string                            `json:"template_type"`
-	CloneMode            string                            `json:"clone_mode"`
-	VCPU                 int                               `json:"vcpu" binding:"required"`
-	RAM                  int                               `json:"ram" binding:"required"`
-	DiskSize             int                               `json:"disk_size"`
-	Hostname             string                            `json:"hostname"`
-	User                 string                            `json:"user"`
-	Password             string                            `json:"password"`
-	Autostart            bool                              `json:"autostart"`
-	Freeze               bool                              `json:"freeze"`
-	APIC                 *bool                             `json:"apic"`
-	PAE                  *bool                             `json:"pae"`
-	RTCOffset            string                            `json:"rtc_offset"`
-	RTCStartDate         string                            `json:"rtc_startdate"`
-	GuestAgent           *vm_xml.VMGuestAgentConfig        `json:"guest_agent"`
-	SMBIOS1              *vm_xml.VMSMBIOS1Config           `json:"smbios1"`
-	UEFI                 *bool                             `json:"uefi"`
-	DiskBus              string                            `json:"disk_bus"`
-	VideoModel           string                            `json:"video_model"`
-	SpiceEnabled         *bool                             `json:"spice_enabled"` // 是否启用 SPICE 显示协议（不传=回退全局默认）
-	CPUTopologyMode      string                            `json:"cpu_topology_mode"`
-	FirstBootRebootMode  string                            `json:"first_boot_reboot_mode"`
-	SwitchID             uint                              `json:"switch_id"`
-	SecurityGroupID      uint                              `json:"security_group_id"`
-	AllowedIPv4Addresses string                            `json:"allowed_ipv4_addresses"`
-	AllowedIPv6Addresses string                            `json:"allowed_ipv6_addresses"`
-	ExtraNics            []service.AddVMInterfaceRequest   `json:"extra_nics"`
-	StoragePoolID        string                            `json:"storage_pool_id"`
-	ExtraDisks           []service.ExtraDiskParam          `json:"extra_disks"`
-	NicModel             string                            `json:"nic_model"`
-	PreserveFnOSDeviceID bool                              `json:"preserve_fnos_device_id"`
-	FnOSDeviceID         string                            `json:"fnos_device_id"`
-	DisableSystemInit    bool                              `json:"disable_system_init"`       // 禁用系统初始化
-	PCIERootPorts        int                               `json:"pcie_root_ports,omitempty"` // q35 预留 pcie-root-port 数量
-	NestedVirt           *bool                             `json:"nested_virt,omitempty"`     // 嵌套虚拟化开关
-	KVMHidden            *bool                             `json:"kvm_hidden,omitempty"`      // 隐藏 KVM 标志
-	VendorID             string                            `json:"vendor_id,omitempty"`       // Hyper-V vendor_id 伪装
+	Name                 string                          `json:"name" binding:"required"`
+	Remark               string                          `json:"remark"`
+	Template             string                          `json:"template" binding:"required"`
+	TemplateType         string                          `json:"template_type"`
+	CloneMode            string                          `json:"clone_mode"`
+	VCPU                 int                             `json:"vcpu" binding:"required"`
+	RAM                  int                             `json:"ram" binding:"required"`
+	DiskSize             int                             `json:"disk_size"`
+	Hostname             string                          `json:"hostname"`
+	User                 string                          `json:"user"`
+	Password             string                          `json:"password"`
+	Autostart            bool                            `json:"autostart"`
+	Freeze               bool                            `json:"freeze"`
+	APIC                 *bool                           `json:"apic"`
+	PAE                  *bool                           `json:"pae"`
+	RTCOffset            string                          `json:"rtc_offset"`
+	RTCStartDate         string                          `json:"rtc_startdate"`
+	GuestAgent           *vm_xml.VMGuestAgentConfig      `json:"guest_agent"`
+	SMBIOS1              *vm_xml.VMSMBIOS1Config         `json:"smbios1"`
+	UEFI                 *bool                           `json:"uefi"`
+	DiskBus              string                          `json:"disk_bus"`
+	VideoModel           string                          `json:"video_model"`
+	SpiceEnabled         *bool                           `json:"spice_enabled"` // 是否启用 SPICE 显示协议（不传=回退全局默认）
+	CPUTopologyMode      string                          `json:"cpu_topology_mode"`
+	FirstBootRebootMode  string                          `json:"first_boot_reboot_mode"`
+	SwitchID             uint                            `json:"switch_id"`
+	SecurityGroupID      uint                            `json:"security_group_id"`
+	AllowedIPv4Addresses string                          `json:"allowed_ipv4_addresses"`
+	AllowedIPv6Addresses string                          `json:"allowed_ipv6_addresses"`
+	ExtraNics            []service.AddVMInterfaceRequest `json:"extra_nics"`
+	StoragePoolID        string                          `json:"storage_pool_id"`
+	ExtraDisks           []service.ExtraDiskParam        `json:"extra_disks"`
+	NicModel             string                          `json:"nic_model"`
+	PreserveFnOSDeviceID bool                            `json:"preserve_fnos_device_id"`
+	FnOSDeviceID         string                          `json:"fnos_device_id"`
+	DisableSystemInit    bool                            `json:"disable_system_init"`       // 禁用系统初始化
+	PCIERootPorts        int                             `json:"pcie_root_ports,omitempty"` // q35 预留 pcie-root-port 数量
+	NestedVirt           *bool                           `json:"nested_virt,omitempty"`     // 嵌套虚拟化开关
+	KVMHidden            *bool                           `json:"kvm_hidden,omitempty"`      // 隐藏 KVM 标志
+	VendorID             string                          `json:"vendor_id,omitempty"`       // Hyper-V vendor_id 伪装
 }
 
 // SelfCloneVm 用户自助从模板克隆VM

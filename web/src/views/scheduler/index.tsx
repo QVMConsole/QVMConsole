@@ -33,6 +33,7 @@ import {
   type SchedulerInfo,
 } from '@/api/scheduler'
 import { useUserStore } from '@/stores/user'
+import { redirectAfterPublicSessionExpired } from '@/hooks/usePublicSessionActivity'
 import { ROLES } from '@/config/constants'
 import { formatDateTime } from '@/utils/format'
 import './scheduler.css'
@@ -212,6 +213,10 @@ export default function SchedulerPage() {
       } catch (err) {
         console.error('解析调度事件 SSE 失败', err)
       }
+    })
+    es.addEventListener('session_expired', () => {
+      es.close()
+      redirectAfterPublicSessionExpired()
     })
     es.onerror = () => {
       setSseStatus('disconnected')

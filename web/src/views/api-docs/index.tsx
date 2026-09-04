@@ -2,7 +2,7 @@
  * API 文档页
  * 接口清单由构建脚本从后端源码自动生成（generated/endpoints.json），
  * 中文文案来自 endpointDescriptions.ts 补充描述；后端新增接口重新构建即自动同步。
- * 支持关键字搜索、模块筛选、只看二次验证接口。
+ * 支持关键字搜索、模块筛选、只看高风险接口。
  */
 import { useMemo, useState } from 'react'
 import { Button, Card, Checkbox, Collapse, Empty, Input, Select, Tag, Toast } from '@douyinfe/semi-ui'
@@ -27,8 +27,7 @@ const responseExample = `{
 }`
 
 const highRiskExample = `curl -X POST "${apiBase}/auth/high-risk/verify" \\
-  -H "X-API-Key-ID: kvm_id_xxx" \\
-  -H "X-API-Key: kvm_sk_xxx" \\
+  -H "Authorization: Bearer <access-token>" \\
   -H "Content-Type: application/json" \\
   -d '{"method":"totp","code":"123456","operation":"delete_vm"}'`
 
@@ -150,7 +149,7 @@ export default function ApiDocsPage() {
             ]}
           />
           <Checkbox checked={onlyHighRisk} onChange={(e) => setOnlyHighRisk(Boolean(e.target.checked))}>
-            只看二次验证
+            只看高风险接口
           </Checkbox>
         </div>
       </Card>
@@ -183,7 +182,7 @@ export default function ApiDocsPage() {
                     <span className="api-endpoint-summary">{ep.summary}</span>
                     {ep.highRisk && (
                       <Tag color="orange" size="small">
-                        二次验证
+                        {ep.auth === 'jwt' ? 'JWT 二次验证' : '二次验证'}
                       </Tag>
                     )}
                     {ep.admin && (
@@ -223,8 +222,9 @@ export default function ApiDocsPage() {
 
       <Card className="api-doc-section" title="高风险操作">
         <p className="api-group-desc">
-          删除虚拟机、重置密码、修改防火墙等接口仍会要求二次验证。API 调用收到 428 后，先完成
-          /api/auth/high-risk/verify，再在原请求携带 X-High-Risk-Token。
+          JWT 会话调用删除虚拟机、重置密码、修改防火墙等高风险接口时，收到 428 后先完成
+          /api/auth/high-risk/verify，再在原请求携带 X-High-Risk-Token。允许 API Key 的业务接口调用不会触发 428；
+          API Key 不能调用本验证接口或 JWT-only 的账户安全变更接口。
         </p>
         <pre className="api-code-block">{highRiskExample}</pre>
       </Card>

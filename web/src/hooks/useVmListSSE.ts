@@ -9,6 +9,7 @@ import { createVmListSSE, getSelfVMs, getVmList, type VmListItem } from '@/api/v
 import { useUserStore } from '@/stores/user'
 import { useVmStore } from '@/stores/vm'
 import type { SseStatus } from './useHostStatsSSE'
+import { redirectAfterPublicSessionExpired } from './usePublicSessionActivity'
 
 interface UseVmListSSEOptions {
   isAdmin: boolean
@@ -69,6 +70,10 @@ export function useVmListSSE({ isAdmin }: UseVmListSSEOptions) {
         } catch (err) {
           console.error('解析虚拟机列表 SSE 事件失败', err)
         }
+      })
+      es.addEventListener('session_expired', () => {
+        es.close()
+        redirectAfterPublicSessionExpired()
       })
       es.onerror = () => {
         setSseStatus('disconnected')

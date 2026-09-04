@@ -13,6 +13,8 @@ type UserAPIKey struct {
 	APIKeyID   string         `json:"api_key_id" gorm:"uniqueIndex;size:80;not null"`
 	KeyHash    string         `json:"-" gorm:"size:128;not null"`
 	KeyPrefix  string         `json:"key_prefix" gorm:"size:32;not null"`
+	ExpiresAt  *time.Time     `json:"expires_at" gorm:"index"`
+	TrustedIP  string         `json:"trusted_ip" gorm:"size:64"`
 	LastUsedAt *time.Time     `json:"last_used_at"`
 	RevokedAt  *time.Time     `json:"revoked_at"`
 	CreatedAt  time.Time      `json:"created_at"`

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -72,9 +73,12 @@ type TOTPDisableRequest struct {
 type HighRiskVerifyRequest struct {
 	Method      string `json:"method" binding:"required"`
 	Code        string `json:"code" binding:"required"`
+	EmailCode   string `json:"email_code"`
 	ChallengeID uint   `json:"challenge_id"`
 	Operation   string `json:"operation" binding:"required"`
 }
+
+var highRiskOperationPattern = regexp.MustCompile(`^[a-z0-9_]{1,64}$`)
 
 type InviteCompleteRequest struct {
 	Token           string `json:"token" binding:"required"`
@@ -220,7 +224,14 @@ func Login(c *gin.Context) {
 	// 检查是否需要强制修改密码（默认管理员账号首次登录）
 	// 优先级最高：使用默认密码是最高安全风险，必须先修改密码再进行其他操作
 	if user.ForcePasswordChange && user.ForcePasswordChangeReason != securitypkg.ForcePasswordChangeReasonBreach {
-		accessToken, err := middleware.GenerateAccessTokenWithContext(c, user.ID, user.Username, user.Role)
+		var accessToken string
+		var err error
+		if config.GlobalConfig.PublicAccessEnabled && user.Role == "admin" {
+			// 公网首次部署时，默认管理员只能使用受限 bootstrap 会话完成改密，不能先访问面板设置。
+			accessToken, err = middleware.GenerateTokenWithContext(c, user.ID, user.Username, user.Role, service.TokenTypeBootstrap, 30*time.Minute)
+		} else {
+			accessToken, err = middleware.GenerateAccessTokenWithContext(c, user.ID, user.Username, user.Role)
+		}
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "生成 Token 失败"})
 			return
@@ -372,7 +383,7 @@ func ChangePassword(c *gin.Context) {
 	// 如果是强制修改默认密码（首次登录），跳过高风险验证
 	// 因为此时用户尚未设置邮箱/2FA，无法完成二次验证
 	if !user.ForcePasswordChange {
-		if !requireHighRiskVerification(c, "change_password") {
+		if !requireStrictHighRiskVerification(c, "change_password") {
 			return
 		}
 	}
@@ -426,6 +437,10 @@ func ChangePassword(c *gin.Context) {
 
 // ChangeUsername 修改当前用户用户名
 func ChangeUsername(c *gin.Context) {
+	// 用户名属于账户安全信息，必须使用 JWT 会话完成二次验证，禁止 API Key 自助修改。
+	if !requireStrictHighRiskVerification(c, "change_username") {
+		return
+	}
 	var req ChangeUsernameRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请输入新用户名和密码"})
@@ -724,6 +739,18 @@ func EnableTOTP(c *gin.Context) {
 	}
 	tokenType, _ := c.Get("token_type")
 	if tokenType == service.TokenTypeBootstrap && freshUser.Role == "admin" {
+		// 公网模式下只有 SMTP、邮箱和 2FA 全部完成后才能升级为正式访问令牌。
+		publicBootstrapComplete := !config.GlobalConfig.PublicAccessEnabled ||
+			(service.IsSMTPConfigured() && freshUser.EmailVerifiedAt != nil && freshUser.TOTPEnabled)
+		if !publicBootstrapComplete || service.CanEnterBootstrap(freshUser) {
+			c.JSON(http.StatusOK, gin.H{
+				"code":     200,
+				"message":  "2FA 绑定成功，请继续完成邮箱与 SMTP 安全初始化",
+				"data":     gin.H{"security": state},
+				"recovery": recoverySetup,
+			})
+			return
+		}
 		accessToken, err := middleware.GenerateAccessTokenWithContext(c, freshUser.ID, freshUser.Username, freshUser.Role)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "生成访问令牌失败"})
@@ -793,6 +820,10 @@ func DisableTOTP(c *gin.Context) {
 		return
 	}
 	user := getCurrentUser(c)
+	if user.Role == "admin" && config.GlobalConfig.PublicAccessEnabled {
+		c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": "公网访问开启期间不能关闭管理员 2FA，请先关闭公网访问"})
+		return
+	}
 	if bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)) != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "密码错误"})
 		return
@@ -820,6 +851,10 @@ func DisableTOTP(c *gin.Context) {
 
 // VerifyHighRisk 完成高风险验证
 func VerifyHighRisk(c *gin.Context) {
+	if authType, _ := c.Get("auth_type"); authType == "api_key" {
+		c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": "高风险验证必须使用 JWT 登录会话，API Key 不能发起验证挑战"})
+		return
+	}
 	var req HighRiskVerifyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
@@ -827,6 +862,11 @@ func VerifyHighRisk(c *gin.Context) {
 	}
 	user := getCurrentUser(c)
 	method := strings.TrimSpace(req.Method)
+	if !highRiskOperationPattern.MatchString(strings.TrimSpace(req.Operation)) {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "操作标识无效"})
+		return
+	}
+	req.Operation = strings.TrimSpace(req.Operation)
 	switch method {
 	case service.ChallengeMethodTOTP:
 		secret, err := service.GetUserTOTPSecret(user)
@@ -842,7 +882,7 @@ func VerifyHighRisk(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "写入高风险信任状态失败"})
 			return
 		}
-		token, err := middleware.GenerateTokenWithOperation(user.ID, user.Username, user.Role, service.TokenTypeHighRisk, req.Operation, 5*time.Minute)
+		token, err := middleware.GenerateTokenWithOperationAndLevel(user.ID, user.Username, user.Role, service.TokenTypeHighRisk, req.Operation, "totp", 5*time.Minute)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "生成高风险令牌失败"})
 			return
@@ -870,10 +910,16 @@ func VerifyHighRisk(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "写入高风险信任状态失败"})
 			return
 		}
+		token, err := middleware.GenerateTokenWithOperationAndLevel(user.ID, user.Username, user.Role, service.TokenTypeHighRisk, req.Operation, "totp", 5*time.Minute)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "生成高风险令牌失败"})
+			return
+		}
 		c.JSON(http.StatusOK, gin.H{
 			"code":    200,
 			"message": "高风险验证成功（恢复码已消耗）",
 			"data": gin.H{
+				"verification_token":       token,
 				"trusted_until":            time.Now().Add(service.HighRiskEmailTrustWindow).Format(time.RFC3339),
 				"recovery_codes_remaining": service.GetRecoveryCodesRemaining(newEnc),
 			},
@@ -887,11 +933,63 @@ func VerifyHighRisk(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "写入高风险信任状态失败"})
 			return
 		}
+		token, err := middleware.GenerateTokenWithOperationAndLevel(user.ID, user.Username, user.Role, service.TokenTypeHighRisk, req.Operation, "email", 5*time.Minute)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "生成高风险令牌失败"})
+			return
+		}
 		c.JSON(http.StatusOK, gin.H{
 			"code":    200,
 			"message": "邮箱验证成功",
-			"data":    gin.H{"trusted_until": time.Now().Add(service.HighRiskEmailTrustWindow).Format(time.RFC3339)},
+			"data": gin.H{
+				"verification_token": token,
+				"trusted_until":      time.Now().Add(service.HighRiskEmailTrustWindow).Format(time.RFC3339),
+			},
 		})
+	case service.ChallengeMethodTOTPEmail:
+		if !user.TOTPEnabled || user.EmailVerifiedAt == nil || strings.TrimSpace(user.Email) == "" {
+			c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": "当前账户未完成 2FA 与邮箱绑定"})
+			return
+		}
+		secret, err := service.GetUserTOTPSecret(user)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+			return
+		}
+		usedRecovery := false
+		newRecoveryEnc := ""
+		if err := service.ValidateTOTPCode(secret, req.Code); err != nil {
+			valid, updated, recoveryErr := service.ValidateAndConsumeRecoveryCode(user.TOTPRecoveryCodesEnc, req.Code)
+			if recoveryErr != nil || !valid {
+				c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "2FA 验证码或恢复码无效"})
+				return
+			}
+			usedRecovery = true
+			newRecoveryEnc = updated
+		}
+		if _, err := service.VerifyEmailChallenge(user.ID, req.ChallengeID, service.ChallengePurposeHighRiskEmail, req.EmailCode); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+			return
+		}
+		if usedRecovery {
+			if err := model.DB.Model(user).Where("id = ?", user.ID).Update("totp_recovery_codes_enc", newRecoveryEnc).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "更新恢复码状态失败"})
+				return
+			}
+		}
+		token, err := middleware.GenerateTokenWithOperationAndLevel(user.ID, user.Username, user.Role, service.TokenTypeHighRisk, req.Operation, "totp_email", 5*time.Minute)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "生成高风险令牌失败"})
+			return
+		}
+		data := gin.H{
+			"verification_token": token,
+			"trusted_until":      time.Now().Add(5 * time.Minute).Format(time.RFC3339),
+		}
+		if usedRecovery {
+			data["recovery_codes_remaining"] = service.GetRecoveryCodesRemaining(newRecoveryEnc)
+		}
+		c.JSON(http.StatusOK, gin.H{"code": 200, "message": "2FA 与邮箱双重验证成功", "data": data})
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "不支持的验证方式"})
 	}
@@ -926,6 +1024,21 @@ func CompleteInvite(c *gin.Context) {
 	user, err := service.CompleteInviteRegistration(req.Token, req.Password)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+	if config.GlobalConfig.PublicAccessEnabled && user.Role == "admin" && service.CanEnterBootstrap(user) {
+		bootstrapToken, tokenErr := middleware.GenerateTokenWithContext(c, user.ID, user.Username, user.Role, service.TokenTypeBootstrap, 30*time.Minute)
+		if tokenErr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "注册成功，但生成安全初始化令牌失败"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"code": 200, "message": "注册完成，请先绑定邮箱并启用 2FA",
+			"data": LoginStageResponse{
+				Stage: "bootstrap_security", Token: bootstrapToken, Username: user.Username,
+				Role: user.Role, CloudType: service.NormalizeCloudType(user.CloudType), Security: service.BuildSecurityState(user),
+			},
+		})
 		return
 	}
 	accessToken, err := middleware.GenerateAccessTokenWithContext(c, user.ID, user.Username, user.Role)
@@ -1110,6 +1223,10 @@ type SkipBootstrapRequest struct {
 
 // SkipBootstrap 管理员跳过安全初始化（SMTP+邮箱+2FA）
 func SkipBootstrap(c *gin.Context) {
+	if config.GlobalConfig.PublicAccessEnabled {
+		c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": "公网访问开启期间不能跳过邮箱与 2FA 安全初始化"})
+		return
+	}
 	var req SkipBootstrapRequest
 	if err := c.ShouldBindJSON(&req); err != nil || !req.Confirm {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请确认跳过安全初始化"})

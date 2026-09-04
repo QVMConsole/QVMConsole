@@ -27,10 +27,12 @@ func Setup() *gin.Engine {
 	}
 
 	r.Use(middleware.RequestLoggerMiddleware(), middleware.SafeRecoveryMiddleware())
+	r.Use(middleware.PublicAccessMiddleware())
 
 	// 全局中间件
 	r.Use(middleware.CORSMiddleware())
 	r.Use(middleware.SecurityHeadersMiddleware())
+	r.Use(middleware.CredentialGuardMiddleware())
 	r.Use(middleware.RequestFilterMiddleware())
 	r.Use(middleware.RequestGuardMiddleware())
 
@@ -74,6 +76,7 @@ func Setup() *gin.Engine {
 		// ==================== 安全初始化与安全设置 ====================
 		secureAuth := auth.Group("")
 		secureAuth.Use(middleware.JWTTokenTypeMiddleware("access", "bootstrap"))
+		secureAuth.Use(middleware.ForcePasswordChangeMiddleware())
 		{
 			secureAuth.POST("/email/code/send", handler.SendEmailCode)
 			secureAuth.POST("/email/bind", handler.BindEmail)
@@ -82,6 +85,7 @@ func Setup() *gin.Engine {
 			secureAuth.POST("/2fa/disable", handler.DisableTOTP)
 			secureAuth.POST("/2fa/recovery/regen", handler.RegenRecoveryCodes)
 			secureAuth.POST("/skip-bootstrap", handler.SkipBootstrap) // 管理员跳过安全初始化
+			secureAuth.PUT("/password", handler.ChangePassword)       // 修改密码；公网首次登录可使用受限 bootstrap token
 		}
 
 		// ==================== 高风险验证 ====================
@@ -91,16 +95,33 @@ func Setup() *gin.Engine {
 		{
 			highRiskAuth.GET("/info", handler.GetUserInfo)
 			highRiskAuth.GET("/api-key", handler.GetAPIKeyInfo)
-			highRiskAuth.POST("/api-key", handler.RotateAPIKey)
-			highRiskAuth.DELETE("/api-key", handler.RevokeAPIKey)
-			highRiskAuth.PUT("/password", handler.ChangePassword)
-			highRiskAuth.PUT("/username", handler.ChangeUsername)
-			highRiskAuth.POST("/high-risk/verify", handler.VerifyHighRisk)
 		}
+
+		// 账户安全及高风险验证只能使用 JWT，API Key 不能发起或管理验证挑战。
+		jwtSecurityAuth := auth.Group("")
+		jwtSecurityAuth.Use(middleware.JWTTokenTypeMiddleware("access"))
+		jwtSecurityAuth.Use(middleware.ForcePasswordChangeMiddleware())
+		{
+			jwtSecurityAuth.POST("/api-key", handler.RotateAPIKey)
+			jwtSecurityAuth.DELETE("/api-key", handler.RevokeAPIKey)
+			jwtSecurityAuth.PUT("/username", handler.ChangeUsername)
+			jwtSecurityAuth.POST("/high-risk/verify", handler.VerifyHighRisk)
+		}
+
+		// ==================== 正式 JWT 会话 ====================
+		sessionAuth := auth.Group("")
+		sessionAuth.Use(middleware.JWTTokenTypeMiddleware("access"))
+		{
+			sessionAuth.POST("/session/activity", handler.ReportSessionActivity) // 上报真实用户活动
+			sessionAuth.POST("/logout", handler.Logout)                          // 撤销当前登录会话
+		}
+
+		api.PUT("/settings/public-access", middleware.JWTTokenTypeMiddleware("access"), middleware.AdminMiddleware(), handler.UpdatePublicAccess) // 开启或关闭公网访问
 
 		// ==================== 系统设置（管理员 access/bootstrap 均可） ====================
 		settings := api.Group("/settings")
-		settings.Use(middleware.TokenTypeMiddleware("access", "bootstrap"), middleware.AdminMiddleware())
+		// 系统配置及 SMTP 初始化仅接受 JWT access/bootstrap，禁止 API Key 直接修改面板安全配置。
+		settings.Use(middleware.JWTTokenTypeMiddleware("access", "bootstrap"), middleware.AdminMiddleware(), middleware.PublicBootstrapSettingsMiddleware())
 		{
 			settings.GET("", handler.GetSettings)
 			settings.PUT("", handler.UpdateSettings)
@@ -157,8 +178,8 @@ func Setup() *gin.Engine {
 				vm.POST("/:name/migration/preview", middleware.AdminMiddleware(), handler.PreviewVMMigration)
 				vm.POST("/:name/migrate", middleware.AdminMiddleware(), handler.MigrateVM)
 				vm.PUT("/:name/security-group", handler.SwitchVMSecurityGroup)
-			// 多网口管理（管理员全量；弹性云用户可自助管理本人虚拟机的附加网口）
-			vm.GET("/:name/interfaces", handler.ListVMInterfaces)
+				// 多网口管理（管理员全量；弹性云用户可自助管理本人虚拟机的附加网口）
+				vm.GET("/:name/interfaces", handler.ListVMInterfaces)
 				vm.POST("/:name/interfaces", handler.AddVMInterface)
 				vm.PUT("/:name/interfaces/:order", handler.UpdateVMInterface)
 				vm.DELETE("/:name/interfaces/:order", handler.RemoveVMInterface)
@@ -315,22 +336,22 @@ func Setup() *gin.Engine {
 				network.GET("/interfaces/:name/config", middleware.AdminMiddleware(), handler.GetInterfaceConfig)
 				network.PUT("/interfaces/:name/config", middleware.AdminMiddleware(), handler.SetInterfaceConfig)
 
-			// 公网 IP / 浮动 IP
-			network.GET("/public-ips", middleware.AdminMiddleware(), handler.ListPublicIPs)
-			network.POST("/public-ips", middleware.AdminMiddleware(), handler.CreatePublicIP)
-			network.GET("/public-ips/ipv6-prefixes", middleware.AdminMiddleware(), handler.DiscoverPublicIPv6Prefixes)     // 检测上联网卡公网 IPv6 前缀
-	network.POST("/public-ips/ipv6-prefixes/import", middleware.AdminMiddleware(), handler.ImportPublicIPv6Prefix) // 批量导入公网 IPv6 /128 地址资源
-	network.POST("/public-ips/batch", middleware.AdminMiddleware(), handler.BatchCreatePublicIPs)                 // 批量新增公网 IP（共用除 IP 外的字段）
-	network.DELETE("/public-ips/batch", middleware.AdminMiddleware(), handler.BatchDeletePublicIPs)              // 批量删除公网 IP（已绑定的自动跳过）
-	network.POST("/public-ips/batch/bind", middleware.AdminMiddleware(), handler.BatchBindPublicIPs)              // 批量绑定公网 IP（高风险，任务队列）
-	network.POST("/public-ips/batch/unbind", middleware.AdminMiddleware(), handler.BatchUnbindPublicIPs)          // 批量解绑公网 IP（高风险，任务队列）
-	network.PUT("/public-ips/:id", middleware.AdminMiddleware(), handler.UpdatePublicIP)
-			network.DELETE("/public-ips/:id", middleware.AdminMiddleware(), handler.DeletePublicIP)
-			network.POST("/public-ips/:id/preview", middleware.AdminMiddleware(), handler.PreviewPublicIP)
-			network.POST("/public-ips/:id/bind", middleware.AdminMiddleware(), handler.BindPublicIP)
-			network.POST("/public-ips/:id/unbind", middleware.AdminMiddleware(), handler.UnbindPublicIP)
-			network.POST("/public-ips/:id/migrate", middleware.AdminMiddleware(), handler.MigratePublicIP)
-			network.POST("/public-ips/apply", middleware.AdminMiddleware(), handler.ApplyPublicIPRules)
+				// 公网 IP / 浮动 IP
+				network.GET("/public-ips", middleware.AdminMiddleware(), handler.ListPublicIPs)
+				network.POST("/public-ips", middleware.AdminMiddleware(), handler.CreatePublicIP)
+				network.GET("/public-ips/ipv6-prefixes", middleware.AdminMiddleware(), handler.DiscoverPublicIPv6Prefixes)     // 检测上联网卡公网 IPv6 前缀
+				network.POST("/public-ips/ipv6-prefixes/import", middleware.AdminMiddleware(), handler.ImportPublicIPv6Prefix) // 批量导入公网 IPv6 /128 地址资源
+				network.POST("/public-ips/batch", middleware.AdminMiddleware(), handler.BatchCreatePublicIPs)                  // 批量新增公网 IP（共用除 IP 外的字段）
+				network.DELETE("/public-ips/batch", middleware.AdminMiddleware(), handler.BatchDeletePublicIPs)                // 批量删除公网 IP（已绑定的自动跳过）
+				network.POST("/public-ips/batch/bind", middleware.AdminMiddleware(), handler.BatchBindPublicIPs)               // 批量绑定公网 IP（高风险，任务队列）
+				network.POST("/public-ips/batch/unbind", middleware.AdminMiddleware(), handler.BatchUnbindPublicIPs)           // 批量解绑公网 IP（高风险，任务队列）
+				network.PUT("/public-ips/:id", middleware.AdminMiddleware(), handler.UpdatePublicIP)
+				network.DELETE("/public-ips/:id", middleware.AdminMiddleware(), handler.DeletePublicIP)
+				network.POST("/public-ips/:id/preview", middleware.AdminMiddleware(), handler.PreviewPublicIP)
+				network.POST("/public-ips/:id/bind", middleware.AdminMiddleware(), handler.BindPublicIP)
+				network.POST("/public-ips/:id/unbind", middleware.AdminMiddleware(), handler.UnbindPublicIP)
+				network.POST("/public-ips/:id/migrate", middleware.AdminMiddleware(), handler.MigratePublicIP)
+				network.POST("/public-ips/apply", middleware.AdminMiddleware(), handler.ApplyPublicIPRules)
 
 				// 网络抓包诊断
 				network.GET("/captures/:task_id", middleware.AdminMiddleware(), handler.GetNetworkCaptureSession)

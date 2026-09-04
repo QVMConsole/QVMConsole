@@ -21,6 +21,7 @@ type SecurityState struct {
 	SMTPConfigured           bool    `json:"smtp_configured"`
 	DevelopmentMode          bool    `json:"development_mode"`
 	MaintenanceMode          bool    `json:"maintenance_mode"`
+	PublicAccessEnabled      bool    `json:"public_access_enabled"`
 	BootstrapSkipped         bool    `json:"bootstrap_skipped"` // 管理员是否跳过了安全初始化
 	Status                   string  `json:"status"`
 	LoginVerifiedUntil       *string `json:"login_verified_until"`
@@ -33,7 +34,7 @@ type SecurityState struct {
 
 // IsSecurityVerificationDisabled 是否禁用安全验证
 func IsSecurityVerificationDisabled() bool {
-	return config.GlobalConfig != nil && config.GlobalConfig.DevelopmentMode
+	return config.GlobalConfig != nil && config.GlobalConfig.DevelopmentMode && !config.GlobalConfig.PublicAccessEnabled
 }
 
 // BuildSecurityState 构建安全状态
@@ -49,6 +50,7 @@ func BuildSecurityState(user *model.User) SecurityState {
 		SMTPConfigured:      IsSMTPConfigured(),
 		DevelopmentMode:     IsSecurityVerificationDisabled(),
 		MaintenanceMode:     D.IsMaintenanceModeEnabled(),
+		PublicAccessEnabled: config.GlobalConfig.PublicAccessEnabled,
 		BootstrapSkipped:    user.BootstrapSkipped,
 		Status:              user.Status,
 		HasRecoveryCodes:    HasRecoveryCodes(user),

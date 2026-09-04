@@ -17,12 +17,14 @@ import (
 
 // Claims JWT 自定义声明
 type Claims struct {
-	UserID      uint   `json:"user_id"`
-	Username    string `json:"username"`
-	Role        string `json:"role"`
-	TokenType   string `json:"token_type"`
-	Operation   string `json:"operation,omitempty"`
-	Fingerprint string `json:"fp,omitempty"` // 会话指纹
+	UserID            uint   `json:"user_id"`
+	Username          string `json:"username"`
+	Role              string `json:"role"`
+	TokenType         string `json:"token_type"`
+	Operation         string `json:"operation,omitempty"`
+	Fingerprint       string `json:"fp,omitempty"` // 会话指纹
+	SessionID         string `json:"sid,omitempty"`
+	VerificationLevel string `json:"verification_level,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -34,26 +36,33 @@ func GenerateToken(userID uint, username, role string) (string, error) {
 
 // GenerateTokenWithTTL 生成指定类型和有效期的 Token
 func GenerateTokenWithTTL(userID uint, username, role, tokenType string, ttl time.Duration) (string, error) {
-	return generateTokenInternal(userID, username, role, tokenType, "", "", ttl)
+	return generateTokenInternal(userID, username, role, tokenType, "", "", "", "", ttl)
 }
 
 // GenerateTokenWithOperation 生成带操作范围的 Token
 func GenerateTokenWithOperation(userID uint, username, role, tokenType, operation string, ttl time.Duration) (string, error) {
-	return generateTokenInternal(userID, username, role, tokenType, operation, "", ttl)
+	return generateTokenInternal(userID, username, role, tokenType, operation, "", "", "", ttl)
+}
+
+// GenerateTokenWithOperationAndLevel 生成带操作范围和验证强度的令牌。
+func GenerateTokenWithOperationAndLevel(userID uint, username, role, tokenType, operation, level string, ttl time.Duration) (string, error) {
+	return generateTokenInternal(userID, username, role, tokenType, operation, "", "", level, ttl)
 }
 
 // generateTokenInternal 内部 Token 生成，支持会话指纹
-func generateTokenInternal(userID uint, username, role, tokenType, operation, fingerprint string, ttl time.Duration) (string, error) {
+func generateTokenInternal(userID uint, username, role, tokenType, operation, fingerprint, sessionID, verificationLevel string, ttl time.Duration) (string, error) {
 	if tokenType == "" {
 		tokenType = service.TokenTypeAccess
 	}
 	claims := &Claims{
-		UserID:      userID,
-		Username:    username,
-		Role:        role,
-		TokenType:   tokenType,
-		Operation:   operation,
-		Fingerprint: fingerprint,
+		UserID:            userID,
+		Username:          username,
+		Role:              role,
+		TokenType:         tokenType,
+		Operation:         operation,
+		Fingerprint:       fingerprint,
+		SessionID:         sessionID,
+		VerificationLevel: verificationLevel,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(ttl)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -71,17 +80,34 @@ func GenerateTokenWithContext(c *gin.Context, userID uint, username, role, token
 	if isSessionFingerprintEnabled() {
 		fp = GenerateSessionFingerprint(c.ClientIP(), c.GetHeader("User-Agent"))
 	}
-	return generateTokenInternal(userID, username, role, tokenType, "", fp, ttl)
+	return generateTokenInternal(userID, username, role, tokenType, "", fp, "", "", ttl)
 }
 
 // GenerateAccessTokenWithContext 生成带会话指纹的访问 Token
 func GenerateAccessTokenWithContext(c *gin.Context, userID uint, username, role string) (string, error) {
 	ttl := time.Duration(config.GlobalConfig.JWTExpireHours) * time.Hour
-	return GenerateTokenWithContext(c, userID, username, role, service.TokenTypeAccess, ttl)
+	expiresAt := time.Now().Add(ttl)
+	sessionID, err := service.CreateUserSession(userID, expiresAt)
+	if err != nil {
+		return "", err
+	}
+	fp := ""
+	if isSessionFingerprintEnabled() {
+		fp = GenerateSessionFingerprint(c.ClientIP(), c.GetHeader("User-Agent"))
+	}
+	token, err := generateTokenInternal(userID, username, role, service.TokenTypeAccess, "", fp, sessionID, "", ttl)
+	if err != nil {
+		_ = service.RevokeUserSession(sessionID, userID)
+		return "", err
+	}
+	return token, nil
 }
 
 // ParseToken 解析 JWT Token
 func ParseToken(tokenString string) (*Claims, error) {
+	if !validJWT(tokenString) {
+		return nil, jwt.ErrTokenMalformed
+	}
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
 		return []byte(config.GlobalConfig.JWTSecret), nil
 	}, jwt.WithLeeway(5*time.Second))
@@ -150,7 +176,7 @@ func tokenTypeMiddleware(allowAPIKey bool, allowedTypes ...string) gin.HandlerFu
 				c.Abort()
 				return
 			}
-			user, err := service.AuthenticateAPIKey(apiKeyID, apiKey)
+			user, err := service.AuthenticateAPIKey(apiKeyID, apiKey, c.ClientIP())
 			if err != nil {
 				c.JSON(http.StatusUnauthorized, gin.H{
 					"code":    401,
@@ -253,8 +279,20 @@ func tokenTypeMiddleware(allowAPIKey bool, allowedTypes ...string) gin.HandlerFu
 			c.Abort()
 			return
 		}
+		if claims.TokenType == service.TokenTypeAccess && IsPublicRequest(c) {
+			if _, err := service.ValidatePublicSession(claims.SessionID, user.ID); err != nil {
+				c.JSON(http.StatusUnauthorized, gin.H{
+					"code":    401,
+					"message": "登录会话因长时间未操作已失效，请重新登录",
+				})
+				c.Abort()
+				return
+			}
+		}
 
 		setAuthenticatedUser(c, &user, claims.TokenType, "jwt", "")
+		c.Set("session_id", claims.SessionID)
+		c.Set("jwt_claims", claims)
 		c.Next()
 	}
 }
@@ -360,6 +398,31 @@ func ForcePasswordChangeMiddleware() gin.HandlerFunc {
 			},
 		})
 		c.Abort()
+	}
+}
+
+// PublicBootstrapSettingsMiddleware 将公网安全初始化令牌限制在 SMTP 初始化所需接口。
+func PublicBootstrapSettingsMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !config.GlobalConfig.PublicAccessEnabled {
+			c.Next()
+			return
+		}
+		tokenType, _ := c.Get("token_type")
+		if tokenType != service.TokenTypeBootstrap {
+			c.Next()
+			return
+		}
+		path := c.Request.URL.Path
+		allowed := (path == "/api/settings" && (c.Request.Method == http.MethodGet || c.Request.Method == http.MethodPut)) ||
+			(path == "/api/settings/smtp/test" && c.Request.Method == http.MethodPost)
+		if !allowed {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"code": 403, "message": "安全初始化期间仅允许配置和测试 SMTP",
+			})
+			return
+		}
+		c.Next()
 	}
 }
 

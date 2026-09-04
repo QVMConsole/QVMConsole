@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -23,54 +24,55 @@ import (
 
 // SettingsResponse 设置响应
 type SettingsResponse struct {
-	Port                                  int    `json:"port"`
-	TemplateDir                           string `json:"template_dir"`
-	TemplateImportDir                     string `json:"template_import_dir"`
-	TemplateExportDir                     string `json:"template_export_dir"`
-	CloneDir                              string `json:"clone_dir"`
-	ISODir                                string `json:"iso_dir"`
-	DefaultNetwork                        string `json:"default_network"`
-	NetworkBackend                        string `json:"network_backend"`
-	OVSBridge                             string `json:"ovs_bridge"`
-	OVSUplink                             string `json:"ovs_uplink"`
-	ElasticCloudUplink                    string `json:"elastic_cloud_uplink"`
-	OVSDHCPStart                          string `json:"ovs_dhcp_start"`
-	OVSDHCPEnd                            string `json:"ovs_dhcp_end"`
-	SubnetPrefix                          string `json:"subnet_prefix"`
-	AutoPortStart                         int    `json:"auto_port_start"`
-	AutoPortEnd                           int    `json:"auto_port_end"`
-	PortForwardDir                        string `json:"port_forward_dir"`
-	HostIP                                string `json:"host_ip"`
-	ExternalNIC                           string `json:"external_nic"`
-	MaxBurstInbound                       int    `json:"max_burst_inbound"`
-	MaxBurstOutbound                      int    `json:"max_burst_outbound"`
-	PortSecurityEnabled                   bool   `json:"port_security_enabled"`
-	PortSecurityTotalKpps                 int    `json:"port_security_total_kpps"`
-	PortSecurityTotalBurstKPackets        int    `json:"port_security_total_burst_kpackets"`
-	PortSecurityNeighborPPS               int    `json:"port_security_neighbor_pps"`
-	PortSecurityNeighborBurstPackets      int    `json:"port_security_neighbor_burst_packets"`
-	PortSecurityBroadcastPPS              int    `json:"port_security_broadcast_pps"`
-	PortSecurityBroadcastBurstPackets     int    `json:"port_security_broadcast_burst_packets"`
-	PortSecurityReconcileIntervalSeconds  int    `json:"port_security_reconcile_interval_seconds"`
-	PublicIPv6SyncIntervalSeconds         int    `json:"public_ipv6_sync_interval_seconds"`
-	RescueISO                             string `json:"rescue_iso"`
-	SpiceEnabledByDefault                 bool   `json:"spice_enabled_by_default"`
-	PublicBaseURL                         string `json:"public_base_url"`
-	SiteTitle                             string `json:"site_title"`
-	DevelopmentMode                       bool   `json:"development_mode"`
-	MaintenanceMode                       bool   `json:"maintenance_mode"`
-	MaintenanceServiceUnits               string `json:"maintenance_service_units"`
-	MaintenanceVMShutdownTimeoutSeconds   int    `json:"maintenance_vm_shutdown_timeout_seconds"`
-	SMTPHost                              string `json:"smtp_host"`
-	SMTPPort                              int    `json:"smtp_port"`
-	SMTPUsername                          string `json:"smtp_username"`
-	SMTPFromName                          string `json:"smtp_from_name"`
-	SMTPFromAddress                       string `json:"smtp_from_address"`
-	SMTPSecurity                          string `json:"smtp_security"`
-	SMTPTimeoutSeconds                    int    `json:"smtp_timeout_seconds"`
-	SMTPPasswordConfigured                bool   `json:"smtp_password_configured"`
-	SMTPConfigured                        bool   `json:"smtp_configured"`
-	SchedulerEventRetentionHours int `json:"scheduler_event_retention_hours"`
+	Port                                 int    `json:"port"`
+	TemplateDir                          string `json:"template_dir"`
+	TemplateImportDir                    string `json:"template_import_dir"`
+	TemplateExportDir                    string `json:"template_export_dir"`
+	CloneDir                             string `json:"clone_dir"`
+	ISODir                               string `json:"iso_dir"`
+	DefaultNetwork                       string `json:"default_network"`
+	NetworkBackend                       string `json:"network_backend"`
+	OVSBridge                            string `json:"ovs_bridge"`
+	OVSUplink                            string `json:"ovs_uplink"`
+	ElasticCloudUplink                   string `json:"elastic_cloud_uplink"`
+	OVSDHCPStart                         string `json:"ovs_dhcp_start"`
+	OVSDHCPEnd                           string `json:"ovs_dhcp_end"`
+	SubnetPrefix                         string `json:"subnet_prefix"`
+	AutoPortStart                        int    `json:"auto_port_start"`
+	AutoPortEnd                          int    `json:"auto_port_end"`
+	PortForwardDir                       string `json:"port_forward_dir"`
+	HostIP                               string `json:"host_ip"`
+	ExternalNIC                          string `json:"external_nic"`
+	MaxBurstInbound                      int    `json:"max_burst_inbound"`
+	MaxBurstOutbound                     int    `json:"max_burst_outbound"`
+	PortSecurityEnabled                  bool   `json:"port_security_enabled"`
+	PortSecurityTotalKpps                int    `json:"port_security_total_kpps"`
+	PortSecurityTotalBurstKPackets       int    `json:"port_security_total_burst_kpackets"`
+	PortSecurityNeighborPPS              int    `json:"port_security_neighbor_pps"`
+	PortSecurityNeighborBurstPackets     int    `json:"port_security_neighbor_burst_packets"`
+	PortSecurityBroadcastPPS             int    `json:"port_security_broadcast_pps"`
+	PortSecurityBroadcastBurstPackets    int    `json:"port_security_broadcast_burst_packets"`
+	PortSecurityReconcileIntervalSeconds int    `json:"port_security_reconcile_interval_seconds"`
+	PublicIPv6SyncIntervalSeconds        int    `json:"public_ipv6_sync_interval_seconds"`
+	RescueISO                            string `json:"rescue_iso"`
+	SpiceEnabledByDefault                bool   `json:"spice_enabled_by_default"`
+	PublicBaseURL                        string `json:"public_base_url"`
+	SiteTitle                            string `json:"site_title"`
+	DevelopmentMode                      bool   `json:"development_mode"`
+	PublicAccessEnabled                  bool   `json:"public_access_enabled"`
+	MaintenanceMode                      bool   `json:"maintenance_mode"`
+	MaintenanceServiceUnits              string `json:"maintenance_service_units"`
+	MaintenanceVMShutdownTimeoutSeconds  int    `json:"maintenance_vm_shutdown_timeout_seconds"`
+	SMTPHost                             string `json:"smtp_host"`
+	SMTPPort                             int    `json:"smtp_port"`
+	SMTPUsername                         string `json:"smtp_username"`
+	SMTPFromName                         string `json:"smtp_from_name"`
+	SMTPFromAddress                      string `json:"smtp_from_address"`
+	SMTPSecurity                         string `json:"smtp_security"`
+	SMTPTimeoutSeconds                   int    `json:"smtp_timeout_seconds"`
+	SMTPPasswordConfigured               bool   `json:"smtp_password_configured"`
+	SMTPConfigured                       bool   `json:"smtp_configured"`
+	SchedulerEventRetentionHours         int    `json:"scheduler_event_retention_hours"`
 	// 虚拟机磁盘 IOPS 默认限制
 	DefaultDiskIOPSTotal int `json:"default_disk_iops_total"` // 默认总 IOPS 限制（0 表示不限制）
 	DefaultDiskIOPSRead  int `json:"default_disk_iops_read"`  // 默认读 IOPS 限制（0 表示不限制）
@@ -104,50 +106,50 @@ type SettingsResponse struct {
 
 // UpdateSettingsRequest 更新设置请求
 type UpdateSettingsRequest struct {
-	TemplateDir                           *string `json:"template_dir"`
-	TemplateImportDir                     *string `json:"template_import_dir"`
-	TemplateExportDir                     *string `json:"template_export_dir"`
-	CloneDir                              *string `json:"clone_dir"`
-	ISODir                                *string `json:"iso_dir"`
-	DefaultNetwork                        *string `json:"default_network"`
-	NetworkBackend                        *string `json:"network_backend"`
-	OVSBridge                             *string `json:"ovs_bridge"`
-	OVSUplink                             *string `json:"ovs_uplink"`
-	ElasticCloudUplink                    *string `json:"elastic_cloud_uplink"`
-	OVSDHCPStart                          *string `json:"ovs_dhcp_start"`
-	OVSDHCPEnd                            *string `json:"ovs_dhcp_end"`
-	SubnetPrefix                          *string `json:"subnet_prefix"`
-	AutoPortStart                         *int    `json:"auto_port_start"`
-	AutoPortEnd                           *int    `json:"auto_port_end"`
-	HostIP                                *string `json:"host_ip"`
-	ExternalNIC                           *string `json:"external_nic"`
-	MaxBurstInbound                       *int    `json:"max_burst_inbound"`
-	MaxBurstOutbound                      *int    `json:"max_burst_outbound"`
-	PortSecurityTotalKpps                 *int    `json:"port_security_total_kpps"`
-	PortSecurityTotalBurstKPackets        *int    `json:"port_security_total_burst_kpackets"`
-	PortSecurityNeighborPPS               *int    `json:"port_security_neighbor_pps"`
-	PortSecurityNeighborBurstPackets      *int    `json:"port_security_neighbor_burst_packets"`
-	PortSecurityBroadcastPPS              *int    `json:"port_security_broadcast_pps"`
-	PortSecurityBroadcastBurstPackets     *int    `json:"port_security_broadcast_burst_packets"`
-	PortSecurityReconcileIntervalSeconds  *int    `json:"port_security_reconcile_interval_seconds"`
-	PublicIPv6SyncIntervalSeconds         *int    `json:"public_ipv6_sync_interval_seconds"`
-	RescueISO                             *string `json:"rescue_iso"`
-	SpiceEnabledByDefault                 *bool   `json:"spice_enabled_by_default"`
-	PublicBaseURL                         *string `json:"public_base_url"`
-	SiteTitle                             *string `json:"site_title"`
-	DevelopmentMode                       *bool   `json:"development_mode"`
-	MaintenanceMode                       *bool   `json:"maintenance_mode"`
-	MaintenanceServiceUnits               *string `json:"maintenance_service_units"`
-	MaintenanceVMShutdownTimeoutSeconds   *int    `json:"maintenance_vm_shutdown_timeout_seconds"`
-	SMTPHost                              *string `json:"smtp_host"`
-	SMTPPort                              *int    `json:"smtp_port"`
-	SMTPUsername                          *string `json:"smtp_username"`
-	SMTPPassword                          *string `json:"smtp_password"`
-	SMTPFromName                          *string `json:"smtp_from_name"`
-	SMTPFromAddress                       *string `json:"smtp_from_address"`
-	SMTPSecurity                          *string `json:"smtp_security"`
-	SMTPTimeoutSeconds                    *int    `json:"smtp_timeout_seconds"`
-	SchedulerEventRetentionHours          *int    `json:"scheduler_event_retention_hours"`
+	TemplateDir                          *string `json:"template_dir"`
+	TemplateImportDir                    *string `json:"template_import_dir"`
+	TemplateExportDir                    *string `json:"template_export_dir"`
+	CloneDir                             *string `json:"clone_dir"`
+	ISODir                               *string `json:"iso_dir"`
+	DefaultNetwork                       *string `json:"default_network"`
+	NetworkBackend                       *string `json:"network_backend"`
+	OVSBridge                            *string `json:"ovs_bridge"`
+	OVSUplink                            *string `json:"ovs_uplink"`
+	ElasticCloudUplink                   *string `json:"elastic_cloud_uplink"`
+	OVSDHCPStart                         *string `json:"ovs_dhcp_start"`
+	OVSDHCPEnd                           *string `json:"ovs_dhcp_end"`
+	SubnetPrefix                         *string `json:"subnet_prefix"`
+	AutoPortStart                        *int    `json:"auto_port_start"`
+	AutoPortEnd                          *int    `json:"auto_port_end"`
+	HostIP                               *string `json:"host_ip"`
+	ExternalNIC                          *string `json:"external_nic"`
+	MaxBurstInbound                      *int    `json:"max_burst_inbound"`
+	MaxBurstOutbound                     *int    `json:"max_burst_outbound"`
+	PortSecurityTotalKpps                *int    `json:"port_security_total_kpps"`
+	PortSecurityTotalBurstKPackets       *int    `json:"port_security_total_burst_kpackets"`
+	PortSecurityNeighborPPS              *int    `json:"port_security_neighbor_pps"`
+	PortSecurityNeighborBurstPackets     *int    `json:"port_security_neighbor_burst_packets"`
+	PortSecurityBroadcastPPS             *int    `json:"port_security_broadcast_pps"`
+	PortSecurityBroadcastBurstPackets    *int    `json:"port_security_broadcast_burst_packets"`
+	PortSecurityReconcileIntervalSeconds *int    `json:"port_security_reconcile_interval_seconds"`
+	PublicIPv6SyncIntervalSeconds        *int    `json:"public_ipv6_sync_interval_seconds"`
+	RescueISO                            *string `json:"rescue_iso"`
+	SpiceEnabledByDefault                *bool   `json:"spice_enabled_by_default"`
+	PublicBaseURL                        *string `json:"public_base_url"`
+	SiteTitle                            *string `json:"site_title"`
+	DevelopmentMode                      *bool   `json:"development_mode"`
+	MaintenanceMode                      *bool   `json:"maintenance_mode"`
+	MaintenanceServiceUnits              *string `json:"maintenance_service_units"`
+	MaintenanceVMShutdownTimeoutSeconds  *int    `json:"maintenance_vm_shutdown_timeout_seconds"`
+	SMTPHost                             *string `json:"smtp_host"`
+	SMTPPort                             *int    `json:"smtp_port"`
+	SMTPUsername                         *string `json:"smtp_username"`
+	SMTPPassword                         *string `json:"smtp_password"`
+	SMTPFromName                         *string `json:"smtp_from_name"`
+	SMTPFromAddress                      *string `json:"smtp_from_address"`
+	SMTPSecurity                         *string `json:"smtp_security"`
+	SMTPTimeoutSeconds                   *int    `json:"smtp_timeout_seconds"`
+	SchedulerEventRetentionHours         *int    `json:"scheduler_event_retention_hours"`
 	// 虚拟机磁盘 IOPS 默认限制
 	DefaultDiskIOPSTotal *int `json:"default_disk_iops_total"` // 默认总 IOPS 限制（0 表示不限制）
 	DefaultDiskIOPSRead  *int `json:"default_disk_iops_read"`  // 默认读 IOPS 限制（0 表示不限制）
@@ -229,72 +231,73 @@ func GetSettings(c *gin.Context) {
 		"code":    200,
 		"message": "ok",
 		"data": SettingsResponse{
-			Port:                                  cfg.Port,
-			TemplateDir:                           cfg.TemplateDir,
-			TemplateImportDir:                     cfg.TemplateImportDir,
-			TemplateExportDir:                     cfg.TemplateExportDir,
-			CloneDir:                              cfg.CloneDir,
-			ISODir:                                cfg.ISODir,
-			DefaultNetwork:                        cfg.DefaultNetwork,
-			NetworkBackend:                        cfg.NetworkBackend,
-			OVSBridge:                             cfg.OVSBridge,
-			OVSUplink:                             cfg.OVSUplink,
-			ElasticCloudUplink:                    cfg.ElasticCloudUplink,
-			OVSDHCPStart:                          cfg.OVSDHCPStart,
-			OVSDHCPEnd:                            cfg.OVSDHCPEnd,
-			SubnetPrefix:                          cfg.SubnetPrefix,
-			AutoPortStart:                         cfg.AutoPortStart,
-			AutoPortEnd:                           cfg.AutoPortEnd,
-			PortForwardDir:                        cfg.PortForwardDir,
-			HostIP:                                cfg.HostIP,
-			ExternalNIC:                           cfg.ExternalNIC,
-			MaxBurstInbound:                       cfg.MaxBurstInbound,
-			MaxBurstOutbound:                      cfg.MaxBurstOutbound,
-			PortSecurityEnabled:                   cfg.PortSecurityEnabled,
-			PortSecurityTotalKpps:                 cfg.PortSecurityTotalKpps,
-			PortSecurityTotalBurstKPackets:        cfg.PortSecurityTotalBurstKPackets,
-			PortSecurityNeighborPPS:               cfg.PortSecurityNeighborPPS,
-			PortSecurityNeighborBurstPackets:      cfg.PortSecurityNeighborBurstPackets,
-			PortSecurityBroadcastPPS:              cfg.PortSecurityBroadcastPPS,
-			PortSecurityBroadcastBurstPackets:     cfg.PortSecurityBroadcastBurstPackets,
-			PortSecurityReconcileIntervalSeconds:  cfg.PortSecurityReconcileIntervalSeconds,
-			PublicIPv6SyncIntervalSeconds:         cfg.PublicIPv6SyncIntervalSeconds,
-			RescueISO:                             cfg.RescueISO,
-			SpiceEnabledByDefault:                 cfg.SpiceEnabledByDefault,
-			PublicBaseURL:                         cfg.PublicBaseURL,
-			SiteTitle:                             siteTitle,
-			DevelopmentMode:                       cfg.DevelopmentMode,
-			MaintenanceMode:                       cfg.MaintenanceMode,
-			MaintenanceServiceUnits:               maintenanceServiceUnits,
-			MaintenanceVMShutdownTimeoutSeconds:   cfg.MaintenanceVMShutdownTimeoutSeconds,
-			SMTPHost:                              smtpView.Host,
-			SMTPPort:                              smtpView.Port,
-			SMTPUsername:                          smtpView.Username,
-			SMTPFromName:                          smtpView.FromName,
-			SMTPFromAddress:                       smtpView.FromAddress,
-			SMTPSecurity:                          smtpView.Security,
-			SMTPTimeoutSeconds:                    smtpView.TimeoutSeconds,
-			SMTPPasswordConfigured:                smtpView.PasswordConfigured,
-			SMTPConfigured:                        smtpView.Configured,
-			SchedulerEventRetentionHours:          cfg.SchedulerEventRetentionHours,
-			DefaultDiskIOPSTotal:                  cfg.DefaultDiskIOPSTotal,
-			DefaultDiskIOPSRead:                   cfg.DefaultDiskIOPSRead,
-			DefaultDiskIOPSWrite:                  cfg.DefaultDiskIOPSWrite,
-			BatchCloneMaxConcurrency:              cfg.BatchCloneMaxConcurrency,
-			JWTSecretRotateHours:                  cfg.JWTSecretRotateHours,
-			JWTSecretLastRotated:                  jwtLastRotated,
-			LogMaxBackups:                         cfg.LogMaxBackups,
-			RequestDetailLogEnabled:               cfg.RequestDetailLogEnabled,
-			RequestLogMaxBodyBytes:                cfg.RequestLogMaxBodyBytes,
-			NetworkWaitOnlineDisabled:             cfg.NetworkWaitOnlineDisabled,
-			NetworkWaitOnlineSummary:              networkWaitOnlineSummary(cfg.NetworkWaitOnlineDisabled),
-			SessionFingerprintEnabled:             cfg.SessionFingerprintEnabled,
-			RequestFilterEnabled:                  cfg.RequestFilterEnabled,
-			PasswordBreachCheckEnabled:            cfg.PasswordBreachCheckEnabled,
-			ScheduledPasswordBreachCheckEnabled:   cfg.ScheduledPasswordBreachCheckEnabled,
-			ScheduledStorageTrimEnabled:           cfg.ScheduledStorageTrimEnabled,
-			HardwarePassthroughEnabled:            cfg.HardwarePassthroughEnabled,
-			SecurityGroupDefaultAllowAll:          cfg.SecurityGroupDefaultAllowAll,
+			Port:                                 cfg.Port,
+			TemplateDir:                          cfg.TemplateDir,
+			TemplateImportDir:                    cfg.TemplateImportDir,
+			TemplateExportDir:                    cfg.TemplateExportDir,
+			CloneDir:                             cfg.CloneDir,
+			ISODir:                               cfg.ISODir,
+			DefaultNetwork:                       cfg.DefaultNetwork,
+			NetworkBackend:                       cfg.NetworkBackend,
+			OVSBridge:                            cfg.OVSBridge,
+			OVSUplink:                            cfg.OVSUplink,
+			ElasticCloudUplink:                   cfg.ElasticCloudUplink,
+			OVSDHCPStart:                         cfg.OVSDHCPStart,
+			OVSDHCPEnd:                           cfg.OVSDHCPEnd,
+			SubnetPrefix:                         cfg.SubnetPrefix,
+			AutoPortStart:                        cfg.AutoPortStart,
+			AutoPortEnd:                          cfg.AutoPortEnd,
+			PortForwardDir:                       cfg.PortForwardDir,
+			HostIP:                               cfg.HostIP,
+			ExternalNIC:                          cfg.ExternalNIC,
+			MaxBurstInbound:                      cfg.MaxBurstInbound,
+			MaxBurstOutbound:                     cfg.MaxBurstOutbound,
+			PortSecurityEnabled:                  cfg.PortSecurityEnabled,
+			PortSecurityTotalKpps:                cfg.PortSecurityTotalKpps,
+			PortSecurityTotalBurstKPackets:       cfg.PortSecurityTotalBurstKPackets,
+			PortSecurityNeighborPPS:              cfg.PortSecurityNeighborPPS,
+			PortSecurityNeighborBurstPackets:     cfg.PortSecurityNeighborBurstPackets,
+			PortSecurityBroadcastPPS:             cfg.PortSecurityBroadcastPPS,
+			PortSecurityBroadcastBurstPackets:    cfg.PortSecurityBroadcastBurstPackets,
+			PortSecurityReconcileIntervalSeconds: cfg.PortSecurityReconcileIntervalSeconds,
+			PublicIPv6SyncIntervalSeconds:        cfg.PublicIPv6SyncIntervalSeconds,
+			RescueISO:                            cfg.RescueISO,
+			SpiceEnabledByDefault:                cfg.SpiceEnabledByDefault,
+			PublicBaseURL:                        cfg.PublicBaseURL,
+			SiteTitle:                            siteTitle,
+			DevelopmentMode:                      cfg.DevelopmentMode,
+			PublicAccessEnabled:                  cfg.PublicAccessEnabled,
+			MaintenanceMode:                      cfg.MaintenanceMode,
+			MaintenanceServiceUnits:              maintenanceServiceUnits,
+			MaintenanceVMShutdownTimeoutSeconds:  cfg.MaintenanceVMShutdownTimeoutSeconds,
+			SMTPHost:                             smtpView.Host,
+			SMTPPort:                             smtpView.Port,
+			SMTPUsername:                         smtpView.Username,
+			SMTPFromName:                         smtpView.FromName,
+			SMTPFromAddress:                      smtpView.FromAddress,
+			SMTPSecurity:                         smtpView.Security,
+			SMTPTimeoutSeconds:                   smtpView.TimeoutSeconds,
+			SMTPPasswordConfigured:               smtpView.PasswordConfigured,
+			SMTPConfigured:                       smtpView.Configured,
+			SchedulerEventRetentionHours:         cfg.SchedulerEventRetentionHours,
+			DefaultDiskIOPSTotal:                 cfg.DefaultDiskIOPSTotal,
+			DefaultDiskIOPSRead:                  cfg.DefaultDiskIOPSRead,
+			DefaultDiskIOPSWrite:                 cfg.DefaultDiskIOPSWrite,
+			BatchCloneMaxConcurrency:             cfg.BatchCloneMaxConcurrency,
+			JWTSecretRotateHours:                 cfg.JWTSecretRotateHours,
+			JWTSecretLastRotated:                 jwtLastRotated,
+			LogMaxBackups:                        cfg.LogMaxBackups,
+			RequestDetailLogEnabled:              cfg.RequestDetailLogEnabled,
+			RequestLogMaxBodyBytes:               cfg.RequestLogMaxBodyBytes,
+			NetworkWaitOnlineDisabled:            cfg.NetworkWaitOnlineDisabled,
+			NetworkWaitOnlineSummary:             networkWaitOnlineSummary(cfg.NetworkWaitOnlineDisabled),
+			SessionFingerprintEnabled:            cfg.SessionFingerprintEnabled,
+			RequestFilterEnabled:                 cfg.RequestFilterEnabled,
+			PasswordBreachCheckEnabled:           cfg.PasswordBreachCheckEnabled,
+			ScheduledPasswordBreachCheckEnabled:  cfg.ScheduledPasswordBreachCheckEnabled,
+			ScheduledStorageTrimEnabled:          cfg.ScheduledStorageTrimEnabled,
+			HardwarePassthroughEnabled:           cfg.HardwarePassthroughEnabled,
+			SecurityGroupDefaultAllowAll:         cfg.SecurityGroupDefaultAllowAll,
 		},
 	})
 }
@@ -308,6 +311,12 @@ func UpdateSettings(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
 		return
+	}
+	if config.GlobalConfig.PublicAccessEnabled {
+		if tokenType, _ := c.Get("token_type"); tokenType == service.TokenTypeBootstrap && !bootstrapSettingsOnlySMTP(req) {
+			c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": "安全初始化期间仅允许修改 SMTP 设置"})
+			return
+		}
 	}
 	portSecuritySettingsChanged := req.PortSecurityTotalKpps != nil || req.PortSecurityTotalBurstKPackets != nil ||
 		req.PortSecurityNeighborPPS != nil || req.PortSecurityNeighborBurstPackets != nil ||
@@ -508,6 +517,10 @@ func UpdateSettings(c *gin.Context) {
 		}
 	}
 	if req.DevelopmentMode != nil {
+		if config.GlobalConfig.PublicAccessEnabled && *req.DevelopmentMode {
+			c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": "公网访问开启期间不能启用开发模式"})
+			return
+		}
 		cfg.DevelopmentMode = *req.DevelopmentMode
 	}
 	if req.MaintenanceMode != nil {
@@ -719,6 +732,22 @@ func UpdateSettings(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "设置已保存"})
 }
 
+func bootstrapSettingsOnlySMTP(req UpdateSettingsRequest) bool {
+	value := reflect.ValueOf(req)
+	typeInfo := value.Type()
+	for index := 0; index < value.NumField(); index++ {
+		field := value.Field(index)
+		if field.Kind() != reflect.Ptr || field.IsNil() {
+			continue
+		}
+		jsonName := strings.Split(typeInfo.Field(index).Tag.Get("json"), ",")[0]
+		if !strings.HasPrefix(jsonName, "smtp_") {
+			return false
+		}
+	}
+	return true
+}
+
 // TestSMTP 测试 SMTP 发信
 func TestSMTP(c *gin.Context) {
 	var req TestSMTPRequest
@@ -757,7 +786,7 @@ func TestSMTP(c *gin.Context) {
 
 // RotateJWTSecret 手动轮换 JWT 密钥
 func RotateJWTSecret(c *gin.Context) {
-	if !requireHighRiskVerification(c, "rotate_jwt_secret") {
+	if !requireStrictHighRiskVerification(c, "rotate_jwt_secret") {
 		return
 	}
 	if config.GlobalConfig.DevelopmentMode {

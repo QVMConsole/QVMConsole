@@ -200,13 +200,18 @@ export const endpointDescriptions: Record<string, EndpointDescription> = {
   },
   'GET /auth/api-key': {
     summary: '读取当前用户 API Key 状态',
-    response: 'data: api_key_id, key_prefix, created_at, last_used_at, enabled。',
+    response: 'data: api_key_id, key_prefix, created_at, expires_at, trusted_ip, last_used_at, enabled, public_access_enabled, public_usable。公网管理员 Key 固定 30 天有效期并只能绑定一个固定 IP；局域网请求不受期限和 IP 限制。',
   },
   'POST /auth/api-key': {
     summary: '生成或重新生成 API Key',
-    response: 'data: api_key_id, api_key, key_prefix, created_at, enabled；api_key 仅返回一次。',
+    body: 'JSON: trusted_ip（公网模式下管理员必填，只能填写一个固定 IPv4 或 IPv6 地址，不支持 CIDR、多个地址、端口或主机名）',
+    response: 'data: api_key_id, api_key, key_prefix, created_at, expires_at, trusted_ip, enabled；api_key 仅返回一次。公网模式下管理员必须完成 2FA + 邮箱双重验证。',
+    notes: ['仅支持 JWT access，不支持 API Key；公网模式下管理员必须完成 2FA 与邮箱验证码双重校验。'],
   },
-  'DELETE /auth/api-key': { summary: '撤销当前 API Key' },
+  'DELETE /auth/api-key': {
+    summary: '撤销当前 API Key',
+    notes: ['仅支持 JWT access，不支持 API Key；属于账户安全流程。'],
+  },
   'PUT /auth/password': {
     summary: '修改当前账户密码',
     body: 'JSON: old_password, new_password',
@@ -217,14 +222,30 @@ export const endpointDescriptions: Record<string, EndpointDescription> = {
     body: 'JSON: new_username, password',
     response: 'data: token, username。',
   },
+  'POST /auth/session/activity': {
+    summary: '上报真实用户操作以刷新公网会话',
+    response: '公网来源返回 idle_expires_at 和固定 30 分钟空闲窗口；局域网来源不应用空闲限制。仅应在点击、键盘、触控、滚动或路由导航等真实操作后调用，不要由轮询或 SSE 数据触发。',
+    notes: ['仅支持 JWT access，不支持 API Key。'],
+  },
+  'POST /auth/logout': {
+    summary: '退出登录并撤销当前会话',
+    response: '撤销当前 JWT 登录会话。',
+    notes: ['仅支持 JWT access，不支持 API Key。'],
+  },
   'POST /auth/high-risk/verify': {
     summary: '完成高风险操作二次验证',
-    body: 'JSON: method(totp/recovery/email), code, challenge_id, operation',
-    response: 'data: verification_token, trusted_until。recovery 方式额外返回 recovery_codes_remaining。',
-    notes: ['使用 API Key 调用敏感接口时，也需要先调用本接口。', 'recovery 方法传入 16 位恢复码。'],
+    body: 'JSON: method(totp/recovery/email/totp_email), code, email_code（totp_email 时必填）, challenge_id, operation',
+    response: 'data: verification_token, trusted_until。recovery 方式额外返回 recovery_codes_remaining；totp_email 用于管理员 API Key 创建/轮换的 2FA + 邮箱双重验证。',
+    notes: ['允许 API Key 的业务接口不会触发 428；本接口以及 API Key 创建、轮换、撤销、公网开关等流程仍按 JWT-only 或专用双重校验执行。', 'recovery 方法传入 16 位恢复码。'],
   },
 
   // ==================== 系统设置 ====================
+  'PUT /settings/public-access': {
+    summary: '开启或关闭公网访问',
+    body: 'JSON: enabled(true/false)。开启前必须风险确认、所有有效管理员已绑定 2FA，并完成当前管理员新鲜 2FA 验证；开启会撤销现有管理员 API Key。',
+    response: 'data: enabled, revoked_api_keys。关闭公网访问后所有非局域网请求返回 403；局域网请求不受限制。',
+    notes: ['仅管理员 JWT access 可调用，不支持 API Key。'],
+  },
   'GET /settings': {
     summary: '读取系统设置',
     notes: ['支持 access/bootstrap token；API Key 仅适用于 access 模式。'],
@@ -888,7 +909,7 @@ export const endpointDescriptions: Record<string, EndpointDescription> = {
   'POST /self/vm/import-appliance': {
     summary: '从我的存储导入 OVF/OVA 虚拟机包',
     body: 'JSON: appliance_file, source_type(storage), config_mode(ovf/custom), copy_source，以及最终硬件、目标存储、网络映射和导入后启动配置',
-    response: 'data: task_id。创建操作保留二次验证；完整包校验与配额复核在异步任务中执行。',
+    response: 'data: task_id。JWT 会话创建操作需要二次验证；API Key 调用不触发 428；完整包校验与配额复核在异步任务中执行。',
   },
   'GET /self/storage/info': { summary: '获取我的存储信息' },
   'POST /self/storage/init': { summary: '初始化我的存储' },

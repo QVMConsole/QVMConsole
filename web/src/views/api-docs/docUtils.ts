@@ -15,7 +15,7 @@ export interface GeneratedEndpoint {
   method: string
   path: string
   handler: string
-  auth: 'public' | 'api' | 'api-bootstrap' | 'jwt' | 'login'
+  auth: 'public' | 'jwt' | 'jwt-only' | 'login'
   admin: boolean
   elasticOnly: boolean
   vmAccess: boolean
@@ -49,9 +49,8 @@ export interface DocGroup {
 export function authLabel(auth: GeneratedEndpoint['auth']): string {
   const map: Record<GeneratedEndpoint['auth'], string> = {
     public: '公开',
-    api: 'JWT / API Key',
-    'api-bootstrap': 'JWT(access/bootstrap) / API Key',
-    jwt: '仅 JWT（access/bootstrap token）',
+    jwt: 'JWT / API Key',
+    'jwt-only': '仅 JWT（access/bootstrap token）',
     login: '仅登录阶段 token',
   }
   return map[auth] || auth
@@ -61,7 +60,7 @@ export function authLabel(auth: GeneratedEndpoint['auth']): string {
 export function authHeaders(auth: GeneratedEndpoint['auth']): string[] {
   const json = 'Content-Type: application/json'
   if (auth === 'public') return []
-  if (auth === 'jwt') return ['Authorization: Bearer <access/bootstrap token>', json]
+  if (auth === 'jwt-only') return ['Authorization: Bearer <access/bootstrap token>', json]
   if (auth === 'login') return ['Authorization: Bearer <login token>', json]
   return ['X-API-Key-ID: <API_ID>', 'X-API-Key: <API_KEY>', json]
 }

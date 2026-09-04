@@ -63,6 +63,7 @@ export interface SettingsForm {
   public_base_url: string
   site_title: string
   development_mode: boolean
+  public_access_enabled: boolean
   session_fingerprint_enabled: boolean
   request_filter_enabled: boolean
   password_breach_check_enabled: boolean
@@ -136,6 +137,7 @@ export const DEFAULT_SETTINGS_FORM: SettingsForm = {
   public_base_url: '',
   site_title: 'QVMConsole',
   development_mode: false,
+  public_access_enabled: false,
   session_fingerprint_enabled: true,
   request_filter_enabled: true,
   password_breach_check_enabled: true,

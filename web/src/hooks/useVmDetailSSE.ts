@@ -9,6 +9,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createVmDetailSSE, type VmDetailInfo } from '@/api/vm'
 import { useUserStore } from '@/stores/user'
+import { redirectAfterPublicSessionExpired } from './usePublicSessionActivity'
 
 export type SseStatus = 'connecting' | 'connected' | 'disconnected'
 
@@ -90,6 +91,10 @@ export function useVmDetailSSE(vmName: string) {
         } catch (err) {
           console.error('解析 SSE 详情数据失败', err)
         }
+      })
+      es.addEventListener('session_expired', () => {
+        es?.close()
+        redirectAfterPublicSessionExpired()
       })
 
       es.onerror = () => {

@@ -14,6 +14,7 @@ import {
 } from '@/api/task'
 import { useUserStore } from '@/stores/user'
 import TaskMessage from '@/components/business/TaskMessage'
+import { redirectAfterPublicSessionExpired } from '@/hooks/usePublicSessionActivity'
 
 export type TaskSseStatus = 'connecting' | 'connected' | 'disconnected'
 
@@ -126,6 +127,11 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       } catch (err) {
         console.error('解析任务 SSE 事件失败', err)
       }
+    })
+    eventSource.addEventListener('session_expired', () => {
+      eventSource?.close()
+      eventSource = null
+      redirectAfterPublicSessionExpired()
     })
 
     eventSource.onerror = () => {

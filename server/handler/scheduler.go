@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"kvm_console/middleware"
 	"kvm_console/model"
 	"kvm_console/service"
 )
@@ -94,6 +95,8 @@ func SSESchedulerEvents(c *gin.Context) {
 	defer service.UnregisterSchedulerSSEClient(eventChan)
 
 	clientGone := c.Request.Context().Done()
+	sessionTicker := time.NewTicker(15 * time.Second)
+	defer sessionTicker.Stop()
 	firstRun := true
 	c.Stream(func(w io.Writer) bool {
 		if firstRun {
@@ -110,6 +113,12 @@ func SSESchedulerEvents(c *gin.Context) {
 			return true
 		case <-clientGone:
 			return false
+		case <-sessionTicker.C:
+			if !middleware.StreamingSessionValid(c) {
+				c.SSEvent("session_expired", gin.H{"message": "登录会话因长时间未操作已失效，请重新登录"})
+				return false
+			}
+			return true
 		}
 	})
 }

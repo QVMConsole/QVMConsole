@@ -3,6 +3,7 @@ package service
 import (
 	"time"
 
+	"kvm_console/config"
 	"kvm_console/model"
 
 	securitypkg "kvm_console/service/security"
@@ -36,9 +37,10 @@ const (
 )
 
 const (
-	ChallengeMethodEmail    = securitypkg.ChallengeMethodEmail
-	ChallengeMethodTOTP     = securitypkg.ChallengeMethodTOTP
-	ChallengeMethodRecovery = securitypkg.ChallengeMethodRecovery
+	ChallengeMethodEmail     = securitypkg.ChallengeMethodEmail
+	ChallengeMethodTOTP      = securitypkg.ChallengeMethodTOTP
+	ChallengeMethodRecovery  = securitypkg.ChallengeMethodRecovery
+	ChallengeMethodTOTPEmail = securitypkg.ChallengeMethodTOTPEmail
 )
 
 const (
@@ -107,6 +109,9 @@ func init() {
 
 		// ---- Maintenance mode ----
 		IsMaintenanceModeEnabled: IsMaintenanceModeEnabled,
+
+		// ---- Public access ----
+		IsPublicAccessEnabled: func() bool { return config.GlobalConfig.PublicAccessEnabled },
 	})
 }
 

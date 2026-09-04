@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createHostStatsSSE, getHostStats, type HostStats } from '@/api/host'
 import { useUserStore } from '@/stores/user'
+import { redirectAfterPublicSessionExpired } from './usePublicSessionActivity'
 
 export type SseStatus = 'connecting' | 'connected' | 'disconnected'
 
@@ -40,6 +41,10 @@ export function useHostStatsSSE() {
           console.error('解析宿主机 SSE 事件失败', err)
         }
       }
+      es.addEventListener('session_expired', () => {
+        es.close()
+        redirectAfterPublicSessionExpired()
+      })
       es.onerror = () => {
         setSseStatus('disconnected')
         es.close()

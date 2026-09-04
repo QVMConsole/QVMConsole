@@ -10,6 +10,7 @@ import { useUserStore } from '@/stores/user'
 import { useAppStore } from '@/stores/app'
 import { useTaskStore } from '@/stores/task'
 import { usePageTabsStore } from '@/stores/pageTabs'
+import { usePublicSessionActivity } from '@/hooks/usePublicSessionActivity'
 import Sidebar from './components/Sidebar'
 import TopBar from './components/TopBar'
 import TaskBar from './components/TaskBar'
@@ -24,6 +25,8 @@ export default function MainLayout() {
   const openTab = usePageTabsStore((s) => s.openTab)
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed)
   const [mobileOpen, setMobileOpen] = useState(false)
+
+  usePublicSessionActivity(token)
 
   const currentTitle =
     (matches[matches.length - 1]?.handle as { title?: string } | undefined)?.title || ''
@@ -47,6 +50,7 @@ export default function MainLayout() {
   // 路由变化时关闭移动端抽屉
   useEffect(() => {
     setMobileOpen(false)
+	window.dispatchEvent(new Event('qvm-user-activity'))
   }, [location.pathname])
 
   return (

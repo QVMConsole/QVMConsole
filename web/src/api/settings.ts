@@ -55,6 +55,14 @@ export function updateSettings(data: Record<string, unknown>, stageToken?: strin
   return service.put<unknown, ApiResponse>('/settings', data, withStageToken(stageToken))
 }
 
+/** 即时切换公网访问；开启时后端会校验所有管理员 2FA 并撤销旧管理员 API Key。 */
+export function updatePublicAccess(enabled: boolean) {
+  return service.put<unknown, ApiResponse<{ enabled: boolean; revoked_api_keys: number }>>(
+    '/settings/public-access',
+    { enabled },
+  )
+}
+
 /** 测试 SMTP 发信（可携带未保存的 SMTP 配置直接测试；bootstrap 阶段传 stageToken） */
 export function testSMTP(data: { email: string } & Record<string, unknown>, stageToken?: string) {
   return service.post<unknown, ApiResponse>('/settings/smtp/test', data, withStageToken(stageToken))

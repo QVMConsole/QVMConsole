@@ -61,7 +61,7 @@ web/src/views/network/
 - `GET/PUT /network/interfaces/:name/config`：接口 IP/DNS 配置（管理员，支持 IPv4 + IPv6 双栈）
 - `GET /vpc/quota`：流量/带宽配额
 - `GET/POST /vpc/switches`、`PUT/DELETE /vpc/switches/:id`、`POST /vpc/switches/:id/traffic/reset`、`GET /vpc/switches/:id/vms`：交换机管理
-- `POST /vpc/switches/:id/reconfigure`：异步重配置完整目标拓扑，返回 `task_id/status`；支持 API Key 并保留二次验证
+- `POST /vpc/switches/:id/reconfigure`：异步重配置完整目标拓扑，返回 `task_id/status`；支持 API Key，JWT 会话调用需二次验证，API Key 调用不触发 428
 - `GET/POST /vpc/security-groups`、`PUT/DELETE /vpc/security-groups/:id`、`POST /vpc/security-groups/:id/rules`、`PUT/DELETE /vpc/security-groups/rules/:id`：安全组与规则管理（规则支持新增、编辑、删除）
 - `GET /vpc/acl/preview`、`POST /vpc/acl/apply`：ACL 预览与应用（应用为高风险操作，428 二次验证）
 - `GET /user/list`：用户选项（管理员）

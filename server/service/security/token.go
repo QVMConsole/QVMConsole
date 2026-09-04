@@ -5,11 +5,14 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
 	"kvm_console/model"
 )
+
+var actionTokenPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{40,256}$`)
 
 // CreateAuthActionToken 创建邮件链接令牌
 func CreateAuthActionToken(userID uint, purpose string, ttl time.Duration) (string, *model.AuthActionToken, error) {
@@ -37,6 +40,10 @@ func CreateAuthActionToken(userID uint, purpose string, ttl time.Duration) (stri
 
 // FindValidAuthActionToken 查找有效的链接令牌
 func FindValidAuthActionToken(rawToken, purpose string) (*model.AuthActionToken, *model.User, error) {
+	rawToken = strings.TrimSpace(rawToken)
+	if !actionTokenPattern.MatchString(rawToken) {
+		return nil, nil, fmt.Errorf("链接无效或已失效")
+	}
 	hashValue := hashToken(rawToken)
 
 	var record model.AuthActionToken

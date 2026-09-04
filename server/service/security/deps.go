@@ -23,7 +23,7 @@ type Deps struct {
 	ValidateStrongPassword func(password string) error
 
 	// ---- Lightweight cloud ----
-	ListLightweightVMRegistrations    func(username string, includeActive bool) ([]LightweightVMRegistrationView, error)
+	ListLightweightVMRegistrations      func(username string, includeActive bool) ([]LightweightVMRegistrationView, error)
 	FormatLightweightVMRegistrationList func(regs []LightweightVMRegistrationView) string
 
 	// ---- Network constants ----
@@ -31,6 +31,9 @@ type Deps struct {
 
 	// ---- Maintenance mode ----
 	IsMaintenanceModeEnabled func() bool
+
+	// ---- Public access ----
+	IsPublicAccessEnabled func() bool
 }
 
 // D is the package-level dependency container. Set via InitDeps().

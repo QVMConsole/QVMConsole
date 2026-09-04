@@ -196,7 +196,7 @@ export interface CreateUserPayload extends Partial<UserQuotaPayload> {
   lightweight_existing_vm_quotas?: LightweightVmQuotaPayload[]
 }
 
-/** 创建用户（管理员，敏感操作走 428 二次验证） */
+/** 创建用户（管理员，JWT 会话走 428；API Key 调用不触发交互式二次验证） */
 export function createUser(data: CreateUserPayload) {
   return service.post<unknown, ApiResponse<unknown>>('/user', data)
 }

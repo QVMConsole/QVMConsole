@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"kvm_console/middleware"
 	"kvm_console/service"
 )
 
@@ -264,6 +265,11 @@ func GetHostStatsSSE(c *gin.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			if !middleware.StreamingSessionValid(c) {
+				c.SSEvent("session_expired", gin.H{"message": "登录会话因长时间未操作已失效，请重新登录"})
+				c.Writer.Flush()
+				return
+			}
 			sendHostStatsSSE(c.Writer)
 		}
 	}

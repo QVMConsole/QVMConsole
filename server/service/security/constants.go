@@ -18,9 +18,10 @@ const (
 )
 
 const (
-	ChallengeMethodEmail    = "email"
-	ChallengeMethodTOTP     = "totp"
-	ChallengeMethodRecovery = "recovery"
+	ChallengeMethodEmail     = "email"
+	ChallengeMethodTOTP      = "totp"
+	ChallengeMethodRecovery  = "recovery"
+	ChallengeMethodTOTPEmail = "totp_email"
 )
 
 const (

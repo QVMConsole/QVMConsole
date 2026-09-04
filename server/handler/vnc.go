@@ -5,11 +5,13 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 
 	"kvm_console/logger"
+	"kvm_console/middleware"
 	"kvm_console/service"
 	"kvm_console/utils"
 )
@@ -187,6 +189,37 @@ func VncWebSocket(c *gin.Context) {
 
 	// 双向转发
 	errChan := make(chan error, 2)
+	lastSessionActivity := time.Time{}
+
+	if middleware.IsPublicRequest(c) {
+		go func() {
+			ticker := time.NewTicker(15 * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					if middleware.StreamingSessionValid(c) {
+						continue
+					}
+					_ = ws.WriteControl(
+						websocket.CloseMessage,
+						websocket.FormatCloseMessage(4001, "登录会话已失效"),
+						time.Now().Add(2*time.Second),
+					)
+					_ = ws.Close()
+					_ = vncConn.Close()
+					select {
+					case errChan <- service.ErrSessionExpired:
+					default:
+					}
+					cancel()
+					return
+				}
+			}
+		}()
+	}
 
 	// WebSocket → VNC
 	go func() {
@@ -212,6 +245,19 @@ func VncWebSocket(c *gin.Context) {
 				default:
 				}
 				return
+			}
+			// VNC 中的键盘/鼠标消息属于真实用户操作，公网会话按分钟节流续期。
+			if middleware.IsPublicRequest(c) && time.Since(lastSessionActivity) >= time.Minute {
+				userIDValue, _ := c.Get("user_id")
+				userID, _ := userIDValue.(uint)
+				sessionIDValue, _ := c.Get("session_id")
+				sessionID, _ := sessionIDValue.(string)
+				if _, touchErr := service.TouchUserSession(sessionID, userID); touchErr != nil {
+					_ = ws.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(4001, "登录会话已失效"), time.Now().Add(2*time.Second))
+					cancel()
+					return
+				}
+				lastSessionActivity = time.Now()
 			}
 		}
 	}()

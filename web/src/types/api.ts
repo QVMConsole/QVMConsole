@@ -35,6 +35,7 @@ export interface SecurityState {
   smtp_configured: boolean
   development_mode: boolean
   maintenance_mode: boolean
+  public_access_enabled: boolean
   bootstrap_skipped: boolean
   status: string
   login_verified_until: string | null

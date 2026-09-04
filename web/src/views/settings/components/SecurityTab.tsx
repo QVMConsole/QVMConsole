@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Banner, Button, Input, InputNumber, Select, Tag, TextArea, Toast } from '@douyinfe/semi-ui'
 import { IconAlertTriangle, IconLock, IconMail, IconRefresh } from '@douyinfe/semi-icons'
 import TextSwitch from '@/features/vm-form/sections/TextSwitch'
-import { rotateJWTSecret, testSMTP } from '@/api/settings'
+import { rotateJWTSecret, testSMTP, updatePublicAccess } from '@/api/settings'
 import { getTaskDetail } from '@/api/task'
 import {
   getPasswordBreachStatus,
@@ -26,6 +26,7 @@ interface SecurityTabProps extends SettingsTabProps {
 export default function SecurityTab({ form, patch, saveBeforeAction, refresh }: SecurityTabProps) {
   const [testing, setTesting] = useState(false)
   const [rotating, setRotating] = useState(false)
+  const [updatingPublicAccess, setUpdatingPublicAccess] = useState(false)
   const [breachStatus, setBreachStatus] = useState<PasswordBreachStatus | null>(null)
   const [breachTaskRunning, setBreachTaskRunning] = useState(false)
   const [breachTaskId, setBreachTaskId] = useState<number | null>(null)
@@ -164,6 +165,34 @@ export default function SecurityTab({ form, patch, saveBeforeAction, refresh }: 
     patch({ security_group_default_allow_all: true })
   }
 
+  // 公网访问是独立即时设置：开启前必须确认风险，后端还会检查全部管理员 2FA 与当前管理员新鲜 2FA。
+  const handleTogglePublicAccess = async (enabled: boolean) => {
+    if (updatingPublicAccess) return
+    if (enabled) {
+      const ok = await confirmModal({
+        title: '开启公网访问',
+        content:
+          '开启后，所有非局域网请求都将进入面板；管理员 API Key 将固定要求 30 天有效期和单个受信任 IP，现有管理员 API Key 会立即撤销。请确认已为所有管理员绑定 2FA，并确认继续。',
+        okText: '确认开启公网访问',
+        danger: true,
+      })
+      if (!ok) return
+    }
+    const previous = form.public_access_enabled
+    patch({ public_access_enabled: enabled })
+    setUpdatingPublicAccess(true)
+    try {
+      const res = await updatePublicAccess(enabled)
+      patch({ public_access_enabled: !!res.data?.enabled })
+      Toast.success(res.message || (enabled ? '公网访问已开启' : '公网访问已关闭'))
+      await refresh()
+    } catch {
+      patch({ public_access_enabled: previous })
+    } finally {
+      setUpdatingPublicAccess(false)
+    }
+  }
+
   return (
     <div className="stg-tab-pane">
       <SectionHead icon={<IconMail />} title="邮件与安全验证" />
@@ -185,6 +214,7 @@ export default function SecurityTab({ form, patch, saveBeforeAction, refresh }: 
       >
         <TextSwitch
           checked={form.development_mode}
+          disabled={form.public_access_enabled}
           onChange={(v) => patch({ development_mode: v })}
         />
       </SettingRow>
@@ -287,6 +317,26 @@ export default function SecurityTab({ form, patch, saveBeforeAction, refresh }: 
       </SettingRow>
 
       <SectionHead icon={<IconLock />} title="安全防护" />
+
+      <SettingRow
+        label="公网访问"
+        tip="默认关闭。关闭时所有非局域网来源统一返回 403；开启后请确保所有有效管理员已绑定 2FA。局域网请求不受公网 API Key 到期时间、受信任 IP 和 30 分钟空闲会话限制。"
+      >
+        <TextSwitch
+          checked={form.public_access_enabled}
+          disabled={updatingPublicAccess}
+          onChange={(v) => void handleTogglePublicAccess(v)}
+        />
+      </SettingRow>
+
+      {form.public_access_enabled && (
+        <Banner
+          type="warning"
+          closeIcon={null}
+          className="stg-banner"
+          description="公网访问已开启：管理员 API Key 创建/轮换需要 2FA + 邮箱双重校验并绑定单个固定 IP；公网登录会话连续无操作 30 分钟后失效。"
+        />
+      )}
 
       <SettingRow
         label="会话指纹绑定"

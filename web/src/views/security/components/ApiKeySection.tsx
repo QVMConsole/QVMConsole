@@ -11,6 +11,8 @@ import { getAPIKeyInfo, revokeAPIKey, rotateAPIKey, type UserAPIKeyInfo } from '
 import { copyTextWithFallback } from '@/utils/clipboard'
 import { confirmModal } from '@/utils/confirm'
 import { formatDateTime } from '@/utils/format'
+import { useUserStore } from '@/stores/user'
+import { ROLES } from '@/config/constants'
 
 interface CopyActionProps {
   text: string
@@ -51,17 +53,20 @@ function CopyAction({ text, label }: CopyActionProps) {
 
 export default function ApiKeySection() {
   const navigate = useNavigate()
+  const role = useUserStore((s) => s.role)
   const [info, setInfo] = useState<UserAPIKeyInfo | null>(null)
   const [generatedKey, setGeneratedKey] = useState('')
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [revoking, setRevoking] = useState(false)
+  const [trustedIP, setTrustedIP] = useState('')
 
   const loadInfo = useCallback(async () => {
     setLoading(true)
     try {
       const res = await getAPIKeyInfo()
       setInfo(res.data || null)
+      setTrustedIP(res.data?.trusted_ip || '')
     } catch {
       // 请求层已统一提示
     } finally {
@@ -74,6 +79,11 @@ export default function ApiKeySection() {
   }, [loadInfo])
 
   const handleRotate = async () => {
+    const publicAdminPolicy = role === ROLES.admin && !!info?.public_access_enabled
+    if (publicAdminPolicy && !trustedIP.trim()) {
+      Toast.warning('公网模式下必须设置一个固定受信任 IP')
+      return
+    }
     const enabled = !!info?.enabled
     const confirmed = await confirmModal({
       title: enabled ? '重新生成 API 凭证' : '生成 API 凭证',
@@ -87,8 +97,9 @@ export default function ApiKeySection() {
 
     setGenerating(true)
     try {
-      const res = await rotateAPIKey()
+      const res = await rotateAPIKey(publicAdminPolicy ? { trusted_ip: trustedIP.trim() } : undefined)
       setInfo(res.data || null)
+      setTrustedIP(res.data?.trusted_ip || '')
       setGeneratedKey(res.data?.api_key || '')
       Toast.success(res.message || 'API 凭证已生成')
     } catch {
@@ -120,6 +131,8 @@ export default function ApiKeySection() {
     }
   }
 
+  const publicAdminPolicy = role === ROLES.admin && !!info?.public_access_enabled
+
   return (
     <div className="sec-tab-pane">
       <Banner
@@ -135,6 +148,35 @@ export default function ApiKeySection() {
           <Tag color={info?.enabled ? 'green' : 'grey'}>{info?.enabled ? '已启用' : '未生成'}</Tag>
         </div>
       </div>
+
+      {publicAdminPolicy && (
+        <>
+          <div className="sec-row">
+            <div className="sec-row-label">受信任 IP</div>
+            <div className="sec-row-main">
+              <Input
+                value={trustedIP}
+                onChange={setTrustedIP}
+                placeholder="仅支持一个固定 IPv4 或 IPv6 地址"
+                disabled={generating}
+              />
+              <div className="sec-row-tip">不支持 CIDR 网段、多个地址、端口或主机名；局域网请求不受此限制。</div>
+            </div>
+          </div>
+          <div className="sec-row">
+            <div className="sec-row-label">公网可用性</div>
+            <div className="sec-row-main">
+              <Tag color={info?.public_usable ? 'green' : 'orange'}>{info?.public_usable ? '可用于公网' : '暂不可用于公网'}</Tag>
+            </div>
+          </div>
+          <div className="sec-row">
+            <div className="sec-row-label">到期时间</div>
+            <div className="sec-row-main">
+              <Input value={formatDateTime(info?.expires_at)} disabled />
+            </div>
+          </div>
+        </>
+      )}
 
       <div className="sec-row">
         <div className="sec-row-label">API ID</div>

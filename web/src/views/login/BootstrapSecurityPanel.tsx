@@ -93,6 +93,7 @@ export default function BootstrapSecurityPanel({
   // 暂存完整登录态：恢复码确认保存后再应用会话
   const [pendingSession, setPendingSession] = useState<LoginStageResponse | null>(null)
   const [skipping, setSkipping] = useState(false)
+  const publicAccessEnabled = !!security.public_access_enabled
 
   /** 加载已有 SMTP 设置预填表单（密码后端不回传，留空表示不修改） */
   const loadSMTPSettings = useCallback(async () => {
@@ -516,7 +517,7 @@ export default function BootstrapSecurityPanel({
 
       {/* ============ 底部操作 ============ */}
       <div className="qvm-bs-foot">
-        {isAdmin ? (
+        {isAdmin && !publicAccessEnabled ? (
           <Button type="warning" theme="borderless" loading={skipping} onClick={() => void handleSkip()}>
             跳过安全设置
           </Button>

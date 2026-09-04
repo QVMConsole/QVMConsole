@@ -136,6 +136,26 @@ export function getUserInfo() {
   return service.get<unknown, ApiResponse<UserInfo>>('/auth/info')
 }
 
+export interface SessionActivityResult {
+  public_session: boolean
+  idle_expires_at?: string
+  idle_timeout_seconds?: number
+}
+
+/** 上报真实用户活动；后台轮询不得调用。 */
+export function reportSessionActivity() {
+  return service.post<unknown, ApiResponse<SessionActivityResult>>(
+    '/auth/session/activity',
+    {},
+    { silent: true },
+  )
+}
+
+/** 撤销当前服务端登录会话。 */
+export function logoutSession() {
+  return service.post<unknown, ApiResponse<null>>('/auth/logout', {}, { silent: true })
+}
+
 // ==================== 安全中心（个人安全设置） ====================
 
 /** 修改密码请求 */
@@ -193,7 +213,7 @@ export interface SecurityUpdateResult extends Partial<LoginStageResponse> {
   security: SecurityState
 }
 
-/** 修改当前用户密码（高风险操作，428 二次验证由请求层自动处理） */
+/** 修改当前用户密码（仅 JWT；普通业务 API Key 调用不触发交互式二次验证） */
 export function changePassword(data: ChangePasswordRequest) {
   return service.put<unknown, ApiResponse<null>>('/auth/password', data)
 }

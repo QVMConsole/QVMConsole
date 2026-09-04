@@ -29,7 +29,7 @@
 | 接口 | 说明 |
 |---|---|
 | `GET /security/password-breach/status` | 返回开关、最近检查时间、运行中任务、泄露总数、管理员数、普通用户数及受影响账户处置状态 |
-| `POST /security/password-breach/scan` | 提交完整正式扫描；兼容 API Key，并保留高风险二次验证；返回新任务或当前运行任务 |
+| `POST /security/password-breach/scan` | 提交完整正式扫描；兼容 API Key，JWT 会话调用需高风险二次验证，API Key 调用不触发 428；返回新任务或当前运行任务 |
 
 任务中心使用 `password_breach_scan` 展示扫描进度，邮件投递任务使用 `password_breach_notify`。定时任务同时写入 `password_breach_daily` 调度事件，可在调度事件页查看成功或失败结果。
 

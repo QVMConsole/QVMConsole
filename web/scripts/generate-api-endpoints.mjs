@@ -35,7 +35,7 @@ for (const name of await readdir(handlerDir)) {
     const start = current.index ?? 0
     const end = functions[index + 1]?.index ?? source.length
     const body = source.slice(start, end)
-    const risk = body.match(/requireHighRiskVerification\s*\(\s*c\s*,\s*"([^"]+)"/)
+    const risk = body.match(/require(?:Strict)?HighRiskVerification\s*\(\s*c\s*,\s*"([^"]+)"/)
     if (risk) highRiskByHandler.set(current[1], risk[1])
   }
 }
@@ -47,7 +47,15 @@ const groups = new Map([
 
 const mergeMiddleware = (base, text) => ({
   ...base,
-  auth: text.includes('JWTTokenTypeMiddleware') || text.includes('TokenTypeMiddleware') ? 'jwt-only' : text.includes('AuthMiddleware') ? 'jwt' : base.auth,
+  auth: text.includes('JWTTokenTypeMiddleware')
+    ? 'jwt-only'
+    : /TokenTypeMiddleware\([^)]*"login"/.test(text)
+      ? 'login'
+      : text.includes('TokenTypeMiddleware')
+        ? 'jwt-only'
+        : text.includes('AuthMiddleware')
+          ? 'jwt'
+          : base.auth,
   admin: base.admin || text.includes('AdminMiddleware'),
   elasticOnly: base.elasticOnly || text.includes('ElasticCloudOnlyMiddleware'),
   vmAccess: base.vmAccess || text.includes('VMAccessMiddleware'),
