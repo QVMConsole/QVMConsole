@@ -80,7 +80,7 @@ func ApplyVPCSwitchBandwidth(sw model.VPCSwitch) error {
 	}
 	vmOfports := []string{}
 	if upRateKbit > 0 {
-		vmOfports = listVPCSwitchVMOfports(sw.ID)
+		vmOfports = listVPCSwitchVMOfports(sw)
 	}
 	clearVPCSwitchBandwidth(sw)
 	downMeter := vpcSwitchMeterID(sw.ID, "down")
@@ -111,6 +111,14 @@ func ApplyVPCSwitchBandwidth(sw model.VPCSwitch) error {
 		result := utils.ExecCommand("ovs-ofctl", "-O", "OpenFlow13", "add-flow", bridge, flow)
 		if result.Error != nil {
 			return fmt.Errorf("配置 VPC 交换机总带宽失败: %s", result.Stderr)
+		}
+	}
+	if upRateKbit > 0 && len(vmOfports) > 0 {
+		// meter 创建成功不代表流量已经受限；必须确认至少有一条实际引用该 meter 的流。
+		flowDump := utils.ExecCommand("ovs-ofctl", "-O", "OpenFlow13", "dump-flows", bridge)
+		meterText := fmt.Sprintf("meter:%d", upMeter)
+		if flowDump.Error != nil || !strings.Contains(flowDump.Stdout, meterText) {
+			return fmt.Errorf("VPC 交换机上行限速 meter=%d 已创建但没有引用流表", upMeter)
 		}
 	}
 	if HookSwitchUsesDirectBridge(sw) {
@@ -145,15 +153,26 @@ type vpcSwitchVMPortMatch struct {
 	MAC      string
 }
 
-func listVPCSwitchVMOfports(switchID uint) []string {
+func listVPCSwitchVMOfports(sw model.VPCSwitch) []string {
 	if model.DB == nil {
 		return nil
 	}
 	var bindings []model.VPCVMBinding
-	model.DB.Where("switch_id = ?", switchID).Order("vm_name ASC").Find(&bindings)
+	model.DB.Where("switch_id = ?", sw.ID).Order("vm_name ASC").Find(&bindings)
 	seen := map[string]bool{}
 	ofports := make([]string, 0, len(bindings))
 	interfacesByVM := map[string][]RuntimeInterface{}
+	appendInterface := func(iface RuntimeInterface) {
+		if !switchRuntimeInterfaceMatches(sw, iface) {
+			return
+		}
+		ofport := HookGetOVSInterfaceOfPort(iface.Name)
+		if ofport == "" || seen[ofport] {
+			return
+		}
+		seen[ofport] = true
+		ofports = append(ofports, ofport)
+	}
 	for _, binding := range bindings {
 		ifaces, ok := interfacesByVM[binding.VMName]
 		if !ok {
@@ -163,15 +182,49 @@ func listVPCSwitchVMOfports(switchID uint) []string {
 		if binding.InterfaceOrder < 0 || binding.InterfaceOrder >= len(ifaces) {
 			continue
 		}
-		ofport := HookGetOVSInterfaceOfPort(ifaces[binding.InterfaceOrder].Name)
-		if ofport == "" || seen[ofport] {
-			continue
+		appendInterface(ifaces[binding.InterfaceOrder])
+	}
+	// 运行态端口可能因旧数据、迁移或热插拔暂时没有对应绑定记录。
+	// 按网桥和 access VLAN 反查 vnet，避免只创建 meter 却没有限速流表。
+	if HookListAllVMNames != nil {
+		bridge := HookBridgeNameForSwitch(sw)
+		for _, vmName := range HookListAllVMNames() {
+			ifaces, ok := interfacesByVM[vmName]
+			if !ok {
+				ifaces = HookParseVirshDomiflist(utils.ExecCommand("virsh", "domiflist", vmName).Stdout)
+				interfacesByVM[vmName] = ifaces
+			}
+			for _, iface := range ifaces {
+				if strings.TrimSpace(iface.Source) == strings.TrimSpace(bridge) {
+					appendInterface(iface)
+				}
+			}
 		}
-		seen[ofport] = true
-		ofports = append(ofports, ofport)
 	}
 	sort.Strings(ofports)
 	return ofports
+}
+
+func switchRuntimeInterfaceMatches(sw model.VPCSwitch, iface RuntimeInterface) bool {
+	if strings.TrimSpace(iface.Name) == "" || strings.TrimSpace(iface.Source) == "" {
+		return false
+	}
+	if strings.TrimSpace(iface.Source) != strings.TrimSpace(HookBridgeNameForSwitch(sw)) {
+		return false
+	}
+	if HookSwitchUsesDirectBridge(sw) {
+		return true
+	}
+	// NAT 交换机使用 OVS access port，tag 是区分同一 br-ovs 上不同交换机的依据。
+	tagResult := utils.ExecCommand("ovs-vsctl", "--if-exists", "get", "Port", iface.Name, "tag")
+	if tagResult.Error != nil {
+		return false
+	}
+	tag := strings.Trim(strings.TrimSpace(tagResult.Stdout), "[]\"")
+	if sw.VLANID == 0 {
+		return tag == "" || tag == "[]"
+	}
+	return tag == fmt.Sprintf("%d", sw.VLANID)
 }
 
 func listVPCSwitchVMPortMatches(sw model.VPCSwitch) []vpcSwitchVMPortMatch {
@@ -301,7 +354,7 @@ func buildVPCSwitchBandwidthFlows(sw model.VPCSwitch, gatewayOfport string, vmOf
 			}
 			flows = append(flows,
 				fmt.Sprintf("cookie=%s,%spriority=90,in_port=%s,ip,nw_src=%s,nw_dst=%s,actions=NORMAL", cookie, table, vmOfport, sw.CIDR, sw.CIDR),
-				fmt.Sprintf("cookie=%s,%spriority=80,in_port=%s,ip,nw_src=%s,actions=meter:%d,NORMAL", cookie, table, vmOfport, sw.CIDR, upMeter),
+				fmt.Sprintf("cookie=%s,%spriority=80,in_port=%s,ip,actions=meter:%d,NORMAL", cookie, table, vmOfport, upMeter),
 			)
 		}
 	}
