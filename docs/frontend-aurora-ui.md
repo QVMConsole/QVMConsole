@@ -25,7 +25,7 @@
   - 浅色：`web/src/assets/img/login-bg-light.png`
   - 深色：`web/src/assets/img/login-bg.png`
 - 布局：左侧品牌区（logo / 标语 / 特性 / 浮动 VM 装饰卡片，≤960px 隐藏）+ 右侧登录卡片。
-- 交互：勾选《用户协议》《公测协议》后登录按钮才可点击；密码可见性切换；多阶段登录（强制改密 / 安全初始化 / 登录二次验证）已全部接入。
+- 交互：勾选《用户协议》登录按钮才可点击；密码可见性切换；多阶段登录（强制改密 / 安全初始化 / 登录二次验证）已全部接入。
 - **登录二次验证**（`web/src/views/login/LoginVerifyPanel.tsx`）：登录返回 `stage=login_verify` 时右侧卡片切换为验证面板，持 login 令牌（15 分钟）调 `/auth/login/verify`；多方式时 RadioGroup 按钮切换（管理员仅 2FA 动态码 / 恢复码，普通用户为邮箱验证码，绑定 2FA 后可选动态码 / 恢复码），邮箱方式需先点「发送邮箱验证码」（`/auth/login/email/send`，Banner 显示掩码邮箱），恢复码方式为 16 位输入并提示一次性失效；验证通过返回完整登录态直接进入系统，「返回登录」放弃验证。后端配套修复：已绑定 2FA 的管理员即使曾跳过安全初始化（`bootstrap_skipped`）也强制登录验证（`service/security/account.go` 的 `NeedsLoginVerification`）。
 - **强制修改默认密码**（`web/src/views/login/ForcePasswordModal.tsx`）：登录返回 `force_password_change` 时仅写入临时 token（后端中间件只放行改密/登出等白名单接口）并弹出改密弹窗；当前密码预填登录密码，新密码经本地弱密码快速检测 + HIBP 泄露检测（后端 k-匿名）后提交 `PUT /auth/password`（此场景后端跳过 428 高风险验证）；改密成功后旧 token 随 `security_updated_at` 更新立即失效，前端用新密码自动重新登录并进入系统；点击「退出登录」则清除临时会话回到登录表单。
 - **安全初始化**（`web/src/views/login/BootstrapSecurityPanel.tsx`）：登录返回 `stage=bootstrap_security` 时右侧卡片切换为引导面板（520px、内部滚动），全程持登录返回的 bootstrap 令牌（30 分钟）调用接口，不写入用户 Store：

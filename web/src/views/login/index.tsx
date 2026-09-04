@@ -357,14 +357,6 @@ export default function LoginPage() {
                 >
                   《用户协议》
                 </a>{' '}
-                和{' '}
-                <a
-                  href="https://qvmcdocs.xiaozhuhouses.asia/agreement?return=%2Fdocs%2Finstall%2F"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  《公测协议》
-                </a>
               </span>
             </div>
 
