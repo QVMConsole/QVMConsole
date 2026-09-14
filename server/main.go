@@ -150,6 +150,8 @@ func main() {
 	// 启动服务
 	addr := fmt.Sprintf(":%d", config.GlobalConfig.Port)
 	logger.App.Info("QVMConsole 服务启动", "addr", addr)
+	// 直通设备扫描较慢，服务开始监听后再后台预热，避免影响启动阶段其它初始化。
+	go service.WarmupPassthroughDeviceCache()
 	if err := r.Run(addr); err != nil {
 		logger.App.Error("服务启动失败", "error", err)
 		os.Exit(1)

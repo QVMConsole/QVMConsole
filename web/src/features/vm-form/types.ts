@@ -182,6 +182,8 @@ export interface VmFormContext {
   hostCores: number
   spiceSupported: boolean
   registration: RegistrationContext
+  /** 编辑模式当前虚拟机名称，用于打开直通页时按需读取已配置设备。 */
+  vmName?: string
   /** 编辑模式原始 vCPU（运行态下禁止减少） */
   editOrigVcpu?: number
   /** 编辑模式原始内存 GB（运行态下禁止减少） */

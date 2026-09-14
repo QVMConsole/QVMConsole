@@ -1,10 +1,14 @@
 package vm
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"kvm_console/logger"
@@ -42,6 +46,21 @@ const hostdevXMLTemplate = `<hostdev mode='subsystem' type='pci' managed='yes'>
 
 var readPCIDeviceClass = os.ReadFile
 
+// 直通设备扫描会访问宿主机全部 PCI 设备。结果短时间内变化很少，
+// 使用短 TTL 缓存并保证同一时刻最多只有一个扫描任务，避免请求风暴。
+const passthroughDeviceCacheTTL = 10 * time.Second
+
+type passthroughDeviceCacheState struct {
+	sync.Mutex
+	devices     []PCIDevice
+	refreshedAt time.Time
+	refreshing  bool
+	wait        chan struct{}
+	lastErr     error
+}
+
+var passthroughCache passthroughDeviceCacheState
+
 // parsePCIAddress 解析 PCI 地址 "0000:04:00.0" 为 domain/bus/slot/function
 func parsePCIAddress(addr string) (domain, bus, slot, function string, err error) {
 	// 格式: domain:bus:slot.function，例如 0000:04:00.0
@@ -74,14 +93,147 @@ func parsePCIAddress(addr string) (domain, bus, slot, function string, err error
 
 // ListPCIDevicesForPassthrough 列出所有可直通的 PCI 设备
 func ListPCIDevicesForPassthrough() ([]PCIDevice, error) {
-	// 获取所有 PCI 设备的 virsh nodedev 列表
-	listResult := utils.ExecCommand("virsh", "nodedev-list", "--cap", "pci")
-	if listResult.Error != nil {
-		return nil, fmt.Errorf("获取 PCI 设备列表失败: %s", listResult.Stderr)
+	now := time.Now()
+	passthroughCache.Lock()
+	if !passthroughCache.refreshedAt.IsZero() && now.Sub(passthroughCache.refreshedAt) < passthroughDeviceCacheTTL {
+		devices := clonePCIDevices(passthroughCache.devices)
+		passthroughCache.Unlock()
+		return devices, nil
 	}
 
+	// 已有旧快照时立即返回，并在后台刷新，避免慢扫描占用 HTTP 请求。
+	if len(passthroughCache.devices) > 0 {
+		devices := clonePCIDevices(passthroughCache.devices)
+		if !passthroughCache.refreshing {
+			passthroughCache.refreshing = true
+			passthroughCache.wait = make(chan struct{})
+			go refreshPassthroughDeviceCache(passthroughCache.wait)
+		}
+		passthroughCache.Unlock()
+		return devices, nil
+	}
+
+	// 没有可返回的旧快照时复用当前扫描结果。扫描已被限制为单任务，
+	// 因此只会有首个冷启动请求等待，不会产生并发子进程风暴或全局请求排队。
+	if passthroughCache.refreshing {
+		wait := passthroughCache.wait
+		passthroughCache.Unlock()
+		<-wait
+		passthroughCache.Lock()
+		devices := clonePCIDevices(passthroughCache.devices)
+		err := passthroughCache.lastErr
+		passthroughCache.Unlock()
+		return devices, err
+	}
+
+	passthroughCache.refreshing = true
+	passthroughCache.wait = make(chan struct{})
+	wait := passthroughCache.wait
+	passthroughCache.Unlock()
+
+	return runPassthroughDeviceRefresh(wait)
+}
+
+// WarmupPassthroughDeviceCache 在服务启动后异步预热直通设备缓存。
+// 预热不会阻塞 HTTP 服务启动，首个打开直通页面时通常可直接命中缓存。
+func WarmupPassthroughDeviceCache() {
+	passthroughCache.Lock()
+	if passthroughCache.refreshing || len(passthroughCache.devices) > 0 {
+		passthroughCache.Unlock()
+		return
+	}
+	passthroughCache.refreshing = true
+	passthroughCache.wait = make(chan struct{})
+	wait := passthroughCache.wait
+	passthroughCache.Unlock()
+	go refreshPassthroughDeviceCache(wait)
+}
+
+// InvalidatePassthroughDeviceCache 使直通设备缓存立即进入后台刷新状态。
+// 绑定、解绑、添加或移除设备后调用，下一次读取不会等待慢扫描。
+func InvalidatePassthroughDeviceCache() {
+	passthroughCache.Lock()
+	passthroughCache.refreshedAt = time.Time{}
+	if len(passthroughCache.devices) == 0 && !passthroughCache.refreshing {
+		passthroughCache.refreshing = true
+		passthroughCache.wait = make(chan struct{})
+		wait := passthroughCache.wait
+		passthroughCache.Unlock()
+		go refreshPassthroughDeviceCache(wait)
+		return
+	}
+	if !passthroughCache.refreshing && len(passthroughCache.devices) > 0 {
+		passthroughCache.refreshing = true
+		passthroughCache.wait = make(chan struct{})
+		wait := passthroughCache.wait
+		passthroughCache.Unlock()
+		go refreshPassthroughDeviceCache(wait)
+		return
+	}
+	passthroughCache.Unlock()
+}
+
+func runPassthroughDeviceRefresh(wait chan struct{}) ([]PCIDevice, error) {
+	devices, err := scanPCIDevicesForPassthrough()
+	passthroughCache.Lock()
+	if err == nil {
+		passthroughCache.devices = clonePCIDevices(devices)
+		passthroughCache.refreshedAt = time.Now()
+	} else if len(passthroughCache.devices) > 0 {
+		// 后台刷新失败时短暂保留旧快照，避免每个请求都重新启动扫描。
+		passthroughCache.refreshedAt = time.Now()
+	}
+	passthroughCache.lastErr = err
+	passthroughCache.refreshing = false
+	if passthroughCache.wait == wait {
+		close(wait)
+		passthroughCache.wait = nil
+	}
+	result := clonePCIDevices(passthroughCache.devices)
+	passthroughCache.Unlock()
+	return result, err
+}
+
+func refreshPassthroughDeviceCache(wait chan struct{}) {
+	if _, err := runPassthroughDeviceRefresh(wait); err != nil {
+		logger.App.Warn("后台刷新 PCI 直通设备缓存失败", "error", err)
+	}
+}
+
+func clonePCIDevices(devices []PCIDevice) []PCIDevice {
+	if len(devices) == 0 {
+		return []PCIDevice{}
+	}
+	return append([]PCIDevice(nil), devices...)
+}
+
+// scanPCIDevicesForPassthrough 执行一次实际扫描。
+// 优先使用单次 lspci + sysfs 读取，失败时回退到旧的 virsh 逐设备路径。
+func scanPCIDevicesForPassthrough() ([]PCIDevice, error) {
 	// 获取已绑定的 hostdev（用于标记占用情况）
 	hostdevMap := buildHostDevUsageMap()
+	fastDevices, fastErr := collectPCIDevicesFast()
+	if fastErr == nil {
+		devices := make([]PCIDevice, 0, len(fastDevices))
+		for _, dev := range fastDevices {
+			if !isPCIDevicePassthroughCapable(dev) {
+				continue
+			}
+			if vmName, ok := hostdevMap[dev.PCIAddress]; ok {
+				dev.IsUsedByVM = true
+				dev.UsedByVMName = vmName
+			}
+			devices = append(devices, dev)
+		}
+		sort.Slice(devices, func(i, j int) bool { return devices[i].PCIAddress < devices[j].PCIAddress })
+		return devices, nil
+	}
+
+	// lspci 不可用时回退到兼容路径，保证特殊发行版仍可读取设备。
+	listResult := utils.ExecCommand("virsh", "nodedev-list", "--cap", "pci")
+	if listResult.Error != nil {
+		return nil, fmt.Errorf("获取 PCI 设备列表失败: %s（快速扫描失败: %v）", listResult.Stderr, fastErr)
+	}
 
 	var devices []PCIDevice
 	for _, name := range strings.Split(listResult.Stdout, "\n") {
@@ -111,8 +263,192 @@ func ListPCIDevicesForPassthrough() ([]PCIDevice, error) {
 
 		devices = append(devices, dev)
 	}
+	sort.Slice(devices, func(i, j int) bool { return devices[i].PCIAddress < devices[j].PCIAddress })
 
 	return devices, nil
+}
+
+// collectPCIDevicesFast 使用一次 lspci 和 sysfs 读取全部 PCI 设备信息，
+// 避免对每个设备分别启动 virsh/lspci 子进程。
+func collectPCIDevicesFast() (map[string]PCIDevice, error) {
+	result := utils.ExecCommand("lspci", "-D", "-mm", "-nn")
+	if result.Error != nil {
+		return nil, fmt.Errorf("执行 lspci 快速扫描失败: %s", result.Stderr)
+	}
+
+	devices := make(map[string]PCIDevice)
+	scanner := bufio.NewScanner(strings.NewReader(result.Stdout))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		address, fields, ok := parseLspciMachineLine(line)
+		if !ok || address == "" || len(fields) < 3 {
+			continue
+		}
+		className, _ := parseLspciNameAndID(fields[0])
+		vendorName, _ := parseLspciNameAndID(fields[1])
+		productName, _ := parseLspciNameAndID(fields[2])
+		brackets := parseLspciBracketFields(line)
+		classID := ""
+		vendorID := ""
+		productID := ""
+		if len(brackets) > 0 {
+			classID = brackets[0]
+		}
+		if len(brackets) > 1 {
+			vendorID = brackets[1]
+		}
+		if len(brackets) > 2 {
+			productID = brackets[2]
+		}
+		dev := PCIDevice{
+			PCIAddress:  address,
+			VendorID:    strings.ToLower(vendorID),
+			VendorName:  vendorName,
+			ProductID:   strings.ToLower(productID),
+			ProductName: productName,
+			ClassName:   className,
+		}
+		parts := parsePCIAddressFromString(address)
+		dev.Domain = parts["domain"]
+		dev.Bus = parts["bus"]
+		dev.Slot = parts["slot"]
+		dev.Function = parts["function"]
+		if classCode := readPCIClassCode(address); classCode != "" {
+			mappedClass := classCodeToName(classCode)
+			// 关键桥接/芯片组设备保留 lspci 的英文类别，便于现有过滤逻辑精确匹配。
+			if isCriticalPCIClass(className) {
+				dev.ClassName = className
+			} else if mappedClass != "未知设备" && !strings.HasPrefix(mappedClass, "PCI 设备(") {
+				dev.ClassName = mappedClass
+			}
+		} else if classID != "" {
+			dev.ClassName = classCodeToName(classID)
+		}
+		dev.DriverInUse = readPCIDriver(address)
+		dev.IsVfioBound = dev.DriverInUse == "vfio-pci"
+		dev.IOMMUGroup = readPCIIOMMUGroup(address)
+		dev.IsPassthroughCapable = isPCIDevicePassthroughCapable(dev)
+		devices[address] = dev
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("读取 lspci 输出失败: %w", err)
+	}
+	if len(devices) == 0 {
+		return nil, fmt.Errorf("lspci 未返回有效 PCI 设备")
+	}
+	return devices, nil
+}
+
+// parseLspciMachineLine 解析 lspci -mm 输出的一行。
+func parseLspciMachineLine(line string) (string, []string, bool) {
+	quote := strings.IndexByte(line, '"')
+	if quote <= 0 {
+		return "", nil, false
+	}
+	address := strings.TrimSpace(line[:quote])
+	var fields []string
+	for i := quote; i < len(line); {
+		if line[i] != '"' {
+			i++
+			continue
+		}
+		start := i
+		i++
+		escaped := false
+		for i < len(line) {
+			if !escaped && line[i] == '"' {
+				break
+			}
+			if !escaped && line[i] == '\\' {
+				escaped = true
+			} else {
+				escaped = false
+			}
+			i++
+		}
+		if i >= len(line) {
+			return "", nil, false
+		}
+		value, err := strconv.Unquote(line[start : i+1])
+		if err != nil {
+			return "", nil, false
+		}
+		fields = append(fields, value)
+		i++
+	}
+	return address, fields, true
+}
+
+func parseLspciNameAndID(value string) (string, string) {
+	idx := strings.LastIndex(value, " [")
+	if idx < 0 || !strings.HasSuffix(value, "]") {
+		return strings.TrimSpace(value), ""
+	}
+	return strings.TrimSpace(value[:idx]), strings.TrimSpace(value[idx+2 : len(value)-1])
+}
+
+// parseLspciBracketFields 提取 lspci -nn 输出中的方括号字段。
+func parseLspciBracketFields(line string) []string {
+	fields := make([]string, 0, 3)
+	for start := 0; start < len(line); {
+		open := strings.IndexByte(line[start:], '[')
+		if open < 0 {
+			break
+		}
+		open += start
+		close := strings.IndexByte(line[open+1:], ']')
+		if close < 0 {
+			break
+		}
+		close += open + 1
+		value := strings.TrimSpace(line[open+1 : close])
+		if value != "" {
+			fields = append(fields, value)
+		}
+		start = close + 1
+	}
+	return fields
+}
+
+func isCriticalPCIClass(className string) bool {
+	switch strings.ToLower(strings.TrimSpace(className)) {
+	case "host bridge", "pci bridge", "isa bridge", "smbus", "memory controller":
+		return true
+	default:
+		return false
+	}
+}
+
+func readPCIClassCode(address string) string {
+	data, err := os.ReadFile(filepath.Join("/sys/bus/pci/devices", address, "class"))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimPrefix(strings.ToLower(strings.TrimSpace(string(data))), "0x")
+}
+
+func readPCIDriver(address string) string {
+	link, err := os.Readlink(filepath.Join("/sys/bus/pci/devices", address, "driver"))
+	if err != nil {
+		return ""
+	}
+	return filepath.Base(link)
+}
+
+func readPCIIOMMUGroup(address string) int {
+	link, err := os.Readlink(filepath.Join("/sys/bus/pci/devices", address, "iommu_group"))
+	if err != nil {
+		return -1
+	}
+	value := filepath.Base(link)
+	group := -1
+	if _, err := fmt.Sscanf(value, "%d", &group); err != nil {
+		return -1
+	}
+	return group
 }
 
 // GetVMPCIDevices 获取指定虚拟机直通的 PCI 设备
@@ -168,12 +504,12 @@ func GetVMPCIDevices(vmName string) ([]PCIDevice, error) {
 			if strings.Contains(trimmed, "</hostdev>") {
 				inHostDev = false
 				if domain != "" && bus != "" && slot != "" && function != "" {
-					currentDev.Domain = domain
-					currentDev.Bus = bus
-					currentDev.Slot = slot
-					currentDev.Function = function
-					currentDev.PCIAddress = fmt.Sprintf("%s:%s:%s.%s",
-						domain, bus, slot, function)
+					currentDev.PCIAddress = formatPCIAddress(domain, bus, slot, function)
+					parts := parsePCIAddressFromString(currentDev.PCIAddress)
+					currentDev.Domain = parts["domain"]
+					currentDev.Bus = parts["bus"]
+					currentDev.Slot = parts["slot"]
+					currentDev.Function = parts["function"]
 					currentDev.IsUsedByVM = true
 					currentDev.UsedByVMName = vmName
 					devices = append(devices, currentDev)
@@ -234,6 +570,7 @@ func AttachPCIDeviceToVM(vmName, pciAddress string) error {
 	}
 
 	RefreshVMCacheByNameAsync(vmName)
+	InvalidatePassthroughDeviceCache()
 	return nil
 }
 
@@ -261,6 +598,7 @@ func DetachPCIDeviceFromVM(vmName, pciAddress string) error {
 	}
 
 	RefreshVMCacheByNameAsync(vmName)
+	InvalidatePassthroughDeviceCache()
 	return nil
 }
 
@@ -339,6 +677,7 @@ func BindPCIDeviceToVfio(pciAddress string) error {
 	if !isDeviceVfioBound(pciAddress) {
 		return fmt.Errorf("绑定 %s 到 vfio-pci 未生效，可能设备被其他驱动占用", pciAddress)
 	}
+	InvalidatePassthroughDeviceCache()
 
 	return nil
 }
@@ -358,6 +697,7 @@ func UnbindPCIDeviceFromVfio(pciAddress string) error {
 	// 触发设备重新探测
 	utils.ExecShell(fmt.Sprintf("echo 1 | tee /sys/bus/pci/devices/%s/remove 2>/dev/null", utils.ShellSingleQuote(pciAddress)))
 	utils.ExecShell("echo 1 | tee /sys/bus/pci/rescan 2>/dev/null")
+	InvalidatePassthroughDeviceCache()
 
 	return nil
 }
@@ -482,21 +822,46 @@ func extractPCIAddressFromNodedev(xmlStr string) string {
 	if domain == "" {
 		domain = "0x0000"
 	}
-	d := strings.TrimPrefix(domain, "0x")
-	b := strings.TrimPrefix(bus, "0x")
-	s := strings.TrimPrefix(slot, "0x")
-	f := strings.TrimPrefix(function, "0x")
-	return fmt.Sprintf("%04s:%02s:%02s.%s",
-		zeroPadHex(d, 4),
-		zeroPadHex(b, 2),
-		zeroPadHex(s, 2),
-		f)
+	return formatPCIAddressDecimal(domain, bus, slot, function)
 }
 
-func zeroPadHex(decimalStr string, width int) string {
-	val := uint64(0)
-	fmt.Sscanf(decimalStr, "%d", &val)
-	return fmt.Sprintf("%0*x", width, val)
+// formatPCIAddress 将 libvirt XML 中常见的 0x 前缀地址统一为标准 PCI 地址。
+func formatPCIAddress(domain, bus, slot, function string) string {
+	d := parsePCIHexValue(domain)
+	b := parsePCIHexValue(bus)
+	s := parsePCIHexValue(slot)
+	f := parsePCIHexValue(function)
+	return fmt.Sprintf("%04x:%02x:%02x.%x", d, b, s, f)
+}
+
+// formatPCIAddressDecimal 处理 virsh nodedev XML 中以十进制标签表示的地址字段。
+func formatPCIAddressDecimal(domain, bus, slot, function string) string {
+	parse := func(value string) uint64 {
+		value = strings.TrimSpace(strings.ToLower(value))
+		base := 10
+		if strings.HasPrefix(value, "0x") {
+			value = strings.TrimPrefix(value, "0x")
+			base = 16
+		}
+		parsed, err := strconv.ParseUint(value, base, 64)
+		if err != nil && base == 10 {
+			parsed, err = strconv.ParseUint(value, 16, 64)
+		}
+		if err != nil {
+			return 0
+		}
+		return parsed
+	}
+	return fmt.Sprintf("%04x:%02x:%02x.%x", parse(domain), parse(bus), parse(slot), parse(function))
+}
+
+func parsePCIHexValue(value string) uint64 {
+	value = strings.TrimPrefix(strings.ToLower(strings.TrimSpace(value)), "0x")
+	parsed, err := strconv.ParseUint(value, 16, 64)
+	if err != nil {
+		return 0
+	}
+	return parsed
 }
 
 // extractTagContent 提取 XML 标签内容
@@ -574,20 +939,12 @@ func classCodeToName(code string) string {
 // parsePCIAddressFromString 解析 PCI 地址字符串
 func parsePCIAddressFromString(addr string) map[string]string {
 	result := map[string]string{"domain": "0000", "bus": "00", "slot": "00", "function": "0"}
-	parts := strings.Split(addr, ":")
-	if len(parts) >= 2 {
-		result["domain"] = parts[0]
-		subParts := strings.Split(parts[1], ".")
-		if len(subParts) >= 2 {
-			result["function"] = subParts[1]
-			busSlot := strings.SplitN(subParts[0], ":", 2)
-			if len(busSlot) == 2 {
-				result["bus"] = busSlot[0]
-				result["slot"] = busSlot[1]
-			} else {
-				result["bus"] = subParts[0]
-			}
-		}
+	domain, bus, slot, function, err := parsePCIAddress(strings.TrimSpace(addr))
+	if err == nil {
+		result["domain"] = domain
+		result["bus"] = bus
+		result["slot"] = slot
+		result["function"] = function
 	}
 	return result
 }
@@ -776,7 +1133,7 @@ func buildHostDevUsageMap() map[string]string {
 				if strings.Contains(trimmed, "</hostdev>") {
 					inHostDev = false
 					if domain != "" && bus != "" && slot != "" && function != "" {
-						addr := fmt.Sprintf("%s:%s:%s.%s", domain, bus, slot, function)
+						addr := formatPCIAddress(domain, bus, slot, function)
 						usageMap[addr] = vmName
 					}
 				}

@@ -26,6 +26,21 @@ export interface UseVmFormOptionsParams {
   isAdmin: boolean
 }
 
+let sharedPassthroughRequest: Promise<PassthroughDevice[]> | null = null
+
+/** 在不同表单实例之间复用同一时刻的宿主机直通扫描请求。 */
+function requestPassthroughDevices(): Promise<PassthroughDevice[]> {
+  if (sharedPassthroughRequest) return sharedPassthroughRequest
+  const request = getPassthroughDevices().then((res) => res.data || [])
+  sharedPassthroughRequest = request
+  void request.then(() => {
+    if (sharedPassthroughRequest === request) sharedPassthroughRequest = null
+  }, () => {
+    if (sharedPassthroughRequest === request) sharedPassthroughRequest = null
+  })
+  return request
+}
+
 export function useVmFormOptions({ isAdmin }: UseVmFormOptionsParams) {
   const [isoList, setIsoList] = useState<(IsoItem | UserIsoItem)[]>([])
   const [isoLoading, setIsoLoading] = useState(false)
@@ -45,6 +60,8 @@ export function useVmFormOptions({ isAdmin }: UseVmFormOptionsParams) {
   const [spiceDefault, setSpiceDefault] = useState(false)
 
   const baseLoadedRef = useRef(false)
+  const passthroughLoadedRef = useRef(false)
+  const passthroughRequestRef = useRef<Promise<void> | null>(null)
 
   /** 打开表单时一次性加载：宿主信息 / 系统设置 / 亲和性预设 / 公开设置
    * 返回最新加载结果（state 更新存在时序差，调用方应使用返回值） */
@@ -198,15 +215,27 @@ export function useVmFormOptions({ isAdmin }: UseVmFormOptionsParams) {
     }
   }, [])
 
-  /** 宿主机可直通 PCI 设备（仅管理员） */
-  const loadPassthroughDevices = useCallback(async () => {
-    try {
-      const res = await getPassthroughDevices()
-      setPassthroughDevices(res.data || [])
-    } catch {
-      setPassthroughDevices([])
-    }
-  }, [])
+  /** 宿主机可直通 PCI 设备（仅管理员；按需加载并复用进行中的请求） */
+  const loadPassthroughDevices = useCallback(async (force = false) => {
+    if (!isAdmin) return
+    if (passthroughRequestRef.current) return passthroughRequestRef.current
+    if (!force && passthroughLoadedRef.current) return
+
+    const request = (async () => {
+      try {
+        const devices = await requestPassthroughDevices()
+        setPassthroughDevices(devices)
+        passthroughLoadedRef.current = true
+      } catch {
+        // 加载失败允许下次进入直通页时重试，避免短暂故障把空列表缓存下来。
+        setPassthroughDevices([])
+      } finally {
+        passthroughRequestRef.current = null
+      }
+    })()
+    passthroughRequestRef.current = request
+    return request
+  }, [isAdmin])
 
   return {
     isoList,

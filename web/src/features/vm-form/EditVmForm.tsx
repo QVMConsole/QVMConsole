@@ -20,7 +20,6 @@ import {
   enableSpice,
   getSpiceStatus,
   getVmDetail,
-  getVmPassthroughDevices,
   updateVm,
   type VmDetailInfo,
 } from '@/api/vm'
@@ -66,13 +65,52 @@ const NOOP_REGISTRATION = {
   dedicated_vpc_label: '',
 }
 
+/** 仅提取会影响编辑表单的字段，排除实时资源统计和状态字段。 */
+function getVmConfigSignature(detail: Partial<VmDetailInfo>): string {
+  return JSON.stringify({
+    name: detail.name,
+    vcpu: detail.vcpu,
+    memory: detail.memory,
+    max_memory: detail.max_memory,
+    autostart: detail.autostart,
+    freeze: detail.freeze,
+    apic: detail.apic,
+    pae: detail.pae,
+    rtc_offset: detail.rtc_offset,
+    rtc_startdate: detail.rtc_startdate,
+    os_type: detail.os_type,
+    guest_agent: detail.guest_agent,
+    smbios1: detail.smbios1,
+    cpu_limit_percent: detail.cpu_limit_percent,
+    cpu_affinity: detail.cpu_affinity,
+    nic_model: detail.nic_model,
+    arch: detail.arch,
+    machine_type: detail.machine_type,
+    pcie_root_ports: detail.pcie_root_ports,
+    boot_type: detail.boot_type,
+    firmware_compat: detail.firmware_compat,
+    direct_boot: detail.direct_boot,
+    kvm_hidden: detail.kvm_hidden,
+    vendor_id: detail.vendor_id,
+    nested_virt: detail.nested_virt,
+    video_model: detail.video_model,
+    cpu_topology_mode: detail.cpu_topology_mode,
+    boot_order: detail.boot_order,
+    boot_devices: detail.boot_devices,
+  })
+}
+
 export default function EditVmForm({ vm, live, liveTick, onSaved }: EditVmFormProps) {
   const vmName = vm.name
+  const vmRef = useRef(vm)
+  vmRef.current = vm
   const vmStatus = vm.status
   const role = useUserStore((s) => s.role)
   const isAdmin = role === ROLES.admin
   const options = useVmFormOptions({ isAdmin })
   const form = useVmForm({ isEdit: true, isAdmin, registration: NOOP_REGISTRATION, hostArch: options.hostArch })
+  const formStateRef = useRef(form.form)
+  formStateRef.current = form.form
   const devices = useVmEditDevices(vmName)
 
   const [activeTab, setActiveTab] = useState('basic')
@@ -95,16 +133,20 @@ export default function EditVmForm({ vm, live, liveTick, onSaved }: EditVmFormPr
   const [guestAgentConnected, setGuestAgentConnected] = useState(false)
   /** 最近一次服务端配置签名；资源统计变化不会重置用户正在编辑的字段。 */
   const serverConfigSignatureRef = useRef('')
+  const vmConfigSignatureRef = useRef('')
+  const detailLoadingRef = useRef(false)
 
   // ==================== 详情加载 ====================
   const loadDetail = useCallback(async (silent = false, forceHTTP = false) => {
     if (!vmName) return
+    if (detailLoadingRef.current) return
+    detailLoadingRef.current = true
     if (!silent) setLoading(true)
     try {
       const base = await options.ensureBaseLoaded()
       const detail: Partial<VmDetailInfo> = forceHTTP
         ? (await getVmDetail(vmName)).data || {}
-        : vm
+        : vmRef.current
       // 引导设备（启用优先，按 order 排序）
       let bootDevices: typeof devices.editBootDevices = []
       if (detail.boot_devices && detail.boot_devices.length > 0) {
@@ -114,20 +156,6 @@ export default function EditVmForm({ vm, live, liveTick, onSaved }: EditVmFormPr
           if (a.enabled && b.enabled) return a.order - b.order
           return 0
         })
-      }
-      // 直通设备（仅管理员，异步加载不阻塞快照）
-      let hostDevices: { pci_address: string }[] = []
-      if (isAdmin) {
-        try {
-          const passRes = await getVmPassthroughDevices(vmName)
-          hostDevices = (passRes.data || [])
-            .map((d) => ({ pci_address: d.pci_address }))
-            .sort((a, b) => a.pci_address.localeCompare(b.pci_address))
-          void options.loadPassthroughDevices()
-        } catch {
-          if (serverConfigSignatureRef.current) return
-          hostDevices = []
-        }
       }
       // SPICE 真实状态
       let spiceEnabled = false
@@ -187,9 +215,10 @@ export default function EditVmForm({ vm, live, liveTick, onSaved }: EditVmFormPr
         is_system: disk.is_system,
         serial: disk.serial,
       }))
-      const serverSignature = JSON.stringify({ detail: detailConfig, hostDevices, spiceEnabled, diskConfig })
+      const serverSignature = JSON.stringify({ detail: detailConfig, spiceEnabled, diskConfig })
       if (serverConfigSignatureRef.current === serverSignature) return
       serverConfigSignatureRef.current = serverSignature
+      vmConfigSignatureRef.current = getVmConfigSignature(detail)
 
       // 由默认值 + SSE 详情同步构建完整表单（避免无变化推送覆盖本地输入）
       const initialForm = {
@@ -198,8 +227,13 @@ export default function EditVmForm({ vm, live, liveTick, onSaved }: EditVmFormPr
         vcpu: detail.vcpu || 1,
       }
       const nextForm = buildEditFormState(initialForm, detail)
-      nextForm.host_devices = hostDevices
-      nextForm.host_devices_touched = false
+      // SSE 静默同步不能覆盖用户尚未保存的直通设备选择；首次加载和保存后的强制回读仍以服务端为准。
+      if (silent && formStateRef.current.host_devices_touched) {
+        nextForm.host_devices = formStateRef.current.host_devices
+        nextForm.host_devices_touched = true
+      } else {
+        nextForm.host_devices_touched = false
+      }
       nextForm.spice_enabled = spiceEnabled
       form.replaceForm(nextForm)
       devices.setEditBootDevices(bootDevices)
@@ -219,12 +253,21 @@ export default function EditVmForm({ vm, live, liveTick, onSaved }: EditVmFormPr
       // SSE 后台同步失败时保留上一份可用配置，下一次事件会继续尝试。
     } finally {
       if (!silent) setLoading(false)
+      detailLoadingRef.current = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vmName, vm, vmStatus, isAdmin])
+  }, [vmName, isAdmin])
 
   useEffect(() => {
     if (live) void loadDetail(serverConfigSignatureRef.current !== '')
+  }, [loadDetail, live])
+
+  // SSE 只在虚拟机配置字段确实变化时同步编辑表单；资源统计和状态变化不触发附属接口。
+  useEffect(() => {
+    if (!live || liveTick === 0) return
+    setLoadedStatus(vmRef.current.status)
+    const nextSignature = getVmConfigSignature(vmRef.current)
+    if (vmConfigSignatureRef.current !== nextSignature) void loadDetail(true)
   }, [loadDetail, live, liveTick])
 
   // ==================== 保存 ====================
@@ -292,6 +335,7 @@ export default function EditVmForm({ vm, live, liveTick, onSaved }: EditVmFormPr
           hostCores: options.hostCores,
           spiceSupported: options.spiceSupported,
           registration: NOOP_REGISTRATION,
+          vmName,
           editOrigVcpu: origVcpuRef.current,
           editOrigMemory: origMemoryRef.current,
         },

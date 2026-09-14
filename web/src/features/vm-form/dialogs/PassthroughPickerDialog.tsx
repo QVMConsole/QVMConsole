@@ -22,7 +22,7 @@ export default function PassthroughPickerDialog({ visible, onClose }: Passthroug
     if (!visible) return
     setSelectedKeys([])
     setLoading(true)
-    void options.loadPassthroughDevices().finally(() => setLoading(false))
+    void options.loadPassthroughDevices(true).finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible])
 
