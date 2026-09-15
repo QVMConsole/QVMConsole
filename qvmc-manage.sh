@@ -812,6 +812,45 @@ enable_public_access() {
     press_enter
 }
 
+# ---- 功能 7: 关闭公网访问 ----
+disable_public_access() {
+    echo ""
+    echo -e "${BOLD}========================================${NC}"
+    echo -e "${BOLD}   关闭公网访问${NC}"
+    echo -e "${BOLD}========================================${NC}"
+    echo ""
+
+    if [ "$(id -u)" -ne 0 ]; then
+        echo -e "${RED}错误: 关闭公网访问必须使用 root 运行此脚本${NC}"
+        press_enter
+        return
+    fi
+    if [ "$(current_public_access_enabled)" != "true" ]; then
+        echo -e "${GREEN}公网访问当前已关闭${NC}"
+        press_enter
+        return
+    fi
+
+    echo -e "${YELLOW}关闭后将拒绝所有非局域网来源访问（HTTP 403），该操作会重启面板服务。${NC}"
+    echo ""
+    if ! confirm_action "确认关闭公网访问?"; then
+        return
+    fi
+
+    if ! set_public_access_db false 0; then
+        echo -e "${RED}错误: 更新数据库公网访问状态失败${NC}"
+        press_enter
+        return 1
+    fi
+    env_set "KVM_PUBLIC_ACCESS_ENABLED" "false"
+    KVM_PUBLIC_ACCESS_ENABLED="false"
+    echo -e "${GREEN}✓ 公网访问状态已写入${NC}"
+    if restart_panel_service; then
+        echo -e "${GREEN}✓ 公网访问已关闭并已重启服务${NC}"
+    fi
+    press_enter
+}
+
 # ---- 功能 3: 查看所有用户 ----
 list_users() {
     echo ""
@@ -861,10 +900,11 @@ show_menu() {
     echo -e "  ${BOLD}${GREEN}4${NC}. 修改服务端口 (自动更新 UFW 防火墙规则)"
     echo -e "  ${BOLD}${GREEN}5${NC}. 修改管理员密码 (保留 TOTP/邮箱绑定)"
     echo -e "  ${BOLD}${GREEN}6${NC}. 开启公网访问（检查管理员 2FA，撤销现有管理员 API Key）"
+    echo -e "  ${BOLD}${GREEN}7${NC}. 关闭公网访问（仅允许局域网访问）"
     echo ""
     echo -e "  ${BOLD}${RED}0${NC}. 退出"
     echo ""
-    echo -ne "${CYAN}请输入选项 [0-6]: ${NC}"
+    echo -ne "${CYAN}请输入选项 [0-7]: ${NC}"
 }
 
 # ---- 主流程 ----
@@ -883,6 +923,7 @@ main() {
             4) change_port ;;
             5) change_admin_password ;;
             6) enable_public_access ;;
+            7) disable_public_access ;;
             0)
                 echo ""
                 echo -e "${GREEN}再见!${NC}"
