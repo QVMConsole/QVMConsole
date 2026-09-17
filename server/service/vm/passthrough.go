@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"kvm_console/logger"
+	"kvm_console/service/pci"
 	"kvm_console/service/vm_xml"
 	"kvm_console/utils"
 )
@@ -28,6 +29,7 @@ type PCIDevice struct {
 	ProductID            string `json:"product_id"`             // 产品 ID
 	ProductName          string `json:"product_name"`           // 产品名称
 	ClassName            string `json:"class_name"`             // 设备类别
+	ClassCode            string `json:"class_code"`             // PCI 类别码（如 088000），直通准入判定使用
 	IOMMUGroup           int    `json:"iommu_group"`            // IOMMU 组号
 	DriverInUse          string `json:"driver_in_use"`          // 当前驱动
 	IsVfioBound          bool   `json:"is_vfio_bound"`          // 是否已绑定 vfio-pci
@@ -216,7 +218,8 @@ func scanPCIDevicesForPassthrough() ([]PCIDevice, error) {
 	if fastErr == nil {
 		devices := make([]PCIDevice, 0, len(fastDevices))
 		for _, dev := range fastDevices {
-			if !isPCIDevicePassthroughCapable(dev) {
+			// 可直通标记在 collectPCIDevicesFast 中按统一策略判定（含 IOMMU 组隔离）
+			if !dev.IsPassthroughCapable {
 				continue
 			}
 			if vmName, ok := hostdevMap[dev.PCIAddress]; ok {
@@ -317,20 +320,21 @@ func collectPCIDevicesFast() (map[string]PCIDevice, error) {
 		dev.Slot = parts["slot"]
 		dev.Function = parts["function"]
 		if classCode := readPCIClassCode(address); classCode != "" {
+			dev.ClassCode = pci.NormalizeClassCode(classCode)
 			mappedClass := classCodeToName(classCode)
-			// 关键桥接/芯片组设备保留 lspci 的英文类别，便于现有过滤逻辑精确匹配。
+			// 关键桥接/芯片组设备保留 lspci 的英文类别，便于展示时保持原有可读名称。
 			if isCriticalPCIClass(className) {
 				dev.ClassName = className
 			} else if mappedClass != "未知设备" && !strings.HasPrefix(mappedClass, "PCI 设备(") {
 				dev.ClassName = mappedClass
 			}
 		} else if classID != "" {
+			dev.ClassCode = pci.NormalizeClassCode(classID)
 			dev.ClassName = classCodeToName(classID)
 		}
 		dev.DriverInUse = readPCIDriver(address)
 		dev.IsVfioBound = dev.DriverInUse == "vfio-pci"
 		dev.IOMMUGroup = readPCIIOMMUGroup(address)
-		dev.IsPassthroughCapable = isPCIDevicePassthroughCapable(dev)
 		devices[address] = dev
 	}
 	if err := scanner.Err(); err != nil {
@@ -339,7 +343,44 @@ func collectPCIDevicesFast() (map[string]PCIDevice, error) {
 	if len(devices) == 0 {
 		return nil, fmt.Errorf("lspci 未返回有效 PCI 设备")
 	}
+
+	// IOMMU 组隔离判定需要全量设备信息，因此在设备表构建完成后统一判定可直通性
+	applyPassthroughPolicy(devices)
 	return devices, nil
+}
+
+// applyPassthroughPolicy 按统一准入策略标记每个设备是否可直通，并记录不可直通原因
+func applyPassthroughPolicy(devices map[string]PCIDevice) {
+	ctx := pci.NewContext()
+	groupMembers := make(map[int][]pci.DeviceFacts)
+	for _, dev := range devices {
+		if dev.IOMMUGroup < 0 {
+			continue
+		}
+		groupMembers[dev.IOMMUGroup] = append(groupMembers[dev.IOMMUGroup], toDeviceFacts(dev))
+	}
+
+	for address, dev := range devices {
+		allowed, note := ctx.EvaluateWithGroup(toDeviceFacts(dev), groupMembers[dev.IOMMUGroup])
+		dev.IsPassthroughCapable = allowed
+		dev.CapabilityNote = note
+		devices[address] = dev
+	}
+}
+
+// toDeviceFacts 转换准入策略所需的设备信息
+func toDeviceFacts(dev PCIDevice) pci.DeviceFacts {
+	return pci.DeviceFacts{
+		Address:     dev.PCIAddress,
+		ClassCode:   dev.ClassCode,
+		Driver:      dev.DriverInUse,
+		VendorID:    dev.VendorID,
+		ProductID:   dev.ProductID,
+		VendorName:  dev.VendorName,
+		ProductName: dev.ProductName,
+		VFIOBound:   dev.IsVfioBound,
+		IOMMUGroup:  dev.IOMMUGroup,
+	}
 }
 
 // parseLspciMachineLine 解析 lspci -mm 输出的一行。
@@ -544,6 +585,11 @@ func AttachPCIDeviceToVM(vmName, pciAddress string) error {
 		return err
 	}
 
+	// 设备准入校验：禁止把不可直通的关键设备挂到虚拟机上
+	if err := ensurePCIDevicePassthroughAllowed(pciAddress); err != nil {
+		return err
+	}
+
 	// 验证设备是否已绑定 vfio-pci
 	if !isDeviceVfioBound(pciAddress) {
 		return fmt.Errorf("设备 %s 未绑定到 vfio-pci 驱动，请先绑定", pciAddress)
@@ -606,6 +652,11 @@ func DetachPCIDeviceFromVM(vmName, pciAddress string) error {
 func BindPCIDeviceToVfio(pciAddress string) error {
 	if isDeviceVfioBound(pciAddress) {
 		return fmt.Errorf("设备 %s 已绑定到 vfio-pci", pciAddress)
+	}
+
+	// 设备准入校验：禁止绑定 CPU uncore、桥片、宿主机根盘控制器等关键设备
+	if err := ensurePCIDevicePassthroughAllowed(pciAddress); err != nil {
+		return err
 	}
 
 	iommuGroup := getPCIIOMMUGroup(pciAddress)
@@ -704,6 +755,11 @@ func UnbindPCIDeviceFromVfio(pciAddress string) error {
 
 // ValidatePCIPassthrough 验证 PCI 设备是否可直通
 func ValidatePCIPassthrough(pciAddress string) error {
+	// 设备准入校验：直通列表已过滤，这里再次校验，避免绕过列表直接调用接口
+	if err := ensurePCIDevicePassthroughAllowed(pciAddress); err != nil {
+		return err
+	}
+
 	// 检查 IOMMU 是否启用（多种方式，兼容 Intel/AMD/ARM 不同 sysfs 路径）
 	iommuOk := false
 	// 方法1: Intel IOMMU version 文件
@@ -787,6 +843,7 @@ func getPCIDeviceDetail(name string) (PCIDevice, error) {
 
 	// 解析设备类别
 	dev.ClassName = extractClassFromNodedev(xmlStr)
+	dev.ClassCode = extractClassCodeFromNodedev(xmlStr)
 
 	// 检测当前驱动
 	if dev.PCIAddress != "" {
@@ -901,6 +958,17 @@ func extractClassFromNodedev(xmlStr string) string {
 		if strings.HasPrefix(trimmed, "<class>") {
 			code := extractTagContent(trimmed, "class")
 			return classCodeToName(code)
+		}
+	}
+	return ""
+}
+
+// extractClassCodeFromNodedev 从 nodedev XML 提取归一化后的 PCI 类别码
+func extractClassCodeFromNodedev(xmlStr string) string {
+	for _, line := range strings.Split(xmlStr, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "<class>") {
+			return pci.NormalizeClassCode(extractTagContent(trimmed, "class"))
 		}
 	}
 	return ""
@@ -1035,39 +1103,55 @@ func isDeviceVfioBound(pciAddress string) bool {
 	return strings.TrimSpace(result.Stdout) == "vfio-pci"
 }
 
-// isPCIDevicePassthroughCapable 判断 PCI 设备是否适合直通（非系统关键设备）
+// isPCIDevicePassthroughCapable 判断 PCI 设备是否适合直通（兼容路径按单设备判定，
+// 不含 IOMMU 组隔离判定；主路径由 applyPassthroughPolicy 统一判定）
 func isPCIDevicePassthroughCapable(dev PCIDevice) bool {
-	lowerName := strings.ToLower(dev.ClassName)
-	criticalClasses := []string{
-		"host bridge", "pci bridge",
-		"isa bridge", "smbus", "memory controller",
-		"raid", "raid bus controller",
+	allowed, _ := pci.NewContext().Evaluate(toDeviceFacts(dev))
+	return allowed
+}
+
+// ensurePCIDevicePassthroughAllowed 直通准入二次校验。
+// 直通列表已经过滤过一次，这里再次校验，防止绕过列表直接调用接口把 CPU uncore、
+// 桥片、宿主机根盘所在控制器等关键设备绑定到 vfio-pci。
+func ensurePCIDevicePassthroughAllowed(pciAddress string) error {
+	address := strings.ToLower(strings.TrimSpace(pciAddress))
+	if !pci.ValidateAddress(address) {
+		return fmt.Errorf("PCI 地址 %s 格式不正确", pciAddress)
 	}
 
-	for _, critical := range criticalClasses {
-		if lowerName == critical {
-			return false
+	devices, err := collectPCIDevicesFast()
+	if err != nil {
+		// lspci 不可用时退化为基于 sysfs 的单设备判定
+		facts, readErr := pci.ReadDeviceFacts(address)
+		if readErr != nil {
+			return readErr
 		}
-	}
-
-	// 排除系统关键驱动
-	criticalDrivers := []string{
-		"megaraid_sas", "ahci", "nvme", "xhci_hcd", "ehci-pci",
-		"vmwgfx", // VMware 虚拟显卡（解除绑定会导致系统崩溃）
-		"nvidia", // 物理 NVIDIA 驱动（需要先卸载后再绑定到 vfio-pci）
-	}
-	for _, drv := range criticalDrivers {
-		if strings.ToLower(dev.DriverInUse) == drv {
-			return false
+		if allowed, note := pci.NewContext().Evaluate(facts); !allowed {
+			return passthroughNotAllowedError(facts, note)
 		}
+		return nil
 	}
 
-	// 排除没有分类且无驱动的未知设备
-	if dev.ClassName == "" && dev.DriverInUse == "" && !dev.IsVfioBound {
-		return false
+	dev, ok := devices[address]
+	if !ok {
+		return fmt.Errorf("设备 %s 不存在", address)
 	}
+	if dev.IsPassthroughCapable {
+		return nil
+	}
+	return passthroughNotAllowedError(toDeviceFacts(dev), dev.CapabilityNote)
+}
 
-	return true
+// passthroughNotAllowedError 组织统一的“设备不允许直通”错误信息
+func passthroughNotAllowedError(facts pci.DeviceFacts, note string) error {
+	if strings.TrimSpace(note) == "" {
+		note = "系统关键设备"
+	}
+	name := strings.TrimSpace(strings.Join([]string{facts.VendorName, facts.ProductName}, " "))
+	if name == "" {
+		return fmt.Errorf("设备 %s 不允许直通：%s", facts.Address, note)
+	}
+	return fmt.Errorf("设备 %s（%s）不允许直通：%s", facts.Address, name, note)
 }
 
 // buildHostDevUsageMap 构建设备使用映射（PCI地址 -> VM名称）

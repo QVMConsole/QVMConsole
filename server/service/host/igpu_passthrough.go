@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"kvm_console/service/pci"
 	"kvm_console/utils"
 )
 
@@ -295,20 +296,10 @@ func detectPassthroughDevices() []PassthroughDeviceInfo {
 	return devices
 }
 
-// isVirtualGPU 检查驱动是否为虚拟 GPU 或 BMC 管理显卡（如 virtio-gpu, vmwgfx, ASPEED 等）
+// isVirtualGPU 检查驱动是否为虚拟 GPU 或 BMC 管理显卡（如 virtio-gpu, vmwgfx, ASPEED 等）。
+// 判定表与硬件直通列表共用 pci 包，避免两处结论不一致。
 func isVirtualGPU(driver string) bool {
-	virtualDrivers := []string{
-		"virtio-pci", "vmwgfx", "bochs-drm", "cirrus", "qxl",
-		"ast",     // ASPEED BMC 显卡（服务器管理用）
-		"mgag200", // Matrox G200 BMC 显卡
-		"gma500",  // Intel GMA500（嵌入式低功耗显卡，不适合直通）
-	}
-	for _, vd := range virtualDrivers {
-		if strings.EqualFold(driver, vd) {
-			return true
-		}
-	}
-	return false
+	return pci.IsVirtualOrBMCGPUDriver(driver)
 }
 
 // getPCIDeviceNames 通过 lspci 获取设备可读名称
