@@ -3,8 +3,8 @@ package model
 // SystemSetting 系统设置持久化表（键值对方式存储）
 // 用于在面板重启后保持管理员通过界面修改的系统设置
 type SystemSetting struct {
-	Key   string `gorm:"primaryKey;size:100" json:"key"`   // 设置项的键名
-	Value string `gorm:"type:text" json:"value"`           // 设置项的值
+	Key   string `gorm:"primaryKey;size:100" json:"key"` // 设置项的键名
+	Value string `gorm:"type:text" json:"value"`         // 设置项的值
 }
 
 // GetSetting 获取指定键的设置值

@@ -81,22 +81,22 @@ type TrafficUsageInfo struct {
 
 var (
 	// Cloud / Lightweight VM hooks
-	HookNormalizeCloudType               func(value string) string
-	HookIsLightweightCloudType           func(value string) bool
-	HookIsLightweightCloudUser           func(username string) bool
-	HookIsLightweightCloudVM             func(vmName string) bool
+	HookNormalizeCloudType                 func(value string) string
+	HookIsLightweightCloudType             func(value string) bool
+	HookIsLightweightCloudUser             func(username string) bool
+	HookIsLightweightCloudVM               func(vmName string) bool
 	HookNormalizeLightweightVMQuotaRequest func(req LightweightVMQuotaRequest) LightweightVMQuotaRequest
-	HookDefaultLightweightVMQuota        func(vmName string) LightweightVMQuotaRequest
-	HookFillLightweightVMQuotaRuntime    func(quota *model.LightweightVMQuota) *model.LightweightVMQuota
-	HookListLightweightVMRegistrations   func(username string, includeActive bool) ([]LightweightVMRegistrationView, error)
-	HookUpsertLightweightVMQuota         func(username string, req LightweightVMQuotaRequest) (*model.LightweightVMQuota, error)
-	HookEnsureLightweightVMNetwork       func(username, vmName string) error
-	HookCleanupLightweightVMResources    func(vmName string)
-	HookCleanupVMVPCBinding              func(vmName string)
+	HookDefaultLightweightVMQuota          func(vmName string) LightweightVMQuotaRequest
+	HookFillLightweightVMQuotaRuntime      func(quota *model.LightweightVMQuota) *model.LightweightVMQuota
+	HookListLightweightVMRegistrations     func(username string, includeActive bool) ([]LightweightVMRegistrationView, error)
+	HookUpsertLightweightVMQuota           func(username string, req LightweightVMQuotaRequest) (*model.LightweightVMQuota, error)
+	HookEnsureLightweightVMNetwork         func(username, vmName string) error
+	HookCleanupLightweightVMResources      func(vmName string)
+	HookCleanupVMVPCBinding                func(vmName string)
 
 	// Network / Security hooks
-	HookEnsureDefaultSecurityGroup func(username string) (*model.VPCSecurityGroup, error)
-	HookEnsureDefaultVPCSwitch     func(username string) (*model.VPCSwitch, error)
+	HookEnsureDefaultSecurityGroup  func(username string) (*model.VPCSecurityGroup, error)
+	HookEnsureDefaultVPCSwitch      func(username string) (*model.VPCSwitch, error)
 	HookCleanupUserNetworkResources func(username string, vmNames []string) error
 
 	// VM cache hooks
@@ -109,28 +109,28 @@ var (
 	HookDestroyVM  func(name string) error
 
 	// Storage hooks
-	HookGetStorageMountPoint     func() string
-	HookEnsureStorageFilesystem  func() error
-	HookSetupUserProject         func(username string, dirs []string) error
-	HookGetProjectID             func(username string) (int, error)
-	HookSetUserStorageQuota      func(username string, limitGB int) error
-	HookRemoveUserStorageQuota   func(username string) error
-	HookGetUserStorageUsage      func(username string) (*StorageQuotaInfo, error)
-	HookInferOSFromISO           func(nameLower string) (osType, osVariant string)
-	HookBuildISOInfo             func(filePath, poolName string) ISOFileInfo
-	HookAddShare                 func(vmName, hostPath, tag, securityModel string, readonly bool) error
-	HookRemoveShare              func(vmName, tag string) error
+	HookGetStorageMountPoint    func() string
+	HookEnsureStorageFilesystem func() error
+	HookSetupUserProject        func(username string, dirs []string) error
+	HookGetProjectID            func(username string) (int, error)
+	HookSetUserStorageQuota     func(username string, limitGB int) error
+	HookRemoveUserStorageQuota  func(username string) error
+	HookGetUserStorageUsage     func(username string) (*StorageQuotaInfo, error)
+	HookInferOSFromISO          func(nameLower string) (osType, osVariant string)
+	HookBuildISOInfo            func(filePath, poolName string) ISOFileInfo
+	HookAddShare                func(vmName, hostPath, tag, securityModel string, readonly bool) error
+	HookRemoveShare             func(vmName, tag string) error
 
 	// Network / Traffic / Bandwidth hooks
-	HookGetUserPublicIPUsage        func(username string) int
-	HookGetUserPortForwardUsage     func(username string) int
-	HookGetUserTrafficUsage         func(username string) *TrafficUsageInfo
+	HookGetUserPublicIPUsage         func(username string) int
+	HookGetUserPortForwardUsage      func(username string) int
+	HookGetUserTrafficUsage          func(username string) *TrafficUsageInfo
 	HookCheckTrafficAfterQuotaUpdate func(username string)
-	HookRebalanceUserBandwidth      func(username string) error
+	HookRebalanceUserBandwidth       func(username string) error
 
 	// Maintenance / Email hooks
-	HookIsMaintenanceModeEnabled func() bool
-	HookIsLibvirtUnavailableText func(text string) bool
+	HookIsMaintenanceModeEnabled  func() bool
+	HookIsLibvirtUnavailableText  func(text string) bool
 	HookIsLibvirtUnavailableError func(err error) bool
-	HookSendEmail                func(to, subject, body string) error
+	HookSendEmail                 func(to, subject, body string) error
 )

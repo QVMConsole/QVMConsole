@@ -10,11 +10,11 @@ import (
 func init() {
 	// Lifecycle hooks
 	snapshot.HookEnsureVMNotMigrating = func(vmName, action string) error {
-			if HookEnsureVMNotMigrating != nil {
-				return HookEnsureVMNotMigrating(vmName, action)
-			}
-			return nil
+		if HookEnsureVMNotMigrating != nil {
+			return HookEnsureVMNotMigrating(vmName, action)
 		}
+		return nil
+	}
 	snapshot.HookStartVM = StartVM
 	snapshot.HookShutdownVM = ShutdownVM
 

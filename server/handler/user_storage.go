@@ -438,41 +438,41 @@ func UnmountStorageFromVM(c *gin.Context) {
 
 // SelfCreateVmRequest 用户自助创建VM请求
 type SelfCreateVmRequest struct {
-	Name                 string                            `json:"name" binding:"required"`
-	Remark               string                            `json:"remark"`
-	VCPU                 int                               `json:"vcpu" binding:"required"`
-	MaxVCPU              int                               `json:"max_vcpu"`
-	RAM                  int                               `json:"ram" binding:"required"`
-	DiskSize             int                               `json:"disk_size" binding:"required"`
-	DiskFormat           string                            `json:"disk_format"`
-	DiskBus              string                            `json:"disk_bus"`
-	OSVariant            string                            `json:"os_variant"`
-	ISOPath              string                            `json:"iso_path"`
-	ISOPaths             []string                          `json:"iso_paths"`
-	FloppyImage          string                            `json:"floppy_image"`
-	NicModel             string                            `json:"nic_model"`
-	Autostart            bool                              `json:"autostart"`
-	Freeze               bool                              `json:"freeze"`
-	APIC                 *bool                             `json:"apic"`
-	PAE                  *bool                             `json:"pae"`
-	RTCOffset            string                            `json:"rtc_offset"`
-	RTCStartDate         string                            `json:"rtc_startdate"`
-	GuestAgent           *vm_xml.VMGuestAgentConfig        `json:"guest_agent"`
-	SMBIOS1              *vm_xml.VMSMBIOS1Config           `json:"smbios1"`
-	OSType               string                            `json:"os_type"`
-	MachineType          string                            `json:"machine_type"`
-	BootType             string                            `json:"boot_type"`
-	BootOrder            []string                          `json:"boot_order"`
-	VideoModel           string                            `json:"video_model"`
-	SpiceEnabled         *bool                             `json:"spice_enabled"` // 是否启用 SPICE 显示协议（不传=回退全局默认）
-	CPUTopologyMode      string                            `json:"cpu_topology_mode"`
-	SwitchID             uint                              `json:"switch_id"`
-	SecurityGroupID      uint                              `json:"security_group_id"`
-	AllowedIPv4Addresses string                            `json:"allowed_ipv4_addresses"`
-	AllowedIPv6Addresses string                            `json:"allowed_ipv6_addresses"`
-	ExtraNics            []service.AddVMInterfaceRequest   `json:"extra_nics"`
-	StoragePoolID        string                            `json:"storage_pool_id"`
-	PCIERootPorts        int                               `json:"pcie_root_ports,omitempty"` // q35 预留 pcie-root-port 数量
+	Name                 string                          `json:"name" binding:"required"`
+	Remark               string                          `json:"remark"`
+	VCPU                 int                             `json:"vcpu" binding:"required"`
+	MaxVCPU              int                             `json:"max_vcpu"`
+	RAM                  int                             `json:"ram" binding:"required"`
+	DiskSize             int                             `json:"disk_size" binding:"required"`
+	DiskFormat           string                          `json:"disk_format"`
+	DiskBus              string                          `json:"disk_bus"`
+	OSVariant            string                          `json:"os_variant"`
+	ISOPath              string                          `json:"iso_path"`
+	ISOPaths             []string                        `json:"iso_paths"`
+	FloppyImage          string                          `json:"floppy_image"`
+	NicModel             string                          `json:"nic_model"`
+	Autostart            bool                            `json:"autostart"`
+	Freeze               bool                            `json:"freeze"`
+	APIC                 *bool                           `json:"apic"`
+	PAE                  *bool                           `json:"pae"`
+	RTCOffset            string                          `json:"rtc_offset"`
+	RTCStartDate         string                          `json:"rtc_startdate"`
+	GuestAgent           *vm_xml.VMGuestAgentConfig      `json:"guest_agent"`
+	SMBIOS1              *vm_xml.VMSMBIOS1Config         `json:"smbios1"`
+	OSType               string                          `json:"os_type"`
+	MachineType          string                          `json:"machine_type"`
+	BootType             string                          `json:"boot_type"`
+	BootOrder            []string                        `json:"boot_order"`
+	VideoModel           string                          `json:"video_model"`
+	SpiceEnabled         *bool                           `json:"spice_enabled"` // 是否启用 SPICE 显示协议（不传=回退全局默认）
+	CPUTopologyMode      string                          `json:"cpu_topology_mode"`
+	SwitchID             uint                            `json:"switch_id"`
+	SecurityGroupID      uint                            `json:"security_group_id"`
+	AllowedIPv4Addresses string                          `json:"allowed_ipv4_addresses"`
+	AllowedIPv6Addresses string                          `json:"allowed_ipv6_addresses"`
+	ExtraNics            []service.AddVMInterfaceRequest `json:"extra_nics"`
+	StoragePoolID        string                          `json:"storage_pool_id"`
+	PCIERootPorts        int                             `json:"pcie_root_ports,omitempty"` // q35 预留 pcie-root-port 数量
 	ExtraDisks           []struct {
 		Size          int    `json:"size"`
 		Format        string `json:"format"`

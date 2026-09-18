@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
-	bw "kvm_console/service/bandwidth"
 	"kvm_console/logger"
 	"kvm_console/model"
+	bw "kvm_console/service/bandwidth"
 	"kvm_console/service/network"
 	"kvm_console/service/snapshot"
 )

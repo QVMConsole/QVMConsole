@@ -39,13 +39,13 @@ const HostStorageRoot = "/var/lib/kvm-storage"
 var (
 	HookEnsureVMNotMigrating func(vmName, action string) error
 	HookStartVM              func(name string) error
-	HookShutdownVM          func(name string) error
+	HookShutdownVM           func(name string) error
 )
 
 // ── VM XML hooks ──
 var (
-	HookGetVMInactiveDomainXML  func(name string) (string, error)
-	HookSetVMInactiveDomainXML  func(name, xmlContent string) error
+	HookGetVMInactiveDomainXML func(name string) (string, error)
+	HookSetVMInactiveDomainXML func(name, xmlContent string) error
 )
 
 // ── Runtime state hook ──
@@ -56,16 +56,16 @@ var (
 // ── Disk / validation hooks ──
 var (
 	HookValidateDiskBackingChain func(diskPath string) error
-	HookExtractDomainNVRAMPath  func(xmlContent string) string
-	HookListShares              func(vmName string) ([]ShareBrief, error)
-	HookQemuInfoChain           func(path string) ([]QemuImgInfo, error)
+	HookExtractDomainNVRAMPath   func(xmlContent string) string
+	HookListShares               func(vmName string) ([]ShareBrief, error)
+	HookQemuInfoChain            func(path string) ([]QemuImgInfo, error)
 )
 
 // ── Lightweight cloud hooks ──
 var (
-	HookIsLightweightCloudVM             func(vmName string) bool
-	HookIsLightweightCloudUser           func(username string) bool
-	HookGetLightweightVMQuota            func(vmName string) (*model.LightweightVMQuota, error)
-	HookCheckLightweightVMSnapshotQuota  func(username, vmName string, delta int) error
-	HookGetUserVMList                    func(username string) []string
+	HookIsLightweightCloudVM            func(vmName string) bool
+	HookIsLightweightCloudUser          func(username string) bool
+	HookGetLightweightVMQuota           func(vmName string) (*model.LightweightVMQuota, error)
+	HookCheckLightweightVMSnapshotQuota func(username, vmName string, delta int) error
+	HookGetUserVMList                   func(username string) []string
 )

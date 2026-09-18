@@ -10,10 +10,10 @@ import (
 
 func init() {
 	ip_resolver.SetResolverCallbacks(ip_resolver.VPCCallbacks{
-		GetVPCSwitchForVM:        getVPCSwitchForVM,
-		GetVPCLeaseIPForVM:       GetVPCLeaseIPForVM,
-		GetOVSLeaseIPByMAC:       GetOVSLeaseIPByMAC,
-		GetOVSStaticIPByMAC:      GetOVSStaticIPByMAC,
+		GetVPCSwitchForVM:          getVPCSwitchForVM,
+		GetVPCLeaseIPForVM:         GetVPCLeaseIPForVM,
+		GetOVSLeaseIPByMAC:         GetOVSLeaseIPByMAC,
+		GetOVSStaticIPByMAC:        GetOVSStaticIPByMAC,
 		GetVPCStaticIPByMACAndCIDR: getVPCStaticIPByMACAndCIDR,
 	})
 }

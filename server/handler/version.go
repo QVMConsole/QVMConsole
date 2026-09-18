@@ -38,24 +38,24 @@ func GetPublicSystemInfo(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"code": 200,
 		"data": gin.H{
-			"go_version":    runtime.Version(),
-			"os":            runtime.GOOS,
-			"distro":        getDistroName(),
-			"os_id":         osInfo.ID,
-			"os_id_like":    osInfo.IDLike,
-			"pkg_manager":   pkgMgr,
-			"arch":          arch.GetHostArchDisplayName(),
-			"num_cpu":       runtime.NumCPU(),
-			"hostname":      hostname,
-			"num_goroutine": runtime.NumGoroutine(),
-			"kernel":        getKernelVersion(),
-			"uptime":        getSystemUptime(),
-			"libvirt":       getLibvirtVersion(),
-			"qemu":          getQEMUVersion(),
-			"qemu_spice":    CheckQEMUSPICESupport(),
-			"ovs_package":   ovsDep.PackageName,
-			"ovs_service":   ovsDep.ServiceName,
-			"ovs_installed": ovsDep.Installed,
+			"go_version":          runtime.Version(),
+			"os":                  runtime.GOOS,
+			"distro":              getDistroName(),
+			"os_id":               osInfo.ID,
+			"os_id_like":          osInfo.IDLike,
+			"pkg_manager":         pkgMgr,
+			"arch":                arch.GetHostArchDisplayName(),
+			"num_cpu":             runtime.NumCPU(),
+			"hostname":            hostname,
+			"num_goroutine":       runtime.NumGoroutine(),
+			"kernel":              getKernelVersion(),
+			"uptime":              getSystemUptime(),
+			"libvirt":             getLibvirtVersion(),
+			"qemu":                getQEMUVersion(),
+			"qemu_spice":          CheckQEMUSPICESupport(),
+			"ovs_package":         ovsDep.PackageName,
+			"ovs_service":         ovsDep.ServiceName,
+			"ovs_installed":       ovsDep.Installed,
 			"ovs_install_command": ovsDep.InstallCommand,
 		},
 	})
@@ -132,9 +132,9 @@ func detectPackageManager() string {
 }
 
 type ovsDependencyInfo struct {
-	PackageName   string
-	ServiceName   string
-	Installed     bool
+	PackageName    string
+	ServiceName    string
+	Installed      bool
 	InstallCommand string
 }
 

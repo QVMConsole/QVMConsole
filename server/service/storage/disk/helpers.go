@@ -110,8 +110,8 @@ func ExtractFullDiskXML(domainXML, targetDev string) (string, error) {
 				if found {
 					return strings.Join(diskLines, "\n"), nil
 				}
-					inDisk = false
-					diskLines = nil
+				inDisk = false
+				diskLines = nil
 			}
 		}
 	}

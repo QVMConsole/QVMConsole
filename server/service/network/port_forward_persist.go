@@ -125,10 +125,10 @@ func forwardAcceptSRuleSignature(line string) (string, []string, bool) {
 }
 
 // cleanupOrphanPortForwardRules 清理端口转发侧链孤儿规则（随持久化调用）：
-// - OUTPUT 链：无 PREROUTING 配对（协议|宿主机端口|来源|目标均一致）的 DNAT 残留，
-//   这类残留会让宿主机本地访问旧端口仍被转发到旧目标；
-// - FORWARD 链：无任一转发规则指向（协议|来源|目标IP|端口）的 ACCEPT 放行残留，
-//   残留放行会让内网主机绕过白名单直连 VM 端口。
+//   - OUTPUT 链：无 PREROUTING 配对（协议|宿主机端口|来源|目标均一致）的 DNAT 残留，
+//     这类残留会让宿主机本地访问旧端口仍被转发到旧目标；
+//   - FORWARD 链：无任一转发规则指向（协议|来源|目标IP|端口）的 ACCEPT 放行残留，
+//     残留放行会让内网主机绕过白名单直连 VM 端口。
 func cleanupOrphanPortForwardRules() {
 	fullValid := map[string]bool{}
 	subValid := map[string]bool{}

@@ -230,4 +230,3 @@ func parseInfoInt(output, key string) int {
 	}
 	return 0
 }
-

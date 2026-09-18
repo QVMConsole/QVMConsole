@@ -13,9 +13,9 @@ type UploadSession struct {
 	TotalSize     int64     `gorm:"not null;default:0" json:"total_size"`
 	ChunkSize     int       `gorm:"not null;default:0" json:"chunk_size"`
 	TotalChunks   int       `gorm:"not null;default:0" json:"total_chunks"`
-	FileHash      string    `gorm:"index;size:64;not null;default:''" json:"file_hash"`     // 整文件 MD5（秒传 + 最终校验）
-	ReceivedBmp   string    `gorm:"type:text" json:"received_bmp"`                   // 已收分片位图（big.Int 十六进制文本，bit i = 第 i 片已收）
-	UploadedBytes int64     `gorm:"not null;default:0" json:"uploaded_bytes"`        // 已收字节数（进度）
+	FileHash      string    `gorm:"index;size:64;not null;default:''" json:"file_hash"`       // 整文件 MD5（秒传 + 最终校验）
+	ReceivedBmp   string    `gorm:"type:text" json:"received_bmp"`                            // 已收分片位图（big.Int 十六进制文本，bit i = 第 i 片已收）
+	UploadedBytes int64     `gorm:"not null;default:0" json:"uploaded_bytes"`                 // 已收字节数（进度）
 	Status        string    `gorm:"index;size:16;not null;default:'uploading'" json:"status"` // uploading | completed | canceled
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`

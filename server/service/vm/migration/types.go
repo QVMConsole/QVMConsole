@@ -142,15 +142,15 @@ type MigrationLiveAssessment struct {
 }
 
 type MigrationAdoptRequest struct {
-	VMName                string                       `json:"vm_name"`
-	Owner                 string                       `json:"owner"`
-	CloudType             string                       `json:"cloud_type"`
-	TargetSwitchID        uint                         `json:"target_switch_id"`
-	TargetSecurityGroupID uint                         `json:"target_security_group_id"`
-	User                  MigrationUserSnapshot        `json:"user"`
+	VMName                string                             `json:"vm_name"`
+	Owner                 string                             `json:"owner"`
+	CloudType             string                             `json:"cloud_type"`
+	TargetSwitchID        uint                               `json:"target_switch_id"`
+	TargetSecurityGroupID uint                               `json:"target_security_group_id"`
+	User                  MigrationUserSnapshot              `json:"user"`
 	LightweightQuota      *service.LightweightVMQuotaRequest `json:"lightweight_quota,omitempty"`
-	Credential            *service.VMCredentialInfo    `json:"credential,omitempty"`
-	PortForwards          []MigrationPortForwardMap    `json:"port_forwards"`
+	Credential            *service.VMCredentialInfo          `json:"credential,omitempty"`
+	PortForwards          []MigrationPortForwardMap          `json:"port_forwards"`
 }
 
 type MigrationUserSnapshot struct {

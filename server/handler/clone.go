@@ -27,55 +27,55 @@ func templateVisibilityResponse(c *gin.Context, err error) {
 
 // CloneVmRequest 克隆请求
 type CloneVmRequest struct {
-	Name                 string                            `json:"name" binding:"required"`
-	Remark               string                            `json:"remark"`
-	Template             string                            `json:"template" binding:"required"`
-	TemplateType         string                            `json:"template_type"`
-	CloneMode            string                            `json:"clone_mode"`
-	VCPU                 int                               `json:"vcpu" binding:"required"`
-	RAM                  int                               `json:"ram" binding:"required"`
-	DiskSize             int                               `json:"disk_size"`
-	Hostname             string                            `json:"hostname"`
-	User                 string                            `json:"user"`
-	Password             string                            `json:"password"`
-	Autostart            bool                              `json:"autostart"`
-	Freeze               bool                              `json:"freeze"`
-	APIC                 *bool                             `json:"apic"`
-	PAE                  *bool                             `json:"pae"`
-	RTCOffset            string                            `json:"rtc_offset"`
-	RTCStartDate         string                            `json:"rtc_startdate"`
-	GuestAgent           *vm_xml.VMGuestAgentConfig        `json:"guest_agent"`
-	SMBIOS1              *vm_xml.VMSMBIOS1Config           `json:"smbios1"`
-	UEFI                 *bool                             `json:"uefi"`
-	TemplateRootPass     string                            `json:"template_root_pass"`
-	TemplateUser         string                            `json:"template_user"`
-	DiskBus              string                            `json:"disk_bus"`
-	VideoModel           string                            `json:"video_model"`
-	SpiceEnabled         *bool                             `json:"spice_enabled"` // 是否启用 SPICE 显示协议（不传=回退全局默认）
-	CPUTopologyMode      string                            `json:"cpu_topology_mode"`
-	CPULimitPercent      int                               `json:"cpu_limit_percent"`
-	CPUAffinity          string                            `json:"cpu_affinity"` // CPU 亲和性，如 "0,2,4"
-	FirstBootRebootMode  string                            `json:"first_boot_reboot_mode"`
-	SwitchID             uint                              `json:"switch_id"`
-	SecurityGroupID      uint                              `json:"security_group_id"`
-	AllowedIPv4Addresses string                            `json:"allowed_ipv4_addresses"`
-	AllowedIPv6Addresses string                            `json:"allowed_ipv6_addresses"`
-	ExtraNics            []service.AddVMInterfaceRequest   `json:"extra_nics"`
-	StoragePoolID        string                            `json:"storage_pool_id"`
-	ExtraDisks           []service.ExtraDiskParam          `json:"extra_disks"`
-	HostDevices          []service.HostDeviceParam         `json:"host_devices"` // 硬件直通设备（仅管理员）
-	NicModel             string                            `json:"nic_model"`
-	PreserveFnOSDeviceID bool                              `json:"preserve_fnos_device_id"`
-	FnOSDeviceID         string                            `json:"fnos_device_id"`
-	SystemDiskIOPS       *service.DiskIOPSTune             `json:"system_disk_iops"`          // 系统盘 IOPS 限制（仅管理员）
-	DisableSystemInit    bool                              `json:"disable_system_init"`       // 禁用系统初始化（跳过凭据校验和来宾系统修改）
-	StaticIP             string                            `json:"static_ip"`                 // OpenWrt 静态 IP（CIDR 格式）
-	Gateway              string                            `json:"gateway"`                   // OpenWrt 网关
-	DNS                  string                            `json:"dns"`                       // OpenWrt DNS
-	PCIERootPorts        int                               `json:"pcie_root_ports,omitempty"` // q35 预留 pcie-root-port 数量
-	NestedVirt           *bool                             `json:"nested_virt,omitempty"`     // 嵌套虚拟化开关
-	KVMHidden            *bool                             `json:"kvm_hidden,omitempty"`      // 隐藏 KVM 标志
-	VendorID             string                            `json:"vendor_id,omitempty"`       // Hyper-V vendor_id 伪装
+	Name                 string                          `json:"name" binding:"required"`
+	Remark               string                          `json:"remark"`
+	Template             string                          `json:"template" binding:"required"`
+	TemplateType         string                          `json:"template_type"`
+	CloneMode            string                          `json:"clone_mode"`
+	VCPU                 int                             `json:"vcpu" binding:"required"`
+	RAM                  int                             `json:"ram" binding:"required"`
+	DiskSize             int                             `json:"disk_size"`
+	Hostname             string                          `json:"hostname"`
+	User                 string                          `json:"user"`
+	Password             string                          `json:"password"`
+	Autostart            bool                            `json:"autostart"`
+	Freeze               bool                            `json:"freeze"`
+	APIC                 *bool                           `json:"apic"`
+	PAE                  *bool                           `json:"pae"`
+	RTCOffset            string                          `json:"rtc_offset"`
+	RTCStartDate         string                          `json:"rtc_startdate"`
+	GuestAgent           *vm_xml.VMGuestAgentConfig      `json:"guest_agent"`
+	SMBIOS1              *vm_xml.VMSMBIOS1Config         `json:"smbios1"`
+	UEFI                 *bool                           `json:"uefi"`
+	TemplateRootPass     string                          `json:"template_root_pass"`
+	TemplateUser         string                          `json:"template_user"`
+	DiskBus              string                          `json:"disk_bus"`
+	VideoModel           string                          `json:"video_model"`
+	SpiceEnabled         *bool                           `json:"spice_enabled"` // 是否启用 SPICE 显示协议（不传=回退全局默认）
+	CPUTopologyMode      string                          `json:"cpu_topology_mode"`
+	CPULimitPercent      int                             `json:"cpu_limit_percent"`
+	CPUAffinity          string                          `json:"cpu_affinity"` // CPU 亲和性，如 "0,2,4"
+	FirstBootRebootMode  string                          `json:"first_boot_reboot_mode"`
+	SwitchID             uint                            `json:"switch_id"`
+	SecurityGroupID      uint                            `json:"security_group_id"`
+	AllowedIPv4Addresses string                          `json:"allowed_ipv4_addresses"`
+	AllowedIPv6Addresses string                          `json:"allowed_ipv6_addresses"`
+	ExtraNics            []service.AddVMInterfaceRequest `json:"extra_nics"`
+	StoragePoolID        string                          `json:"storage_pool_id"`
+	ExtraDisks           []service.ExtraDiskParam        `json:"extra_disks"`
+	HostDevices          []service.HostDeviceParam       `json:"host_devices"` // 硬件直通设备（仅管理员）
+	NicModel             string                          `json:"nic_model"`
+	PreserveFnOSDeviceID bool                            `json:"preserve_fnos_device_id"`
+	FnOSDeviceID         string                          `json:"fnos_device_id"`
+	SystemDiskIOPS       *service.DiskIOPSTune           `json:"system_disk_iops"`          // 系统盘 IOPS 限制（仅管理员）
+	DisableSystemInit    bool                            `json:"disable_system_init"`       // 禁用系统初始化（跳过凭据校验和来宾系统修改）
+	StaticIP             string                          `json:"static_ip"`                 // OpenWrt 静态 IP（CIDR 格式）
+	Gateway              string                          `json:"gateway"`                   // OpenWrt 网关
+	DNS                  string                          `json:"dns"`                       // OpenWrt DNS
+	PCIERootPorts        int                             `json:"pcie_root_ports,omitempty"` // q35 预留 pcie-root-port 数量
+	NestedVirt           *bool                           `json:"nested_virt,omitempty"`     // 嵌套虚拟化开关
+	KVMHidden            *bool                           `json:"kvm_hidden,omitempty"`      // 隐藏 KVM 标志
+	VendorID             string                          `json:"vendor_id,omitempty"`       // Hyper-V vendor_id 伪装
 }
 
 // BatchCloneRequest 批量克隆请求

@@ -7,9 +7,9 @@ import (
 var snapshotNameRegexp = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}$`)
 
 const (
-	appArmorManagedBlockBegin     = "# BEGIN kvm_console managed storage access"
-	appArmorManagedBlockEnd       = "# END kvm_console managed storage access"
-	appArmorVirtAAHelperLocalPath = "/etc/apparmor.d/local/usr.lib.libvirt.virt-aa-helper"
+	appArmorManagedBlockBegin       = "# BEGIN kvm_console managed storage access"
+	appArmorManagedBlockEnd         = "# END kvm_console managed storage access"
+	appArmorVirtAAHelperLocalPath   = "/etc/apparmor.d/local/usr.lib.libvirt.virt-aa-helper"
 	appArmorLibvirtQemuStoragePath  = "/etc/apparmor.d/abstractions/libvirt-qemu.d/kvm-console-storage"
 	appArmorVirtAAHelperProfilePath = "/etc/apparmor.d/usr.lib.libvirt.virt-aa-helper"
 )

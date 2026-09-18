@@ -49,9 +49,9 @@ const (
 
 // PublicIPBatchItemResult 批量新增中每条 IP 的处理结果。
 type PublicIPBatchItemResult struct {
-	IP     string           `json:"ip"`
-	Status string           `json:"status"`
-	Reason string           `json:"reason,omitempty"`
+	IP     string          `json:"ip"`
+	Status string          `json:"status"`
+	Reason string          `json:"reason,omitempty"`
 	Row    *model.PublicIP `json:"row,omitempty"`
 }
 
@@ -114,8 +114,8 @@ type PublicIPBatchOpItem struct {
 // PublicIPBatchOpRequest 批量绑定/解绑请求体（前端 → handler）。
 // IDs 用于批量解绑；Items 用于批量绑定（含每条 IP 的绑定参数）。
 type PublicIPBatchOpRequest struct {
-	IDs   []uint                 `json:"ids,omitempty"`
-	Items []PublicIPBatchOpItem  `json:"items,omitempty"`
+	IDs   []uint                `json:"ids,omitempty"`
+	Items []PublicIPBatchOpItem `json:"items,omitempty"`
 }
 
 // PublicIPBatchOpResult 批量绑定/解绑单条处理结果。
@@ -128,10 +128,10 @@ type PublicIPBatchOpResult struct {
 
 // PublicIPBatchOpSummary 批量操作汇总。
 type PublicIPBatchOpSummary struct {
-	Success int                      `json:"success"`
-	Failed  int                      `json:"failed"`
-	Skipped int                      `json:"skipped"`
-	Items   []PublicIPBatchOpResult  `json:"items"`
+	Success int                     `json:"success"`
+	Failed  int                     `json:"failed"`
+	Skipped int                     `json:"skipped"`
+	Items   []PublicIPBatchOpResult `json:"items"`
 }
 
 type PublicIPInfo struct {

@@ -7,8 +7,8 @@ import (
 )
 
 var (
-	vmPAERegex        = regexp.MustCompile(`(?s)\n?\s*<pae\b[^>]*/>`)
-	vmDomainArchRegex = regexp.MustCompile(`<type\b[^>]*\barch=['"]([^'"]+)['"]`)
+	vmPAERegex          = regexp.MustCompile(`(?s)\n?\s*<pae\b[^>]*/>`)
+	vmDomainArchRegex   = regexp.MustCompile(`<type\b[^>]*\barch=['"]([^'"]+)['"]`)
 	vmFeaturesBlockExpr = regexp.MustCompile(`(?s)<features\b[^>]*>.*?</features>`)
 )
 

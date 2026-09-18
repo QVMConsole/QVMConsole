@@ -10,11 +10,11 @@ import (
 // so it exposes function variables that we set here.
 func init() {
 	disk.EnsureNotMigrating = func(vmName, action string) error {
-			if HookEnsureVMNotMigrating != nil {
-				return HookEnsureVMNotMigrating(vmName, action)
-			}
-			return nil
+		if HookEnsureVMNotMigrating != nil {
+			return HookEnsureVMNotMigrating(vmName, action)
 		}
+		return nil
+	}
 	disk.ResolveStorageDir = ResolveVMStorageDir
 	disk.GetStorageMountPointFn = GetStorageMountPoint
 	disk.GetUserDiskDirFn = GetUserDiskDir

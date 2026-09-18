@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"kvm_console/utils"
 	ovspkg "kvm_console/service/ovs"
+	"kvm_console/utils"
 )
 
 func BuildOVSInterfaceXMLForBridge(mac, modelName, bridge string) string {

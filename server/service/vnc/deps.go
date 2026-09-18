@@ -4,6 +4,6 @@ package vnc
 
 var (
 	// VM lifecycle hooks
-	HookStartVM         func(name string) error
-	HookDetectVMOSType  func(templateName, xmlStr string) string
+	HookStartVM        func(name string) error
+	HookDetectVMOSType func(templateName, xmlStr string) string
 )

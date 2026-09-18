@@ -1,8 +1,8 @@
 package service
 
 import (
-	vncpkg "kvm_console/service/vnc"
 	vmpkg "kvm_console/service/vm"
+	vncpkg "kvm_console/service/vnc"
 )
 
 // init wires vnc package hook variables to service root implementations.

@@ -113,7 +113,7 @@ func getSwitchBridgeName(switchID uint) (string, error) {
 // validateBatchVMNamesNotExists 批量校验虚拟机名称是否已被占用
 // prefix: 名称前缀, startNum: 起始编号, count: 批量数量
 func validateBatchVMNamesNotExists(c *gin.Context, prefix string, startNum, count int) bool {
-	for i := startNum; i < startNum + count; i++ {
+	for i := startNum; i < startNum+count; i++ {
 		name := fmt.Sprintf("%s%d", prefix, i)
 		exists, err := service.DomainExistsRPC(name)
 		if err != nil {
