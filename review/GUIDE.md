@@ -293,10 +293,26 @@ bash start-dev.sh
 | 公网开关与代理 | 公网访问开关、`KVM_TRUSTED_PROXIES`、反代/`ufw` 状态 | 公网门禁、会话指纹、限频是否可验证 |
 | 服务地址与启动方式 | 后端监听端口、进程管理方式（air/systemd）、前端端口 | 本次 `BASE_URL` 与热重载等待时间 |
 | 服务日志路径 | `server/log/` 实际目录 | `app.log`、`cmd.log`、`request.log`、`libvirt.log` |
-| 账号状态 | 登录接口返回的 `stage`、`force_password_change` | 是否需要先解除强制改密；是否需要临时账号 |
+| 账号状态 | 登录接口返回的 `stage`、`force_password_change`；管理员凭据见 §4.4.1 | 是否需要先解除强制改密；是否需要临时账号 |
 | 样本资源 | `virsh list --all`、任务列表、既有模板/网络 | VM 归属隔离、任务隔离用例是否可执行 |
 
-参考值（**历史实测，非承诺值，执行前必须复核**）：审查机曾在 `http://192.168.11.33:8080`（后端直连）与 `http://192.168.11.33:5173`（Vite）上运行；无反向代理，`KVM_TRUSTED_PROXIES` 未配置。地址、账号、密码来源、凭据一律以 GUIDE 本次章节或用户当场提供为准，不得硬编码进仓库、报告或脚本。
+参考值（**历史实测，非承诺值，执行前必须复核**）：审查实例运行在 `http://192.168.11.33:8080`（后端直连，`http://127.0.0.1:8080` 同机可用）与 `http://192.168.11.33:5173`（Vite）；无反向代理，`KVM_TRUSTED_PROXIES` 未配置；后端进程工作目录为仓库 `server/`，数据库为 `server/data/kvm_console.db`。
+
+#### 4.4.1 本开发审查实例的管理员凭据（用户 2026-09-19 指定）
+
+- 管理员用户名 **`admin`**，密码 **`admin123`**。该口令即 `server/config/config.go` 中 `KVM_ADMIN_PASS` 的默认值，也是面板自带管理脚本 `qvmc-manage.sh` 功能 1「重置默认管理员密码」的默认口令（脚本第 140 行 `ADMIN_PASS="${KVM_ADMIN_PASS:-admin123}"`）。
+- 需要把口令重置回该值时，优先使用 `qvmc-manage.sh` 功能 1（交互式，需 `sqlite3` CLI）；或在不影响服务的前提下执行其等价 SQL：
+
+```sql
+UPDATE users SET password_hash='<bcrypt cost=10 $2a$ 哈希>', totp_enabled=0, totp_secret_enc='',
+       totp_recovery_codes_enc='', totp_bound_at=NULL, email='', email_verified_at=NULL,
+       updated_at=datetime('now')
+WHERE username='admin' AND deleted_at IS NULL;
+```
+
+- **适用范围仅限本机开发审查实例，禁止用于生产或任何对外环境。** `admin123` 属于典型弱口令，登录时泄露检测会标记 `password_breached=true`（实测 `password_breach_count=1`）；该账户未绑定 TOTP，按 `server/service/security/password_scan.go:197-203` 不会触发强制改密。
+- **首次登录后当次 JWT 会立即失效**：泄露检测对管理员账户首次命中时会刷新 `security_updated_at`，而 `server/middleware/auth.go:274` 以 `IssuedAt < SecurityUpdatedAt` 判定会话失效，接口返回 401「登录状态已失效，请重新登录」。这是预期行为，**重新登录一次**即可正常调用，不得记为缺陷。
+- 除本节明文登记的开发实例口令外，其他凭据一律以用户当场提供为准，不得写入仓库、报告、命令历史或日志。
 
 ### 4.5 常见构建失败及处理
 
@@ -451,7 +467,17 @@ curl -sS -i -H "Authorization: Bearer $USER_JWT" "$BASE_URL/api/security/passwor
 
 ### 6.4 凭据准备（按需，绝不复用历史值）
 
-- 凭据来源：GUIDE 本次章节或用户当场提供；密码通过 `read -s` 交互输入，不写入命令行参数、脚本、仓库或报告。
+- 凭据来源：§4.4.1 明文登记的开发实例口令（`admin` / `admin123`），或用户当场提供；除该登记口令外，其他密码一律通过 `read -s` 交互输入，不写入命令行参数、脚本、仓库或报告。
+- 本开发实例的标准取凭据方式（无需交互输入）：
+
+```bash
+export BASE_URL='http://127.0.0.1:8080'
+export JWT=$(curl -sS -X POST -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"admin123"}' \
+  "$BASE_URL/api/auth/login" | jq -r '.data.token')
+```
+
+- **若上一步之后首次调用业务接口返回 401「登录状态已失效，请重新登录」，属预期行为**（首次登录触发泄露检测刷新 `security_updated_at`，见 §4.4.1），再执行一次上述登录命令取得新 token 即可，不要记为缺陷。
 - 若探测（4.4）显示账户处于 `force_password_change=true`，除 `/api/auth/info`、`PUT /api/auth/password`、`/api/auth/logout`、`/api/public/*` 外所有接口返回 403，此时必须先完成改密再取测试凭据：
 
 ```bash
@@ -558,7 +584,7 @@ curl -N --max-time 15 -H "Authorization: Bearer $JWT" "$BASE_URL/api/task/sse"
 
 ### 9.1 文档修订信息
 
-- 本版修订时间：`2026-09-19T15:23:35+08:00`
+- 本版修订时间：`2026-09-19T15:56:00+08:00`
 - Git 分支：`main`
 - Git HEAD（短）：`5ae09fe`
 - Git HEAD（完整）：`5ae09fed6417a475b57d96de9d38143b594da97e`
@@ -570,7 +596,8 @@ curl -N --max-time 15 -H "Authorization: Bearer $JWT" "$BASE_URL/api/task/sse"
   4. 原第五章固定全量接口测试清单改为第六章「按变更映射的接口验证」，横切边界抽样仅在变更触及中间件/认证/任务队列时执行；
   5. 静态审查清单改为适用性判定驱动，未触及条目一律记「不适用」；
   6. 验收标准与报告要求改为变动审计口径，并明确「非本次变更引入」问题的归属方式；
-  7. 补充第八章报告要求，第九章附录并重新编号（原文档缺「六」）。
+  7. 补充第八章报告要求，第九章附录并重新编号（原文档缺「六」）；
+  8. 按用户 2026-09-19 指示，新增 §4.4.1「本开发审查实例的管理员凭据」（`admin` / `admin123`）、口令重置方式与首次登录 JWT 失效说明，并在 §6.4 同步标准取凭据命令。
 - CHANGELOG：项目根目录未发现项目级 `CHANGELOG*`；依赖目录中的 CHANGELOG 不作为项目变更记录
 - 测试代码：跟踪文件中未发现项目测试源文件，与 `AGENTS.md` 的「本项目没有测试代码」一致
 
