@@ -8,6 +8,10 @@ pnpm-debug.log*
 lerna-debug.log*
 server/data
 
+# 运行时密钥文件（含 KVM_JWT_SECRET/KVM_SECURITY_SECRET/KVM_VM_CREDENTIAL_SECRET 等，禁止提交）
+.env
+server/.env
+
 node_modules
 dist
 dist-ssr

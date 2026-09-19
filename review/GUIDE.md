@@ -183,6 +183,20 @@ bash start-dev.sh
 
 生产安装入口为交互式 `install.sh`，安装服务名为 `kvm-console.service`。安装、更新、兼容性测试会修改宿主机依赖、网络、systemd 与 `/opt/kvm-console`，不得仅为普通代码审查在已有环境直接重跑。
 
+### 2.3.1 本次执行环境已确认的取舍
+
+按用户确认，本次审查环境**保留 `KVM_DEVELOPMENT_MODE=true`**（`server/.env` 未设置 `KVM_JWT_SECRET`，后端由 `air` 热重载启动）。因此以下项目**在本环境中不可验证**，审查报告必须显式标注为「未覆盖/环境受限」，不得写成通过：
+
+| 不可验证项 | 原因（证据位置） |
+| --- | --- |
+| 登录二段验证 `stage=login_verify`（TOTP/邮箱/恢复码） | `IsSecurityVerificationDisabled()` 为真时 `NeedsLoginVerification` 恒为 false；`server/service/security/user.go`、`server/service/security/account.go` |
+| 高风险 428 门禁与 `X-High-Risk-Token` 复验 | 开发模式下 `requireHighRiskVerificationWithOptions` 直接放行；本环境同时未配置 SMTP 且未启用 TOTP，`server/handler/security_helper.go` |
+| 公网访问门禁（非 LAN 403、30 分钟空闲失效） | 开发模式与公网访问互斥，`PublicAccessEnabled=false`；`server/config/config.go` 的 `ValidateSecurity` |
+| 限频、登录锁定、会话指纹、可信代理 | 需要公网/代理拓扑与一次性账号，本次未提供 |
+| 默认 JWT 密钥拒绝启动校验 | 开发模式下仅告警不阻断，`server/config/config.go` |
+
+结论：本次接口测试结果仅可证明**功能连通性与响应结构**，不能作为第 7.1 条「安全控制有效性」的验收依据。凡本表所列能力，一律以静态审查结论为准。
+
 ### 2.4 常见构建失败及处理
 
 | 现象 | 判定与处理 |
@@ -222,19 +236,27 @@ bash start-dev.sh
 - 审查 `web/node_modules/`、`web/dist/`、`release/`、`server/tmp/`、`tmp/` 等依赖、生成物和临时目录；
 - 审查本地忽略的旧版 `web-backup/`。
 
-### 3.2 待补充项
+### 3.2 测试环境参数（已确认，可直接使用）
 
-以下信息未提供，实际接口测试前必须补充，不得猜测：
+本节参数于 2026-09-19 在审查环境实测确认，接口测试前无需再次向用户索取：
 
-- 待补充：专属 Linux 审查机的面板 `BASE_URL`（HTTP/HTTPS、端口、是否经反向代理）；
-- 待补充：审查机启动/重启服务的标准命令及允许的测试时间窗口；
-- 待补充：管理员测试账号与密码的安全交付方式；明文不得写入仓库、审查报告、命令历史或日志；
-- 待补充：普通用户 JWT 测试账号；若要验证弹性云、轻量云差异，应分别提供账号；
-- 待补充：管理员账户的登录二段验证方式（TOTP、恢复码或邮箱）及验证码人工协作方式；
-- 待补充：用于 VM 归属隔离测试的现有只读样本 VM 名称及归属关系；
-- 待补充：反向代理与 `KVM_TRUSTED_PROXIES` 的实际配置，用于公网来源和会话指纹测试；
-- 待补充：高风险测试前用户创建的审查机快照标识、创建时间、恢复负责人和确认语句；
-- 待补充：高风险测试允许触及的具体模块、测试数据名称及回滚时限。
+| 项目 | 实际值 |
+| --- | --- |
+| 面板地址 | `http://192.168.11.33:5173`（Vite dev，`0.0.0.0:5173`） |
+| 接口 `BASE_URL` | `http://192.168.11.33:8080`（后端直连，推荐）；也可用面板地址，Vite 会把 `/api` 代理到 8080 |
+| 反向代理 | 无。无 Nginx/网关，`KVM_TRUSTED_PROXIES` 未配置，`ufw` 状态为 inactive |
+| 服务启动方式 | 后端 `air` 热重载（改动 `*.go` 自动重编译重启，首次全量编译约 60~90 秒）；前端 `vite` 热更新 |
+| 服务日志 | `server/log/app.log`、`cmd.log`、`request.log`、`libvirt.log` |
+| 管理员账号 | 用户名 `admin`；密码为 `KVM_ADMIN_PASS` 的**默认值**（见 `server/config/config.go`），用户尚未修改 |
+| 账户初始状态 | `force_password_change=true`，业务接口全部 403，必须先执行 §5.1 的前置步骤 |
+| 管理员二段验证 | 无（未配置 SMTP、未绑定 TOTP）；开发模式下登录直接返回 `stage=success` |
+| 普通用户账号 | 本环境**不存在**。如需 §5.4 的普通用户隔离项，须先按 §5.1 取得管理员 access JWT，再通过 `POST /api/user` 自行创建测试用户并记录其归属 |
+| 样本 VM | 宿主机当前无任何虚拟机（`virsh list --all` 为空），§5.4 的 VM 归属隔离项**未覆盖** |
+| 高风险测试闸门 | 用户已明确**不进行**高风险写入测试（含 428 链路），§5.6 整体排除 |
+| 允许的测试时间窗口 | 无限制（本机自用开发环境） |
+| 交付约束 | 密码仍不得写入仓库、审查报告、命令历史或日志；新密码不得回退为默认值（`admin123` 在常见弱密码表中，改密后无法恢复原状） |
+
+> 若后续要恢复完整的 §7.1 安全验收能力，需改为 `development_mode=false` 并显式提供 `KVM_JWT_SECRET`（否则 `config.ValidateSecurity` 会直接 `os.Exit(1)`），同时按需配置 SMTP 或 TOTP。
 
 ### 3.3 高风险测试闸门
 
@@ -350,20 +372,84 @@ bash start-dev.sh
 
 ### 5.1 测试约定与凭据
 
-本章在后续专属 Linux 审查机执行，不在本文生成会话执行。
+本章在审查环境（`http://192.168.11.33:8080`，见 §3.2）执行。
 
 ```bash
-export BASE_URL='<待补充，例如 https://review.example.test>'
+export BASE_URL='http://192.168.11.33:8080'
 export JWT='<登录响应 data.token；仅放入当前临时 shell，不写入脚本或仓库>'
 ```
 
 凭据要求：
 
 - 管理员 access JWT：必需；
-- 普通用户 access JWT：待补充，用于角色与资源隔离；
-- 轻量云用户 access JWT：待补充，仅在需要验证云类型边界时使用；
-- login/bootstrap JWT：仅当登录响应进入对应阶段时临时使用；
-- TOTP/邮箱验证码：人工即时输入；恢复码为一次性消耗品，除非用户明确同意，不用于常规审查。
+- 普通用户 access JWT：本环境不存在，按需按下方 §5.1.1 创建；
+- 轻量云用户 access JWT：本次不涉及云类型边界验证；
+- login/bootstrap JWT：本环境为开发模式，登录不会进入 `login_verify` / `bootstrap_security` 阶段；
+- TOTP/邮箱验证码：本环境未启用，不涉及。
+
+#### 5.1.1 前置步骤：解除强制改密，取得可用 access JWT（本环境必做）
+
+默认管理员处于 `force_password_change=true`，此时**除 `/api/auth/info`、`PUT /api/auth/password`、`/api/auth/logout`、`/api/public/*` 外的所有接口均返回 403**（响应体 `{"code":403,"message":"请先修改默认密码后再使用其他功能"}`）。因此 §5.2 之后的只读测试必须先完成本步骤，且该步骤本身就是本次审查的第一条用例。
+
+密码一律通过 `read -s` 交互输入，不写入命令行参数、脚本或仓库。
+
+```bash
+export BASE_URL='http://127.0.0.1:8080'
+export ADMIN_USER='admin'
+read -r -s -p '默认管理员密码: ' ADMIN_PWD; echo
+
+# 1) 默认密码登录：预期 stage=success、force_password_change=true、security.development_mode=true
+#    注意不要把 token 直接打印到终端；下面只回显脱敏后的关键字段
+export LOGIN_RESP=$(curl -sS -X POST -H 'Content-Type: application/json' \
+  -d "{\"username\":\"$ADMIN_USER\",\"password\":\"$ADMIN_PWD\"}" \
+  "$BASE_URL/api/auth/login")
+echo "$LOGIN_RESP" | jq '{stage:.data.stage, force_password_change:.data.force_password_change, development_mode:.data.security.development_mode}'
+export BOOT_JWT=$(echo "$LOGIN_RESP" | jq -r '.data.token')
+unset LOGIN_RESP
+
+# 2) 证实强制改密门禁生效：预期 HTTP 403
+curl -sS -o /dev/null -w 'system-info HTTP %{http_code}\n' \
+  -H "Authorization: Bearer $BOOT_JWT" "$BASE_URL/api/system-info"
+
+# 3) 修改默认密码。新密码要求（前端规则，后端另行审查）：
+#    ≥12 位、仅允许 A-Za-z0-9 与 !@#$%^&*_-+=?、不在常见/泄露密码库中
+read -r -s -p '新密码: ' NEW_PWD; echo
+curl -sS -X PUT -H "Authorization: Bearer $BOOT_JWT" -H 'Content-Type: application/json' \
+  -d "{\"old_password\":\"$ADMIN_PWD\",\"new_password\":\"$NEW_PWD\"}" \
+  "$BASE_URL/api/auth/password" | jq '{code,message}'
+
+# 4) 用新密码重新登录，取得正式 access JWT。
+#    强制改密会刷新 security_updated_at，旧 token 已失效，必须重新登录。
+export JWT=$(curl -sS -X POST -H 'Content-Type: application/json' \
+  -d "{\"username\":\"$ADMIN_USER\",\"password\":\"$NEW_PWD\"}" \
+  "$BASE_URL/api/auth/login" | jq -r '.data.token')
+
+# 5) 验证阻断已解除：预期 HTTP 200
+curl -sS -o /dev/null -w 'system-info HTTP %{http_code}\n' \
+  -H "Authorization: Bearer $JWT" "$BASE_URL/api/system-info"
+
+unset ADMIN_PWD NEW_PWD BOOT_JWT
+```
+
+注意事项：
+
+- 开发模式下 `CanEnterBootstrap` 与 `NeedsLoginVerification` 都被短路，改密后登录直接返回 `stage=success`，**无需**调用 `/api/auth/skip-bootstrap`；
+- 新密码一经设置**无法回退**为默认值，请记录到用户的密码管理器；
+- 若第 3 步返回 `400 该密码已在已知泄露数据库中发现`，说明 HIBP 检测命中，换一个更长的随机口令即可；HIBP API 不可达时后端会退化为本地常见弱密码表校验。
+
+#### 5.1.2 创建普通用户（仅在需要验证角色隔离时）
+
+```bash
+read -r -s -p '普通用户密码: ' USER_PWD; echo
+curl -sS -X POST -H "Authorization: Bearer $JWT" -H 'Content-Type: application/json' \
+  -d "{\"username\":\"reviewuser\",\"password\":\"$USER_PWD\",\"role\":\"user\"}" \
+  "$BASE_URL/api/user" | jq '{code,message}'
+unset USER_PWD
+```
+
+随后用该账号重新执行 §5.1.1 的登录步骤（普通用户无邮箱时不会进入二段验证），取得普通用户 JWT 用于 §5.4 的 403 隔离断言。请求体字段以 `web/src/views/api-docs/generated/endpoints.json` 与 `server/handler/user.go` 为准，禁止臆造。
+
+> 本环境为开发模式，高风险二次验证被跳过，`POST /api/user` 可直接执行。若后续切换为非开发模式，该接口会先返回 428，需按 §5.6 流程完成验证后才能创建用户。
 
 统一通过标准：
 
@@ -394,8 +480,9 @@ curl -sS -i \
   -H 'Content-Type: application/json' \
   --data-binary @- \
   "$BASE_URL/api/auth/login"
-# 随后从标准输入提供：{"username":"<待补充>","password":"<仅运行时输入>"}
+# 随后从标准输入提供：{"username":"admin","password":"<仅运行时输入>"}
 # 输入完成后按 Ctrl+D；不要把真实密码写进命令参数、脚本、仓库或审查报告。
+# 账号与密码来源见 §3.2；若尚未完成 §5.1.1 的前置改密，此处会返回 force_password_change=true。
 ```
 
 预期为以下合法分支之一：
@@ -404,6 +491,8 @@ curl -sS -i \
 - `stage=bootstrap_security`：返回 bootstrap JWT，只能访问安全初始化白名单；
 - `stage=login_verify`：返回 login JWT 和 `allowed_methods`，完成 `/api/auth/login/verify` 后才返回 access JWT；
 - 首次默认密码场景可能返回 `force_password_change=true`，其余业务接口应被强制改密中间件阻断。
+
+> **本环境实际可达分支（开发模式）：** 仅 `stage=success`（完成 §5.1.1 改密前附带 `force_password_change=true`）。`bootstrap_security` 与 `login_verify` 因 `IsSecurityVerificationDisabled()` 短路而**不可达**，其逻辑只能做静态审查（详见 §2.3.1）。
 
 不得为了测试爆破保护连续提交错误密码；登录锁定测试仅可在专用一次性账号和单独批准的窗口内执行。
 
@@ -506,6 +595,12 @@ curl -N --max-time 15 \
 
 ### 5.6 阶段 E：高风险验证与受控写入（必须先通过快照闸门）
 
+> **本次审查整体排除。** 用户已明确不进行高风险写入测试。三重原因叠加使该阶段在本环境**不可能得到有效结论**：
+> ① 开发模式下 `requireHighRiskVerificationWithOptions` 直接放行（`server/handler/security_helper.go`）；
+> ② 未配置 SMTP 且未启用 TOTP 时，同一函数会「无可用验证手段则跳过」；
+> ③ 管理员若走 `/api/auth/skip-bootstrap`，`CanSkipHighRiskVerification` 也会持续跳过（`server/service/security/account.go`）。
+> 因此 `POST /api/security/password-breach/scan` 预期直接返回 **202 而非 428**，这属于环境所致的预期差异，**不得记为缺陷**，审查报告应将其标注为「未覆盖」。以下内容仅保留备用，若后续切换为 `development_mode=false` 并配置 TOTP/SMTP 再启用。
+
 推荐只使用相对受控的密码泄露扫描任务验证完整 428 链路，除非代码变更明确涉及其他高风险模块。
 
 #### 1. 触发验证挑战
@@ -576,6 +671,8 @@ curl -sS -i \
 每项必须使用 `web/src/views/api-docs/generated/endpoints.json`、`endpointDescriptions.ts` 和对应 handler 请求结构确定真实请求体，禁止凭经验臆造字段。执行前后保存只读状态快照；成功后清理临时资源，失败则立即停止同模块后续测试并评估整机快照恢复。
 
 ### 5.7 限频、登录锁定与公网专项（条件满足时）
+
+> **本次审查排除。** 本环境为开发模式、无反向代理、无公网开关启用、无可信代理配置（见 §2.3.1 与 §3.2），这些专项全部不可验证，审查报告统一标注「未覆盖」。此外，禁止为测试登录锁定而连续提交错误密码，以免锁定唯一的管理员账号。
 
 以下测试可能影响同源 IP 或账号，不进入默认冒烟：
 
