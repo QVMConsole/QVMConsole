@@ -2,6 +2,7 @@
 # ============================================================
 # QVMConsole 一键启动脚本
 # 同时启动后端（air 热重载）和前端（vite dev）
+# 启动前检测前后端端口，被占用时直接结束占用进程
 # ============================================================
 
 set -e
@@ -20,16 +21,188 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SERVER_DIR="$SCRIPT_DIR/server"
 WEB_DIR="$SCRIPT_DIR/web"
 
+# 子进程 PID 先置空，退出清理时避免误杀
+BACKEND_PID=""
+FRONTEND_PID=""
+
 info()  { echo -e "${GREEN}[INFO]${NC} $1"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
 error() { echo -e "${RED}[ERROR]${NC} $1"; }
+
+# ==================== 端口配置 ====================
+# 端口不写死，均可用环境变量覆盖：
+#   KVM_PORT            后端端口（与后端配置项 KVM_PORT 保持一致，默认 8080）
+#   KVM_WEB_PORT        前端 dev 端口（默认 5173）
+#   KVM_PORT_KILL       置为 0 时只检测不结束占用进程（默认 1，直接结束）
+#   KVM_PORT_TERM_WAIT  占用进程的优雅退出等待秒数（默认 10，超时后 SIGKILL）
+BACKEND_HOST="0.0.0.0"
+BACKEND_PORT="${KVM_PORT:-8080}"
+FRONTEND_HOST="0.0.0.0"
+FRONTEND_PORT="${KVM_WEB_PORT:-5173}"
+PORT_TERM_WAIT="${KVM_PORT_TERM_WAIT:-10}"
+export KVM_PORT="$BACKEND_PORT"
+
+# 可连带结束的父进程特征：air/vite 等检测到子进程退出会自动重新拉起，需一并结束
+DEV_PROC_PATTERN='(^|/)(air|vite|npm|npx|pnpm|yarn|node|go|kvm-console|esbuild|rollup|start-dev\.sh)( |$)'
+
+# 输出监听指定端口的原始信息（权限不足时可能不含 pid）
+port_raw() {
+    local port="$1"
+    if command -v ss &>/dev/null; then
+        { ss -lptnH "sport = :$port" 2>/dev/null || ss -lptn "sport = :$port" 2>/dev/null; } | grep -v '^State'
+    elif command -v lsof &>/dev/null; then
+        lsof -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null | tail -n +2
+    elif command -v fuser &>/dev/null; then
+        fuser -n tcp "$port" 2>/dev/null | tr -s ' ' '\n' | grep -E '^[0-9]+$' | while read -r pid; do
+            ps -o pid=,args= -p "$pid" 2>/dev/null
+        done
+    fi
+}
+
+# 监听指定端口的进程 PID（去重）
+port_pids() {
+    local port="$1"
+    if command -v ss &>/dev/null; then
+        port_raw "$port" | grep -o 'pid=[0-9]\+' | cut -d= -f2 | sort -u
+    elif command -v lsof &>/dev/null; then
+        lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null | sort -u
+    elif command -v fuser &>/dev/null; then
+        fuser -n tcp "$port" 2>/dev/null | tr -s ' ' '\n' | grep -E '^[0-9]+$' | sort -u
+    fi
+}
+
+# 端口是否处于监听状态
+port_busy() {
+    [ -n "$(port_raw "$1")" ]
+}
+
+# 进程命令行
+proc_args() {
+    local pid="$1"
+    if [ -r "/proc/$pid/cmdline" ]; then
+        tr '\0' ' ' < "/proc/$pid/cmdline"
+    else
+        ps -o args= -p "$pid" 2>/dev/null
+    fi
+}
+
+# 父进程 PID
+proc_ppid() {
+    local pid="$1" ppid=""
+    if [ -r "/proc/$pid/status" ]; then
+        ppid="$(awk '/^PPid:/{print $2}' "/proc/$pid/status" 2>/dev/null)"
+    fi
+    if [ -z "$ppid" ]; then
+        ppid="$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')"
+    fi
+    echo "$ppid"
+}
+
+# 收集需要结束的进程：占用端口的进程 + 由开发工具拉起的父进程链（子进程在前）
+collect_kill_pids() {
+    local port="$1" pid ppid depth
+    for pid in $(port_pids "$port"); do
+        depth=0
+        while [ -n "$pid" ] && [ "$pid" != "1" ] && [ "$pid" != "$$" ] && [ "$pid" != "$PPID" ] && [ "$depth" -lt 4 ]; do
+            echo "$pid"
+            ppid="$(proc_ppid "$pid")"
+            if [ -z "$ppid" ]; then
+                break
+            fi
+            # 只有父进程也是开发工具时才继续向上，避免误杀终端会话
+            if echo "$(proc_args "$ppid")" | grep -qE "$DEV_PROC_PATTERN"; then
+                pid="$ppid"
+                depth=$((depth + 1))
+            else
+                break
+            fi
+        done
+    done | awk '!seen[$0]++'
+}
+
+# 结束单个进程：自身为进程组首进程时整组结束，避免子进程残留继续抢占端口
+kill_one() {
+    local sig="$1" pid="$2" pgid
+    pgid="$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ')"
+    if [ -n "$pgid" ] && [ "$pgid" = "$pid" ] && [ "$pgid" != "$$" ]; then
+        kill -"$sig" -- "-$pgid" 2>/dev/null && return 0
+    fi
+    kill -"$sig" "$pid" 2>/dev/null || true
+}
+
+# 检测端口占用，占用则直接结束占用进程
+kill_port() {
+    local port="$1" name="$2" pid targets waited
+    if ! port_busy "$port"; then
+        info "端口 $port（$name）空闲"
+        return 0
+    fi
+
+    if [ -z "$(port_pids "$port")" ]; then
+        error "端口 $port 已被占用，但当前用户无权查看占用进程，请使用 root 或 sudo 重新运行。"
+        exit 1
+    fi
+
+    # 允许通过 KVM_PORT_KILL=0 关闭自动结束，仅做检测
+    if [ "${KVM_PORT_KILL:-1}" != "1" ]; then
+        error "端口 $port（$name）已被占用，且已设置 KVM_PORT_KILL=0，不自动结束，请手动处理后重试。"
+        exit 1
+    fi
+
+    warn "端口 $port（$name）已被占用，占用进程如下，即将直接结束："
+    for pid in $(collect_kill_pids "$port"); do
+        echo -e "    ${YELLOW}PID $pid${NC}  $(proc_args "$pid")"
+    done
+
+    targets="$(collect_kill_pids "$port")"
+    info "正在结束占用进程..."
+    for pid in $targets; do
+        kill_one TERM "$pid"
+    done
+
+    # 等待优雅退出，超时则强制结束
+    waited=0
+    while [ "$waited" -lt "$PORT_TERM_WAIT" ] && port_busy "$port"; do
+        sleep 1
+        waited=$((waited + 1))
+    done
+
+    if port_busy "$port"; then
+        warn "进程未在 ${PORT_TERM_WAIT}s 内退出，强制结束（SIGKILL）..."
+        for pid in $targets; do
+            kill_one KILL "$pid"
+        done
+        sleep 1
+    fi
+
+    if port_busy "$port"; then
+        error "端口 $port 仍被占用，请手动处理后重试，例如：ss -lptn 'sport = :$port'"
+        exit 1
+    fi
+    info "端口 $port 已释放"
+}
+
+# 启动前统一检查前后端端口
+ensure_ports_free() {
+    info "检查端口占用..."
+    kill_port "$BACKEND_PORT" "后端"
+    kill_port "$FRONTEND_PORT" "前端"
+    if [ "$BACKEND_PORT" != "8080" ]; then
+        warn "后端端口已改为 $BACKEND_PORT，请同步修改 web/vite.config.ts 中的代理地址"
+    fi
+}
 
 # 清理函数：退出时杀掉所有子进程
 cleanup() {
     echo ""
     info "正在停止所有服务..."
-    kill $BACKEND_PID $FRONTEND_PID 2>/dev/null
-    wait $BACKEND_PID $FRONTEND_PID 2>/dev/null
+    if [ -n "$BACKEND_PID" ]; then
+        kill "$BACKEND_PID" 2>/dev/null || true
+    fi
+    if [ -n "$FRONTEND_PID" ]; then
+        kill "$FRONTEND_PID" 2>/dev/null || true
+    fi
+    wait 2>/dev/null || true
     info "服务已停止"
 }
 trap cleanup EXIT INT TERM
@@ -128,6 +301,10 @@ echo -e "${CYAN}║     QVMConsole 开发环境启动中       ║${NC}"
 echo -e "${CYAN}╚══════════════════════════════════════╝${NC}"
 echo ""
 
+# ==================== 端口占用检查 ====================
+# 端口被占用时直接结束占用进程（含 air/vite 等会自动拉起子进程的父进程）
+ensure_ports_free
+
 # ==================== 日志配置 ====================
 # KVM_LOG_DIR          日志存储目录（默认 ./log）
 # KVM_LOG_LEVEL        文件日志最低级别: debug/info/warn/error（默认 info）
@@ -150,19 +327,19 @@ export KVM_LOG_CONSOLE_LEVEL="warn"
 #export KVM_TMPDIR="${KVM_TMPDIR:-}"
 # ====================================================
 
-info "启动后端 (air 热重载)..."
+info "启动后端 (air 热重载, $BACKEND_HOST:$BACKEND_PORT)..."
 cd "$SERVER_DIR" && KVM_DEVELOPMENT_MODE=true air &
 BACKEND_PID=$!
 
 # ==================== 启动前端 ====================
-info "启动前端 (vite dev, 0.0.0.0)..."
-cd "$WEB_DIR" && npx vite --host 0.0.0.0 &
+info "启动前端 (vite dev, $FRONTEND_HOST:$FRONTEND_PORT)..."
+cd "$WEB_DIR" && npx vite --host "$FRONTEND_HOST" --port "$FRONTEND_PORT" --strictPort &
 FRONTEND_PID=$!
 
 echo ""
 info "========================================="
-info "  后端: http://localhost:8080"
-info "  前端: http://0.0.0.0:5173"
+info "  后端: http://localhost:$BACKEND_PORT"
+info "  前端: http://$FRONTEND_HOST:$FRONTEND_PORT"
 info "  按 Ctrl+C 停止所有服务"
 info "========================================="
 echo ""
