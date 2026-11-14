@@ -191,6 +191,9 @@ func fixARM64CDROMBus(vmXML string) string {
 
 // CreateVM 普通方式创建虚拟机（不通过模板）
 func CreateVM(params *CreateVMParams, progressFn func(int, string)) (string, error) {
+	if len(params.HostDevices) > 0 && !params.IsAdmin {
+		return "", fmt.Errorf("仅管理员可配置硬件直通设备")
+	}
 	params.ISOPath, params.ISOPaths = D.NormalizeInstallISOSelection(params.ISOPath, params.ISOPaths)
 	if err := D.ValidateVMName(params.Name); err != nil {
 		return "", err
@@ -586,12 +589,12 @@ func CreateVM(params *CreateVMParams, progressFn func(int, string)) (string, err
 			return "", fmt.Errorf("加载 vfio-pci 模块失败: %w", err)
 		}
 		for _, hd := range params.HostDevices {
-			if err := D.ValidatePCIPassthrough(hd.PCIAddress); err != nil {
+			if err := D.ValidatePCIPassthrough(hd.PCIAddress, hd.UnsafeConfirmed); err != nil {
 				_ = os.Remove(diskPath)
 				return "", fmt.Errorf("设备 %s 直通验证失败: %w", hd.PCIAddress, err)
 			}
 			if !D.IsDeviceVfioBound(hd.PCIAddress) {
-				if err := D.BindPCIDeviceToVfio(hd.PCIAddress); err != nil {
+				if err := D.BindPCIDeviceToVfio(hd.PCIAddress, hd.UnsafeConfirmed); err != nil {
 					_ = os.Remove(diskPath)
 					return "", fmt.Errorf("绑定设备 %s 到 vfio-pci 失败: %w", hd.PCIAddress, err)
 				}

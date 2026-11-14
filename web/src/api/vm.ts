@@ -242,9 +242,10 @@ export interface DirectBootPayload {
   cmdline?: string
 }
 
-/** 直通设备（PCI 地址） */
+/** 直通设备及本次操作的风险确认，不作为设备永久白名单。 */
 export interface HostDevicePayload {
   pci_address: string
+  unsafe_confirmed?: boolean
 }
 
 /** 编辑虚拟机提交载荷（仅发送变化字段，后端逐项应用） */
@@ -1313,11 +1314,16 @@ export interface PassthroughDevice {
   driver_in_use?: string
   is_used_by_vm?: boolean
   used_by_vm_name?: string
+  class_code?: string
+  iommu_group?: number
+  is_passthrough_capable?: boolean
+  capability_note?: string
 }
 
-/** 获取宿主机可直通 PCI 设备列表 */
-export function getPassthroughDevices() {
+/** 获取宿主机 PCI 设备，默认按准入策略过滤，includeAll 返回完整列表。 */
+export function getPassthroughDevices(includeAll = false) {
   return service.get<unknown, ApiResponse<PassthroughDevice[]>>('/host/passthrough', {
+    params: { include_all: includeAll },
     silent: true,
   })
 }
@@ -1331,8 +1337,9 @@ export function getVmPassthroughDevices(name: string) {
 }
 
 /** 绑定 PCI 设备到 vfio-pci 驱动 */
-export function bindPCIDevice(pciAddress: string) {
+export function bindPCIDevice(pciAddress: string, unsafeConfirmed = false) {
   return service.post<unknown, ApiResponse<null>>('/host/passthrough/bind', {
     pci_address: pciAddress,
+    unsafe_confirmed: unsafeConfirmed,
   })
 }

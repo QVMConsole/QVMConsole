@@ -48,11 +48,11 @@ export const fallbackGroupDescription = '未归入以上模块的通用接口。
 
 // 复用的请求体描述
 const vmCreateBody =
-  'JSON: name, remark, vcpu, max_vcpu, ram, disk_size, disk_format, disk_bus, os_variant, iso_path, iso_paths[], floppy_image, nic_model, autostart, freeze, apic, pae, rtc_offset, rtc_startdate, guest_agent{enabled}, smbios1{base64,family,manufacturer,product,serial,sku,uuid,version}, os_type, machine_type, boot_type, watchdog, boot_order[], video_model(virtio/vga/vmvga/cirrus/ramfb/none，none=禁用虚拟显示), spice_enabled(bool,是否启用SPICE显示协议,不传=回退全局默认), cpu_topology_mode(auto/single_socket/host_default), cpu_limit_percent(仅管理员, 0-100), virt_type(kvm/qemu), arch(x86_64/aarch64/riscv64), switch_id, security_group_id, allowed_ipv4_addresses, allowed_ipv6_addresses, storage_pool_id, extra_nics[{switch_id,security_group_id,nic_model,allowed_ipv4_addresses,allowed_ipv6_addresses}], extra_disks[{size,format,bus,storage_pool_id}], host_devices[{pci_address}](仅管理员)'
+  'JSON: name, remark, vcpu, max_vcpu, ram, disk_size, disk_format, disk_bus, os_variant, iso_path, iso_paths[], floppy_image, nic_model, autostart, freeze, apic, pae, rtc_offset, rtc_startdate, guest_agent{enabled}, smbios1{base64,family,manufacturer,product,serial,sku,uuid,version}, os_type, machine_type, boot_type, watchdog, boot_order[], video_model(virtio/vga/vmvga/cirrus/ramfb/none，none=禁用虚拟显示), spice_enabled(bool,是否启用SPICE显示协议,不传=回退全局默认), cpu_topology_mode(auto/single_socket/host_default), cpu_limit_percent(仅管理员, 0-100), virt_type(kvm/qemu), arch(x86_64/aarch64/riscv64), switch_id, security_group_id, allowed_ipv4_addresses, allowed_ipv6_addresses, storage_pool_id, extra_nics[{switch_id,security_group_id,nic_model,allowed_ipv4_addresses,allowed_ipv6_addresses}], extra_disks[{size,format,bus,storage_pool_id}], host_devices[{pci_address,unsafe_confirmed?}](仅管理员，unsafe_confirmed=true表示已确认风险并跳过默认准入策略)'
 const selfVmCreateBody =
   'JSON: name, remark, vcpu, max_vcpu, ram, disk_size, disk_format, disk_bus, os_variant, iso_path, iso_paths[], floppy_image, nic_model, autostart, freeze, apic, pae, rtc_offset, rtc_startdate, guest_agent{enabled}, smbios1{base64,family,manufacturer,product,serial,sku,uuid,version}, os_type, machine_type, boot_type, boot_order[], video_model(virtio/vga/vmvga/cirrus/ramfb/none，none=禁用虚拟显示), spice_enabled(bool,是否启用SPICE显示协议,不传=回退全局默认), cpu_topology_mode(auto/single_socket/host_default), switch_id, security_group_id, allowed_ipv4_addresses, allowed_ipv6_addresses, storage_pool_id, extra_nics[{switch_id,security_group_id,nic_model,allowed_ipv4_addresses,allowed_ipv6_addresses}], extra_disks[{size,format,bus,storage_pool_id}]'
 const cloneBody =
-  'JSON: template/name, new_name/name, remark, vcpu, ram, disk_size, disk_bus, switch_id, security_group_id, allowed_ipv4_addresses, allowed_ipv6_addresses, extra_nics[{switch_id,security_group_id,nic_model,allowed_ipv4_addresses,allowed_ipv6_addresses}], storage_pool_id, extra_disks[{size,format,bus,storage_pool_id}], host_devices[{pci_address}](仅管理员), nic_model, video_model(支持none禁用虚拟显示), spice_enabled(bool,是否启用SPICE显示协议,不传=回退全局默认), cpu_topology_mode, cpu_limit_percent(仅管理员, 0-100), first_boot_reboot_mode(normal/cold), preserve_fnos_device_id/fnos_device_id(FnOS 可选), autostart, freeze, apic, pae, rtc_offset, credentials, kvm_hidden(bool), vendor_id(str), nested_virt(bool,默认true) 等克隆表单字段'
+  'JSON: template/name, new_name/name, remark, vcpu, ram, disk_size, disk_bus, switch_id, security_group_id, allowed_ipv4_addresses, allowed_ipv6_addresses, extra_nics[{switch_id,security_group_id,nic_model,allowed_ipv4_addresses,allowed_ipv6_addresses}], storage_pool_id, extra_disks[{size,format,bus,storage_pool_id}], host_devices[{pci_address,unsafe_confirmed?}](仅管理员，unsafe_confirmed=true表示已确认风险并跳过默认准入策略), nic_model, video_model(支持none禁用虚拟显示), spice_enabled(bool,是否启用SPICE显示协议,不传=回退全局默认), cpu_topology_mode, cpu_limit_percent(仅管理员, 0-100), first_boot_reboot_mode(normal/cold), preserve_fnos_device_id/fnos_device_id(FnOS 可选), autostart, freeze, apic, pae, rtc_offset, credentials, kvm_hidden(bool), vendor_id(str), nested_virt(bool,默认true) 等克隆表单字段'
 const reinstallBody = 'JSON: template, disk_size, hostname, user, password, preserve_fnos_device_id, fnos_device_id'
 const scheduleBody = 'JSON: name, action(start/shutdown/destroy/reboot/delete), cron/execute_at, enabled, timezone, params'
 const portForwardBody =
@@ -423,7 +423,8 @@ export const endpointDescriptions: Record<string, EndpointDescription> = {
   'GET /vm/:name/passthrough': { summary: '获取 VM 已直通的 PCI 设备列表' },
   'POST /vm/:name/passthrough': {
     summary: '为 VM 附加 PCI 直通设备',
-    body: 'JSON: pci_address, primary_display 等直通选项',
+    body: 'JSON: pci_address, unsafe_confirmed（可选，默认 false）',
+    notes: ['仅管理员；需要虚拟机关机且设备已绑定 vfio-pci。unsafe_confirmed=true 跳过默认准入策略，仍检查设备存在性、IOMMU 与其他虚拟机占用。'],
   },
   'DELETE /vm/:name/passthrough': { summary: '从 VM 移除 PCI 直通设备', body: 'JSON: pci_address' },
   'POST /vm/:name/make-independent': {
@@ -970,8 +971,12 @@ export const endpointDescriptions: Record<string, EndpointDescription> = {
   'GET /host/hardware-passthrough/status': { summary: '获取硬件直通环境状态' },
   'POST /host/hardware-passthrough/enable-iommu': { summary: '一键开启 IOMMU', notes: ['写入 grub 并执行 update-grub，需要重启宿主机生效。'] },
   'POST /host/hardware-passthrough/load-vfio': { summary: '一键加载 vfio-pci 模块' },
-  'GET /host/passthrough': { summary: '获取可直通 PCI 设备列表' },
-  'POST /host/passthrough/bind': { summary: '绑定 PCI 设备到 vfio-pci', body: 'JSON: pci_address' },
+  'GET /host/passthrough': {
+    summary: '获取 PCI 直通设备列表',
+    query: ['include_all'],
+    notes: ['include_all 默认 false，仅返回通过准入策略的设备；true 返回全部 PCI 设备及 is_passthrough_capable、capability_note、iommu_group。管理员确认风险后，在绑定/挂载请求或 host_devices 单项中传 unsafe_confirmed=true，可跳过默认准入白名单。'],
+  },
+  'POST /host/passthrough/bind': { summary: '绑定 PCI 设备到 vfio-pci', body: 'JSON: pci_address, unsafe_confirmed（可选，默认 false）', notes: ['仅管理员；unsafe_confirmed=true 表示已确认风险并跳过默认准入策略，仍检查地址、设备存在性、IOMMU 和虚拟机占用。'] },
   'POST /host/passthrough/unbind': { summary: '从 vfio-pci 解绑 PCI 设备', body: 'JSON: pci_address' },
 
   // ==================== 任务与调度 ====================

@@ -79,7 +79,14 @@ export default function PassthroughSection() {
     {
       title: '设备名称',
       dataIndex: 'pci_address',
-      render: (pci: string) => deviceName(pci),
+      render: (pci: string) => (
+        <div style={{ color: 'var(--qvm-text-1)' }}>
+          {deviceName(pci)}
+          {f.host_devices.some((device) => device.pci_address === pci && device.unsafe_confirmed) && (
+            <Tag color="orange" size="small" style={{ marginLeft: 8 }}>已确认风险</Tag>
+          )}
+        </div>
+      ),
     },
     {
       title: '状态',

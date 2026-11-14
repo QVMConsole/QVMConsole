@@ -519,8 +519,8 @@ func SetVMCPUTopologyMode(name, mode string) error {
 
 // ── Passthrough ──
 
-func ListPCIDevicesForPassthrough() ([]PCIDevice, error) {
-	return vmpkg.ListPCIDevicesForPassthrough()
+func ListPCIDevicesForPassthrough(includeAll bool) ([]PCIDevice, error) {
+	return vmpkg.ListPCIDevicesForPassthrough(includeAll)
 }
 
 func WarmupPassthroughDeviceCache() {
@@ -535,24 +535,24 @@ func GetVMPCIDevices(vmName string) ([]PCIDevice, error) {
 	return vmpkg.GetVMPCIDevices(vmName)
 }
 
-func AttachPCIDeviceToVM(vmName, pciAddress string) error {
-	return vmpkg.AttachPCIDeviceToVM(vmName, pciAddress)
+func AttachPCIDeviceToVM(vmName, pciAddress string, unsafeConfirmed bool) error {
+	return vmpkg.AttachPCIDeviceToVM(vmName, pciAddress, unsafeConfirmed)
 }
 
 func DetachPCIDeviceFromVM(vmName, pciAddress string) error {
 	return vmpkg.DetachPCIDeviceFromVM(vmName, pciAddress)
 }
 
-func BindPCIDeviceToVfio(pciAddress string) error {
-	return vmpkg.BindPCIDeviceToVfio(pciAddress)
+func BindPCIDeviceToVfio(pciAddress string, unsafeConfirmed bool) error {
+	return vmpkg.BindPCIDeviceToVfio(pciAddress, unsafeConfirmed)
 }
 
 func UnbindPCIDeviceFromVfio(pciAddress string) error {
 	return vmpkg.UnbindPCIDeviceFromVfio(pciAddress)
 }
 
-func ValidatePCIPassthrough(pciAddress string) error {
-	return vmpkg.ValidatePCIPassthrough(pciAddress)
+func ValidatePCIPassthrough(pciAddress string, unsafeConfirmed bool) error {
+	return vmpkg.ValidatePCIPassthrough(pciAddress, unsafeConfirmed)
 }
 
 func GenerateHostDevXML(pciAddress string) (string, error) {

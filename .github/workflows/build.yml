@@ -1,10 +1,12 @@
 name: 构建 Linux 发行包
 
 on:
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       version:
-        description: '发布版本号 (例如: 1.0.0)'
+        description: '发布版本号 (例如: 1.0.0 或 v1.0.0)'
         required: true
         type: string
       build_platforms:
@@ -21,35 +23,71 @@ on:
         required: false
         type: string
         default: ''
-      artifact_storage:
-        description: '构建产物存储位置'
-        required: true
-        type: choice
-        default: 'github'
-        options:
-          - github
-          - aliyun-oss
       create_release:
-        description: '是否创建 GitHub Release'
+        description: '同时创建或更新 GitHub Release（产物始终上传到文件中继）'
         required: false
         type: boolean
         default: false
 
 permissions:
-  contents: write
+  contents: read
+
+# 中继采用固定路径，避免不同发布同时写入同一个文件。
+concurrency:
+  group: qvmconsole-linux-publish
+  cancel-in-progress: false
 
 jobs:
+  prepare:
+    name: 准备发布参数
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.config.outputs.version }}
+      tag: ${{ steps.config.outputs.tag }}
+      platforms: ${{ steps.config.outputs.platforms }}
+    steps:
+      - name: 解析版本与构建平台
+        id: config
+        shell: bash
+        env:
+          RAW_VERSION: ${{ github.event.release.tag_name || inputs.version }}
+          BUILD_PLATFORMS: ${{ inputs.build_platforms || 'amd64,arm64' }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          version="${RAW_VERSION#v}"
+          if [[ ! "$version" =~ ^[0-9][0-9A-Za-z._+-]*$ ]]; then
+            echo '::error::版本号必须以数字开头，只能包含字母、数字、点、下划线、加号和连字符，可带 v 前缀。'
+            exit 1
+          fi
+          if [[ "$EVENT_NAME" == 'release' ]]; then
+            tag="$RAW_VERSION"
+          else
+            tag="v$version"
+          fi
+          case "$BUILD_PLATFORMS" in
+            amd64,arm64) platforms='["amd64","arm64"]' ;;
+            amd64) platforms='["amd64"]' ;;
+            arm64) platforms='["arm64"]' ;;
+            *) echo '::error::不支持的构建平台。'; exit 1 ;;
+          esac
+          printf 'version=%s\ntag=%s\nplatforms=%s\n' "$version" "$tag" "$platforms" >> "$GITHUB_OUTPUT"
+
   build:
-    name: 构建 Linux amd64
-    if: contains(inputs.build_platforms, 'amd64')
-    runs-on: ubuntu-latest
-
+    name: 构建 Linux ${{ matrix.arch }}
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ${{ fromJSON(needs.prepare.outputs.platforms) }}
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     steps:
-      # ==================== 检出代码 ====================
+      # Release 事件的 github.sha 指向其标签提交，确保构建该版本源码。
       - name: 检出代码
         uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
 
-      # ==================== 设置 Node.js ====================
       - name: 设置 Node.js
         uses: actions/setup-node@v5
         with:
@@ -57,195 +95,92 @@ jobs:
           cache: 'npm'
           cache-dependency-path: web/package-lock.json
 
-      # ==================== 设置 Go ====================
       - name: 设置 Go
         uses: actions/setup-go@v6
         with:
           go-version-file: server/go.mod
           cache-dependency-path: server/go.sum
 
-      # ==================== 安装 zig（兼容旧版 glibc，例如 Kylin V10） ====================
       - name: 安装 zig
+        env:
+          ZIG_ARCH: ${{ matrix.arch == 'arm64' && 'aarch64' || 'x86_64' }}
         run: |
-          curl -fsSL https://ziglang.org/download/0.14.0/zig-linux-x86_64-0.14.0.tar.xz | sudo tar xJ -C /usr/local
-          sudo ln -sf /usr/local/zig-linux-x86_64-0.14.0/zig /usr/local/bin/zig
+          set -euo pipefail
+          curl -fsSL "https://ziglang.org/download/0.14.0/zig-linux-${ZIG_ARCH}-0.14.0.tar.xz" | sudo tar xJ -C /usr/local
+          sudo ln -sf "/usr/local/zig-linux-${ZIG_ARCH}-0.14.0/zig" /usr/local/bin/zig
           zig version
 
-      # ==================== 使用 build.sh 构建 ====================
       - name: 执行构建脚本 (build.sh)
         env:
+          BUILD_VERSION: ${{ needs.prepare.outputs.version }}
           BUILD_VARIANT: ${{ inputs.variant }}
         run: |
-          if [ -n "${BUILD_VARIANT}" ]; then
-            bash build.sh -v "${{ inputs.version }}" --variant "${BUILD_VARIANT}"
+          set -euo pipefail
+          if [ -n "$BUILD_VARIANT" ]; then
+            bash build.sh -v "$BUILD_VERSION" --variant "$BUILD_VARIANT"
           else
-            bash build.sh -v "${{ inputs.version }}"
+            bash build.sh -v "$BUILD_VERSION"
           fi
 
-      # ==================== GitHub Artifacts 上传 ====================
-      - name: 上传构建产物 (GitHub)
-        if: inputs.artifact_storage == 'github'
+      - name: 保存构建产物
         uses: actions/upload-artifact@v5
         with:
-          name: kvm-console-linux-amd64
-          path: release/kvm-console-linux-amd64.tar.gz
+          name: kvm-console-linux-${{ matrix.arch }}
+          path: release/kvm-console-linux-${{ matrix.arch }}.tar.gz
+          if-no-files-found: error
 
-      # ==================== 阿里云 OSS 上传 ====================
-      - name: 安装阿里云 ossutil
-        if: inputs.artifact_storage == 'aliyun-oss'
-        run: |
-          curl https://gosspublic.alicdn.com/ossutil/install.sh | sudo bash
-          ossutil --version
-
-      - name: 配置阿里云 OSS 凭证
-        if: inputs.artifact_storage == 'aliyun-oss'
-        run: |
-          ossutil config \
-            --endpoint ${{ secrets.ALIYUN_OSS_ENDPOINT }} \
-            --access-key-id ${{ secrets.ALIYUN_OSS_ACCESS_KEY_ID }} \
-            --access-key-secret ${{ secrets.ALIYUN_OSS_ACCESS_KEY_SECRET }}
-
-      - name: 上传构建产物到阿里云 OSS
-        if: inputs.artifact_storage == 'aliyun-oss'
-        run: |
-          VERSION="${{ inputs.version }}"
-          BUCKET="${{ secrets.ALIYUN_OSS_BUCKET }}"
-          REPO_NAME="${{ github.event.repository.name }}"
-          OSS_PATH="oss://${BUCKET}/${REPO_NAME}/v${VERSION}"
-
-          echo "======================================"
-          echo "上传目标: ${OSS_PATH}"
-          echo "======================================"
-
-          ossutil cp release/kvm-console-linux-amd64.tar.gz ${OSS_PATH}/kvm-console-linux-amd64.tar.gz -f
-
-          echo "======================================"
-          echo "构建产物已上传至阿里云 OSS"
-          echo "======================================"
-
-          echo "已上传文件列表:"
-          ossutil ls ${OSS_PATH}/
-
-  # ==================== ARM64 架构构建 ====================
-  build-arm64:
-    name: 构建 Linux arm64
-    if: contains(inputs.build_platforms, 'arm64')
-    runs-on: ubuntu-24.04-arm
-
-    steps:
-      # ==================== 检出代码 ====================
-      - name: 检出代码
-        uses: actions/checkout@v5
-
-      # ==================== 设置 Node.js ====================
-      - name: 设置 Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: web/package-lock.json
-
-      # ==================== 设置 Go ====================
-      - name: 设置 Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: server/go.mod
-          cache-dependency-path: server/go.sum
-
-      # ==================== 安装 zig（兼容旧版 glibc，例如 Kylin V10） ====================
-      - name: 安装 zig
-        run: |
-          curl -fsSL https://ziglang.org/download/0.14.0/zig-linux-aarch64-0.14.0.tar.xz | sudo tar xJ -C /usr/local
-          sudo ln -sf /usr/local/zig-linux-aarch64-0.14.0/zig /usr/local/bin/zig
-          zig version
-
-      # ==================== 使用 build.sh 构建 ====================
-      - name: 执行构建脚本 (build.sh)
-        env:
-          BUILD_VARIANT: ${{ inputs.variant }}
-        run: |
-          if [ -n "${BUILD_VARIANT}" ]; then
-            bash build.sh -v "${{ inputs.version }}" --variant "${BUILD_VARIANT}"
-          else
-            bash build.sh -v "${{ inputs.version }}"
-          fi
-
-      # ==================== GitHub Artifacts 上传 ====================
-      - name: 上传构建产物 (GitHub)
-        if: inputs.artifact_storage == 'github'
-        uses: actions/upload-artifact@v5
-        with:
-          name: kvm-console-linux-arm64
-          path: release/kvm-console-linux-arm64.tar.gz
-
-      # ==================== 阿里云 OSS 上传 ====================
-      - name: 安装阿里云 ossutil
-        if: inputs.artifact_storage == 'aliyun-oss'
-        run: |
-          curl https://gosspublic.alicdn.com/ossutil/install.sh | sudo bash
-          ossutil --version
-
-      - name: 配置阿里云 OSS 凭证
-        if: inputs.artifact_storage == 'aliyun-oss'
-        run: |
-          ossutil config \
-            --endpoint ${{ secrets.ALIYUN_OSS_ENDPOINT }} \
-            --access-key-id ${{ secrets.ALIYUN_OSS_ACCESS_KEY_ID }} \
-            --access-key-secret ${{ secrets.ALIYUN_OSS_ACCESS_KEY_SECRET }}
-
-      - name: 上传构建产物到阿里云 OSS
-        if: inputs.artifact_storage == 'aliyun-oss'
-        run: |
-          VERSION="${{ inputs.version }}"
-          BUCKET="${{ secrets.ALIYUN_OSS_BUCKET }}"
-          REPO_NAME="${{ github.event.repository.name }}"
-          OSS_PATH="oss://${BUCKET}/${REPO_NAME}/v${VERSION}"
-
-          echo "======================================"
-          echo "上传目标: ${OSS_PATH}"
-          echo "======================================"
-
-          ossutil cp release/kvm-console-linux-arm64.tar.gz ${OSS_PATH}/kvm-console-linux-arm64.tar.gz -f
-
-          echo "======================================"
-          echo "构建产物已上传至阿里云 OSS"
-          echo "======================================"
-
-          echo "已上传文件列表:"
-          ossutil ls ${OSS_PATH}/
-
-  # ==================== GitHub Release 统一发布 ====================
-  # 独立 job：等待 amd64/arm64 并行构建全部完成，统一下载产物并创建 Release
+  # 两个上传任务独立执行，中继失败不会阻止 GitHub Release 附件上传。
   release:
-    name: 创建 GitHub Release
-    needs: [build, build-arm64]
-    if: always() && !cancelled() && inputs.create_release && inputs.artifact_storage == 'github'
+    name: 上传到 GitHub Release
+    needs: [prepare, build]
+    if: github.event_name == 'release' || inputs.create_release
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: write
     steps:
-      # ==================== 下载 AMD64 产物 ====================
-      - name: 下载 AMD64 产物
-        if: needs.build.result == 'success'
+      - name: 下载所有已构建平台的产物
         uses: actions/download-artifact@v5
         with:
-          name: kvm-console-linux-amd64
+          pattern: kvm-console-linux-*
           path: release-artifacts
+          merge-multiple: true
 
-      # ==================== 下载 ARM64 产物 ====================
-      - name: 下载 ARM64 产物
-        if: needs.build-arm64.result == 'success'
-        uses: actions/download-artifact@v5
-        with:
-          name: kvm-console-linux-arm64
-          path: release-artifacts
-
-      # ==================== 创建 GitHub Release ====================
-      - name: 创建 GitHub Release
+      - name: 上传到已发布的 Release
+        if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ inputs.version }}
-          name: v${{ inputs.version }}
+          tag_name: ${{ needs.prepare.outputs.tag }}
           files: release-artifacts/*.tar.gz
+          fail_on_unmatched_files: true
+
+      - name: 手动创建或更新 Release
+        if: github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ needs.prepare.outputs.tag }}
+          files: release-artifacts/*.tar.gz
+          fail_on_unmatched_files: true
           generate_release_notes: true
-          draft: false
-          prerelease: false
+
+  relay:
+    name: 上传 Linux ${{ matrix.arch }} 到文件中继
+    needs: [prepare, build]
+    permissions:
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ${{ fromJSON(needs.prepare.outputs.platforms) }}
+    uses: yxsj245/Download_Station_CICD/.github/workflows/relay-upload.yml@v1
+    with:
+      artifact-name: kvm-console-linux-${{ matrix.arch }}
+      file: kvm-console-linux-${{ matrix.arch }}.tar.gz
+      logical-path: 开源项目/QVMConsole/Open/kvm-console-linux-${{ matrix.arch }}.tar.gz
+      relay-base: ${{ vars.RELAY_BASE }}
+      poll-timeout: '0'
+    secrets:
+      RELAY_ADMIN_KEY: ${{ secrets.RELAY_ADMIN_KEY }}
+      RELAY_UPLOAD_KEY: ${{ secrets.RELAY_UPLOAD_KEY }}

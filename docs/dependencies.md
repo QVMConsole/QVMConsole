@@ -30,6 +30,18 @@
 
 Windows 来宾使用系统自带 PowerShell 存储命令，无额外来宾软件包；仍需安装并运行 QEMU Guest Agent。
 
+## GitHub Actions 发布依赖
+
+以下依赖仅供 CI 使用，不属于面板安装依赖，无需加入 `install.sh`：
+
+| 依赖 | 用途 | 使用位置 |
+| --- | --- | --- |
+| `yxsj245/Download_Station_CICD/.github/workflows/relay-upload.yml@v1` | 将 amd64 / arm64 发行包登记到固定逻辑路径并分发到文件中继的全部启用渠道，等待终态 | `.github/workflows/build.yml` |
+| Bash、curl、sha256sum（或 shasum）、jq（缺失时回退 Python） | 共享中继上传脚本的运行依赖，由 GitHub 托管 Linux runner 提供；自建 runner 需自行准备 | 共享中继工作流 |
+| actionlint（可选，仅维护时） | 校验发布工作流的 YAML、表达式和任务依赖，不参与正式构建与部署 | `.github/workflows/build.yml` 的静态检查 |
+
+构建仍沿用既有 Node.js、Go、Zig 0.14.0 与 GitHub Artifacts / Release Actions。发布流程已移除 `ossutil` 安装和所有 `ALIYUN_OSS_*` 凭据引用。中继配置和固定上传路径见 [github-build-variant.md](github-build-variant.md)。
+
 ## 说明
 
 - `dmidecode` 已加入 `install.sh` 的 `APT_DEPS`（RPM 系映射同名包）。

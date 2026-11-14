@@ -12,9 +12,26 @@ import (
 
 // ==================== 硬件直通 API ====================
 
-// GetPassthroughDevices 获取可直通的 PCI 设备列表
+// GetPassthroughDevices 获取 PCI 设备列表，include_all 返回完整设备及默认策略风险说明。
 func GetPassthroughDevices(c *gin.Context) {
-	devices, err := service.ListPCIDevicesForPassthrough()
+	var query struct {
+		IncludeAll bool `form:"include_all"`
+	}
+	if err := c.ShouldBindQuery(&query); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "参数错误: include_all 必须为布尔值",
+		})
+		return
+	}
+
+	role, _ := c.Get("role")
+	if query.IncludeAll && role != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": "仅管理员可查看全部直通设备"})
+		return
+	}
+
+	devices, err := service.ListPCIDevicesForPassthrough(query.IncludeAll)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"code":    500,
@@ -60,7 +77,8 @@ func GetVMPassthroughDevices(c *gin.Context) {
 // BindPCIDevice 将 PCI 设备绑定到 vfio-pci 驱动
 func BindPCIDevice(c *gin.Context) {
 	var req struct {
-		PCIAddress string `json:"pci_address" binding:"required"`
+		PCIAddress      string `json:"pci_address" binding:"required"`
+		UnsafeConfirmed bool   `json:"unsafe_confirmed"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -70,7 +88,7 @@ func BindPCIDevice(c *gin.Context) {
 		return
 	}
 
-	if err := service.ValidatePCIPassthrough(req.PCIAddress); err != nil {
+	if err := service.ValidatePCIPassthrough(req.PCIAddress, req.UnsafeConfirmed); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"code":    400,
 			"message": "直通验证失败: " + err.Error(),
@@ -78,7 +96,7 @@ func BindPCIDevice(c *gin.Context) {
 		return
 	}
 
-	if err := service.BindPCIDeviceToVfio(req.PCIAddress); err != nil {
+	if err := service.BindPCIDeviceToVfio(req.PCIAddress, req.UnsafeConfirmed); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"code":    500,
 			"message": "绑定设备失败: " + err.Error(),
@@ -131,7 +149,8 @@ func AttachPCIDeviceToVM(c *gin.Context) {
 	}
 
 	var req struct {
-		PCIAddress string `json:"pci_address" binding:"required"`
+		PCIAddress      string `json:"pci_address" binding:"required"`
+		UnsafeConfirmed bool   `json:"unsafe_confirmed"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -144,15 +163,15 @@ func AttachPCIDeviceToVM(c *gin.Context) {
 	// 检查虚拟机运行状态
 	stateResult := utils.ExecCommand("virsh", "domstate", name)
 	state := strings.TrimSpace(stateResult.Stdout)
-	if state == "running" || state == "paused" {
+	if stateResult.Error != nil || state != "shut off" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"code":    400,
-			"message": "添加硬件直通设备需要先关机",
+			"message": "添加硬件直通设备需要先关机，并确保能够读取关机状态",
 		})
 		return
 	}
 
-	if err := service.AttachPCIDeviceToVM(name, req.PCIAddress); err != nil {
+	if err := service.AttachPCIDeviceToVM(name, req.PCIAddress, req.UnsafeConfirmed); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"code":    500,
 			"message": "添加直通设备失败: " + err.Error(),

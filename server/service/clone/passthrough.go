@@ -19,11 +19,11 @@ func applyCloneHostDevicesToDomainXML(xmlContent string, hostDevices []vmpkg.Hos
 		return "", fmt.Errorf("加载 vfio-pci 模块失败: %w", err)
 	}
 	for _, device := range hostDevices {
-		if err := vmpkg.ValidatePCIPassthrough(device.PCIAddress); err != nil {
+		if err := vmpkg.ValidatePCIPassthrough(device.PCIAddress, device.UnsafeConfirmed); err != nil {
 			return "", fmt.Errorf("设备 %s 直通验证失败: %w", device.PCIAddress, err)
 		}
 		if !vmpkg.IsDeviceVfioBound(device.PCIAddress) {
-			if err := vmpkg.BindPCIDeviceToVfio(device.PCIAddress); err != nil {
+			if err := vmpkg.BindPCIDeviceToVfio(device.PCIAddress, device.UnsafeConfirmed); err != nil {
 				return "", fmt.Errorf("绑定设备 %s 到 vfio-pci 失败: %w", device.PCIAddress, err)
 			}
 		}

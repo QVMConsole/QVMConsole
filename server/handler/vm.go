@@ -851,10 +851,10 @@ func EditVm(c *gin.Context) {
 		}
 		stateResult := utils.ExecCommand("virsh", "domstate", name)
 		state := strings.TrimSpace(stateResult.Stdout)
-		if state == "running" || state == "paused" {
+		if stateResult.Error != nil || state != "shut off" {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"code":    400,
-				"message": "修改硬件直通设备需要先关机",
+				"message": "修改硬件直通设备需要先关机，并确保能够读取关机状态",
 			})
 			return
 		}
@@ -873,7 +873,31 @@ func EditVm(c *gin.Context) {
 			})
 			return
 		}
+		existingAddresses := make(map[string]bool, len(existingDevices))
 		for _, existing := range existingDevices {
+			existingAddresses[existing.PCIAddress] = true
+		}
+		targetAddresses := make(map[string]bool, len(req.HostDevices))
+		for i := range req.HostDevices {
+			hd := &req.HostDevices[i]
+			hd.PCIAddress = strings.ToLower(strings.TrimSpace(hd.PCIAddress))
+			if targetAddresses[hd.PCIAddress] {
+				c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "直通设备重复: " + hd.PCIAddress})
+				return
+			}
+			targetAddresses[hd.PCIAddress] = true
+			if existingAddresses[hd.PCIAddress] {
+				continue
+			}
+			if validateErr := service.ValidatePCIPassthrough(hd.PCIAddress, hd.UnsafeConfirmed); validateErr != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "设备 " + hd.PCIAddress + " 直通验证失败: " + validateErr.Error()})
+				return
+			}
+		}
+		for _, existing := range existingDevices {
+			if targetAddresses[existing.PCIAddress] {
+				continue
+			}
 			if detachErr := service.DetachPCIDeviceFromVM(name, existing.PCIAddress); detachErr != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{
 					"code":    500,
@@ -883,7 +907,10 @@ func EditVm(c *gin.Context) {
 			}
 		}
 		for _, hd := range req.HostDevices {
-			if validateErr := service.ValidatePCIPassthrough(hd.PCIAddress); validateErr != nil {
+			if existingAddresses[hd.PCIAddress] {
+				continue
+			}
+			if validateErr := service.ValidatePCIPassthrough(hd.PCIAddress, hd.UnsafeConfirmed); validateErr != nil {
 				c.JSON(http.StatusBadRequest, gin.H{
 					"code":    400,
 					"message": "设备 " + hd.PCIAddress + " 直通验证失败: " + validateErr.Error(),
@@ -891,7 +918,7 @@ func EditVm(c *gin.Context) {
 				return
 			}
 			if !service.IsDeviceVfioBound(hd.PCIAddress) {
-				if bindErr := service.BindPCIDeviceToVfio(hd.PCIAddress); bindErr != nil {
+				if bindErr := service.BindPCIDeviceToVfio(hd.PCIAddress, hd.UnsafeConfirmed); bindErr != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{
 						"code":    500,
 						"message": "绑定设备 " + hd.PCIAddress + " 到 vfio-pci 失败: " + bindErr.Error(),
@@ -899,7 +926,7 @@ func EditVm(c *gin.Context) {
 					return
 				}
 			}
-			if attachErr := service.AttachPCIDeviceToVM(name, hd.PCIAddress); attachErr != nil {
+			if attachErr := service.AttachPCIDeviceToVM(name, hd.PCIAddress, hd.UnsafeConfirmed); attachErr != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{
 					"code":    500,
 					"message": "添加直通设备 " + hd.PCIAddress + " 失败: " + attachErr.Error(),

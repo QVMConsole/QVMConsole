@@ -93,8 +93,23 @@ func parsePCIAddress(addr string) (domain, bus, slot, function string, err error
 	return domain, bus, slot, function, nil
 }
 
-// ListPCIDevicesForPassthrough 列出所有可直通的 PCI 设备
-func ListPCIDevicesForPassthrough() ([]PCIDevice, error) {
+// ListPCIDevicesForPassthrough 默认仅返回通过准入策略的设备；全量模式保留所有设备及限制原因。
+func ListPCIDevicesForPassthrough(includeAll bool) ([]PCIDevice, error) {
+	devices, err := listPCIDeviceSnapshot()
+	if err != nil || includeAll {
+		return devices, err
+	}
+	filtered := make([]PCIDevice, 0, len(devices))
+	for _, dev := range devices {
+		if dev.IsPassthroughCapable {
+			filtered = append(filtered, dev)
+		}
+	}
+	return filtered, nil
+}
+
+// listPCIDeviceSnapshot 缓存完整扫描快照，在读取时筛选，避免两种模式相互污染或重复扫描。
+func listPCIDeviceSnapshot() ([]PCIDevice, error) {
 	now := time.Now()
 	passthroughCache.Lock()
 	if !passthroughCache.refreshedAt.IsZero() && now.Sub(passthroughCache.refreshedAt) < passthroughDeviceCacheTTL {
@@ -218,10 +233,7 @@ func scanPCIDevicesForPassthrough() ([]PCIDevice, error) {
 	if fastErr == nil {
 		devices := make([]PCIDevice, 0, len(fastDevices))
 		for _, dev := range fastDevices {
-			// 可直通标记在 collectPCIDevicesFast 中按统一策略判定（含 IOMMU 组隔离）
-			if !dev.IsPassthroughCapable {
-				continue
-			}
+			// 缓存保留所有设备，准入标记只影响默认列表，不影响全量展示。
 			if vmName, ok := hostdevMap[dev.PCIAddress]; ok {
 				dev.IsUsedByVM = true
 				dev.UsedByVMName = vmName
@@ -238,7 +250,7 @@ func scanPCIDevicesForPassthrough() ([]PCIDevice, error) {
 		return nil, fmt.Errorf("获取 PCI 设备列表失败: %s（快速扫描失败: %v）", listResult.Stderr, fastErr)
 	}
 
-	var devices []PCIDevice
+	deviceMap := make(map[string]PCIDevice)
 	for _, name := range strings.Split(listResult.Stdout, "\n") {
 		name = strings.TrimSpace(name)
 		if name == "" {
@@ -250,20 +262,18 @@ func scanPCIDevicesForPassthrough() ([]PCIDevice, error) {
 			continue // 跳过无法读取详情的设备
 		}
 
-		// 过滤掉系统关键设备（Host bridge, ISA bridge, PCI bridge, SMBus, SATA, USB 控制器等）
-		if !isPCIDevicePassthroughCapable(dev) {
-			continue
-		}
-
-		// 检查 IOMMU 组
 		dev.IOMMUGroup = getPCIIOMMUGroup(dev.PCIAddress)
+		deviceMap[dev.PCIAddress] = dev
+	}
 
-		// 检查是否已被虚拟机使用
+	// 兼容路径同样保留全量快照，并统一补齐 IOMMU 组判定与限制原因。
+	applyPassthroughPolicy(deviceMap)
+	devices := make([]PCIDevice, 0, len(deviceMap))
+	for _, dev := range deviceMap {
 		if vmName, ok := hostdevMap[dev.PCIAddress]; ok {
 			dev.IsUsedByVM = true
 			dev.UsedByVMName = vmName
 		}
-
 		devices = append(devices, dev)
 	}
 	sort.Slice(devices, func(i, j int) bool { return devices[i].PCIAddress < devices[j].PCIAddress })
@@ -579,15 +589,21 @@ func GetVMPCIDevices(vmName string) ([]PCIDevice, error) {
 }
 
 // AttachPCIDeviceToVM 将 PCI 设备直通到虚拟机
-func AttachPCIDeviceToVM(vmName, pciAddress string) error {
+func AttachPCIDeviceToVM(vmName, pciAddress string, unsafeConfirmed bool) error {
+	pciAddress = strings.ToLower(strings.TrimSpace(pciAddress))
 	domain, bus, slot, function, err := parsePCIAddress(pciAddress)
 	if err != nil {
 		return err
 	}
 
-	// 设备准入校验：禁止把不可直通的关键设备挂到虚拟机上
-	if err := ensurePCIDevicePassthroughAllowed(pciAddress); err != nil {
+	if err := ensurePCIDevicePassthroughAllowed(pciAddress, unsafeConfirmed); err != nil {
 		return err
+	}
+	if err := ensurePCIDeviceNotAssigned(pciAddress, vmName); err != nil {
+		return err
+	}
+	if getPCIIOMMUGroup(pciAddress) < 0 {
+		return fmt.Errorf("无法确定设备 %s 的 IOMMU 组，请确认 IOMMU 已启用", pciAddress)
 	}
 
 	// 验证设备是否已绑定 vfio-pci
@@ -649,14 +665,16 @@ func DetachPCIDeviceFromVM(vmName, pciAddress string) error {
 }
 
 // BindPCIDeviceToVfio 将 PCI 设备绑定到 vfio-pci 驱动
-func BindPCIDeviceToVfio(pciAddress string) error {
+func BindPCIDeviceToVfio(pciAddress string, unsafeConfirmed bool) error {
+	pciAddress = strings.ToLower(strings.TrimSpace(pciAddress))
+	if err := ensurePCIDevicePassthroughAllowed(pciAddress, unsafeConfirmed); err != nil {
+		return err
+	}
+	if err := ensurePCIDeviceNotAssigned(pciAddress, ""); err != nil {
+		return err
+	}
 	if isDeviceVfioBound(pciAddress) {
 		return fmt.Errorf("设备 %s 已绑定到 vfio-pci", pciAddress)
-	}
-
-	// 设备准入校验：禁止绑定 CPU uncore、桥片、宿主机根盘控制器等关键设备
-	if err := ensurePCIDevicePassthroughAllowed(pciAddress); err != nil {
-		return err
 	}
 
 	iommuGroup := getPCIIOMMUGroup(pciAddress)
@@ -664,12 +682,11 @@ func BindPCIDeviceToVfio(pciAddress string) error {
 		return fmt.Errorf("无法确定设备 %s 的 IOMMU 组，请确认 IOMMU 已启用", pciAddress)
 	}
 
-	// 安全检查：仅当显示设备是宿主机的活动帧缓冲控制台时才拒绝绑定
-	// 若存在多个 VGA 设备（如 BMC 显卡 + 核显），允许直通非控制台使用的 GPU
+	// 默认阻止活动控制台直通；管理员明确确认风险时，连同准入策略一起跳过。
 	classResult := utils.ExecShell(fmt.Sprintf(
 		"cat /sys/bus/pci/devices/%s/class 2>/dev/null", pciAddress))
 	classCode := strings.TrimPrefix(strings.TrimSpace(classResult.Stdout), "0x")
-	if strings.HasPrefix(classCode, "03") {
+	if !unsafeConfirmed && strings.HasPrefix(classCode, "03") {
 		if isDeviceActiveFramebuffer(pciAddress) {
 			return fmt.Errorf("设备 %s 是当前宿主机活动的帧缓冲控制台，直通会导致显示崩溃，已拒绝操作", pciAddress)
 		}
@@ -754,10 +771,16 @@ func UnbindPCIDeviceFromVfio(pciAddress string) error {
 }
 
 // ValidatePCIPassthrough 验证 PCI 设备是否可直通
-func ValidatePCIPassthrough(pciAddress string) error {
-	// 设备准入校验：直通列表已过滤，这里再次校验，避免绕过列表直接调用接口
-	if err := ensurePCIDevicePassthroughAllowed(pciAddress); err != nil {
+func ValidatePCIPassthrough(pciAddress string, unsafeConfirmed bool) error {
+	pciAddress = strings.ToLower(strings.TrimSpace(pciAddress))
+	if err := ensurePCIDevicePassthroughAllowed(pciAddress, unsafeConfirmed); err != nil {
 		return err
+	}
+	if err := ensurePCIDeviceNotAssigned(pciAddress, ""); err != nil {
+		return err
+	}
+	if getPCIIOMMUGroup(pciAddress) < 0 {
+		return fmt.Errorf("无法确定设备 %s 的 IOMMU 组，请确认 IOMMU 已启用", pciAddress)
 	}
 
 	// 检查 IOMMU 是否启用（多种方式，兼容 Intel/AMD/ARM 不同 sysfs 路径）
@@ -1110,13 +1133,21 @@ func isPCIDevicePassthroughCapable(dev PCIDevice) bool {
 	return allowed
 }
 
-// ensurePCIDevicePassthroughAllowed 直通准入二次校验。
-// 直通列表已经过滤过一次，这里再次校验，防止绕过列表直接调用接口把 CPU uncore、
-// 桥片、宿主机根盘所在控制器等关键设备绑定到 vfio-pci。
-func ensurePCIDevicePassthroughAllowed(pciAddress string) error {
+// ensurePCIDevicePassthroughAllowed 默认执行准入策略；确认风险时仅校验地址与设备存在性。
+// unsafeConfirmed 由管理员操作入口传入，不保存为全局设置或设备永久白名单。
+func ensurePCIDevicePassthroughAllowed(pciAddress string, unsafeConfirmed bool) error {
 	address := strings.ToLower(strings.TrimSpace(pciAddress))
 	if !pci.ValidateAddress(address) {
 		return fmt.Errorf("PCI 地址 %s 格式不正确", pciAddress)
+	}
+	if unsafeConfirmed {
+		facts, err := pci.ReadDeviceFacts(address)
+		if err != nil {
+			return err
+		}
+		logger.App.Warn("管理员已确认硬件直通风险，本次跳过设备准入策略",
+			"pci_address", address, "class_code", facts.ClassCode, "driver", facts.Driver)
+		return nil
 	}
 
 	devices, err := collectPCIDevicesFast()
@@ -1154,14 +1185,32 @@ func passthroughNotAllowedError(facts pci.DeviceFacts, note string) error {
 	return fmt.Errorf("设备 %s（%s）不允许直通：%s", facts.Address, name, note)
 }
 
-// buildHostDevUsageMap 构建设备使用映射（PCI地址 -> VM名称）
+// buildHostDevUsageMap 列表展示允许降级；实际操作使用严格读取，失败时禁止继续。
 func buildHostDevUsageMap() map[string]string {
-	usageMap := make(map[string]string)
+	usageMap, err := readHostDevUsageMap()
+	if err != nil {
+		logger.App.Warn("读取 PCI 设备占用状态失败", "error", err)
+	}
+	return usageMap
+}
 
-	// 获取所有虚拟机
+func ensurePCIDeviceNotAssigned(pciAddress, targetVM string) error {
+	usageMap, err := readHostDevUsageMap()
+	if err != nil {
+		return err
+	}
+	if vmName, used := usageMap[pciAddress]; used && vmName != targetVM {
+		return fmt.Errorf("设备 %s 已分配给虚拟机 %s，请先移除原有配置", pciAddress, vmName)
+	}
+	return nil
+}
+
+// readHostDevUsageMap 从当前 libvirt 配置读取占用状态，不使用扫描缓存决定能否修改设备。
+func readHostDevUsageMap() (map[string]string, error) {
+	usageMap := make(map[string]string)
 	listResult := utils.ExecCommand("virsh", "list", "--all", "--name")
 	if listResult.Error != nil {
-		return usageMap
+		return usageMap, fmt.Errorf("读取虚拟机设备占用状态失败: %s", listResult.Stderr)
 	}
 
 	for _, vmName := range strings.Split(listResult.Stdout, "\n") {
@@ -1172,7 +1221,7 @@ func buildHostDevUsageMap() map[string]string {
 
 		xmlResult := utils.ExecCommand("virsh", "dumpxml", vmName, "--inactive")
 		if xmlResult.Error != nil {
-			continue
+			return usageMap, fmt.Errorf("读取虚拟机 %s 的设备占用状态失败: %s", vmName, xmlResult.Stderr)
 		}
 
 		// 解析 hostdev 中的 PCI 地址
@@ -1225,7 +1274,7 @@ func buildHostDevUsageMap() map[string]string {
 		}
 	}
 
-	return usageMap
+	return usageMap, nil
 }
 
 // GenerateHostDevXML 生成 hostdev XML 片段

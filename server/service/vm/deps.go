@@ -147,9 +147,9 @@ type Deps struct {
 
 	// ---- Passthrough ----
 	EnsureVfioModuleLoaded   func() error
-	ValidatePCIPassthrough   func(pciAddress string) error
+	ValidatePCIPassthrough   func(pciAddress string, unsafeConfirmed bool) error
 	IsDeviceVfioBound        func(pciAddress string) bool
-	BindPCIDeviceToVfio      func(pciAddress string) error
+	BindPCIDeviceToVfio      func(pciAddress string, unsafeConfirmed bool) error
 	ApplyHostDevsToDomainXML func(xmlContent string, hostDevs []HostDeviceParam) (string, error)
 
 	// ---- VM Name ----
@@ -255,7 +255,8 @@ type PublicIPAttachment struct {
 
 // HostDeviceParam mirrors the passthrough device parameter type.
 type HostDeviceParam struct {
-	PCIAddress string `json:"pci_address"`
+	PCIAddress      string `json:"pci_address"`
+	UnsafeConfirmed bool   `json:"unsafe_confirmed,omitempty"` // 管理员确认风险后，仅本次设备操作跳过准入策略
 }
 
 // WaitForVMShutOff waits for a VM to reach "shut off" state within the given timeout.
