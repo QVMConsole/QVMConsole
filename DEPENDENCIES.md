@@ -6,7 +6,7 @@
 
 | 依赖 | 最低版本 | 用途 |
 |------|---------|------|
-| Go | 1.22+ | 后端开发语言 |
+| Go | 1.26.10+ | 后端开发语言（以 `server/go.mod` 为准） |
 | Node.js | 22.22+ | 前端构建工具链（React Router 8 要求） |
 | npm | 9+ | 前端包管理 |
 | air | 1.61.7 | Go 热重载开发工具 |
@@ -72,8 +72,8 @@ sudo apt update
 sudo apt install golang-go
 
 # 或手动安装（推荐，获取最新版本）
-wget https://go.dev/dl/go1.23.linux-amd64.tar.gz
-sudo tar -C /usr/local -xzf go1.23.linux-amd64.tar.gz
+wget https://go.dev/dl/go1.26.10.linux-amd64.tar.gz
+sudo tar -C /usr/local -xzf go1.26.10.linux-amd64.tar.gz
 echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
 source ~/.bashrc
 ```
@@ -124,8 +124,8 @@ go mod download
 sudo dnf install -y golang
 
 # 或手动安装（推荐，获取最新版本）
-wget https://go.dev/dl/go1.23.linux-amd64.tar.gz
-sudo tar -C /usr/local -xzf go1.23.linux-amd64.tar.gz
+wget https://go.dev/dl/go1.26.10.linux-amd64.tar.gz
+sudo tar -C /usr/local -xzf go1.26.10.linux-amd64.tar.gz
 echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
 source ~/.bashrc
 ```
@@ -269,7 +269,7 @@ bash build.sh --compat-glibc 2.17	将兼容版 GLIBC 上限设置为 2.17
 全部安装完成后，执行以下命令确认环境：
 
 ```bash
-go version          # 应显示 go1.22+
+go version          # 应显示 go1.26.10 或更高版本
 node --version      # 应显示 v22.22+
 npm --version       # 应显示 9+
 air -v              # 应显示 air v1.61.7
