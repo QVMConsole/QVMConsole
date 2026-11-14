@@ -6,6 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"kvm_console/logger"
 	"kvm_console/utils"
 )
 
@@ -24,12 +25,13 @@ const (
 )
 
 func readVMConfigMetadata(name string) (*vmConfigMetadata, error) {
-	result := utils.ExecCommand("virsh", "metadata", name, vmConfigMetadataURI, "--config")
+	result := utils.ExecCommandQuiet("virsh", "metadata", name, vmConfigMetadataURI, "--config")
 	if result.Error != nil {
 		errText := strings.ToLower(strings.TrimSpace(result.Stderr + "\n" + result.Stdout))
 		if strings.Contains(errText, "metadata not found") || strings.Contains(errText, "no metadata") {
 			return &vmConfigMetadata{}, nil
 		}
+		logger.CMD.Error("读取虚拟机配置元数据失败", "vm", name, "error", result.Error, "stderr", result.Stderr)
 		return nil, fmt.Errorf("读取虚拟机配置元数据失败: %s", strings.TrimSpace(result.Stderr))
 	}
 
@@ -110,12 +112,13 @@ func normalizeVMTags(tags []string) ([]string, error) {
 }
 
 func removeVMConfigMetadata(name string) error {
-	result := utils.ExecCommand("virsh", "metadata", name, vmConfigMetadataURI, "--config", "--remove")
+	result := utils.ExecCommandQuiet("virsh", "metadata", name, vmConfigMetadataURI, "--config", "--remove")
 	if result.Error != nil {
 		errText := strings.ToLower(strings.TrimSpace(result.Stderr + "\n" + result.Stdout))
 		if strings.Contains(errText, "metadata not found") || strings.Contains(errText, "no metadata") {
 			return nil
 		}
+		logger.CMD.Error("删除虚拟机配置元数据失败", "vm", name, "error", result.Error, "stderr", result.Stderr)
 		return fmt.Errorf("删除虚拟机配置元数据失败: %s", strings.TrimSpace(result.Stderr))
 	}
 	return nil
